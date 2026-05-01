@@ -1,0 +1,12 @@
+name = "gaurav-portfolio-resume-gate"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "resume-leads"
+database_id = "<filled-in-after-create>"
+
+[vars]
+ALLOWED_ORIGINS = "https://gauravlahoti.github.io,http://localhost:5173"
+GOOGLE_CLIENT_ID = "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"

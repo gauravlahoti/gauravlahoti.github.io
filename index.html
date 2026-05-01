@@ -22,6 +22,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/TextPlugin.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/lenis@1.0.45/dist/lenis.min.js" defer></script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
     <a class="skip-link" href="#hero">Skip to content</a>
@@ -50,6 +51,7 @@
             <nav class="nav-links" aria-label="Primary">
                 <a href="#graph">Career</a>
                 <a href="#bento">About</a>
+                <a href="#" data-resume-trigger>Resume</a>
                 <a href="#connect">Connect</a>
             </nav>
             <div class="nav-actions">
@@ -193,6 +195,7 @@
                 <a class="btn btn-primary connect-cta" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
                     Book on Topmate →
                 </a>
+                <button class="btn btn-ghost connect-resume-cta" type="button" data-resume-trigger data-cursor="magnet">Download Resume</button>
                 <ul class="link-row" aria-label="Other channels">
                     <li>
                         <a class="link-icon" data-bind-href="mailto:profile.links.email" data-bind-title="profile.links.email" aria-label="Email">
@@ -235,6 +238,26 @@
             <a class="footer-link" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer">GitHub</a>
         </div>
     </footer>
+
+    <dialog class="resume-modal" data-resume-modal aria-labelledby="resume-modal-title">
+      <div class="resume-form" data-resume-form>
+        <header class="resume-form-head">
+          <p class="resume-form-eyebrow">// resume::request</p>
+          <h3 id="resume-modal-title">Resume</h3>
+          <p class="resume-form-sub">Sign in to download. I'll record your name and email so I can follow up.</p>
+        </header>
+        <div id="g-signin-btn" data-gsi-button></div>
+        <p class="resume-form-google-note">Verified by Google. I won't share your details.</p>
+        <p class="resume-loading-row" data-resume-loading-row hidden>
+          <span class="resume-loading" aria-hidden="true"></span>
+          <span data-resume-loading-label>Verifying…</span>
+        </p>
+        <p class="resume-error" data-resume-error hidden></p>
+        <div class="resume-form-actions">
+          <button type="button" class="btn btn-ghost" data-resume-cancel>Cancel</button>
+        </div>
+      </div>
+    </dialog>
 
     <script type="module" src="assets/js/main.js"></script>
 </body>

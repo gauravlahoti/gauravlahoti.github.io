@@ -29,8 +29,30 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     initCertRail(profile);
     wireScrollTo();
     initCursorAsync();
+    initResumeGateLazy(profile);
     auditConsole();
 })();
+
+function initResumeGateLazy(profile) {
+    let inst = null;
+    let loading = null;
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest("[data-resume-trigger]");
+        if (!trigger) return;
+        e.preventDefault();
+        if (inst) { inst.open(); return; }
+        if (loading) return;
+        loading = import("./resume-gate.js")
+            .then(({ initResumeGate }) => {
+                inst = initResumeGate(profile);
+                inst.open();
+            })
+            .catch((err) => {
+                console.warn("[resume-gate] failed to load", err);
+                loading = null;
+            });
+    });
+}
 
 async function initCursorAsync() {
     if (matchMedia("(any-pointer: coarse)").matches) return;

@@ -15,7 +15,9 @@
     "linkedin": "https://www.linkedin.com/in/glahoti/",
     "github": "https://github.com/gauravlahoti",
     "topmate": "https://topmate.io/gaurav_lahoti12",
-    "resume": "assets/img/resume.pdf"
+    "resume": "assets/img/resume.pdf",
+    "resumeApi": "",
+    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
   },
   "models": ["gemini-3-pro", "claude-haiku-4.5", "gpt-4.1"],
   "skills": {
