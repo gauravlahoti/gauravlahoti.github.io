@@ -1,13 +1,13 @@
 {
-    "commands": [
-        { "name": "help",       "description": "List all available commands",      "action": "help" },
-        { "name": "whoami",     "description": "Print bio",                         "action": "scroll", "target": "#about" },
-        { "name": "skills",     "description": "Jump to skills section",            "action": "scroll", "target": "#skills" },
-        { "name": "projects",   "description": "Jump to project case studies",      "action": "scroll", "target": "#stories" },
-        { "name": "experience", "description": "Jump to career timeline",           "action": "scroll", "target": "#graph" },
-        { "name": "resume",     "description": "Download resume PDF",               "action": "download", "target": "assets/img/resume.pdf" },
-        { "name": "contact",    "description": "Jump to connect section",           "action": "scroll", "target": "#connect" },
-        { "name": "clear",      "description": "Clear terminal output",             "action": "clear" },
-        { "name": "sudo hire-me", "description": "Easter egg",                      "action": "easteregg", "hidden": true }
-    ]
+  "commands": [
+    { "name": "help",         "description": "List all available commands",                    "action": "help" },
+    { "name": "whoami",       "description": "Bio · 11+ yrs · Cloud & AI Architect at Deloitte", "action": "scroll", "target": "#bento" },
+    { "name": "skills",       "description": "Stack: LangGraph, ADK, MCP, GCP, AWS, Apigee",     "action": "scroll", "target": "#bento" },
+    { "name": "projects",     "description": "Case studies: Fiber Broadband · SSD · Quote-to-Cash", "action": "scroll", "target": "#stories" },
+    { "name": "experience",   "description": "Career graph (Deloitte → EY → Accenture)",         "action": "scroll", "target": "#graph" },
+    { "name": "resume",       "description": "Download resume PDF",                              "action": "download", "target": "assets/img/resume.pdf" },
+    { "name": "contact",      "description": "Email · LinkedIn · Topmate · GitHub",              "action": "scroll", "target": "#connect" },
+    { "name": "clear",        "description": "Clear terminal output",                            "action": "clear" },
+    { "name": "sudo hire-me", "description": "Easter egg",                                       "action": "easteregg", "hidden": true }
+  ]
 }

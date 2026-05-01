@@ -29,9 +29,9 @@ No database.
 
 ## Files to change
 
-- `assets/js/data/profile.json` — extend `stats` with real
-  values (after the user provides resume info). Add
-  `education`, `certifications`, `skills` arrays.
+- `assets/js/data/profile.json` — already populated with the
+  full `stats`, `skills` (grouped object), `certifications`,
+  and `education` fields. This spec only consumes them.
 - `assets/css/layout.css` — `.bento`, `.bento-grid`,
   `.bento-card` styles. CSS Grid with `grid-template-areas`
   for hero card + 5-6 sub-cards.
@@ -66,11 +66,17 @@ None.
 
 ## Definition of done
 
-- [ ] `#bento` shows a hero card ("I build LLM systems that
-      ship.") plus stat cards, skills card, education card,
-      certifications card.
-- [ ] Stats animate from 0 on first enter.
-- [ ] Skills render as chips pulled from `profile.json`.
+- [ ] `#bento` shows a hero card (the `profile.tagline`) plus
+      stat cards, skills card, education card, certifications
+      card.
+- [ ] Stats animate from 0 to target on first enter. Targets
+      come from `profile.stats`: `yearsExperience` (11),
+      `microservicesArchitected` (75), `techDebtReducedPct`
+      (40, suffix `%`), `mttrImprovementX` (2, suffix `x`),
+      `winRatePct` (60, suffix `%`), `certifications` (8).
+- [ ] Skills render as chips pulled from `profile.skills`,
+      grouped by category (`agentic`, `llms`, `protocols`,
+      `cloud`, `integration`, `security`, `languages`).
 - [ ] Clicking a skill chip scrolls to `#graph` and
       highlights that skill node.
 - [ ] All copy lives in `profile.json`.

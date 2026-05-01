@@ -1,24 +1,59 @@
 {
-    "name": "Gaurav Lahoti",
-    "title": "AI Engineer",
-    "company": "Deloitte",
-    "location": "India",
-    "tagline": "I build LLM systems that ship.",
-    "bio": [
-        "Senior AI Engineer at Deloitte.",
-        "Specialise in LLMs, RAG, and agentic systems.",
-        "Open to consulting + advisory."
-    ],
-    "links": {
-        "topmate": "https://topmate.io/PLACEHOLDER",
-        "linkedin": "https://www.linkedin.com/in/PLACEHOLDER",
-        "github": "https://github.com/PLACEHOLDER",
-        "email": "galahoti@deloitte.com",
-        "resume": "assets/img/resume.pdf"
-    },
-    "stats": {
-        "yearsInAi": 5,
-        "projectsShipped": 0,
-        "talksGiven": 0
-    }
+  "name": "Gaurav Lahoti",
+  "title": "Senior Cloud & AI Architect",
+  "company": "Deloitte",
+  "location": "Gurugram, India",
+  "tagline": "Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.",
+  "bio": [
+    "11+ years engineering leadership in distributed systems and cloud-native architecture (GCP / AWS).",
+    "Building production-grade Agentic AI with LangGraph, Google ADK, and Model Context Protocol (MCP).",
+    "Transforms middleware patterns into self-governing operations with deterministic LLM execution."
+  ],
+  "careerStart": "2015-04",
+  "links": {
+    "email": "gaurav.lahoti25@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/glahoti/",
+    "github": "https://github.com/gauravlahoti",
+    "topmate": "https://topmate.io/gaurav_lahoti12",
+    "resume": "assets/img/resume.pdf"
+  },
+  "models": ["gemini-3-pro", "claude-haiku-4.5", "gpt-4.1"],
+  "skills": {
+    "agentic": ["LangChain", "LangGraph", "Google ADK"],
+    "llms": ["Gemini 3 Pro/Flash", "Claude Haiku 4.5", "GPT-4.1", "Vertex AI", "AWS Bedrock"],
+    "protocols": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)", "OpenAPI (OAS) for Tool Use"],
+    "rag": ["Pinecone", "Gecko Embeddings", "Titan Embeddings"],
+    "cloud": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Vertex AI", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"],
+    "security": ["OAuth2", "IAM", "Zero Trust Architecture", "DLP"],
+    "integration": ["Apigee X", "Microservices", "Boomi", "Event-Driven Architecture", "Oracle SOA/OSB", "ODI"],
+    "languages": ["Python", "Pydantic", "FastAPI", "SQL"]
+  },
+  "certifications": [
+    { "name": "AWS Certified Machine Learning — Specialty", "issuer": "AWS" },
+    { "name": "AWS Certified Machine Learning Engineer — Associate", "issuer": "AWS" },
+    { "name": "AWS Certified AI Practitioner", "issuer": "AWS" },
+    { "name": "Microsoft Azure AI Fundamentals", "issuer": "Microsoft" },
+    { "name": "Google Cloud Certified — Generative AI Leader", "issuer": "Google Cloud" },
+    { "name": "Google Cloud Digital Leader", "issuer": "Google Cloud" },
+    { "name": "Google Cloud Professional Security Engineer", "issuer": "Google Cloud" },
+    { "name": "Google Cloud Associate Cloud Engineer", "issuer": "Google Cloud" }
+  ],
+  "education": {
+    "degree": "B.Tech, Computer Science",
+    "school": "Institute of Engineering and Technology",
+    "years": "2010 – 2014"
+  },
+  "experience": [
+    { "company": "Deloitte", "role": "Manager", "start": "2019-09", "end": null, "location": "Gurugram, India" },
+    { "company": "EY", "role": "Consultant", "start": "2018-06", "end": "2019-08", "location": "Bengaluru, India" },
+    { "company": "Accenture", "role": "Application Development Senior Analyst", "start": "2015-04", "end": "2018-06", "location": "Hyderabad, India" }
+  ],
+  "stats": {
+    "yearsExperience": 11,
+    "microservicesArchitected": 75,
+    "techDebtReducedPct": 40,
+    "mttrImprovementX": 2,
+    "winRatePct": 60,
+    "certifications": 8
+  }
 }

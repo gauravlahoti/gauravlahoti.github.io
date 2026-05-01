@@ -3,8 +3,8 @@
 ## Overview
 
 The closing CTA. Centered, minimal, single message: "Let's
-build something." Below it, the Topmate primary action
-(resume review / coaching) and a quiet row of email,
+architect something autonomous." Below it, the Topmate primary
+action (resume review / coaching) and a quiet row of email,
 LinkedIn, GitHub links. This is the section that converts
 interest into a Topmate booking — which is the whole point of
 the site.
@@ -12,7 +12,8 @@ the site.
 ## Depends on
 
 - Spec 01 (`#connect` anchor).
-- User input: real Topmate URL, LinkedIn URL, GitHub URL.
+- `profile.json` is already populated with the real Topmate,
+  LinkedIn, GitHub, and email URLs.
 
 ## Routes
 
@@ -61,8 +62,8 @@ None.
 
 ## Definition of done
 
-- [ ] `#connect` shows the headline "Let's build something."
-      in the hero typography.
+- [ ] `#connect` shows the headline "Let's architect something
+      autonomous." in the hero typography.
 - [ ] Primary Topmate button links to `profile.links.topmate`
       and opens in a new tab.
 - [ ] Below it, a sub-line lists "Resume Review · Career

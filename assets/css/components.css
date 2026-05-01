@@ -1,1 +1,118 @@
-/* components.css — buttons, cards, terminal styles. Populated by spec 01+. */
+/* components.css — buttons, hero chrome details, syntax-color spans. */
+
+/* Buttons ------------------------------------------------------------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+        border-color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out),
+        color var(--dur-fast) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out);
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+}
+.btn:hover, .btn:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+}
+.btn:focus-visible {
+    outline: 2px solid var(--accent-glow);
+    outline-offset: 2px;
+}
+.btn:active { transform: translateY(0); }
+
+.btn-sm { font-size: var(--text-xs); padding: var(--space-2) var(--space-3); }
+
+.btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent-glow);
+}
+.btn-primary:hover, .btn-primary:focus-visible {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 0 24px 4px var(--accent-glow);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: rgba(255, 255, 255, 0.02);
+}
+.btn-ghost:hover {
+    background: var(--accent-soft);
+}
+
+/* Hero chrome details ------------------------------------------------- */
+
+.dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin: 0 4px;
+    box-shadow: 0 0 8px var(--accent);
+    animation: dot-pulse 1.6s ease-in-out infinite;
+    vertical-align: middle;
+}
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.45; transform: scale(0.7); }
+}
+
+.caret {
+    display: inline-block;
+    width: 0.55ch;
+    color: var(--accent);
+    animation: caret-blink 1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+    50% { opacity: 0; }
+}
+
+/* Syntax-color spans for the role line ------------------------------- */
+
+.kw    { color: var(--accent); }
+.cls   { color: var(--ink); }
+.punct { color: var(--ink-muted); }
+
+/* Hero name char wrapper (for the scramble animation) ---------------- */
+
+.hero-name .char {
+    display: inline-block;
+    will-change: transform, opacity;
+}
+
+/* Hero tagline word wrapper (for token-stream reveal) ---------------- */
+
+.hero-tagline .word {
+    display: inline-block;
+    will-change: transform, filter, opacity;
+}
+.hero-tagline .word::after {
+    content: "\00a0";
+}
+
+/* Reduced-motion: kill the chrome animations ------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .dot, .caret { animation: none; }
+}

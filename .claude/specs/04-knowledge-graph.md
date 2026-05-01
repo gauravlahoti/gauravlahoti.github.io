@@ -13,9 +13,10 @@ career fits together.
 ## Depends on
 
 - Spec 01 (`#graph` anchor).
-- Real career data — needs the user's resume + LinkedIn URL to
-  populate `graph.json`. Until that arrives, ship with the
-  placeholder dataset (single "Welcome" node).
+- `assets/js/data/graph.json` is now populated (resume + LinkedIn
+  imported). Current dataset: 29 nodes (3 companies, 4 projects,
+  4 domains, 18 skills) and 51 edges. See "Data shape contract"
+  below.
 
 ## Routes
 
@@ -34,24 +35,27 @@ No database. Data lives in `assets/js/data/graph.json`.
 
 ## Files to change
 
-- `assets/js/data/graph.json` — populate with real career data
-  during this spec. Schema:
+- `assets/js/data/graph.json` — already populated. Data shape
+  contract (4 node types, real IDs from this graph):
   ```
   {
     "nodes": [
-      { "id": "deloitte",  "type": "company",  "label": "Deloitte" },
-      { "id": "rag-cms",   "type": "project",  "label": "RAG-CMS",
-        "year": 2025, "description": "...",  "anchor": "#story-rag" },
-      { "id": "llms",      "type": "domain",   "label": "LLMs" },
-      { "id": "python",    "type": "skill",    "label": "Python" }
+      { "id": "deloitte",        "type": "company", "label": "Deloitte", "description": "...", "year": 2019 },
+      { "id": "fiber-broadband", "type": "project", "label": "Fiber Broadband Fabric",
+        "year": 2023, "description": "...", "anchor": "#story-fiber-broadband-fabric" },
+      { "id": "agentic-ai",      "type": "domain",  "label": "Agentic AI", "description": "..." },
+      { "id": "langgraph",       "type": "skill",   "label": "LangGraph" }
     ],
     "edges": [
-      { "source": "rag-cms", "target": "deloitte" },
-      { "source": "rag-cms", "target": "llms" },
-      { "source": "rag-cms", "target": "python" }
+      { "source": "fiber-broadband", "target": "deloitte" },
+      { "source": "fiber-broadband", "target": "cloud-architecture" },
+      { "source": "fiber-broadband", "target": "gcp" }
     ]
   }
   ```
+  Project nodes that link to a case study carry an `anchor` like
+  `#story-fiber-broadband-fabric` (matches a `stories[].id` from
+  `stories.json`).
 - `assets/js/graph.js` — implement `initGraph(container, data)`
   using `3d-force-graph`. Node colour by `type`. Hover →
   highlight neighbours, write description into the side panel.

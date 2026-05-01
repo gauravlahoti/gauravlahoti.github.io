@@ -30,8 +30,27 @@ No database.
 ## Files to change
 
 - `index.html` — add `<meta property="og:*">`, Twitter
-  card meta, JSON-LD `Person` schema with name, jobTitle,
-  url, sameAs (LinkedIn, GitHub).
+  card meta, JSON-LD `Person` schema. Concrete values:
+  ```
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Gaurav Lahoti",
+    "jobTitle": "Senior Cloud & AI Architect",
+    "worksFor": { "@type": "Organization", "name": "Deloitte" },
+    "alumniOf": { "@type": "CollegeOrUniversity",
+                  "name": "Institute of Engineering and Technology" },
+    "address": { "@type": "PostalAddress",
+                 "addressLocality": "Gurugram",
+                 "addressCountry": "IN" },
+    "email": "gaurav.lahoti25@gmail.com",
+    "sameAs": [
+      "https://www.linkedin.com/in/glahoti/",
+      "https://github.com/gauravlahoti",
+      "https://topmate.io/gaurav_lahoti12"
+    ]
+  }
+  ```
 - `assets/img/og-image.png` — replace placeholder with a
   real 1200×630 PNG (final hero composition).
 - `assets/img/favicon.svg` — replace placeholder if a real

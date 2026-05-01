@@ -14,7 +14,13 @@ recruiters actually read to the end.
 
 - Spec 01 (`#stories` anchor).
 - Spec 04 (graph nodes link here via `anchor` field).
-- User input: which two projects to feature.
+- `assets/js/data/stories.json` is populated with three
+  candidate case studies: `fiber-broadband-fabric`,
+  `ssd-lead-to-cash`, `quote-to-cash-cpq`. This spec features
+  **two** of them (default: `fiber-broadband-fabric` +
+  `ssd-lead-to-cash` — most recent, biggest scope, strongest
+  metrics). The third stays in the JSON as a candidate for
+  later swap.
 
 ## Routes
 
@@ -33,28 +39,32 @@ No database.
 
 ## Files to change
 
-- `assets/js/data/stories.json` — populate with two stories.
-  Schema:
+- `assets/js/data/stories.json` — already populated with three
+  case studies. Schema (real example from `fiber-broadband-fabric`):
   ```
   {
     "stories": [
       {
-        "id": "story-rag",
-        "title": "RAG over enterprise CMS",
+        "id": "fiber-broadband-fabric",
+        "title": "Cloud-native fabric for a US fiber broadband leader",
         "problem": "...",
-        "role": "Tech lead",
-        "stack": ["Python", "Claude", "FAISS", "FastAPI"],
+        "role": "Lead Architect · 20+ developer squad",
+        "stack": ["GCP", "Cloud Run", "Pub/Sub", "Apigee X", "Python"],
+        "client": "Fiber Broadband Service Provider (US)",
+        "period": "2023 — Present",
         "beats": [
-          { "title": "Problem",  "body": "...",  "visual": "..." },
-          { "title": "Approach", "body": "...",  "visual": "..." },
-          { "title": "Insight",  "body": "...",  "visual": "..." },
-          { "title": "Result",   "body": "...",  "visual": "..." }
+          { "title": "Problem",  "body": "...", "visual": { "type": "code", "lang": "text", "body": "..." } },
+          { "title": "Approach", "body": "...", "visual": { ... } },
+          { "title": "Insight",  "body": "...", "visual": { ... } },
+          { "title": "Result",   "body": "...", "visual": { ... } }
         ]
-      },
-      { ... }
+      }
     ]
   }
   ```
+  The DOM anchor for each story is `#story-<id>` (e.g.
+  `#story-fiber-broadband-fabric`), matching the `anchor` field
+  on the graph's project nodes.
 - `assets/js/stories.js` — implement `initStories(sections, data)`
   using GSAP ScrollTrigger pin + scrub. Each beat's text fades
   in/out and the right-column visual swaps.
@@ -93,7 +103,8 @@ ScrollTrigger).
 ## Definition of done
 
 - [ ] `#stories` shows exactly two pinned case studies on
-      desktop.
+      desktop (default: `fiber-broadband-fabric` and
+      `ssd-lead-to-cash`).
 - [ ] Scrolling each story advances through 4-5 beats; the
       left column stays pinned, the right visual morphs.
 - [ ] `stories.json` is the only place beat copy lives.

@@ -5,3 +5,7 @@ node_modules/
 *.log
 .idea/
 .vscode/
+
+# Source PDFs kept locally for reference; the public resume lives in assets/img/.
+/Profile.pdf
+/Gaurav Lahoti Senior Architect Resume.pdf

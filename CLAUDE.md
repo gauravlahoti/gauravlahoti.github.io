@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Static, single-page AI-engineer portfolio for Gaurav Lahoti. Dark "AI terminal" aesthetic. Built spec-driven — every feature ships through a spec in `.claude/specs/`. No framework, no bundler, no Node toolchain. Open `index.html` and it runs.
+Static, single-page Cloud & AI architect portfolio for Gaurav Lahoti. Dark "AI terminal" aesthetic — landing hero is an "Agent Mesh" (3D node-edge graph with A2A-style edge pulses, chrome status panel, LLM-style token-streaming tagline). Built spec-driven — every feature ships through a spec in `.claude/specs/`. No framework, no bundler, no Node toolchain. Open `index.html` and it runs.
 
 ## Running locally
 
@@ -13,7 +13,13 @@ python3 -m http.server 5173
 # then open http://localhost:5173
 ```
 
-Or use the project slash command: `/run-site`.
+## Slash commands
+
+- `/run-site` — boot the static server
+- `/create-spec <step> <slug>` — scaffold a new spec + feature branch
+- `/implement-spec <step>` — read spec, plan, implement
+- `/add-project` — add a node to `graph.json` + a story stub to `stories.json` (don't hand-edit both)
+- `/publish` — commit, push, trigger Pages deploy
 
 ## Architecture
 
@@ -22,8 +28,10 @@ Or use the project slash command: `/run-site`.
 | HTML             | `index.html`                                            | Single page; semantic anchors      |
 | CSS              | `assets/css/{base,layout,components}.css`               | base = variables + typography      |
 | JS modules       | `assets/js/{main,terminal,graph,shader,stories}.js`     | One module per visualization       |
-| Content data     | `assets/js/data/*.json`                                 | Bio, career, projects, commands    |
+| Content data     | `assets/js/data/*.json`                                 | See data files below               |
 | Static media     | `assets/img/`                                           | Resume PDF, OG image, favicon      |
+
+Data files: `profile.json` (identity, bio, socials), `graph.json` (career nodes/edges), `stories.json` (case-study beats), `commands.json` (terminal registry).
 
 ## Conventions
 
@@ -41,7 +49,7 @@ Every feature follows the same loop:
 2. `/implement-spec <step>` reads the spec, plans, then implements
 3. Manual verification per spec's "Definition of done"
 
-Spec files are append-only history. Don't rewrite an old spec to match new code — write a new spec.
+Spec files are append-only history. Don't rewrite an old spec to match new code — write a new spec. Specs are zero-padded (`00-`, `01-`, …); `00` documents initial scaffolding, new features pick the next unused number.
 
 ## Visualization rules
 
@@ -55,6 +63,6 @@ Spec files are append-only history. Don't rewrite an old spec to match new code 
 - Total JS < 400 KB gzipped (Three.js is the largest dep)
 - Lighthouse Performance ≥ 90 on desktop
 
-## Stub routes
+## Deploy
 
-`index.html` currently shows a scaffolding stub. Spec 01 replaces it with the real shell (nav, hero placeholder, footer).
+Deploys to GitHub Pages from `main`. `.nojekyll` at the repo root disables Jekyll processing so paths starting with `_` aren't dropped. Spec 09 covers Pages + custom domain setup.

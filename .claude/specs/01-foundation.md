@@ -73,10 +73,14 @@ Pin specific versions to avoid silent breakage.
 ## Definition of done
 
 - [ ] `index.html` boots without console errors.
-- [ ] Top nav shows "Gaurav Lahoti" brand on the left and links
-      "Work / About / Connect" plus a Topmate CTA on the right.
+- [ ] Top nav shows "Gaurav Lahoti" brand on the left and four
+      anchor links on the right: Work (`#stories`), Career
+      (`#graph`), About (`#bento`), Connect (`#connect`), plus
+      a Topmate CTA bound to `profile.links.topmate`.
 - [ ] Each section anchor exists in DOM order: `#hero`,
       `#terminal`, `#graph`, `#stories`, `#bento`, `#connect`.
+- [ ] Page `<title>` reads "Gaurav Lahoti — Senior Cloud & AI
+      Architect" from `profile.{name,title}`.
 - [ ] Each section is empty but visible (placeholder height of
       80vh) so scroll works end-to-end.
 - [ ] `profile.json` values populate: page title, nav brand,

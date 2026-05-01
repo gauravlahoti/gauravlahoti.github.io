@@ -52,6 +52,12 @@ None. Vanilla JS.
 - Commands defined in `assets/js/data/commands.json`. Don't
   hardcode command names in JS. Each entry has `name`,
   `description`, `action`, optional `target`, `hidden`.
+- The current registry: `help`, `whoami` (→ `#bento`),
+  `skills` (→ `#bento`), `projects` (→ `#stories`),
+  `experience` (→ `#graph`), `resume` (download), `contact`
+  (→ `#connect`), `clear`, hidden `sudo hire-me`. The
+  description text is sourced verbatim from `commands.json`
+  and reflects the real bio (no placeholder copy).
 - Supported actions: `scroll` (to a CSS selector), `download`
   (links to a file), `clear`, `help`, `easteregg`. Dispatch
   table in `terminal.js`; new actions added by extension, not

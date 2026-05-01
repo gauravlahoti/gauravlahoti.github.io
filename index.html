@@ -3,20 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gaurav Lahoti — AI Engineer</title>
-    <meta name="description" content="AI Engineer building LLM systems that ship.">
+    <title>Gaurav Lahoti — Senior Cloud & AI Architect</title>
+    <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.">
+    <meta property="og:title" content="Gaurav Lahoti — Senior Cloud & AI Architect">
+    <meta property="og:description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.">
+    <meta property="og:image" content="assets/img/og-image.png">
+    <meta property="og:type" content="profile">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="preconnect" href="https://rsms.me">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
     <link rel="stylesheet" href="assets/css/base.css">
     <link rel="stylesheet" href="assets/css/layout.css">
     <link rel="stylesheet" href="assets/css/components.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/TextPlugin.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lenis@1.0.45/dist/lenis.min.js" defer></script>
 </head>
 <body>
-    <main class="stub">
-        <p class="stub-prompt">&gt; portfolio --status</p>
-        <p class="stub-line">scaffolding complete.</p>
-        <p class="stub-line">spec 01 implementation pending.</p>
-        <p class="stub-line">run <code>open .claude/specs/</code> to view roadmap.</p>
+    <a class="skip-link" href="#hero">Skip to content</a>
+
+    <header class="nav" role="banner">
+        <div class="nav-inner">
+            <a class="nav-brand" href="#hero" data-bind="profile.name">Gaurav Lahoti</a>
+            <nav class="nav-links" aria-label="Primary">
+                <a href="#stories">Work</a>
+                <a href="#graph">Career</a>
+                <a href="#bento">About</a>
+                <a href="#connect">Connect</a>
+            </nav>
+            <a class="nav-cta btn btn-ghost btn-sm" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book Topmate</a>
+        </div>
+    </header>
+
+    <main>
+        <section id="hero" class="hero" aria-label="Introduction">
+            <canvas id="hero-gl" class="hero-canvas" aria-hidden="true"></canvas>
+            <div class="hero-fallback" aria-hidden="true"></div>
+
+            <div class="hero-chrome" aria-hidden="true">
+                <div class="chrome chrome-tl">// AGENT_STATUS: <span class="dot"></span> ONLINE</div>
+                <div class="chrome chrome-tr">// MODEL: <span data-bind="profile.modelsLine">gemini-3-pro · claude-haiku-4.5</span></div>
+                <div class="chrome chrome-bl">// uptime: <span data-bind="uptime">11y</span></div>
+                <div class="chrome chrome-br">&gt; try typing <span class="caret">_</span></div>
+            </div>
+
+            <div class="hero-stack">
+                <p class="hero-status">// initializing portfolio.agent</p>
+                <h1 class="hero-name" data-bind="profile.name">Gaurav Lahoti</h1>
+                <p class="hero-role mono">
+                    <span class="kw">class</span>
+                    <span class="cls">GauravLahoti</span>
+                    <span class="kw">extends</span>
+                    <span class="cls">CloudArchitect</span>
+                    <span class="punct">{ }</span>
+                </p>
+                <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.</p>
+                <div class="hero-ctas">
+                    <a class="btn btn-primary" href="#stories">View Work →</a>
+                    <a class="btn btn-ghost" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book on Topmate</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="terminal" class="section section-placeholder" aria-label="Terminal">
+            <p class="placeholder-label">// spec 03 — terminal</p>
+        </section>
+
+        <section id="graph" class="section section-placeholder" aria-label="Career graph">
+            <p class="placeholder-label">// spec 04 — knowledge graph</p>
+        </section>
+
+        <section id="stories" class="section section-placeholder" aria-label="Case studies">
+            <p class="placeholder-label">// spec 05 — case studies</p>
+        </section>
+
+        <section id="bento" class="section section-placeholder" aria-label="About">
+            <p class="placeholder-label">// spec 06 — bento (stats · skills · education)</p>
+        </section>
+
+        <section id="connect" class="section section-placeholder" aria-label="Connect">
+            <p class="placeholder-label">// spec 07 — connect</p>
+        </section>
     </main>
+
+    <footer class="footer" role="contentinfo">
+        <div class="footer-inner">
+            <span class="footer-copy">&copy; <span id="year">2026</span> <span data-bind="profile.name">Gaurav Lahoti</span></span>
+            <a class="footer-link" data-bind-href="mailto:profile.links.email" data-bind="profile.links.email">gaurav.lahoti25@gmail.com</a>
+            <a class="footer-link" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a class="footer-link" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+    </footer>
 
     <script type="module" src="assets/js/main.js"></script>
 </body>
