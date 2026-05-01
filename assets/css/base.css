@@ -1,0 +1,100 @@
+/* base.css — design tokens + reset + typography */
+
+:root {
+    /* colours */
+    --bg: #000000;
+    --bg-elev: #0A0A0A;
+    --bg-card: #111111;
+    --ink: #E5E5E5;
+    --ink-muted: #888888;
+    --ink-subtle: #555555;
+    --accent: #00FFD1;
+    --accent-soft: rgba(0, 255, 209, 0.12);
+    --accent-glow: rgba(0, 255, 209, 0.35);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --danger: #FF5C5C;
+
+    /* typography */
+    --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.5rem;
+    --text-2xl: 2.25rem;
+    --text-3xl: 3.5rem;
+    --text-4xl: 5rem;
+
+    /* spacing */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --space-24: 6rem;
+
+    /* radii */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+
+    /* timing */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --dur-fast: 180ms;
+    --dur-base: 320ms;
+    --dur-slow: 600ms;
+
+    /* layout */
+    --max-w: 1200px;
+    --nav-h: 64px;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+}
+
+code, pre, .mono {
+    font-family: var(--font-mono);
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+img, svg, canvas {
+    display: block;
+    max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

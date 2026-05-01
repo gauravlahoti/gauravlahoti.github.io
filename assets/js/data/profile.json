@@ -1,0 +1,24 @@
+{
+    "name": "Gaurav Lahoti",
+    "title": "AI Engineer",
+    "company": "Deloitte",
+    "location": "India",
+    "tagline": "I build LLM systems that ship.",
+    "bio": [
+        "Senior AI Engineer at Deloitte.",
+        "Specialise in LLMs, RAG, and agentic systems.",
+        "Open to consulting + advisory."
+    ],
+    "links": {
+        "topmate": "https://topmate.io/PLACEHOLDER",
+        "linkedin": "https://www.linkedin.com/in/PLACEHOLDER",
+        "github": "https://github.com/PLACEHOLDER",
+        "email": "galahoti@deloitte.com",
+        "resume": "assets/img/resume.pdf"
+    },
+    "stats": {
+        "yearsInAi": 5,
+        "projectsShipped": 0,
+        "talksGiven": 0
+    }
+}
