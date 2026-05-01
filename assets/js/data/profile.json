@@ -29,14 +29,70 @@
     "languages": ["Python", "Pydantic", "FastAPI", "SQL"]
   },
   "certifications": [
-    { "name": "AWS Certified Machine Learning — Specialty", "issuer": "AWS" },
-    { "name": "AWS Certified Machine Learning Engineer — Associate", "issuer": "AWS" },
-    { "name": "AWS Certified AI Practitioner", "issuer": "AWS" },
-    { "name": "Microsoft Azure AI Fundamentals", "issuer": "Microsoft" },
-    { "name": "Google Cloud Certified — Generative AI Leader", "issuer": "Google Cloud" },
-    { "name": "Google Cloud Digital Leader", "issuer": "Google Cloud" },
-    { "name": "Google Cloud Professional Security Engineer", "issuer": "Google Cloud" },
-    { "name": "Google Cloud Associate Cloud Engineer", "issuer": "Google Cloud" }
+    {
+      "name": "AWS Certified Machine Learning — Specialty",
+      "issuer": "AWS",
+      "category": "ai",
+      "slug": "aws-ml-specialty",
+      "badge": "assets/img/badges/aws-ml-specialty.png",
+      "credlyUrl": "https://www.credly.com/org/amazon-web-services/badge/aws-certified-machine-learning-specialty"
+    },
+    {
+      "name": "AWS Certified Machine Learning Engineer — Associate",
+      "issuer": "AWS",
+      "category": "ai",
+      "slug": "aws-ml-engineer-associate",
+      "badge": "assets/img/badges/aws-ml-engineer-associate.png",
+      "credlyUrl": "https://www.credly.com/org/amazon-web-services/badge/aws-certified-machine-learning-engineer-associate"
+    },
+    {
+      "name": "AWS Certified AI Practitioner",
+      "issuer": "AWS",
+      "category": "ai",
+      "slug": "aws-ai-practitioner",
+      "badge": "assets/img/badges/aws-ai-practitioner.png",
+      "credlyUrl": "https://www.credly.com/org/amazon-web-services/badge/aws-certified-ai-practitioner"
+    },
+    {
+      "name": "Google Cloud Certified — Generative AI Leader",
+      "issuer": "Google Cloud",
+      "category": "ai",
+      "slug": "gcp-generative-ai-leader",
+      "badge": "assets/img/badges/gcp-generative-ai-leader.png",
+      "credlyUrl": "https://www.credly.com/org/google-cloud/badge/generative-ai-leader-certification"
+    },
+    {
+      "name": "Microsoft Azure AI Fundamentals",
+      "issuer": "Microsoft",
+      "category": "ai",
+      "slug": "azure-ai-fundamentals",
+      "badge": "assets/img/badges/azure-ai-fundamentals.png",
+      "credlyUrl": "https://www.credly.com/org/microsoft-certification/badge/microsoft-certified-azure-ai-fundamentals"
+    },
+    {
+      "name": "Google Cloud Digital Leader",
+      "issuer": "Google Cloud",
+      "category": "cloud",
+      "slug": "gcp-digital-leader",
+      "badge": "assets/img/badges/gcp-digital-leader.png",
+      "credlyUrl": "https://www.credly.com/org/google-cloud/badge/cloud-digital-leader-certification"
+    },
+    {
+      "name": "Google Cloud Associate Cloud Engineer",
+      "issuer": "Google Cloud",
+      "category": "cloud",
+      "slug": "gcp-associate-cloud-engineer",
+      "badge": "assets/img/badges/gcp-associate-cloud-engineer.png",
+      "credlyUrl": "https://www.credly.com/org/google-cloud/badge/associate-cloud-engineer-certification"
+    },
+    {
+      "name": "Google Cloud Professional Security Engineer",
+      "issuer": "Google Cloud",
+      "category": "security",
+      "slug": "gcp-security-engineer",
+      "badge": "assets/img/badges/gcp-security-engineer.png",
+      "credlyUrl": "https://www.credly.com/org/google-cloud/badge/professional-cloud-security-engineer-certification"
+    }
   ],
   "education": {
     "degree": "B.Tech, Computer Science",

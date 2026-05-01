@@ -18,7 +18,7 @@ python3 -m http.server 5173
 - `/run-site` — boot the static server
 - `/create-spec <step> <slug>` — scaffold a new spec + feature branch
 - `/implement-spec <step>` — read spec, plan, implement
-- `/add-project` — add a node to `graph.json` + a story stub to `stories.json` (don't hand-edit both)
+- `/add-project` — add a project node to `graph.json`
 - `/publish` — commit, push, trigger Pages deploy
 
 ## Architecture
@@ -27,11 +27,11 @@ python3 -m http.server 5173
 |------------------|---------------------------------------------------------|------------------------------------|
 | HTML             | `index.html`                                            | Single page; semantic anchors      |
 | CSS              | `assets/css/{base,layout,components}.css`               | base = variables + typography      |
-| JS modules       | `assets/js/{main,trajectory,hero-graph,stories,cursor}.js` | One module per surface             |
+| JS modules       | `assets/js/{main,trajectory,hero-graph,cursor}.js`       | One module per surface             |
 | Content data     | `assets/js/data/*.json`                                 | See data files below               |
 | Static media     | `assets/img/`                                           | Resume PDF, OG image, favicon      |
 
-Data files: `profile.json` (identity, bio, socials, full work history), `graph.json` (project metadata kept for storytelling), `stories.json` (case-study beats).
+Data files: `profile.json` (identity, bio, socials, full work history, certifications), `graph.json` (project metadata).
 
 ## Conventions
 

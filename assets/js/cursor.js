@@ -12,13 +12,19 @@ export function initCursor(opts = {}) {
     const cursor = document.createElement("div");
     cursor.className = "cursor";
     cursor.setAttribute("aria-hidden", "true");
-    cursor.innerHTML = `<span class="cursor-dot"></span><span class="cursor-ring"></span>`;
+    cursor.innerHTML = `
+        <span class="cursor-corner cursor-corner-tl"></span>
+        <span class="cursor-corner cursor-corner-tr"></span>
+        <span class="cursor-corner cursor-corner-bl"></span>
+        <span class="cursor-corner cursor-corner-br"></span>
+    `;
     document.body.appendChild(cursor);
 
+    const IDLE_SIZE = 28;
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
-    let curX = mouseX, curY = mouseY;
-    let magnetTarget = null;
+    let curX = mouseX - IDLE_SIZE / 2, curY = mouseY - IDLE_SIZE / 2;
+    let curW = IDLE_SIZE, curH = IDLE_SIZE;
     let raf;
 
     function onMove(e) {
@@ -27,39 +33,52 @@ export function initCursor(opts = {}) {
     }
 
     function findMagnet(x, y) {
-        // Pick the nearest magnet element within radius if mouse is near.
+        // Snap to the magnet element whose bounding box is closest to the cursor
+        // (using distance to the nearest edge of each rect, capped at 120px).
         const magnets = document.querySelectorAll('[data-cursor="magnet"]');
         let best = null;
-        let bestDist = 120 * 120; // 120px radius
+        let bestDist = 120 * 120;
         magnets.forEach(el => {
             const r = el.getBoundingClientRect();
-            const cx = r.left + r.width / 2;
-            const cy = r.top + r.height / 2;
-            const dx = x - cx, dy = y - cy;
+            const nx = Math.max(r.left, Math.min(x, r.right));
+            const ny = Math.max(r.top, Math.min(y, r.bottom));
+            const dx = x - nx, dy = y - ny;
             const d2 = dx * dx + dy * dy;
             if (d2 < bestDist) {
                 bestDist = d2;
-                best = { el, cx, cy, w: r.width, h: r.height };
+                best = { el, rect: r };
             }
         });
         return best;
     }
 
     function tick() {
-        magnetTarget = findMagnet(mouseX, mouseY);
-        let tx = mouseX, ty = mouseY;
-        if (magnetTarget) {
-            // Pull toward center of the magnet by 40%.
-            tx = mouseX + (magnetTarget.cx - mouseX) * 0.4;
-            ty = mouseY + (magnetTarget.cy - mouseY) * 0.4;
+        const magnet = findMagnet(mouseX, mouseY);
+        let targetX, targetY, targetW, targetH;
+        if (magnet) {
+            // Snap brackets to the magnet element's bounding box.
             cursor.classList.add("is-magnet");
+            const pad = 6;
+            targetX = magnet.rect.left - pad;
+            targetY = magnet.rect.top - pad;
+            targetW = magnet.rect.width + pad * 2;
+            targetH = magnet.rect.height + pad * 2;
         } else {
+            // Idle: small reticle centered on the cursor.
             cursor.classList.remove("is-magnet");
+            targetX = mouseX - IDLE_SIZE / 2;
+            targetY = mouseY - IDLE_SIZE / 2;
+            targetW = IDLE_SIZE;
+            targetH = IDLE_SIZE;
         }
-        // Lerp the cursor toward target for smooth motion.
-        curX += (tx - curX) * 0.22;
-        curY += (ty - curY) * 0.22;
+        const lerp = 0.22;
+        curX += (targetX - curX) * lerp;
+        curY += (targetY - curY) * lerp;
+        curW += (targetW - curW) * lerp;
+        curH += (targetH - curH) * lerp;
         cursor.style.transform = `translate(${curX}px, ${curY}px)`;
+        cursor.style.width = `${curW}px`;
+        cursor.style.height = `${curH}px`;
         raf = requestAnimationFrame(tick);
     }
 

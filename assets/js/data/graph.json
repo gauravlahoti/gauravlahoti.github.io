@@ -4,9 +4,9 @@
     { "id": "ey", "type": "company", "label": "EY", "description": "Consultant. Jun 2018 – Aug 2019. Bengaluru, India.", "year": 2018 },
     { "id": "accenture", "type": "company", "label": "Accenture", "description": "Application Development Senior Analyst. Apr 2015 – Jun 2018. Hyderabad, India.", "year": 2015 },
 
-    { "id": "fiber-broadband", "type": "project", "label": "Fiber Broadband Fabric", "description": "Cloud-native integration fabric on GCP for a US fiber broadband leader. 20+ devs, 75+ microservices, 40% tech-debt reduction, 2x MTTR.", "year": 2023, "anchor": "#story-fiber-broadband-fabric" },
-    { "id": "ssd-solutions", "type": "project", "label": "SSD Lead-to-Cash", "description": "Net-new integration landscape for a US data & SSD leader during M&A. 75+ integrations, API catalog & governance, 20% cycle-time reduction.", "year": 2021, "anchor": "#story-ssd-lead-to-cash" },
-    { "id": "quote-to-cash", "type": "project", "label": "Quote-to-Cash", "description": "Salesforce CPQ ↔ NetSuite ZAB integration for a US analytics firm. 30% reduction in order-processing time; 500 TPS at sub-200ms.", "year": 2019, "anchor": "#story-quote-to-cash-cpq" },
+    { "id": "fiber-broadband", "type": "project", "label": "Fiber Broadband Fabric", "description": "Cloud-native integration fabric on GCP for a US fiber broadband leader. 20+ devs, 75+ microservices, 40% tech-debt reduction, 2x MTTR.", "year": 2023 },
+    { "id": "ssd-solutions", "type": "project", "label": "SSD Lead-to-Cash", "description": "Net-new integration landscape for a US data & SSD leader during M&A. 75+ integrations, API catalog & governance, 20% cycle-time reduction.", "year": 2021 },
+    { "id": "quote-to-cash", "type": "project", "label": "Quote-to-Cash", "description": "Salesforce CPQ ↔ NetSuite ZAB integration for a US analytics firm. 30% reduction in order-processing time; 500 TPS at sub-200ms.", "year": 2019 },
     { "id": "food-processing", "type": "project", "label": "Global Supply Fabric", "description": "Enterprise SOA patterns for a multi-region food-processing giant. Oracle SOA, OSB, BPM, ODI.", "year": 2015 },
 
     { "id": "agentic-ai", "type": "domain", "label": "Agentic AI", "description": "LangGraph, ADK, MCP, A2A — autonomous workflows with deterministic LLM execution." },

@@ -66,18 +66,18 @@ Pin specific versions to avoid silent breakage.
 - Lenis init only on viewports > 768px and only when
   `prefers-reduced-motion` is not set.
 - Nav uses anchor links, not JS routing. Each section in the
-  shell carries its own `id` (e.g. `#stories`, `#graph`).
+  shell carries its own `id` (e.g. `#graph`, `#bento`).
 - All templates extend nothing — single page, no template engine.
 
 ## Definition of done
 
 - [ ] `index.html` boots without console errors.
-- [ ] Top nav shows "Gaurav Lahoti" brand on the left and four
-      anchor links on the right: Work (`#stories`), Career
-      (`#graph`), About (`#bento`), Connect (`#connect`), plus
-      a Topmate CTA bound to `profile.links.topmate`.
+- [ ] Top nav shows "Gaurav Lahoti" brand on the left and three
+      anchor links on the right: Career (`#graph`), About
+      (`#bento`), Connect (`#connect`), plus a Topmate CTA
+      bound to `profile.links.topmate`.
 - [ ] Each section anchor exists in DOM order: `#hero`,
-      `#graph`, `#stories`, `#bento`, `#connect`.
+      `#graph`, `#bento`, `#connect`.
 - [ ] Page `<title>` reads "Gaurav Lahoti — Senior Cloud & AI
       Architect" from `profile.{name,title}`.
 - [ ] Each section is empty but visible (placeholder height of
