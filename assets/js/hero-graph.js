@@ -216,6 +216,12 @@ export async function initHeroGraph(canvas, opts = {}) {
     }, { threshold: 0 });
     io.observe(canvas);
 
+    // ---- Flare (easter-egg): briefly brighten all edges ----
+    const baseAlpha = edgeMat.uniforms.uBaseAlpha.value;
+    let flareUntil = 0;
+    function onFlare() { flareUntil = performance.now() / 1000 + 0.7; }
+    document.addEventListener("portfolio:flare", onFlare);
+
     // ---- Render loop ----
     let rafId;
     function tick() {
@@ -241,6 +247,15 @@ export async function initHeroGraph(canvas, opts = {}) {
         const u = Math.min(Math.max(elapsed / PULSE_DUR, 0), 1);
         edgeMat.uniforms.uHead.value = u * (PATH_LEN - 1);
 
+        // Flare envelope
+        const remaining = flareUntil - t;
+        if (remaining > 0) {
+            const k = remaining / 0.7;
+            edgeMat.uniforms.uBaseAlpha.value = baseAlpha + (0.55 - baseAlpha) * k;
+        } else if (edgeMat.uniforms.uBaseAlpha.value !== baseAlpha) {
+            edgeMat.uniforms.uBaseAlpha.value = baseAlpha;
+        }
+
         renderer.render(scene, camera);
     }
     tick();
@@ -248,6 +263,7 @@ export async function initHeroGraph(canvas, opts = {}) {
     function destroy() {
         cancelAnimationFrame(rafId);
         io.disconnect();
+        document.removeEventListener("portfolio:flare", onFlare);
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("resize", resize);
         nodeGeo.dispose();
