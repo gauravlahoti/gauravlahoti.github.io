@@ -25,7 +25,22 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     initLenis();
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
+    initTerminalWhenVisible();
+    wireFlare();
 })();
+
+function wireFlare() {
+    const hero = document.getElementById("hero");
+    if (!hero) return;
+    document.addEventListener("portfolio:flare", () => {
+        hero.classList.remove("is-flaring");
+        // restart the CSS animation
+        // eslint-disable-next-line no-unused-expressions
+        void hero.offsetWidth;
+        hero.classList.add("is-flaring");
+        setTimeout(() => hero.classList.remove("is-flaring"), 800);
+    });
+}
 
 /* ---------- data binding ---------- */
 
@@ -232,6 +247,28 @@ function scrambleName(nameEl) {
 }
 
 /* ---------- hero graph lazy load ---------- */
+
+function initTerminalWhenVisible() {
+    const root = document.querySelector("#terminal .terminal");
+    if (!root) return;
+    const io = new IntersectionObserver(async (entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            try {
+                const [{ initTerminal }, registry] = await Promise.all([
+                    import("./terminal.js"),
+                    fetch("assets/js/data/commands.json").then(r => r.json()),
+                ]);
+                const inst = initTerminal(root, registry);
+                window.__terminal = inst;
+            } catch (err) {
+                console.warn("[terminal] failed to init", err);
+            }
+        }
+    }, { rootMargin: "200px" });
+    io.observe(root);
+}
 
 function initHeroGraphWhenVisible() {
     const canvas = document.getElementById("hero-gl");

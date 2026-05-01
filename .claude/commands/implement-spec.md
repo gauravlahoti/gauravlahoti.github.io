@@ -1,61 +1,117 @@
 ---
-description: Read a spec, plan, then implement it end-to-end
-argument-hint: "Step number e.g. 02"
-allowed-tools: Read, Write, Edit, Glob, Bash, Agent
+description: Read a spec file end-to-end, plan, then implement it step by step
+argument-hint: "Spec file path or step number, e.g. .claude/specs/03-terminal.md or 03"
+allowed-tools: Read, Write, Edit, Glob, Bash, Agent, TaskCreate, TaskUpdate, TaskList
 ---
 
 You are implementing one of the portfolio specs. Always follow
 the rules in CLAUDE.md.
 
-User input: $ARGUMENTS — the step number to implement.
+User input: $ARGUMENTS — either a path to a spec file or a step
+number (zero-padded or not).
 
-## Step 1 — Locate the spec
-Find `.claude/specs/<step>-*.md` (zero-pad single digits).
-If multiple match, ask the user. If none, stop and tell the
-user to run `/create-spec` first.
+## Step 1 — Resolve the spec file
 
-## Step 2 — Confirm the branch
-Verify the user is on `feature/<spec-slug>` or that the spec
-slug matches `feature/...`. If on `main`, refuse and tell the
-user to `/create-spec` first.
+Resolve `$ARGUMENTS` to an absolute spec path:
 
-## Step 3 — Read the spec in full
-Print the spec title and "Definition of done" checklist back
-to the user so they can confirm scope.
+- If it points at an existing file → use that path directly.
+- If it's a bare number (e.g. `3`, `03`, `09`) → zero-pad it
+  and `Glob` `.claude/specs/<NN>-*.md`. If exactly one
+  matches, use it. If multiple match, ask the user. If none,
+  stop and tell the user to run `/create-spec` first.
+- If it's neither → tell the user the input couldn't be
+  resolved and show the available specs in `.claude/specs/`.
 
-## Step 4 — Plan
-Read every file the spec lists under "Files to change".
-Use Explore subagents if the spec touches more than three
-files.
+Print the resolved path back to the user before continuing.
 
-Then enter plan mode (Shift+Tab twice equivalent) and write
-a plan that:
+## Step 2 — Read the spec in full
+
+Use the `Read` tool on the resolved path. Print:
+
+- **Title** (the H1)
+- **Depends on** block
+- **Files to change** list (paths only)
+- **Files to create** list (paths only)
+- **Definition of done** checklist (verbatim)
+
+This confirms scope. Stop here only if the spec is empty or
+malformed.
+
+## Step 3 — Confirm the branch
+
+Run `git branch --show-current`. If on `main` and the user
+hasn't explicitly opted to implement straight on `main`, refuse
+and tell them to run `/create-spec <step>` first to get a
+feature branch. Otherwise proceed.
+
+## Step 4 — Read every "Files to change" + "Files to create"
+
+For each path the spec lists, read the current file (or note
+if it doesn't exist yet for `create` entries). If the spec
+touches more than three files, dispatch a single `Explore`
+subagent to bring back a structured summary instead of reading
+each file individually — keep the main thread lean.
+
+## Step 5 — Plan
+
+Enter plan mode and write a plan that:
+
 - Restates the goal in one paragraph
-- Lists every file edit with the precise change
-- Notes which CDN scripts to add to `index.html` (if any)
-- Has a verification block that maps to the spec's
-  Definition of done — every checkbox gets a corresponding
-  manual test.
+- Lists every file edit with the precise change (one bullet
+  per file, naming the section / function / selector touched)
+- Names any CDN scripts to add to `index.html`
+- Maps each Definition-of-done checkbox to a concrete
+  manual-verification step
 
-Exit plan mode only after the user approves.
+Exit plan mode only after the user approves the plan.
 
-## Step 5 — Implement
-Make the edits. Prefer `Edit` over `Write` for existing
-files. Stage related changes together so the eventual
-commit is coherent.
+## Step 6 — Track work as discrete tasks
 
-## Step 6 — Verify
-- Run `python3 -m http.server 5173` in the background.
-- Open the page, walk every Definition-of-done item.
-- Report results back as a checklist with ✅ / ❌.
+Once the plan is approved, call `TaskCreate` once per
+implementation step (typically: one task per file edit, plus
+one for "verify"). Mark `in_progress` before starting each
+task and `completed` immediately when it finishes — don't
+batch updates. This keeps progress visible and makes it
+obvious which step blew up if something fails.
 
-## Step 7 — Hand back to the user
-Don't auto-commit unless the user says so.
+## Step 7 — Implement step by step
+
+Work through the task list in order:
+
+- Prefer `Edit` over `Write` for existing files (smaller
+  diffs, cheaper to review).
+- Use `Write` only for genuinely new files or full rewrites.
+- After each file edit, sanity-check with the relevant tool
+  (`node --check` for JS, `python3 -c "import json; json.load(open(...))"` for JSON,
+  `curl` for served assets).
+- Stage related changes together so the eventual commit is
+  coherent. Don't commit unless the user explicitly says so.
+
+If a step fails, stop and report — do not silently proceed to
+the next task.
+
+## Step 8 — Verify against the Definition of done
+
+- If a static server isn't already on `:5173`, boot one in the
+  background: `python3 -m http.server 5173`.
+- Walk every Definition-of-done checkbox in order. For each:
+  describe what you did to test it and mark `✅` / `❌`.
+- For visual / interactive items you can't verify from the
+  CLI, say so explicitly ("requires manual browser check at
+  http://localhost:5173/#<anchor>") rather than claiming
+  success.
+
+## Step 9 — Hand back to the user
+
 Print:
 
 ```
-Spec:   <step>-<slug>
-Branch: <current branch>
-Status: implemented + verified
-Next:   review changes, then commit + merge to main
+Spec:    <resolved path>
+Branch:  <current branch>
+Tasks:   <completed>/<total>
+Status:  implemented + verified  |  implemented (manual checks pending)  |  blocked
+Next:    review the diff, then commit + merge to main
 ```
+
+If anything is `❌` or pending manual verification, list those
+items under `Next:` so the user knows exactly what's open.

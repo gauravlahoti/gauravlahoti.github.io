@@ -69,8 +69,27 @@
             </div>
         </section>
 
-        <section id="terminal" class="section section-placeholder" aria-label="Terminal">
-            <p class="placeholder-label">// spec 03 — terminal</p>
+        <section id="terminal" class="section section-terminal" aria-label="Terminal">
+            <div class="terminal-shell">
+                <p class="terminal-intro">// type <code>help</code> to list commands</p>
+                <div class="terminal" role="region" aria-label="Site terminal" tabindex="-1">
+                    <output class="terminal-history" aria-live="polite"></output>
+                    <div class="terminal-row">
+                        <span class="terminal-prompt" aria-hidden="true">&gt;</span>
+                        <input
+                            class="terminal-input"
+                            type="text"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            autocorrect="off"
+                            spellcheck="false"
+                            aria-label="Type a command and press enter"
+                            inputmode="text"
+                        />
+                        <span class="caret terminal-caret" aria-hidden="true">_</span>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section id="graph" class="section section-placeholder" aria-label="Career graph">
