@@ -37,12 +37,23 @@ Use the `Read` tool on the resolved path. Print:
 This confirms scope. Stop here only if the spec is empty or
 malformed.
 
-## Step 3 — Confirm the branch
+## Step 3 — Ensure a feature branch
 
-Run `git branch --show-current`. If on `main` and the user
-hasn't explicitly opted to implement straight on `main`, refuse
-and tell them to run `/create-spec <step>` first to get a
-feature branch. Otherwise proceed.
+The spec already exists; this command should not require
+`/create-spec`. Run `git branch --show-current` and:
+
+- If already on a non-`main` branch → proceed on it.
+- If on `main` → derive `feature/<NN>-<slug>` from the
+  resolved spec filename (e.g. `11-resume-gate.md` →
+  `feature/11-resume-gate`). Verify the working tree is clean
+  with `git status --porcelain`; if dirty, stop and ask the
+  user to commit/stash before continuing. Then check whether
+  the branch already exists:
+  - `git rev-parse --verify feature/<NN>-<slug>` succeeds →
+    `git checkout feature/<NN>-<slug>`.
+  - Otherwise → `git checkout -b feature/<NN>-<slug>`.
+
+Print the branch you ended up on before continuing.
 
 ## Step 4 — Read every "Files to change" + "Files to create"
 
