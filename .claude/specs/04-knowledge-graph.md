@@ -151,7 +151,7 @@ ticker, unchanged).
   company / role / period strings in JS or HTML.
 - Each company header carries an inline `<svg><use href="#logo-…">`
   reference to the brand sprite defined once at the top of `<body>`.
-- Project metrics + descriptions remain in the storytelling section
+- Project metrics + descriptions remain in `graph.json`
   (spec 05). The trajectory section does NOT re-render them.
 - Total JS budget after this spec: ≤ 360 KB gzipped (the
   `3d-force-graph` removal should drop ~40 KB vs. the previous spec).

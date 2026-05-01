@@ -25,8 +25,8 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
     initTrajectoryWhenVisible(profile);
-    initStoriesWhenVisible();
     initBento(profile);
+    initCertRail(profile);
     wireScrollTo();
     initCursorAsync();
     auditConsole();
@@ -173,6 +173,24 @@ function populateCerts(certs) {
     const list = document.querySelector("[data-certs]");
     if (!list) return;
     list.replaceChildren();
+
+    // Render a 4-col image grid above the text list (visible on every viewport
+    // — matters most for mobile where the cert-rail is hidden).
+    const withBadge = certs.filter(c => c.badge);
+    if (withBadge.length > 0) {
+        const grid = document.createElement("div");
+        grid.className = "cert-item-img-grid";
+        for (const c of withBadge) {
+            const img = document.createElement("img");
+            img.src = c.badge;
+            img.alt = c.name;
+            img.loading = "lazy";
+            img.decoding = "async";
+            grid.appendChild(img);
+        }
+        list.parentElement && list.parentElement.insertBefore(grid, list);
+    }
+
     for (const c of certs) {
         const li = document.createElement("li");
         li.className = "cert-item";
@@ -181,27 +199,92 @@ function populateCerts(certs) {
     }
 }
 
-function initStoriesWhenVisible() {
-    const root = document.querySelector("[data-stories-root]");
+/* ---------- cert rail (spec 10) ---------- */
+
+const CATEGORY_ORDER = { ai: 0, cloud: 1, security: 2 };
+
+function initCertRail(profile) {
+    const root = document.querySelector("[data-cert-rail]");
     if (!root) return;
-    const io = new IntersectionObserver(async (entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
-            try {
-                const [{ initStories }, data] = await Promise.all([
-                    import("./stories.js"),
-                    fetch("assets/js/data/stories.json").then(r => r.json()),
-                ]);
-                const inst = initStories(root, data);
-                window.__stories = inst;
-            } catch (err) {
-                console.warn("[stories] failed to init", err);
-            }
-        }
-    }, { rootMargin: "300px" });
-    io.observe(root);
+
+    const certs = (profile.certifications || []).slice().sort((a, b) =>
+        (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99)
+    );
+    if (certs.length === 0) return;
+
+    // ---- horizontal news-ticker: render the set TWICE so the CSS marquee
+    //      (translateX 0 → -50%) loops seamlessly. The second copy is
+    //      aria-hidden so screen readers don't announce 16 badges. ----
+    const list = document.createElement("ul");
+    list.className = "cert-rail-list";
+
+    for (const c of certs) {
+        list.appendChild(renderCertTile(c, false));
+    }
+    for (const c of certs) {
+        list.appendChild(renderCertTile(c, true));
+    }
+    root.appendChild(list);
+
+    // ---- shimmer phase randomization (per-tile, unsynced) ----
+    root.querySelectorAll(".cert-tile").forEach((t) => {
+        t.style.setProperty("--shimmer-delay", `${(Math.random() * -7).toFixed(2)}s`);
+    });
 }
+
+function renderCertTile(c, isDuplicate = false) {
+    const li = document.createElement("li");
+    li.className = "cert-tile" + (c.category === "ai" ? " is-ai" : "");
+    li.setAttribute("data-slug", c.slug || "");
+
+    const img = document.createElement("img");
+    img.src = c.badge;
+    img.alt = isDuplicate ? "" : c.name;
+    img.loading = "lazy";
+    img.decoding = "async";
+    li.appendChild(img);
+
+    const pop = document.createElement("div");
+    pop.className = "cert-tile-popover";
+    pop.setAttribute("role", "tooltip");
+    pop.innerHTML = `
+        <div class="cert-tile-popover-name">${escapeHtml(c.name)}</div>
+        <div class="cert-tile-popover-meta"><span class="issuer">${escapeHtml(c.issuer || "")}</span>${c.issuedAt ? ` · ${escapeHtml(c.issuedAt)}` : ""}</div>
+    `;
+    li.appendChild(pop);
+
+    if (isDuplicate) {
+        // Second-set tiles are visual-only; hide from a11y tree and skip Tab.
+        li.setAttribute("aria-hidden", "true");
+        li.setAttribute("tabindex", "-1");
+    } else {
+        li.setAttribute("tabindex", "0");
+        li.setAttribute("role", "button");
+        li.setAttribute("aria-label", `${c.name} — ${c.issuer || ""}`);
+        li.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (c.credlyUrl) window.open(c.credlyUrl, "_blank", "noopener,noreferrer");
+            } else if (e.key === "Escape") {
+                li.blur();
+            }
+        });
+    }
+    li.addEventListener("click", () => {
+        if (c.credlyUrl) window.open(c.credlyUrl, "_blank", "noopener,noreferrer");
+    });
+
+    return li;
+}
+
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
 
 function initTrajectoryWhenVisible(profile) {
     const root = document.querySelector("#graph [data-trajectory-root]");

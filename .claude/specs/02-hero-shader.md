@@ -65,7 +65,7 @@ No database.
       </p>
       <p class="hero-tagline" data-bind="profile.tagline">…</p>
       <div class="hero-ctas">
-        <a class="btn btn-primary" href="#stories">View Work</a>
+        <a class="btn btn-primary" href="#graph">View Career</a>
         <a class="btn btn-ghost" data-bind-href="profile.links.topmate" target="_blank" rel="noopener">Book on Topmate</a>
       </div>
     </div>

@@ -118,7 +118,7 @@
     padding-bottom: 4px;
 }
 
-/* Reuse for nested .kw inside .story-role and .bento-card-foot (still needed) */
+/* Used by .bento-card-foot .kw and other nested keyword spans */
 .kw { color: var(--accent); }
 
 /* Hero name char wrapper (for the scramble animation) ---------------- */
@@ -138,6 +138,241 @@
     content: "\00a0";
 }
 
+/* Certification Badge Rail (spec 10) --------------------------------- */
+
+.cert-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: var(--space-12);
+    height: 200px;
+    z-index: 4;
+    overflow: hidden;
+    pointer-events: none;
+    /* Tiny edge fade so badges don't hard-pop at the absolute viewport edges */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 1.5%, black 98.5%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, black 1.5%, black 98.5%, transparent 100%);
+}
+.cert-rail > * { pointer-events: auto; }
+
+.cert-rail-list {
+    list-style: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-6);
+    width: max-content;
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    animation: cert-ticker 36s linear infinite;
+    will-change: transform;
+}
+.cert-rail-list:hover {
+    animation-play-state: paused;
+}
+
+@keyframes cert-ticker {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+.cert-tile {
+    position: relative;
+    list-style: none;
+    flex: 0 0 144px;
+    width: 144px;
+    height: 144px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-strong);
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 24px rgba(0, 255, 209, 0.18);
+    overflow: visible;
+    cursor: pointer;
+    padding: 0;
+    transform-style: preserve-3d;
+    will-change: transform, opacity, filter;
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out);
+}
+
+.cert-tile img {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 84%;
+    height: 84%;
+    margin: 8%;
+    object-fit: contain;
+}
+
+/* AI badges: extra cyan ring + stronger glow */
+.cert-tile.is-ai {
+    box-shadow: 0 0 28px rgba(0, 255, 209, 0.32);
+}
+.cert-tile.is-ai::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: calc(var(--radius-md) + 2px);
+    border: 1px solid var(--accent);
+    pointer-events: none;
+    opacity: 0.65;
+}
+
+/* Shimmer sweep — diagonal highlight that crosses the badge surface */
+.cert-tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-md);
+    background: linear-gradient(
+        115deg,
+        transparent 35%,
+        rgba(0, 255, 209, 0.22) 50%,
+        transparent 65%
+    );
+    background-size: 240% 240%;
+    background-position: 100% 100%;
+    pointer-events: none;
+    z-index: 2;
+    mix-blend-mode: screen;
+    animation: cert-shimmer 7s linear infinite;
+    animation-delay: var(--shimmer-delay, 0s);
+}
+
+@keyframes cert-shimmer {
+    0%   { background-position: 120% 120%; opacity: 0; }
+    20%  { opacity: 1; }
+    50%  { background-position: -20% -20%; opacity: 1; }
+    60%  { opacity: 0; }
+    100% { background-position: -20% -20%; opacity: 0; }
+}
+
+/* Magnetic hover: pronounced lift + scale to make the badge feel alive */
+.cert-tile:hover,
+.cert-tile:focus-visible {
+    outline: none;
+    transform: translateY(-12px) scale(1.35);
+    border-color: var(--accent);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 56px rgba(0, 255, 209, 0.6);
+    z-index: 5;
+}
+
+/* Popover with credential detail — anchored ABOVE the tile so the rail's
+   overflow:hidden doesn't clip it (the rail clips below). */
+.cert-tile-popover {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 14px);
+    transform: translateX(-50%) translateY(6px);
+    min-width: 240px;
+    max-width: 300px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 255, 209, 0.18);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity 200ms var(--ease-out),
+        transform 200ms var(--ease-out),
+        visibility 200ms;
+    z-index: 11;
+}
+.cert-tile-popover::after {
+    /* tiny pointer triangle on bottom edge (since popover is above tile) */
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-strong);
+    border-right: 1px solid var(--border-strong);
+    transform: translateX(-50%) rotate(45deg);
+}
+.cert-tile:hover .cert-tile-popover,
+.cert-tile:focus-visible .cert-tile-popover,
+.cert-tile.is-open .cert-tile-popover {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+.cert-tile-popover-name {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    color: var(--ink);
+    font-size: var(--text-sm);
+    line-height: 1.3;
+    margin-bottom: 4px;
+}
+.cert-tile-popover-meta {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+}
+.cert-tile-popover-meta .issuer {
+    color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cert-tile::after { animation: none; opacity: 0; }
+    .cert-tile:hover,
+    .cert-tile:focus-visible {
+        transform: translateY(-4px) scale(1.1);
+    }
+    .cert-tile-popover { transition: opacity 0s, visibility 0s; }
+    /* Stop the marquee; let users swipe through the row manually */
+    .cert-rail { overflow-x: auto; }
+    .cert-rail-list { animation: none; transform: none; }
+}
+
+@media (max-width: 900px) {
+    .cert-rail { height: 160px; }
+    .cert-tile { flex: 0 0 112px; width: 112px; height: 112px; }
+    .cert-rail-list { gap: var(--space-4); }
+}
+
+@media (max-width: 600px) {
+    .cert-rail { height: 120px; bottom: var(--space-8); }
+    .cert-tile { flex: 0 0 88px; width: 88px; height: 88px; }
+    .cert-rail-list { gap: var(--space-3); }
+}
+
+/* Bento certs card upgrade: render badge images alongside text */
+.cert-item .cert-badge {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    margin-right: var(--space-2);
+    vertical-align: middle;
+    object-fit: contain;
+}
+.cert-item-img-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+.cert-item-img-grid img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    filter: drop-shadow(0 0 12px rgba(0, 255, 209, 0.18));
+}
+@media (max-width: 375px) {
+    .cert-item-img-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 /* Career Trajectory (spec 04) ---------------------------------------- */
 
 .section-trajectory {
@@ -148,31 +383,72 @@
 }
 
 .trail-header {
-    max-width: 720px;
-    margin-bottom: var(--space-12);
+    max-width: 760px;
+    margin-bottom: var(--space-16);
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-4);
 }
 .trail-eyebrow {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--accent);
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
 }
+
+/* Three rhythmic beats stacked, each slightly smaller than a hero name
+   but big enough to anchor the section. */
 .trail-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: var(--space-3) 0 var(--space-2);
     font-family: var(--font-sans);
     font-weight: 700;
-    font-size: clamp(var(--text-2xl), 5vw, var(--text-3xl));
-    letter-spacing: -0.02em;
-    line-height: 1.05;
+    font-size: clamp(var(--text-xl), 3.6vw, 2.5rem);
+    letter-spacing: -0.025em;
+    line-height: 1.04;
     color: var(--ink);
 }
+.trail-title span {
+    display: block;
+}
+/* Each line tints down progressively so the eye reads top-to-bottom */
+.trail-title span:nth-child(1) { color: var(--ink); }
+.trail-title span:nth-child(2) { color: var(--ink); opacity: 0.86; }
+.trail-title span:nth-child(3) { color: var(--accent); }
+
+/* Numerical anchor strip — gives the eye something to hold while the
+   prose around it breathes. */
+.trail-stats {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+    margin: var(--space-2) 0;
+}
+.trail-stats li { display: flex; align-items: baseline; gap: 6px; }
+.trail-stats strong {
+    font-weight: 600;
+    color: var(--accent);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+}
+
 .trail-sub {
     color: var(--ink-muted);
-    font-size: var(--text-base);
+    font-size: var(--text-lg);
     line-height: 1.55;
-    max-width: 560px;
+    max-width: 640px;
+    margin-top: var(--space-1);
 }
 
 .trail-grid {
@@ -451,101 +727,6 @@
     .role-tile.is-pulsing { animation: none; }
 }
 
-/* Story content (spec 05) -------------------------------------------- */
-
-.story-eyebrow {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-subtle);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-.story-title {
-    font-family: var(--font-sans);
-    font-weight: 700;
-    font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
-    line-height: 1.15;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-}
-.story-problem {
-    color: var(--ink-muted);
-    font-size: var(--text-base);
-    line-height: 1.55;
-}
-.story-role {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-muted);
-}
-.story-role .kw { color: var(--accent); margin-right: var(--space-1); }
-
-.story-stack {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-.stack-chip {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--ink-muted);
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.story-beat {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-6);
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    will-change: opacity, transform;
-}
-.beat-step {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--accent);
-    letter-spacing: 0.06em;
-}
-.beat-title {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    font-size: var(--text-xl);
-    color: var(--ink);
-    line-height: 1.2;
-}
-.beat-body {
-    color: var(--ink);
-    font-size: var(--text-base);
-    line-height: 1.6;
-}
-
-.beat-visual {
-    margin-top: var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--bg-card);
-}
-.beat-code {
-    margin: 0;
-    padding: var(--space-4);
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    line-height: 1.6;
-    color: var(--ink-muted);
-    overflow-x: auto;
-    white-space: pre;
-}
-.beat-image img { display: block; width: 100%; height: auto; }
-.beat-iframe iframe { width: 100%; min-height: 320px; border: 0; }
-
 /* Bento cards (spec 06) ---------------------------------------------- */
 
 .bento-card {
@@ -720,41 +901,35 @@
 .cursor {
     position: fixed;
     top: 0; left: 0;
-    width: 0; height: 0;
+    width: 28px; height: 28px;
     pointer-events: none;
     z-index: 80;
-    will-change: transform;
-}
-.cursor-dot,
-.cursor-ring {
-    position: absolute;
-    left: 0; top: 0;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-}
-.cursor-dot {
-    width: 6px; height: 6px;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
+    will-change: transform, width, height;
     transition: opacity var(--dur-fast) var(--ease-out);
 }
-.cursor-ring {
-    width: 28px; height: 28px;
-    border: 1px solid var(--accent-glow);
+.cursor-corner {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: var(--accent);
+    border-style: solid;
+    border-width: 0;
+    pointer-events: none;
     transition:
         width var(--dur-base) var(--ease-out),
         height var(--dur-base) var(--ease-out),
-        background var(--dur-base) var(--ease-out),
-        border-color var(--dur-base) var(--ease-out);
+        filter var(--dur-base) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out);
 }
-.cursor.is-magnet .cursor-ring {
-    width: 56px; height: 56px;
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-.cursor.is-magnet .cursor-dot {
-    opacity: 0;
+.cursor-corner-tl { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; border-top-left-radius: 2px; }
+.cursor-corner-tr { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; border-top-right-radius: 2px; }
+.cursor-corner-bl { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; border-bottom-left-radius: 2px; }
+.cursor-corner-br { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; border-bottom-right-radius: 2px; }
+
+.cursor.is-magnet .cursor-corner {
+    width: 14px;
+    height: 14px;
+    filter: drop-shadow(0 0 6px var(--accent-glow));
 }
 .cursor.is-hidden { opacity: 0; }
 

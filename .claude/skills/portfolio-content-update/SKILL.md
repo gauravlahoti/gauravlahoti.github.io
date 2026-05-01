@@ -1,6 +1,6 @@
 ---
 name: portfolio-content-update
-description: Use when the user wants to update bio, add/remove a role, swap the resume PDF, change Topmate or social links, or add a new project to the portfolio site. Walks through editing the right JSON file (profile.json, graph.json, stories.json) and the matching media in assets/img/ so spec implementations don't break. Examples - "update my bio", "add a new role at Anthropic", "the resume changed", "change my Topmate URL", "add a project I just shipped".
+description: Use when the user wants to update bio, add/remove a role, swap the resume PDF, change Topmate or social links, or add a new project to the portfolio site. Walks through editing the right JSON file (profile.json, graph.json) and the matching media in assets/img/ so spec implementations don't break. Examples - "update my bio", "add a new role at Anthropic", "the resume changed", "change my Topmate URL", "add a project I just shipped".
 ---
 
 # Portfolio content update
@@ -21,8 +21,7 @@ checklist for doing that cleanly.
 | Skills list (bento card)      | `assets/js/data/profile.json`    | `skills` array                     |
 | Education / certifications    | `assets/js/data/profile.json`    | arrays                             |
 | Career graph (companies, projects, skills, edges) | `assets/js/data/graph.json` | nodes + edges                      |
-| Case studies (story beats)    | `assets/js/data/stories.json`    | `stories` array                    |
-| Terminal commands             | `assets/js/data/commands.json`   | only edit if adding new commands   |
+| Cert badges (images)          | `assets/img/badges/<slug>.png`   | one per certification              |
 | Resume PDF                    | `assets/img/resume.pdf`          | replace file in place              |
 | OG image                      | `assets/img/og-image.png`        | 1200×630 PNG                       |
 | Favicon                       | `assets/img/favicon.svg`         | SVG with project tokens            |
@@ -38,8 +37,8 @@ checklist for doing that cleanly.
 
 ### Adding a project
 
-Use `/add-project <slug>` — it handles graph.json + stories.json
-together and prompts for the missing fields.
+Use `/add-project <slug>` — it appends a node + edges to
+`graph.json` and prompts for the missing fields.
 
 ### Adding a new role at a new company
 
