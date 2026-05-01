@@ -19,6 +19,7 @@ python3 -m http.server 5173
 - `/create-spec <step> <slug>` — scaffold a new spec + feature branch
 - `/implement-spec <step>` — read spec, plan, implement
 - `/add-project` — add a project node to `graph.json`
+- `/ship` — commit feature-branch work, open PR, squash-merge to main
 - `/publish` — commit, push, trigger Pages deploy
 
 ## Architecture
@@ -27,11 +28,21 @@ python3 -m http.server 5173
 |------------------|---------------------------------------------------------|------------------------------------|
 | HTML             | `index.html`                                            | Single page; semantic anchors      |
 | CSS              | `assets/css/{base,layout,components}.css`               | base = variables + typography      |
-| JS modules       | `assets/js/{main,trajectory,hero-graph,cursor}.js`       | One module per surface             |
+| JS modules       | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate}.js` | One module per surface       |
 | Content data     | `assets/js/data/*.json`                                 | See data files below               |
 | Static media     | `assets/img/`                                           | Resume PDF, OG image, favicon      |
+| Backend (gate)   | `backend/`                                              | Resume-download auth (see below)   |
 
 Data files: `profile.json` (identity, bio, socials, full work history, certifications), `graph.json` (project metadata).
+
+## Resume-gate backend
+
+`backend/` is a separate sub-project that gates the resume PDF behind Google Sign-In. Two interchangeable runtimes share `schema.sql`:
+
+- **Local Node** (`backend/local-server.js`) — `cd backend && npm install && npm start` → `http://localhost:8787`, writes `leads.db` (SQLite).
+- **Cloudflare Worker** (`backend/src/index.js`, `wrangler.toml`) — production target, writes to D1.
+
+The static portfolio stays plain HTML/CSS/JS and ships to GitHub Pages independently. `assets/js/resume-gate.js` calls the backend; the PDF download fires only after the JWT verifies and the lead row is written. Specs 11 and 12 cover the gate and Google auth.
 
 ## Conventions
 

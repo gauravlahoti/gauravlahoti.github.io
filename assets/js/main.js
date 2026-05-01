@@ -18,14 +18,12 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 
     bindDOM(profile);
     setTitle(profile);
-    setUptime(profile.careerStart);
-    setInterval(() => setUptime(profile.careerStart), 60_000);
     setYear();
     initLenis();
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
     initTrajectoryWhenVisible(profile);
-    initBento(profile);
+    initCapabilities(profile);
     initCertRail(profile);
     wireScrollTo();
     initCursorAsync();
@@ -74,15 +72,15 @@ function auditConsole() {
     });
 }
 
-function initBento(profile) {
-    const root = document.querySelector("[data-bento-root]");
+function initCapabilities(profile) {
+    const root = document.querySelector("[data-capabilities-root]");
     if (!root || !profile) return;
 
-    populateStats(profile.stats || {});
-    populateSkills(profile.skills || {});
-    populateCerts(profile.certifications || []);
+    const caps = profile.capabilities || {};
+    renderAxis("technical", caps.technical || [], { interactive: true });
+    renderAxis("business",  caps.business  || [], { interactive: false });
 
-    const cards = root.querySelectorAll(".bento-card");
+    const cards = root.querySelectorAll(".cap-card");
     if (!cards.length) return;
 
     const gsap = window.gsap;
@@ -92,133 +90,77 @@ function initBento(profile) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             if (gsap && !reduceMotion) {
-                gsap.from(cards, { opacity: 0, y: 24, stagger: 0.08, duration: 0.55, ease: "power3.out" });
+                gsap.from(cards, { opacity: 0, y: 20, stagger: 0.05, duration: 0.5, ease: "power3.out" });
             }
-            animateStats(profile.stats || {});
+            triggerScanLines(cards);
         }
     }, { rootMargin: "0px 0px -10% 0px" });
     io.observe(root);
 }
 
-const STAT_DEFS = [
-    { key: "yearsExperience",         label: "Years experience",      suffix: "+" },
-    { key: "microservicesArchitected", label: "Microservices",        suffix: "+" },
-    { key: "techDebtReducedPct",      label: "Tech debt cut",         suffix: "%" },
-    { key: "mttrImprovementX",        label: "MTTR improvement",      suffix: "x" },
-    { key: "winRatePct",              label: "Pursuit win rate",      suffix: "%" },
-    { key: "certifications",          label: "Certifications",        suffix: "" },
-];
+function renderAxis(axisKey, groups, { interactive }) {
+    const body = document.querySelector(`[data-axis-body="${axisKey}"]`);
+    if (!body) return;
+    body.replaceChildren();
 
-function populateStats(stats) {
-    const list = document.querySelector("[data-stats]");
-    if (!list) return;
-    list.replaceChildren();
-    for (const def of STAT_DEFS) {
-        const value = stats[def.key];
-        if (value == null) continue;
-        const li = document.createElement("li");
-        li.className = "stat";
-        li.dataset.target = String(value);
-        li.dataset.suffix = def.suffix;
-        li.innerHTML = `
-            <span class="stat-value" data-stat-value>0${def.suffix}</span>
-            <span class="stat-label">${def.label}</span>
+    groups.forEach((group, idx) => {
+        const card = document.createElement("article");
+        card.className = "cap-card";
+        card.dataset.axis = axisKey;
+
+        const index = String(idx + 1).padStart(2, "0");
+        card.innerHTML = `
+            <span class="cap-bracket cap-bracket-tl" aria-hidden="true"></span>
+            <span class="cap-bracket cap-bracket-br" aria-hidden="true"></span>
+            <span class="cap-scan" aria-hidden="true"></span>
+            <header class="cap-card-head">
+                <span class="cap-index">${index}.</span>
+                <h4 class="cap-label">${escapeHtml(group.label || group.key || "")}</h4>
+            </header>
+            ${group.context ? `<p class="cap-context">${escapeHtml(group.context)}</p>` : ""}
+            <ul class="cap-chips" role="list"></ul>
         `;
-        list.appendChild(li);
-    }
-}
 
-function animateStats(stats) {
-    const items = document.querySelectorAll("[data-stats] .stat");
-    const gsap = window.gsap;
-    items.forEach((li) => {
-        const target = Number(li.dataset.target || 0);
-        const suffix = li.dataset.suffix || "";
-        const valueEl = li.querySelector("[data-stat-value]");
-        if (!valueEl) return;
-        if (!gsap || reduceMotion) {
-            valueEl.textContent = `${target}${suffix}`;
-            return;
+        const chipList = card.querySelector(".cap-chips");
+        for (const name of (group.items || [])) {
+            const li = document.createElement("li");
+            if (interactive) {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "cap-chip";
+                btn.dataset.cursor = "magnet";
+                btn.textContent = name;
+                btn.addEventListener("click", () => {
+                    document.dispatchEvent(new CustomEvent("portfolio:highlight-skill", { detail: { label: name } }));
+                    document.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { anchor: "#graph" } }));
+                });
+                li.appendChild(btn);
+            } else {
+                const span = document.createElement("span");
+                span.className = "cap-chip is-static";
+                span.textContent = name;
+                li.appendChild(span);
+            }
+            chipList.appendChild(li);
         }
-        const obj = { v: 0 };
-        gsap.to(obj, {
-            v: target,
-            duration: 1.4,
-            ease: "power2.out",
-            onUpdate() { valueEl.textContent = `${Math.round(obj.v)}${suffix}`; },
-        });
+
+        body.appendChild(card);
     });
 }
 
-const SKILL_GROUP_LABELS = {
-    agentic: "Agentic frameworks",
-    llms: "LLMs & model garden",
-    protocols: "AI protocols",
-    rag: "RAG & vector data",
-    cloud: "Cloud native",
-    integration: "Integration & API",
-    security: "Security",
-    languages: "Languages & tools",
-};
-
-function populateSkills(skills) {
-    const root = document.querySelector("[data-skills]");
-    if (!root) return;
-    root.replaceChildren();
-    for (const key of Object.keys(SKILL_GROUP_LABELS)) {
-        const items = skills[key];
-        if (!Array.isArray(items) || items.length === 0) continue;
-        const wrap = document.createElement("div");
-        wrap.className = "skill-group";
-        wrap.innerHTML = `<p class="skill-group-label">${SKILL_GROUP_LABELS[key]}</p>`;
-        const ul = document.createElement("ul");
-        ul.className = "skill-chips";
-        for (const name of items) {
-            const li = document.createElement("li");
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "skill-chip";
-            btn.textContent = name;
-            btn.addEventListener("click", () => {
-                document.dispatchEvent(new CustomEvent("portfolio:highlight-skill", { detail: { label: name } }));
-                document.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { anchor: "#graph" } }));
-            });
-            li.appendChild(btn);
-            ul.appendChild(li);
-        }
-        wrap.appendChild(ul);
-        root.appendChild(wrap);
-    }
+function triggerScanLines(cards) {
+    if (reduceMotion) return;
+    cards.forEach((card, i) => {
+        setTimeout(() => card.classList.add("is-scanned"), 200 + i * 80);
+    });
 }
 
-function populateCerts(certs) {
-    const list = document.querySelector("[data-certs]");
-    if (!list) return;
-    list.replaceChildren();
-
-    // Render a 4-col image grid above the text list (visible on every viewport
-    // — matters most for mobile where the cert-rail is hidden).
-    const withBadge = certs.filter(c => c.badge);
-    if (withBadge.length > 0) {
-        const grid = document.createElement("div");
-        grid.className = "cert-item-img-grid";
-        for (const c of withBadge) {
-            const img = document.createElement("img");
-            img.src = c.badge;
-            img.alt = c.name;
-            img.loading = "lazy";
-            img.decoding = "async";
-            grid.appendChild(img);
-        }
-        list.parentElement && list.parentElement.insertBefore(grid, list);
-    }
-
-    for (const c of certs) {
-        const li = document.createElement("li");
-        li.className = "cert-item";
-        li.textContent = c.name + (c.issuer ? ` · ${c.issuer}` : "");
-        list.appendChild(li);
-    }
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
 
 /* ---------- cert rail (spec 10) ---------- */
@@ -234,9 +176,6 @@ function initCertRail(profile) {
     );
     if (certs.length === 0) return;
 
-    // ---- horizontal news-ticker: render the set TWICE so the CSS marquee
-    //      (translateX 0 → -50%) loops seamlessly. The second copy is
-    //      aria-hidden so screen readers don't announce 16 badges. ----
     const list = document.createElement("ul");
     list.className = "cert-rail-list";
 
@@ -248,7 +187,6 @@ function initCertRail(profile) {
     }
     root.appendChild(list);
 
-    // ---- shimmer phase randomization (per-tile, unsynced) ----
     root.querySelectorAll(".cert-tile").forEach((t) => {
         t.style.setProperty("--shimmer-delay", `${(Math.random() * -7).toFixed(2)}s`);
     });
@@ -276,7 +214,6 @@ function renderCertTile(c, isDuplicate = false) {
     li.appendChild(pop);
 
     if (isDuplicate) {
-        // Second-set tiles are visual-only; hide from a11y tree and skip Tab.
         li.setAttribute("aria-hidden", "true");
         li.setAttribute("tabindex", "-1");
     } else {
@@ -297,14 +234,6 @@ function renderCertTile(c, isDuplicate = false) {
     });
 
     return li;
-}
-
-function escapeHtml(s) {
-    return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
 }
 
 
@@ -380,21 +309,6 @@ function resolve(obj, path) {
 function setTitle(profile) {
     const title = `${profile.name} — ${profile.title}`;
     if (document.title !== title) document.title = title;
-}
-
-/* ---------- uptime ticker ---------- */
-
-function setUptime(careerStart) {
-    if (!careerStart) return;
-    const target = document.querySelector('[data-bind="uptime"]');
-    if (!target) return;
-    const [y, m] = careerStart.split("-").map(Number);
-    const start = new Date(y, m - 1, 1);
-    const now = new Date();
-    let years = now.getFullYear() - start.getFullYear();
-    let months = now.getMonth() - start.getMonth();
-    if (months < 0) { years -= 1; months += 12; }
-    target.textContent = months > 0 ? `${years}y ${months}m` : `${years}y`;
 }
 
 function setYear() {

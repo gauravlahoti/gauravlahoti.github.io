@@ -32,7 +32,6 @@ Every feature is built through a spec under `.claude/specs/`. The roadmap:
 | 02   | Hero + WebGL shader         |
 | 04   | Career trajectory           |
 | 06   | Bento grid                  |
-| 07   | Connect section             |
 | 08   | Polish                      |
 | 09   | Deploy                      |
 

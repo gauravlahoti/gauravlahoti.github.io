@@ -20,15 +20,24 @@
     "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
   },
   "models": ["gemini-3-pro", "claude-haiku-4.5", "gpt-4.1"],
-  "skills": {
-    "agentic": ["LangChain", "LangGraph", "Google ADK"],
-    "llms": ["Gemini 3 Pro/Flash", "Claude Haiku 4.5", "GPT-4.1", "Vertex AI", "AWS Bedrock"],
-    "protocols": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)", "OpenAPI (OAS) for Tool Use"],
-    "rag": ["Pinecone", "Gecko Embeddings", "Titan Embeddings"],
-    "cloud": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Vertex AI", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"],
-    "security": ["OAuth2", "IAM", "Zero Trust Architecture", "DLP"],
-    "integration": ["Apigee X", "Microservices", "Boomi", "Event-Driven Architecture", "Oracle SOA/OSB", "ODI"],
-    "languages": ["Python", "Pydantic", "FastAPI", "SQL"]
+  "capabilities": {
+    "technical": [
+      { "key": "agentic",     "label": "Agentic frameworks",  "context": "Orchestrating multi-agent workflows from prototype to production",     "items": ["LangChain", "LangGraph", "Google ADK"] },
+      { "key": "llms",        "label": "LLMs & model garden", "context": "Picking the right model for the job — proprietary, open, on-prem",     "items": ["Gemini 3 Pro/Flash", "Claude Haiku 4.5", "GPT-4.1", "Vertex AI", "AWS Bedrock"] },
+      { "key": "protocols",   "label": "AI protocols",        "context": "Wiring agents to tools, data, and each other through open standards",   "items": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)", "OpenAPI (OAS) for Tool Use"] },
+      { "key": "rag",         "label": "RAG & vector data",   "context": "Grounding generation in proprietary knowledge with retrieval pipelines","items": ["Pinecone", "Gecko Embeddings", "Titan Embeddings"] },
+      { "key": "cloud",       "label": "Cloud native",        "context": "Building on GCP and AWS primitives — serverless first, IaC always",     "items": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Vertex AI", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"] },
+      { "key": "integration", "label": "Integration & API",   "context": "Bridging legacy enterprise stacks to event-driven, API-first systems",  "items": ["Apigee X", "Microservices", "Boomi", "Event-Driven Architecture", "Oracle SOA/OSB", "ODI"] },
+      { "key": "security",    "label": "Security",            "context": "Designing for least privilege, zero trust, and data-loss prevention",   "items": ["OAuth2", "IAM", "Zero Trust Architecture", "DLP"] },
+      { "key": "languages",   "label": "Languages & tools",   "context": "Daily drivers for shipping production-grade services",                  "items": ["Python", "Pydantic", "FastAPI", "SQL"] }
+    ],
+    "business": [
+      { "key": "leadership", "label": "Engagement leadership", "context": "Steering AI engagements end-to-end with executive sponsors",          "items": ["Cross-functional alignment", "Executive communication", "Hiring & evaluation", "Org design"] },
+      { "key": "pursuit",    "label": "Pursuit & pre-sales",   "context": "Turning RFPs and discovery calls into signed statements of work",     "items": ["RFP response", "Solution pitches", "Estimation", "Client demos", "Win-strategy"] },
+      { "key": "delivery",   "label": "Delivery & governance", "context": "Shipping on time, on budget, with the quality bar held high",         "items": ["Roadmapping", "Risk management", "Vendor management", "SOW & scoping", "Quality gates"] },
+      { "key": "strategy",   "label": "Strategy & advisory",   "context": "Helping clients make build-vs-buy and AI-investment calls",           "items": ["AI maturity assessments", "Capability building", "Reusable assets", "Tech-debt prioritization"] },
+      { "key": "people",     "label": "People & mentorship",   "context": "Growing engineers from joiners to senior contributors",               "items": ["Mentorship", "Capability academies", "1:1 coaching", "Performance reviews"] }
+    ]
   },
   "certifications": [
     {
@@ -96,11 +105,6 @@
       "credlyUrl": "https://www.credly.com/org/google-cloud/badge/professional-cloud-security-engineer-certification"
     }
   ],
-  "education": {
-    "degree": "B.Tech, Computer Science",
-    "school": "Institute of Engineering and Technology",
-    "years": "2010 – 2014"
-  },
   "experience": [
     {
       "company": "Accenture",
@@ -133,13 +137,5 @@
         { "title": "Manager", "start": "2025-06", "end": null, "duration": "1 yr", "location": "Gurugram, Haryana, India", "skills": ["LangGraph", "AI Agents"], "extraSkills": 5 }
       ]
     }
-  ],
-  "stats": {
-    "yearsExperience": 11,
-    "microservicesArchitected": 75,
-    "techDebtReducedPct": 40,
-    "mttrImprovementX": 2,
-    "winRatePct": 60,
-    "certifications": 8
-  }
+  ]
 }

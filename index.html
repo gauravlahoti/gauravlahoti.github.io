@@ -52,7 +52,6 @@
                 <a href="#graph">Career</a>
                 <a href="#bento">About</a>
                 <a href="#" data-resume-trigger>Resume</a>
-                <a href="#connect">Connect</a>
             </nav>
             <div class="nav-actions">
                 <ul class="nav-channels" aria-label="Channels">
@@ -81,7 +80,12 @@
                         </a>
                     </li>
                 </ul>
-                <a class="nav-cta btn btn-ghost btn-sm" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Topmate</a>
+                <a class="nav-cta btn btn-ghost btn-sm" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
+                    <svg class="nav-cta-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <path d="M21.5 8.9 L12 12 L21.5 15.1 A10 10 0 1 0 21.5 8.9 Z"/>
+                    </svg>
+                    <span>Topmate</span>
+                </a>
             </div>
         </div>
     </header>
@@ -93,7 +97,6 @@
 
             <div class="hero-chrome" aria-hidden="true">
                 <div class="chrome chrome-tl">// open to architecture engagements</div>
-                <div class="chrome chrome-bl">// <span data-bind="uptime">11y</span> · since Apr 2015</div>
                 <div class="chrome chrome-br">↓ scroll to explore <span class="caret">_</span></div>
             </div>
 
@@ -109,12 +112,21 @@
                     <span class="hi-anchor">Cloud</span>
                     <span class="hi-amp">&amp;</span>
                     <span class="hi-anchor">AI-Native</span>
-                    <span class="hi-noun">Architect.</span>
+                    <span class="hi-noun">
+                        <span class="hi-noun-text">Architect.</span>
+                        <span class="hi-hat" aria-hidden="true">
+                            <svg viewBox="0 0 24 18" width="22" height="16" fill="currentColor">
+                                <path d="M12 1 L1 6 L12 11 L21 6.9 V12 H22.5 V6 Z M5.5 9.4 V13 C5.5 14.6 8.4 16.2 12 16.2 C15.6 16.2 18.5 14.6 18.5 13 V9.4 L12 12.4 Z"/>
+                            </svg>
+                        </span>
+                        <span class="hi-agents" aria-hidden="true">
+                            <span class="hi-agent hi-agent-1"></span>
+                            <span class="hi-agent hi-agent-2"></span>
+                            <span class="hi-agent hi-agent-3"></span>
+                        </span>
+                    </span>
                 </p>
                 <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
-                <div class="hero-ctas">
-                    <a class="btn btn-primary" data-cursor="magnet" href="#graph">View Career →</a>
-                </div>
             </div>
         </section>
 
@@ -154,80 +166,31 @@
             </div>
         </section>
 
-        <section id="bento" class="section section-bento" aria-label="About">
-            <header class="bento-header">
-                <p class="bento-eyebrow">// about::credentials</p>
-                <h2 class="bento-title">The receipts.</h2>
-                <p class="bento-sub">Years, scale, and certifications behind the work above.</p>
+        <section id="bento" class="section section-capabilities" aria-label="Capabilities">
+            <header class="cap-header">
+                <p class="cap-eyebrow">// architect.capabilities()</p>
+                <h2 class="cap-title">Capabilities.</h2>
+                <p class="cap-sub">A two-axis stack: deep technical fluency and the business muscle to ship it. Both honed across eleven years of enterprise consulting.</p>
+                <p class="cap-return mono"><span class="kw">return</span> <span data-bind="profile.name">Gaurav Lahoti</span>;</p>
             </header>
-            <div class="bento-grid" data-bento-root>
-                <article class="bento-card bento-hero" data-bento-card="hero">
-                    <p class="bento-card-label">// architect.signature</p>
-                    <p class="bento-card-headline" data-bind="profile.tagline">…</p>
-                    <p class="bento-card-foot mono"><span class="kw">return</span> <span data-bind="profile.name">Gaurav Lahoti</span>;</p>
-                </article>
-                <article class="bento-card bento-stats" data-bento-card="stats">
-                    <p class="bento-card-label">// metrics</p>
-                    <ul class="stats-grid" data-stats></ul>
-                </article>
-                <article class="bento-card bento-skills" data-bento-card="skills">
-                    <p class="bento-card-label">// stack.grouped</p>
-                    <div class="skills-groups" data-skills></div>
-                </article>
-                <article class="bento-card bento-education" data-bento-card="education">
-                    <p class="bento-card-label">// education</p>
-                    <p class="edu-degree" data-bind="profile.education.degree">B.Tech, Computer Science</p>
-                    <p class="edu-school" data-bind="profile.education.school">Institute of Engineering and Technology</p>
-                    <p class="edu-years mono" data-bind="profile.education.years">2010 – 2014</p>
-                </article>
-                <article class="bento-card bento-certs" data-bento-card="certs">
-                    <p class="bento-card-label">// certifications</p>
-                    <ul class="certs-list" data-certs></ul>
-                </article>
+            <div class="capabilities-grid" data-capabilities-root>
+                <section class="cap-axis" data-axis="technical" aria-label="Technical capabilities">
+                    <header class="cap-axis-head">
+                        <span class="cap-axis-tag">// axis.01</span>
+                        <h3 class="cap-axis-title">Technical</h3>
+                    </header>
+                    <div class="cap-axis-cards" data-axis-body="technical"></div>
+                </section>
+                <section class="cap-axis" data-axis="business" aria-label="Business and leadership capabilities">
+                    <header class="cap-axis-head">
+                        <span class="cap-axis-tag">// axis.02</span>
+                        <h3 class="cap-axis-title">Business &amp; Leadership</h3>
+                    </header>
+                    <div class="cap-axis-cards" data-axis-body="business"></div>
+                </section>
             </div>
         </section>
 
-        <section id="connect" class="section section-connect" aria-label="Connect">
-            <div class="connect-shell">
-                <p class="connect-eyebrow">// connect::let-us-build</p>
-                <h2 class="connect-title">Let's architect something autonomous.</h2>
-                <p class="connect-sub">Resume Review · Career Coaching · Architecture Office Hours</p>
-                <a class="btn btn-primary connect-cta" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
-                    Book on Topmate →
-                </a>
-                <button class="btn btn-ghost connect-resume-cta" type="button" data-resume-trigger data-cursor="magnet">Download Resume</button>
-                <ul class="link-row" aria-label="Other channels">
-                    <li>
-                        <a class="link-icon" data-bind-href="mailto:profile.links.email" data-bind-title="profile.links.email" aria-label="Email">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <rect x="3" y="5" width="18" height="14" rx="2"/>
-                                <path d="M3 7l9 6 9-6"/>
-                            </svg>
-                            <span>Email</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="link-icon" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4V8h4v1.5"/>
-                                <rect x="2" y="9" width="4" height="12"/>
-                                <circle cx="4" cy="4" r="1.5"/>
-                            </svg>
-                            <span>LinkedIn</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="link-icon" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                            </svg>
-                            <span>GitHub</span>
-                        </a>
-                    </li>
-                </ul>
-                <p class="connect-foot mono">// based in Gurugram · open to remote · responding within 48h</p>
-            </div>
-        </section>
     </main>
 
     <footer class="footer" role="contentinfo">
