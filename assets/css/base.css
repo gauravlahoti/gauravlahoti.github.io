@@ -15,6 +15,12 @@
     --border-strong: rgba(255, 255, 255, 0.16);
     --danger: #FF5C5C;
 
+    /* graph node colours by type */
+    --node-company: #FFC857;
+    --node-project: #00FFD1;
+    --node-domain:  #B388FF;
+    --node-skill:   #6BC1FF;
+
     /* typography */
     --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
     --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;

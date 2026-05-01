@@ -92,8 +92,28 @@
             </div>
         </section>
 
-        <section id="graph" class="section section-placeholder" aria-label="Career graph">
-            <p class="placeholder-label">// spec 04 — knowledge graph</p>
+        <section id="graph" class="section section-graph" aria-label="Career graph">
+            <div class="graph-shell">
+                <header class="graph-header">
+                    <p class="graph-eyebrow">// graph::career.knowledge</p>
+                    <h2 class="graph-title">A career, as a graph.</h2>
+                    <p class="graph-sub">Companies, projects, domains, and skills — connected the way they actually used each other. Hover any node for context. Click a project to read the case study.</p>
+                </header>
+                <div class="graph-body">
+                    <div class="graph-stage" role="img" aria-label="Interactive 3D knowledge graph"></div>
+                    <aside class="graph-panel" aria-live="polite">
+                        <p class="graph-panel-eyebrow" data-graph-meta>node detail</p>
+                        <h3 class="graph-panel-title" data-graph-title>Hover a node</h3>
+                        <p class="graph-panel-body" data-graph-desc>The graph is built from <code>graph.json</code>. Each node knows its type and its neighbors.</p>
+                        <ul class="graph-legend" aria-label="Legend">
+                            <li><span class="legend-dot legend-company"></span> Company</li>
+                            <li><span class="legend-dot legend-project"></span> Project</li>
+                            <li><span class="legend-dot legend-domain"></span> Domain</li>
+                            <li><span class="legend-dot legend-skill"></span> Skill</li>
+                        </ul>
+                    </aside>
+                </div>
+            </div>
         </section>
 
         <section id="stories" class="section section-placeholder" aria-label="Case studies">

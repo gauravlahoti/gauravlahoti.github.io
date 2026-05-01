@@ -26,8 +26,56 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
     initTerminalWhenVisible();
+    initGraphWhenVisible();
     wireFlare();
+    wireScrollTo();
 })();
+
+function initGraphWhenVisible() {
+    const container = document.querySelector("#graph .graph-stage");
+    if (!container) return;
+    const io = new IntersectionObserver(async (entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            try {
+                const [{ initGraph }, data] = await Promise.all([
+                    import("./graph.js"),
+                    fetch("assets/js/data/graph.json").then(r => r.json()),
+                ]);
+                const force2D = isNarrow || saveData || !hasWebGL();
+                const inst = await initGraph(container, data, { mode: force2D ? "2d" : "3d" });
+                window.__graph = inst;
+            } catch (err) {
+                console.warn("[graph] failed to init", err);
+            }
+        }
+    }, { rootMargin: "200px" });
+    io.observe(container);
+}
+
+function hasWebGL() {
+    try {
+        const c = document.createElement("canvas");
+        return !!(window.WebGLRenderingContext &&
+                  (c.getContext("webgl2") || c.getContext("webgl")));
+    } catch (_) { return false; }
+}
+
+function wireScrollTo() {
+    document.addEventListener("portfolio:scroll-to", (e) => {
+        const anchor = e.detail && e.detail.anchor;
+        if (!anchor) return;
+        const target = document.querySelector(anchor);
+        if (!target) return;
+        const lenis = window.__lenis;
+        if (lenis && typeof lenis.scrollTo === "function") {
+            lenis.scrollTo(target, { offset: -64, duration: 1.2 });
+        } else {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    });
+}
 
 function wireFlare() {
     const hero = document.getElementById("hero");

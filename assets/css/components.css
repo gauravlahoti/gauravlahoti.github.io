@@ -215,6 +215,165 @@
     .terminal-help-name { min-width: 9ch; }
 }
 
+/* Graph (spec 04) ----------------------------------------------------- */
+
+.section-graph {
+    display: block;
+    max-width: 1280px;
+}
+
+.graph-shell {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.graph-header {
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.graph-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    letter-spacing: 0.06em;
+}
+.graph-title {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: clamp(var(--text-2xl), 5vw, var(--text-3xl));
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    color: var(--ink);
+}
+.graph-sub {
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    max-width: 600px;
+}
+
+.graph-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: var(--space-6);
+    align-items: stretch;
+}
+
+.graph-stage {
+    position: relative;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: 540px;
+    aspect-ratio: 4 / 3;
+}
+.graph-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.graph-stage .graph-svg { width: 100%; height: 100%; display: block; cursor: grab; }
+.graph-stage .graph-svg:active { cursor: grabbing; }
+
+/* 2D SVG nodes + edges */
+.graph-svg .edge {
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    transition: stroke var(--dur-fast) var(--ease-out), stroke-opacity var(--dur-fast) var(--ease-out);
+}
+.graph-svg .edge.is-active {
+    stroke: var(--accent);
+    stroke-opacity: 0.9;
+}
+.graph-svg .node {
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out);
+}
+.graph-svg .node[data-type="company"] { fill: var(--node-company); }
+.graph-svg .node[data-type="project"] { fill: var(--node-project); }
+.graph-svg .node[data-type="domain"]  { fill: var(--node-domain); }
+.graph-svg .node[data-type="skill"]   { fill: var(--node-skill); }
+.graph-svg .node.is-dim { opacity: 0.25; }
+.graph-svg .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-muted);
+    pointer-events: none;
+    text-anchor: middle;
+}
+.graph-svg .label.is-dim { opacity: 0.2; }
+.graph-svg .label.is-active { fill: var(--ink); }
+
+.graph-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-self: start;
+    position: sticky;
+    top: calc(var(--nav-h) + var(--space-4));
+}
+.graph-panel-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    letter-spacing: 0.06em;
+}
+.graph-panel-title {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: var(--text-lg);
+    color: var(--ink);
+    line-height: 1.2;
+    word-break: break-word;
+}
+.graph-panel-body {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    min-height: 4.6em;
+}
+.graph-panel-body code {
+    color: var(--accent);
+    background: transparent;
+    padding: 0;
+    font-size: 0.95em;
+}
+
+.graph-legend {
+    list-style: none;
+    margin-top: auto;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+.graph-legend li { display: flex; align-items: center; gap: var(--space-2); }
+.legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+    display: inline-block;
+}
+.legend-company { background: var(--node-company); color: var(--node-company); }
+.legend-project { background: var(--node-project); color: var(--node-project); }
+.legend-domain  { background: var(--node-domain);  color: var(--node-domain); }
+.legend-skill   { background: var(--node-skill);   color: var(--node-skill); }
+
+@media (max-width: 880px) {
+    .graph-body { grid-template-columns: 1fr; }
+    .graph-stage { aspect-ratio: 1 / 1; min-height: 360px; }
+    .graph-panel { position: static; }
+    .graph-legend { grid-template-columns: repeat(4, 1fr); font-size: 0.7rem; }
+}
+
 /* Hero flare (easter-egg target) ------------------------------------- */
 
 .hero.is-flaring::before {
