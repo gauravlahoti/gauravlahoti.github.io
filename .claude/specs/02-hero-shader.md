@@ -39,9 +39,10 @@ No database.
 ## Templates
 
 - **Create:** none.
-- **Modify:** `index.html` — populate `#hero` with the canvas,
-  four corner chrome divs, the foreground stack (status / name /
-  role / tagline / CTAs), and the `> try typing` hint.
+- **Modify:** `index.html` — populate `#hero` with the canvas, two
+  chrome corners (top-right + bottom-left + bottom-right scroll
+  hint; top-left intentionally empty for breathing room), and the
+  foreground stack (name / identity line / tagline / CTAs).
 
 ## Files to change
 
@@ -50,15 +51,18 @@ No database.
   <section id="hero">
     <canvas id="hero-gl" aria-hidden="true"></canvas>
     <div class="hero-chrome">
-      <div class="chrome chrome-tl">// AGENT_STATUS: <span class="dot"></span> ONLINE</div>
-      <div class="chrome chrome-tr">// MODEL: gemini-3-pro · claude-haiku-4.5</div>
-      <div class="chrome chrome-bl">// uptime: <span data-bind="uptime">11y</span></div>
-      <div class="chrome chrome-br">&gt; try typing <span class="caret">_</span></div>
+      <div class="chrome chrome-tr">// open to architecture engagements</div>
+      <div class="chrome chrome-bl">// <span data-bind="uptime">11y</span> · since Apr 2015</div>
+      <div class="chrome chrome-br">↓ scroll to explore <span class="caret">_</span></div>
     </div>
     <div class="hero-stack">
-      <p class="status-line">// initializing portfolio.agent</p>
       <h1 class="hero-name" data-bind="profile.name">Gaurav Lahoti</h1>
-      <p class="hero-role"><span class="kw">class</span> <span class="cls">GauravLahoti</span> <span class="kw">extends</span> <span class="cls">CloudArchitect</span> { }</p>
+      <p class="hero-identity">
+        <span class="hi-anchor">Cloud</span>
+        <span class="hi-amp">&amp;</span>
+        <span class="hi-anchor">AI-Native</span>
+        <span class="hi-noun">Architect.</span>
+      </p>
       <p class="hero-tagline" data-bind="profile.tagline">…</p>
       <div class="hero-ctas">
         <a class="btn btn-primary" href="#stories">View Work</a>
@@ -107,8 +111,8 @@ CDN:
 |---|---|---|
 | **Backdrop** | ~80 nodes on a Fibonacci sphere with noise jitter, edges via k=2 nearest neighbors. Slow Y-rotation. Mouse parallax (±6°) on the group. | three.js |
 | **Edge pulse** | Custom `ShaderMaterial` on edges. `uProgress` uniform lights one edge along a precomputed path every ~1.4s. No bloom, no scan-lines, zero postprocessing. | three.js |
-| **Foreground type** | Status line · name (Inter 700, oversized) · role as code declaration · tagline streaming in word-by-word. | GSAP, GSAP TextPlugin |
-| **Chrome** | Four corner overlays from `profile.json` and computed values. Top-left status with pulsing dot. Top-right model list. Bottom-left live uptime ticker. Bottom-right blinking caret hint. | vanilla JS |
+| **Foreground type** | Name (Inter 700, oversized, scrambled) · identity line `Cloud & AI-Native Architect.` (Inter, typographically split) · tagline streaming in word-by-word. No init/status line. | GSAP, GSAP TextPlugin |
+| **Chrome** | Two corner overlays only — top-right availability tag, bottom-left live uptime ticker (`// 11y · since Apr 2015`), bottom-right scroll hint with blinking caret. Top-left intentionally empty. | vanilla JS |
 | **Interaction** | Mouse parallax → graph group rotation. Magnetic CTAs deferred to spec 08. Hovering any chrome line glitches it for one frame. | vanilla JS |
 
 ## Reveal sequence (0–3s, runs once per session)
@@ -119,11 +123,11 @@ CDN:
 | 0.2s | Graph fades in over 600ms; rotation begins. |
 | 0.4s | Chrome lines slide in from screen edges, stagger 80ms. |
 | 0.7s | Name scrambles for 400ms, then locks. |
-| 1.1s | Role line appears (syntax-highlighted mono). |
+| 1.1s | Identity line fades up — `Cloud & AI-Native Architect.` |
 | 1.3s | Tagline streams word-by-word at ~28 tok/s (~900ms total). |
 | 2.2s | CTAs ease-up + glow pulse on `--accent`. |
 | 2.5s | First edge pulse fires; loop continues. |
-| 3.0s | `> try typing _` caret begins blinking. |
+| 3.0s | `↓ scroll to explore _` caret begins blinking. |
 
 ## Rules for implementation
 
@@ -151,14 +155,20 @@ CDN:
   `getComputedStyle(document.documentElement)` once at init).
 - Headline name uses `data-bind="profile.name"` so it renders
   from JSON. Scramble runs only on first paint of the session.
-- The role line `class GauravLahoti extends CloudArchitect` is
-  styled with `.kw` (keyword cyan) and `.cls` (class identifier
-  white) spans — no JS-level syntax highlighter.
+- The identity line `Cloud & AI-Native Architect.` uses three
+  span classes for the typographic split: `.hi-anchor` (the
+  domain words `Cloud` and `AI-Native`, large, `--ink`),
+  `.hi-amp` (the italic `&` in `--accent` cyan), and `.hi-noun`
+  (the smaller, muted `Architect.`). All in Inter — mono is
+  reserved for chrome and code-style content elsewhere.
+- The hero deliberately does NOT include a "status init" line
+  or a model-list chrome — those read as cosplay rather than
+  substance.
 
 ## Definition of done
 
 - [ ] Hero fills `100svh`; no-JS visitors see chrome + name +
-      role + tagline + CTAs over a static gradient.
+      identity line + tagline + CTAs over a static gradient.
 - [ ] Three.js agent-graph renders with rotation + at least one
       edge pulsing at any moment, ≥55fps on a 2020 MacBook Air.
 - [ ] Reveal sequence runs once per session (sessionStorage

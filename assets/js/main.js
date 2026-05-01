@@ -16,7 +16,6 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
         return;
     }
 
-    profile.modelsLine = (profile.models || []).join(" · ");
     bindDOM(profile);
     setTitle(profile);
     setUptime(profile.careerStart);
@@ -25,41 +24,202 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     initLenis();
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
-    initTerminalWhenVisible();
-    initGraphWhenVisible();
-    wireFlare();
+    initTrajectoryWhenVisible(profile);
+    initStoriesWhenVisible();
+    initBento(profile);
     wireScrollTo();
+    initCursorAsync();
+    auditConsole();
 })();
 
-function initGraphWhenVisible() {
-    const container = document.querySelector("#graph .graph-stage");
-    if (!container) return;
+async function initCursorAsync() {
+    if (matchMedia("(any-pointer: coarse)").matches) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    try {
+        const { initCursor } = await import("./cursor.js");
+        const inst = initCursor();
+        window.__cursor = inst;
+    } catch (err) {
+        console.warn("[cursor] failed to load", err);
+    }
+}
+
+function auditConsole() {
+    // Surface unexpected runtime errors without breaking the page.
+    window.addEventListener("error", (e) => {
+        // eslint-disable-next-line no-console
+        console.warn("[portfolio] runtime error", e.message, e.filename, e.lineno);
+    });
+}
+
+function initBento(profile) {
+    const root = document.querySelector("[data-bento-root]");
+    if (!root || !profile) return;
+
+    populateStats(profile.stats || {});
+    populateSkills(profile.skills || {});
+    populateCerts(profile.certifications || []);
+
+    const cards = root.querySelectorAll(".bento-card");
+    if (!cards.length) return;
+
+    const gsap = window.gsap;
+
+    const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            if (gsap && !reduceMotion) {
+                gsap.from(cards, { opacity: 0, y: 24, stagger: 0.08, duration: 0.55, ease: "power3.out" });
+            }
+            animateStats(profile.stats || {});
+        }
+    }, { rootMargin: "0px 0px -10% 0px" });
+    io.observe(root);
+}
+
+const STAT_DEFS = [
+    { key: "yearsExperience",         label: "Years experience",      suffix: "+" },
+    { key: "microservicesArchitected", label: "Microservices",        suffix: "+" },
+    { key: "techDebtReducedPct",      label: "Tech debt cut",         suffix: "%" },
+    { key: "mttrImprovementX",        label: "MTTR improvement",      suffix: "x" },
+    { key: "winRatePct",              label: "Pursuit win rate",      suffix: "%" },
+    { key: "certifications",          label: "Certifications",        suffix: "" },
+];
+
+function populateStats(stats) {
+    const list = document.querySelector("[data-stats]");
+    if (!list) return;
+    list.replaceChildren();
+    for (const def of STAT_DEFS) {
+        const value = stats[def.key];
+        if (value == null) continue;
+        const li = document.createElement("li");
+        li.className = "stat";
+        li.dataset.target = String(value);
+        li.dataset.suffix = def.suffix;
+        li.innerHTML = `
+            <span class="stat-value" data-stat-value>0${def.suffix}</span>
+            <span class="stat-label">${def.label}</span>
+        `;
+        list.appendChild(li);
+    }
+}
+
+function animateStats(stats) {
+    const items = document.querySelectorAll("[data-stats] .stat");
+    const gsap = window.gsap;
+    items.forEach((li) => {
+        const target = Number(li.dataset.target || 0);
+        const suffix = li.dataset.suffix || "";
+        const valueEl = li.querySelector("[data-stat-value]");
+        if (!valueEl) return;
+        if (!gsap || reduceMotion) {
+            valueEl.textContent = `${target}${suffix}`;
+            return;
+        }
+        const obj = { v: 0 };
+        gsap.to(obj, {
+            v: target,
+            duration: 1.4,
+            ease: "power2.out",
+            onUpdate() { valueEl.textContent = `${Math.round(obj.v)}${suffix}`; },
+        });
+    });
+}
+
+const SKILL_GROUP_LABELS = {
+    agentic: "Agentic frameworks",
+    llms: "LLMs & model garden",
+    protocols: "AI protocols",
+    rag: "RAG & vector data",
+    cloud: "Cloud native",
+    integration: "Integration & API",
+    security: "Security",
+    languages: "Languages & tools",
+};
+
+function populateSkills(skills) {
+    const root = document.querySelector("[data-skills]");
+    if (!root) return;
+    root.replaceChildren();
+    for (const key of Object.keys(SKILL_GROUP_LABELS)) {
+        const items = skills[key];
+        if (!Array.isArray(items) || items.length === 0) continue;
+        const wrap = document.createElement("div");
+        wrap.className = "skill-group";
+        wrap.innerHTML = `<p class="skill-group-label">${SKILL_GROUP_LABELS[key]}</p>`;
+        const ul = document.createElement("ul");
+        ul.className = "skill-chips";
+        for (const name of items) {
+            const li = document.createElement("li");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "skill-chip";
+            btn.textContent = name;
+            btn.addEventListener("click", () => {
+                document.dispatchEvent(new CustomEvent("portfolio:highlight-skill", { detail: { label: name } }));
+                document.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { anchor: "#graph" } }));
+            });
+            li.appendChild(btn);
+            ul.appendChild(li);
+        }
+        wrap.appendChild(ul);
+        root.appendChild(wrap);
+    }
+}
+
+function populateCerts(certs) {
+    const list = document.querySelector("[data-certs]");
+    if (!list) return;
+    list.replaceChildren();
+    for (const c of certs) {
+        const li = document.createElement("li");
+        li.className = "cert-item";
+        li.textContent = c.name + (c.issuer ? ` · ${c.issuer}` : "");
+        list.appendChild(li);
+    }
+}
+
+function initStoriesWhenVisible() {
+    const root = document.querySelector("[data-stories-root]");
+    if (!root) return;
     const io = new IntersectionObserver(async (entries) => {
         for (const entry of entries) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             try {
-                const [{ initGraph }, data] = await Promise.all([
-                    import("./graph.js"),
-                    fetch("assets/js/data/graph.json").then(r => r.json()),
+                const [{ initStories }, data] = await Promise.all([
+                    import("./stories.js"),
+                    fetch("assets/js/data/stories.json").then(r => r.json()),
                 ]);
-                const force2D = isNarrow || saveData || !hasWebGL();
-                const inst = await initGraph(container, data, { mode: force2D ? "2d" : "3d" });
-                window.__graph = inst;
+                const inst = initStories(root, data);
+                window.__stories = inst;
             } catch (err) {
-                console.warn("[graph] failed to init", err);
+                console.warn("[stories] failed to init", err);
             }
         }
-    }, { rootMargin: "200px" });
-    io.observe(container);
+    }, { rootMargin: "300px" });
+    io.observe(root);
 }
 
-function hasWebGL() {
-    try {
-        const c = document.createElement("canvas");
-        return !!(window.WebGLRenderingContext &&
-                  (c.getContext("webgl2") || c.getContext("webgl")));
-    } catch (_) { return false; }
+function initTrajectoryWhenVisible(profile) {
+    const root = document.querySelector("#graph [data-trajectory-root]");
+    if (!root) return;
+    const io = new IntersectionObserver(async (entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            try {
+                const { initTrajectory } = await import("./trajectory.js");
+                const inst = initTrajectory(root, profile);
+                window.__trajectory = inst;
+            } catch (err) {
+                console.warn("[trajectory] failed to init", err);
+            }
+        }
+    }, { rootMargin: "300px" });
+    io.observe(root);
 }
 
 function wireScrollTo() {
@@ -77,25 +237,12 @@ function wireScrollTo() {
     });
 }
 
-function wireFlare() {
-    const hero = document.getElementById("hero");
-    if (!hero) return;
-    document.addEventListener("portfolio:flare", () => {
-        hero.classList.remove("is-flaring");
-        // restart the CSS animation
-        // eslint-disable-next-line no-unused-expressions
-        void hero.offsetWidth;
-        hero.classList.add("is-flaring");
-        setTimeout(() => hero.classList.remove("is-flaring"), 800);
-    });
-}
-
 /* ---------- data binding ---------- */
 
 function bindDOM(profile) {
     document.querySelectorAll("[data-bind]").forEach(el => {
         const path = el.getAttribute("data-bind");
-        const value = resolve(profile, path);
+        const value = lookup(profile, path);
         if (typeof value === "string") el.textContent = value;
     });
 
@@ -103,9 +250,22 @@ function bindDOM(profile) {
         const raw = el.getAttribute("data-bind-href");
         const isMailto = raw.startsWith("mailto:");
         const path = isMailto ? raw.slice("mailto:".length) : raw;
-        const value = resolve(profile, path);
+        const value = lookup(profile, path);
         if (typeof value === "string") el.setAttribute("href", isMailto ? `mailto:${value}` : value);
     });
+
+    document.querySelectorAll("[data-bind-title]").forEach(el => {
+        const path = el.getAttribute("data-bind-title");
+        const value = lookup(profile, path);
+        if (typeof value === "string") el.setAttribute("title", value);
+    });
+}
+
+// HTML uses paths like "profile.name" / "profile.links.email" for legibility.
+// Strip the leading "profile." since it always refers to the same object.
+function lookup(profile, path) {
+    const p = path.startsWith("profile.") ? path.slice("profile.".length) : path;
+    return resolve(profile, p);
 }
 
 function resolve(obj, path) {
@@ -202,16 +362,13 @@ function scheduleHeroReveal() {
         tl.fromTo(c, { x: fromX, y: fromY, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.5 }, 0.4 + i * 0.08);
     });
 
-    // 0.0s — status line fade
-    tl.fromTo(".hero-status", { opacity: 0, y: 8 }, { opacity: 0.85, y: 0, duration: 0.5 }, 0.0);
-
     // 0.7s — name scramble
     if (nameEl) {
         tl.add(scrambleName(nameEl), 0.7);
     }
 
-    // 1.1s — role line fade
-    tl.fromTo(".hero-role", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 }, 1.1);
+    // 1.1s — identity line fade (Cloud & AI-Native Architect.)
+    tl.fromTo(".hero-identity", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 }, 1.1);
 
     // 1.3s — tagline streams word-by-word
     if (taglineEl) {
@@ -295,28 +452,6 @@ function scrambleName(nameEl) {
 }
 
 /* ---------- hero graph lazy load ---------- */
-
-function initTerminalWhenVisible() {
-    const root = document.querySelector("#terminal .terminal");
-    if (!root) return;
-    const io = new IntersectionObserver(async (entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
-            try {
-                const [{ initTerminal }, registry] = await Promise.all([
-                    import("./terminal.js"),
-                    fetch("assets/js/data/commands.json").then(r => r.json()),
-                ]);
-                const inst = initTerminal(root, registry);
-                window.__terminal = inst;
-            } catch (err) {
-                console.warn("[terminal] failed to init", err);
-            }
-        }
-    }, { rootMargin: "200px" });
-    io.observe(root);
-}
 
 function initHeroGraphWhenVisible() {
     const canvas = document.getElementById("hero-gl");

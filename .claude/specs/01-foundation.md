@@ -6,9 +6,9 @@ Replace the scaffolding stub in `index.html` with the real page
 shell: top nav, semantic section anchors for every later spec,
 and a footer. This is the visual frame every other spec will
 populate. After this step, the page has a navbar, a hero
-placeholder, and empty sections for terminal, graph, stories,
-bento, and connect — each with the right anchor id and aria
-label, ready to be filled.
+placeholder, and empty sections for graph, stories, bento, and
+connect — each with the right anchor id and aria label, ready
+to be filled.
 
 ## Depends on
 
@@ -66,8 +66,7 @@ Pin specific versions to avoid silent breakage.
 - Lenis init only on viewports > 768px and only when
   `prefers-reduced-motion` is not set.
 - Nav uses anchor links, not JS routing. Each section in the
-  shell carries its own `id` corresponding to the slug used by
-  `commands.json` (e.g. `#stories`, `#graph`).
+  shell carries its own `id` (e.g. `#stories`, `#graph`).
 - All templates extend nothing — single page, no template engine.
 
 ## Definition of done
@@ -78,7 +77,7 @@ Pin specific versions to avoid silent breakage.
       (`#graph`), About (`#bento`), Connect (`#connect`), plus
       a Topmate CTA bound to `profile.links.topmate`.
 - [ ] Each section anchor exists in DOM order: `#hero`,
-      `#terminal`, `#graph`, `#stories`, `#bento`, `#connect`.
+      `#graph`, `#stories`, `#bento`, `#connect`.
 - [ ] Page `<title>` reads "Gaurav Lahoti — Senior Cloud & AI
       Architect" from `profile.{name,title}`.
 - [ ] Each section is empty but visible (placeholder height of

@@ -15,11 +15,10 @@
     --border-strong: rgba(255, 255, 255, 0.16);
     --danger: #FF5C5C;
 
-    /* graph node colours by type */
-    --node-company: #FFC857;
-    --node-project: #00FFD1;
-    --node-domain:  #B388FF;
-    --node-skill:   #6BC1FF;
+    /* career trajectory — brand era colours */
+    --era-accenture: #A100FF;
+    --era-ey:        #FFE600;
+    --era-deloitte:  #86BC25;
 
     /* typography */
     --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;

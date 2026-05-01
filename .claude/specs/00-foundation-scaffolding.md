@@ -41,8 +41,8 @@ portfolio/
   index.html
   assets/
     css/{base,layout,components}.css
-    js/{main,terminal,graph,shader,stories}.js
-    js/data/{profile,graph,commands,stories}.json
+    js/{main,graph,shader,stories}.js
+    js/data/{profile,graph,stories}.json
     img/{resume.pdf, og-image.png, favicon.svg}
   .claude/
     specs/00-09 (this file plus 01-09)
