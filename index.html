@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gaurav Lahoti — Senior Cloud & AI Architect</title>
-    <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.">
-    <meta property="og:title" content="Gaurav Lahoti — Senior Cloud & AI Architect">
-    <meta property="og:description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.">
+    <title>Gaurav Lahoti — Senior Cloud & AI-Native Architect</title>
+    <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
+    <meta property="og:title" content="Gaurav Lahoti — Senior Cloud & AI-Native Architect">
+    <meta property="og:description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <meta property="og:image" content="assets/img/og-image.png">
     <meta property="og:type" content="profile">
     <meta name="twitter:card" content="summary_large_image">
@@ -26,6 +26,24 @@
 <body>
     <a class="skip-link" href="#hero">Skip to content</a>
 
+    <!-- Brand-logo sprite. Hidden; referenced via <use href="#logo-..."> in the trajectory section. -->
+    <svg width="0" height="0" style="position:absolute;width:0;height:0" aria-hidden="true">
+        <symbol id="logo-accenture" viewBox="0 0 64 64">
+            <rect x="2" y="2" width="60" height="60" rx="6" fill="#FFFFFF"/>
+            <path fill="#A100FF" d="M14 41 L36 18 L50 18 L28 41 Z"/>
+        </symbol>
+        <symbol id="logo-ey" viewBox="0 0 64 64">
+            <rect x="2" y="2" width="60" height="60" rx="6" fill="#1B1B1B"/>
+            <polygon fill="#FFE600" points="9,15 33,15 39,9 9,9"/>
+            <text x="32" y="49" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="22" fill="#FFFFFF">EY</text>
+        </symbol>
+        <symbol id="logo-deloitte" viewBox="0 0 64 64">
+            <rect x="2" y="2" width="60" height="60" rx="6" fill="#0A0A0A"/>
+            <text x="14" y="46" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="34" fill="#FFFFFF">D</text>
+            <circle cx="46" cy="44" r="4" fill="#86BC25"/>
+        </symbol>
+    </svg>
+
     <header class="nav" role="banner">
         <div class="nav-inner">
             <a class="nav-brand" href="#hero" data-bind="profile.name">Gaurav Lahoti</a>
@@ -35,7 +53,32 @@
                 <a href="#bento">About</a>
                 <a href="#connect">Connect</a>
             </nav>
-            <a class="nav-cta btn btn-ghost btn-sm" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book Topmate</a>
+            <div class="nav-actions">
+                <ul class="nav-channels" aria-label="Channels">
+                    <li>
+                        <a class="nav-channel" data-bind-href="mailto:profile.links.email" data-bind-title="profile.links.email" aria-label="Email">
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                                <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18v12H3z M3 6l9 7 9-7"/>
+                            </svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn">
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                                <path fill="currentColor" d="M4.98 3.5C4.98 4.88 3.88 6 2.5 6S.02 4.88.02 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8h4v15h-4V8zm7.5 0h3.83v2.05h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.65 4.78 6.1V23h-4v-6.65c0-1.59-.03-3.64-2.22-3.64-2.22 0-2.56 1.74-2.56 3.53V23h-4V8z"/>
+                            </svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                                <path fill="currentColor" d="M12 .5C5.65.5.5 5.65.5 12c0 5.07 3.29 9.37 7.86 10.89.58.1.79-.25.79-.56v-2.16c-3.2.7-3.87-1.38-3.87-1.38-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18.92-.26 1.9-.39 2.88-.4.98 0 1.96.13 2.88.4 2.2-1.49 3.16-1.18 3.16-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.8.56C20.21 21.36 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z"/>
+                            </svg>
+                        </a>
+                    </li>
+                </ul>
+                <a class="nav-cta btn btn-ghost btn-sm" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book Topmate</a>
+            </div>
         </div>
     </header>
 
@@ -45,67 +88,129 @@
             <div class="hero-fallback" aria-hidden="true"></div>
 
             <div class="hero-chrome" aria-hidden="true">
-                <div class="chrome chrome-tl">// AGENT_STATUS: <span class="dot"></span> ONLINE</div>
-                <div class="chrome chrome-tr">// MODEL: <span data-bind="profile.modelsLine">gemini-3-pro · claude-haiku-4.5</span></div>
-                <div class="chrome chrome-bl">// uptime: <span data-bind="uptime">11y</span></div>
-                <div class="chrome chrome-br">&gt; try typing <span class="caret">_</span></div>
+                <div class="chrome chrome-tr">// open to architecture engagements</div>
+                <div class="chrome chrome-bl">// <span data-bind="uptime">11y</span> · since Apr 2015</div>
+                <div class="chrome chrome-br">↓ scroll to explore <span class="caret">_</span></div>
             </div>
 
             <div class="hero-stack">
-                <p class="hero-status">// initializing portfolio.agent</p>
                 <h1 class="hero-name" data-bind="profile.name">Gaurav Lahoti</h1>
-                <p class="hero-role mono">
-                    <span class="kw">class</span>
-                    <span class="cls">GauravLahoti</span>
-                    <span class="kw">extends</span>
-                    <span class="cls">CloudArchitect</span>
-                    <span class="punct">{ }</span>
+                <p class="hero-identity">
+                    <span class="hi-anchor">Cloud</span>
+                    <span class="hi-amp">&amp;</span>
+                    <span class="hi-anchor">AI-Native</span>
+                    <span class="hi-noun">Architect.</span>
                 </p>
-                <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.</p>
+                <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
                 <div class="hero-ctas">
-                    <a class="btn btn-primary" href="#stories">View Work →</a>
-                    <a class="btn btn-ghost" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book on Topmate</a>
+                    <a class="btn btn-primary" data-cursor="magnet" href="#stories">View Work →</a>
+                    <a class="btn btn-ghost" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">Book on Topmate</a>
                 </div>
             </div>
         </section>
 
-        <section id="terminal" class="section section-terminal" aria-label="Terminal">
-            <div class="terminal-shell">
-                <p class="terminal-intro">// type <code>help</code> to list commands</p>
-                <div class="terminal" role="region" aria-label="Site terminal" tabindex="-1">
-                    <output class="terminal-history" aria-live="polite"></output>
-                    <div class="terminal-row">
-                        <span class="terminal-prompt" aria-hidden="true">&gt;</span>
-                        <input
-                            class="terminal-input"
-                            type="text"
-                            autocomplete="off"
-                            autocapitalize="off"
-                            autocorrect="off"
-                            spellcheck="false"
-                            aria-label="Type a command and press enter"
-                            inputmode="text"
-                        />
-                        <span class="caret terminal-caret" aria-hidden="true">_</span>
-                    </div>
-                </div>
+        <section id="graph" class="section section-trajectory" aria-label="Career trajectory">
+            <header class="trail-header">
+                <p class="trail-eyebrow">// trajectory::2015→now</p>
+                <h2 class="trail-title">Eleven years, three firms, one arc.</h2>
+                <p class="trail-sub">From legacy SOA at Accenture to modern integration at EY to cloud-native AI architecture at Deloitte. Scroll to walk it.</p>
+            </header>
+            <div class="trail-grid">
+                <aside class="trail-rail" aria-hidden="true">
+                    <svg class="trail-rail-svg" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="trail-gradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100">
+                                <stop offset="0%"  stop-color="#A100FF"/>
+                                <stop offset="35%" stop-color="#FFE600"/>
+                                <stop offset="100%" stop-color="#00FFD1"/>
+                            </linearGradient>
+                        </defs>
+                        <line class="trail-rail-line" x1="50%" y1="0" x2="50%" y2="100%" stroke="url(#trail-gradient)" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <ol class="trail-stations" data-trail-stations></ol>
+                </aside>
+                <ol class="trail-companies" data-trajectory-root></ol>
             </div>
         </section>
 
-        <section id="graph" class="section section-placeholder" aria-label="Career graph">
-            <p class="placeholder-label">// spec 04 — knowledge graph</p>
+        <section id="stories" class="section section-stories" aria-label="Case studies">
+            <header class="stories-header">
+                <p class="stories-eyebrow">// stories::case-studies</p>
+                <h2 class="stories-title">Two systems I shipped.</h2>
+                <p class="stories-sub">Each one starts with a constraint, ends with a shipped outcome. Scroll to walk the beats.</p>
+            </header>
+            <div class="stories-stage" data-stories-root></div>
         </section>
 
-        <section id="stories" class="section section-placeholder" aria-label="Case studies">
-            <p class="placeholder-label">// spec 05 — case studies</p>
+        <section id="bento" class="section section-bento" aria-label="About">
+            <header class="bento-header">
+                <p class="bento-eyebrow">// about::credentials</p>
+                <h2 class="bento-title">The receipts.</h2>
+                <p class="bento-sub">Years, scale, and certifications behind the work above.</p>
+            </header>
+            <div class="bento-grid" data-bento-root>
+                <article class="bento-card bento-hero" data-bento-card="hero">
+                    <p class="bento-card-label">// architect.signature</p>
+                    <p class="bento-card-headline" data-bind="profile.tagline">…</p>
+                    <p class="bento-card-foot mono"><span class="kw">return</span> <span data-bind="profile.name">Gaurav Lahoti</span>;</p>
+                </article>
+                <article class="bento-card bento-stats" data-bento-card="stats">
+                    <p class="bento-card-label">// metrics</p>
+                    <ul class="stats-grid" data-stats></ul>
+                </article>
+                <article class="bento-card bento-skills" data-bento-card="skills">
+                    <p class="bento-card-label">// stack.grouped</p>
+                    <div class="skills-groups" data-skills></div>
+                </article>
+                <article class="bento-card bento-education" data-bento-card="education">
+                    <p class="bento-card-label">// education</p>
+                    <p class="edu-degree" data-bind="profile.education.degree">B.Tech, Computer Science</p>
+                    <p class="edu-school" data-bind="profile.education.school">Institute of Engineering and Technology</p>
+                    <p class="edu-years mono" data-bind="profile.education.years">2010 – 2014</p>
+                </article>
+                <article class="bento-card bento-certs" data-bento-card="certs">
+                    <p class="bento-card-label">// certifications</p>
+                    <ul class="certs-list" data-certs></ul>
+                </article>
+            </div>
         </section>
 
-        <section id="bento" class="section section-placeholder" aria-label="About">
-            <p class="placeholder-label">// spec 06 — bento (stats · skills · education)</p>
-        </section>
-
-        <section id="connect" class="section section-placeholder" aria-label="Connect">
-            <p class="placeholder-label">// spec 07 — connect</p>
+        <section id="connect" class="section section-connect" aria-label="Connect">
+            <div class="connect-shell">
+                <p class="connect-eyebrow">// connect::let-us-build</p>
+                <h2 class="connect-title">Let's architect something autonomous.</h2>
+                <p class="connect-sub">Resume Review · Career Coaching · Architecture Office Hours</p>
+                <a class="btn btn-primary connect-cta" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
+                    Book on Topmate →
+                </a>
+                <ul class="link-row" aria-label="Other channels">
+                    <li>
+                        <a class="link-icon" data-bind-href="mailto:profile.links.email" data-bind-title="profile.links.email" aria-label="Email">
+                            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                                <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18v12H3z M3 6l9 7 9-7"/>
+                            </svg>
+                            <span>Email</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="link-icon" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                                <path fill="currentColor" d="M4.98 3.5C4.98 4.88 3.88 6 2.5 6S.02 4.88.02 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8h4v15h-4V8zm7.5 0h3.83v2.05h.05c.53-.95 1.83-1.95 3.77-1.95 4.03 0 4.78 2.65 4.78 6.1V23h-4v-6.65c0-1.59-.03-3.64-2.22-3.64-2.22 0-2.56 1.74-2.56 3.53V23h-4V8z"/>
+                            </svg>
+                            <span>LinkedIn</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="link-icon" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                                <path fill="currentColor" d="M12 .5C5.65.5.5 5.65.5 12c0 5.07 3.29 9.37 7.86 10.89.58.1.79-.25.79-.56v-2.16c-3.2.7-3.87-1.38-3.87-1.38-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18.92-.26 1.9-.39 2.88-.4.98 0 1.96.13 2.88.4 2.2-1.49 3.16-1.18 3.16-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.8.56C20.21 21.36 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z"/>
+                            </svg>
+                            <span>GitHub</span>
+                        </a>
+                    </li>
+                </ul>
+                <p class="connect-foot mono">// based in Gurugram · open to remote · responding within 48h</p>
+            </div>
         </section>
     </main>
 

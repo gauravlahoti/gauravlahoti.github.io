@@ -27,11 +27,11 @@ python3 -m http.server 5173
 |------------------|---------------------------------------------------------|------------------------------------|
 | HTML             | `index.html`                                            | Single page; semantic anchors      |
 | CSS              | `assets/css/{base,layout,components}.css`               | base = variables + typography      |
-| JS modules       | `assets/js/{main,terminal,graph,shader,stories}.js`     | One module per visualization       |
+| JS modules       | `assets/js/{main,trajectory,hero-graph,stories,cursor}.js` | One module per surface             |
 | Content data     | `assets/js/data/*.json`                                 | See data files below               |
 | Static media     | `assets/img/`                                           | Resume PDF, OG image, favicon      |
 
-Data files: `profile.json` (identity, bio, socials), `graph.json` (career nodes/edges), `stories.json` (case-study beats), `commands.json` (terminal registry).
+Data files: `profile.json` (identity, bio, socials, full work history), `graph.json` (project metadata kept for storytelling), `stories.json` (case-study beats).
 
 ## Conventions
 
@@ -55,7 +55,6 @@ Spec files are append-only history. Don't rewrite an old spec to match new code 
 
 - **Hero shader** runs ≤ 60fps on a 2020 MacBook Air. Degrade to a static gradient on `prefers-reduced-motion`.
 - **3D knowledge graph** has a 2D SVG fallback that triggers on small viewports (< 768px) or low-power mode.
-- **Terminal** is an accelerator, not the only navigation. The visible scroll nav always works.
 
 ## Performance budget
 

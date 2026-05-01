@@ -57,8 +57,8 @@ None.
 - Email link uses `mailto:` scheme.
 - All external links open in a new tab with
   `rel="noopener noreferrer"`.
-- The section must be reachable in two ways: scroll, and
-  the terminal `contact` command (already wired in spec 03).
+- The section is reachable via the nav `Connect` link and
+  the in-page scroll.
 
 ## Definition of done
 
@@ -72,5 +72,5 @@ None.
 - [ ] All four URLs render from `profile.json`.
 - [ ] All external links use `target="_blank"
       rel="noopener noreferrer"`.
-- [ ] Terminal `contact` scrolls here.
+- [ ] Nav `Connect` link smooth-scrolls here.
 - [ ] Mobile (375px) collapses gracefully — no overflow.

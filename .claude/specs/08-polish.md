@@ -25,11 +25,11 @@ No database.
 - **Modify:** `index.html` — add a `<div class="cursor">` for
   the custom cursor.
 
-## Files to change
+## Files to changeThe 
 
 - `assets/js/main.js` — add cursor module bootstrap, page
   reveal orchestrator (orders: shader fade-in → text scramble
-  → CTAs ease-in → terminal hint blink).
+  → CTAs ease-in → scroll hint blink).
 - `assets/css/components.css` — `.cursor`, `.cursor-magnet`
   states.
 - `assets/css/layout.css` — review every section for mobile

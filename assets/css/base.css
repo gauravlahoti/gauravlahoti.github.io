@@ -15,6 +15,11 @@
     --border-strong: rgba(255, 255, 255, 0.16);
     --danger: #FF5C5C;
 
+    /* career trajectory — brand era colours */
+    --era-accenture: #A100FF;
+    --era-ey:        #FFE600;
+    --era-deloitte:  #86BC25;
+
     /* typography */
     --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
     --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;

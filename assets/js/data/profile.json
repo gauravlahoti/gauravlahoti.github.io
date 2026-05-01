@@ -1,12 +1,12 @@
 {
   "name": "Gaurav Lahoti",
-  "title": "Senior Cloud & AI Architect",
+  "title": "Senior Cloud & AI-Native Architect",
   "company": "Deloitte",
   "location": "Gurugram, India",
-  "tagline": "Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade Agentic AI.",
+  "tagline": "Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.",
   "bio": [
     "11+ years engineering leadership in distributed systems and cloud-native architecture (GCP / AWS).",
-    "Building production-grade Agentic AI with LangGraph, Google ADK, and Model Context Protocol (MCP).",
+    "Building production-grade AI with LangGraph, Google ADK, and Model Context Protocol (MCP).",
     "Transforms middleware patterns into self-governing operations with deterministic LLM execution."
   ],
   "careerStart": "2015-04",
@@ -44,9 +44,37 @@
     "years": "2010 – 2014"
   },
   "experience": [
-    { "company": "Deloitte", "role": "Manager", "start": "2019-09", "end": null, "location": "Gurugram, India" },
-    { "company": "EY", "role": "Consultant", "start": "2018-06", "end": "2019-08", "location": "Bengaluru, India" },
-    { "company": "Accenture", "role": "Application Development Senior Analyst", "start": "2015-04", "end": "2018-06", "location": "Hyderabad, India" }
+    {
+      "company": "Accenture",
+      "logo": "accenture",
+      "tenure": "3 yrs 3 mos",
+      "workMode": "On-site",
+      "roles": [
+        { "title": "Associate Software Engineer", "start": "2015-04", "end": "2016-05", "duration": "1 yr 2 mos", "location": "Greater Hyderabad Area", "skills": [] },
+        { "title": "Application Development Analyst", "start": "2016-06", "end": "2017-11", "duration": "1 yr 6 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle BPM", "Oracle Data Integrator (ODI)"], "extraSkills": 2 },
+        { "title": "Application Development Senior Analyst", "start": "2017-12", "end": "2018-06", "duration": "7 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle SOA Suite", "Oracle Data Integrator (ODI)"], "extraSkills": 2 }
+      ]
+    },
+    {
+      "company": "EY",
+      "logo": "ey",
+      "tenure": "1 yr 3 mos",
+      "workMode": "On-site",
+      "roles": [
+        { "title": "Consultant", "start": "2018-06", "end": "2019-08", "duration": "1 yr 3 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Boomi", "Oracle SOA Suite"] }
+      ]
+    },
+    {
+      "company": "Deloitte",
+      "logo": "deloitte",
+      "tenure": "6 yrs 9 mos",
+      "workMode": "Hybrid",
+      "roles": [
+        { "title": "Consultant", "start": "2019-09", "end": "2021-05", "duration": "1 yr 9 mos", "location": "Hyderabad, Telangana, India", "skills": ["Boomi", "Apigee X"], "extraSkills": 2 },
+        { "title": "Senior Consultant", "start": "2021-06", "end": "2025-05", "duration": "4 yrs 1 mo", "location": "Hyderabad, Telangana, India", "skills": ["Google Cloud Platform (GCP)", "Apigee X"], "extraSkills": 4 },
+        { "title": "Manager", "start": "2025-06", "end": null, "duration": "1 yr", "location": "Gurugram, Haryana, India", "skills": ["LangGraph", "AI Agents"], "extraSkills": 5 }
+      ]
+    }
   ],
   "stats": {
     "yearsExperience": 11,

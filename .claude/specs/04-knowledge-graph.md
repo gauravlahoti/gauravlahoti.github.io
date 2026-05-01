@@ -1,113 +1,192 @@
-# Spec: 3D Knowledge Graph
+# Spec: Career Trajectory (replaces 3D Knowledge Graph)
 
 ## Overview
 
-The centerpiece visualization. A force-directed 3D graph where
-nodes are companies, projects, AI domains, and skills; edges
-encode "this project used this skill at this company". Visitors
-spin it, hover nodes for detail, click a project node to scroll
-to its case study. This single component does in five seconds
-what a skills list does in five paragraphs — it shows how the
-career fits together.
+The `#graph` section is no longer a graph. It is a vertical, scroll-driven
+career trajectory: **Accenture (2015) → EY (2018) → Deloitte (2019 → now)**.
+A pinned left rail draws itself in cyan as the visitor scrolls, year
+markers brighten as they're passed, and the right column shows three
+company blocks — each with the official brand logo, tenure, work mode,
+and a nested list of every role held there. The component answers one
+question in five seconds: how did this career compound?
+
+History note: this file replaces the prior "3D Knowledge Graph" spec.
+The 3D force-directed visualization, the `3d-force-graph` CDN dep, and
+`assets/js/graph.js` are removed. The section anchor `#graph` is
+preserved so existing nav links and `portfolio:scroll-to` listeners
+keep working.
 
 ## Depends on
 
-- Spec 01 (`#graph` anchor).
-- `assets/js/data/graph.json` is now populated (resume + LinkedIn
-  imported). Current dataset: 29 nodes (3 companies, 4 projects,
-  4 domains, 18 skills) and 51 edges. See "Data shape contract"
-  below.
+- Spec 01 (`#graph` anchor, design tokens).
+- `assets/js/data/profile.json` — `experience[]` is restructured into
+  3 companies × 7 roles total. See "Data shape" below.
+- `assets/js/data/graph.json` — kept (consumed by other sections, e.g.
+  bento skill chips). Not rendered by this section.
 
-## Routes
+## Routes / Database / New deps
 
-No backend.
+None. No new CDN scripts. GSAP + ScrollTrigger are already loaded.
 
-## Database changes
+## Data shape
 
-No database. Data lives in `assets/js/data/graph.json`.
+`profile.experience` is a company-grouped array, oldest first:
+
+```
+[
+  {
+    "company": "Accenture",
+    "logo": "accenture",
+    "tenure": "3 yrs 3 mos",
+    "workMode": "On-site",
+    "roles": [
+      { "title": "Associate Software Engineer",
+        "start": "2015-04", "end": "2016-05", "duration": "1 yr 2 mos",
+        "location": "Greater Hyderabad Area", "skills": [] },
+      { "title": "Application Development Analyst",
+        "start": "2016-06", "end": "2017-11", "duration": "1 yr 6 mos",
+        "location": "Bengaluru, Karnataka, India",
+        "skills": ["Oracle BPM", "Oracle Data Integrator (ODI)"],
+        "extraSkills": 2 },
+      { "title": "Application Development Senior Analyst",
+        "start": "2017-12", "end": "2018-06", "duration": "7 mos",
+        "location": "Bengaluru, Karnataka, India",
+        "skills": ["Oracle SOA Suite", "Oracle Data Integrator (ODI)"],
+        "extraSkills": 2 }
+    ]
+  },
+  { "company": "EY", "logo": "ey", "tenure": "1 yr 3 mos",
+    "workMode": "On-site", "roles": [ … 1 entry … ] },
+  { "company": "Deloitte", "logo": "deloitte", "tenure": "6 yrs 9 mos",
+    "workMode": "Hybrid", "roles": [ … 3 entries: Consultant →
+    Senior Consultant → Manager … ] }
+]
+```
+
+Roles within each company are also oldest-first.
+`profile.careerStart` stays `"2015-04"` (drives the hero `// uptime`
+ticker, unchanged).
 
 ## Templates
 
-- **Create:** none.
-- **Modify:** `index.html` — `#graph` section gets a container
-  div, a side panel (`<aside>`), and a 2D-fallback `<svg>` (used
-  only on mobile or when WebGL is unavailable).
+- **Modify** `index.html`:
+  - Add a hidden `<svg>` brand-logo sprite near the top of `<body>`
+    defining `<symbol id="logo-accenture">`, `<symbol id="logo-ey">`,
+    `<symbol id="logo-deloitte">`. Each is a tight viewBox built from
+    paths/rect/text — no external image assets.
+  - Replace the entire `<section id="graph">…</section>` block with
+    `section.section-trajectory` containing: header (eyebrow / title /
+    sub), `.trail-grid` with sticky `<aside class="trail-rail">`
+    holding one `<svg>` and `<ol class="trail-companies"
+    data-trajectory-root>`. Keep `id="graph"`. Update `aria-label`
+    to "Career trajectory".
 
 ## Files to change
 
-- `assets/js/data/graph.json` — already populated. Data shape
-  contract (4 node types, real IDs from this graph):
-  ```
-  {
-    "nodes": [
-      { "id": "deloitte",        "type": "company", "label": "Deloitte", "description": "...", "year": 2019 },
-      { "id": "fiber-broadband", "type": "project", "label": "Fiber Broadband Fabric",
-        "year": 2023, "description": "...", "anchor": "#story-fiber-broadband-fabric" },
-      { "id": "agentic-ai",      "type": "domain",  "label": "Agentic AI", "description": "..." },
-      { "id": "langgraph",       "type": "skill",   "label": "LangGraph" }
-    ],
-    "edges": [
-      { "source": "fiber-broadband", "target": "deloitte" },
-      { "source": "fiber-broadband", "target": "cloud-architecture" },
-      { "source": "fiber-broadband", "target": "gcp" }
-    ]
-  }
-  ```
-  Project nodes that link to a case study carry an `anchor` like
-  `#story-fiber-broadband-fabric` (matches a `stories[].id` from
-  `stories.json`).
-- `assets/js/graph.js` — implement `initGraph(container, data)`
-  using `3d-force-graph`. Node colour by `type`. Hover →
-  highlight neighbours, write description into the side panel.
-  Click a `project` node → dispatch a custom event
-  `portfolio:scroll-to` with the anchor.
-- `assets/css/components.css` — graph container, side panel,
-  type-colour CSS variables (`--node-company`, etc.).
-- `assets/js/main.js` — listen for `portfolio:scroll-to` and
-  call Lenis to scroll. Lazy-init the graph when `#graph`
-  enters viewport.
+- `assets/js/data/profile.json` — expanded `experience[]` per shape
+  above (already populated).
+- `assets/css/base.css` — delete `--node-company / --node-project /
+  --node-domain / --node-skill`. Add:
+  - `--era-accenture: #A100FF` (Accenture purple)
+  - `--era-ey: #FFE600` (EY yellow)
+  - `--era-deloitte: #86BC25` (Deloitte green) — used only for the
+    brand dot in the logo and the rail gradient anchor; the
+    highlight/pulse color stays `--accent` cyan.
+- `assets/css/components.css` — delete every `.section-graph`,
+  `.graph-*`, `.legend-*`, `.graph-svg *`, `.graph-panel*` rule.
+  Add `.section-trajectory`, `.trail-grid`, `.trail-rail`,
+  `.trail-rail svg`, `.trail-station`, `.trail-year`,
+  `.trail-company`, `.company-header`, `.company-logo`,
+  `.company-name`, `.company-tenure`, `.company-mode`, `.role-list`,
+  `.role-tile`, `.role-title`, `.role-period`, `.role-duration`,
+  `.role-location`, `.role-skills`, `.skill-pill`, plus a
+  `@media (max-width: 768px)` collapse block.
+- `assets/js/main.js` — remove `initGraphWhenVisible()`,
+  `hasWebGL()` (if unused), and the `import("./graph.js")` call. Add
+  `initTrajectoryWhenVisible()` using the same IntersectionObserver
+  pattern. The skill-chip click handler (in `populateSkills`) keeps
+  dispatching `portfolio:highlight-skill` + `portfolio:scroll-to
+  #graph` — no change there.
 
 ## Files to create
 
-None.
+- `assets/js/trajectory.js` — exports `initTrajectory(root, profile,
+  graph) → { destroy, highlightSkill }`. Responsibilities:
+  - Render company tiles + nested role rows from `profile.experience`.
+  - Build the rail SVG: measure each company header's center y after
+    paint, write polyline `points` and `<circle>` station positions,
+    apply `stroke-dasharray = stroke-dashoffset = pathLength`.
+  - Wire one ScrollTrigger (`scrub: true`) that animates
+    `stroke-dashoffset → 0` across the section's scroll range, and
+    one `ScrollTrigger.batch` for company-header + role-tile reveals.
+  - Listen for `portfolio:highlight-skill` — find the role whose
+    `skills` (case-insensitive) includes the matching label; scroll
+    to that tile and pulse it (single GSAP yoyo).
+  - Re-measure on `ResizeObserver` (debounced 100ms).
 
-## New dependencies
+## Files to delete
 
-CDN:
-- `3d-force-graph` (built on top of Three.js).
+- `assets/js/graph.js`.
 
 ## Rules for implementation
 
-- Mobile fallback: viewports < 768px or `navigator.connection.saveData === true`
-  render the 2D SVG instead. Same data, different renderer.
-  SVG version uses d3-force or a hand-rolled iterative layout —
-  prefer the simpler hand-roll if d3 adds significant weight.
-- Lazy-init only — don't load `3d-force-graph` until the
-  `#graph` anchor is in viewport. The library is the heaviest
-  dep on the site.
-- Nodes are sized by `type` weight (company > project >
-  domain > skill).
-- Hover writes into a single side-panel element; never create
-  tooltip DOM on hover (causes paint thrash).
-- Node labels render as Three.js sprites, not HTML overlays.
-- The graph respects `prefers-reduced-motion`: spin animation
-  is paused, only manual rotation is allowed.
-- All node descriptions (`description` field) come from
-  `graph.json`. Don't put descriptive text in JS.
+- The `#graph` anchor id MUST be preserved so existing
+  `portfolio:scroll-to` listeners and the nav link don't break.
+- No new CDN scripts. No 3D, no canvas, no WebGL fallback. The rail
+  is a single inline SVG; tiles are plain DOM.
+- Use only the locked design tokens. New colors limited to `--era-*`.
+  The rail gradient interpolates Accenture purple → EY amber →
+  Deloitte green along its length.
+- Cap motion at 3 effects: rail draw (scrub), tile reveal (once),
+  skill-pulse (one-shot). No parallax, no idle ambient motion, no
+  hover-driven layout shifts.
+- `prefers-reduced-motion: reduce` MUST: render the rail fully
+  drawn at load; replace tile reveals with instant visibility;
+  replace skill-pulse with a 1.5s outline.
+- Mobile (<768px): rail SVG is `display:none`. Each company header
+  shows an inline year chip above the company name. Role rows still
+  nest under the header but use a smaller type scale. Same DOM order
+  as desktop. No pinning.
+- All copy comes from `profile.json` and `graph.json`. No literal
+  company / role / period strings in JS or HTML.
+- Each company header carries an inline `<svg><use href="#logo-…">`
+  reference to the brand sprite defined once at the top of `<body>`.
+- Project metrics + descriptions remain in the storytelling section
+  (spec 05). The trajectory section does NOT re-render them.
+- Total JS budget after this spec: ≤ 360 KB gzipped (the
+  `3d-force-graph` removal should drop ~40 KB vs. the previous spec).
 
 ## Definition of done
 
-- [ ] `#graph` shows a rotating 3D force-directed graph on
-      desktop.
-- [ ] Each node is colour-coded by `type` (company / project /
-      domain / skill).
-- [ ] Hovering a node highlights it + its direct neighbours
-      and writes the node description into the side panel.
-- [ ] Clicking a project node scrolls smoothly to its
-      case-study section in `#stories`.
-- [ ] Mobile (375px) shows a 2D SVG layout of the same data.
-- [ ] On `prefers-reduced-motion`, auto-rotation is paused.
-- [ ] `graph.json` is the *only* place career data lives.
-- [ ] `3d-force-graph` is fetched only after `#graph` enters
-      the viewport (verifiable in Network panel).
-- [ ] Total JS still ≤ 400 KB gzipped after this spec lands.
+- [ ] `#graph` renders three company blocks in chronological order:
+      Accenture (top) → EY → Deloitte (bottom).
+- [ ] Each company header shows the brand logo (Accenture purple
+      `>`, EY yellow tile, Deloitte black `D.` with green dot),
+      company name, tenure (`3 yrs 3 mos` / `1 yr 3 mos` /
+      `6 yrs 9 mos`), and work-mode chip.
+- [ ] Role rows nest under each company header — Accenture 3, EY 1,
+      Deloitte 3 (total 7). Each shows title + period + duration +
+      location + skill chips.
+- [ ] Left rail draws from top to bottom as the user scrolls
+      through the section (verifiable: scroll halfway → rail is
+      ~50% drawn).
+- [ ] Each station circle on the rail flips to its `--era-*` color
+      and the corresponding year numeral brightens to `--ink` as
+      its station is passed by the rail head.
+- [ ] Clicking a skill chip in `#bento` whose label matches a role
+      skill scrolls to `#graph` and pulses that role tile (cyan
+      box-shadow yoyo, ≤ 1s total).
+- [ ] At 375px width, the rail SVG is hidden, each company header
+      gets an inline year chip, and tiles are full-width single-
+      column with role rows still nested.
+- [ ] `prefers-reduced-motion: reduce` removes scrub and reveal
+      animations; rail renders fully drawn; skill-pulse becomes a
+      1.5s outline.
+- [ ] `assets/js/graph.js` is deleted; `3d-force-graph` no longer
+      appears in the Network tab.
+- [ ] `--node-*` tokens are gone from `base.css`; only `--era-*`
+      remain.
+- [ ] No `.graph-*` selectors remain in `components.css`.
+- [ ] `profile.json` and `graph.json` remain the only sources of
+      career data.
+- [ ] Total JS ≤ 360 KB gzipped after this spec lands.
