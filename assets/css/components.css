@@ -1833,30 +1833,39 @@
 
 .agent-panel-body {
     flex: 1 1 auto;
-    overflow-y: auto;
+    /* `scroll` (not `auto`) forces the scrollbar to render even on macOS
+       where overlay scrollbars hide by default — visitors couldn't
+       discover the scrollable region until they touched it. */
+    overflow-y: scroll;
+    overflow-x: hidden;
     overscroll-behavior: contain;
     padding: var(--space-3) var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    /* Always-visible thin scrollbar — macOS overlay scrollbars hide by
-       default and the panel is too dense to discover scroll-by-touch. */
     scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
+    /* Brighter thumb so it's visible on the dark panel without dominating. */
+    scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.06);
     scrollbar-gutter: stable;
 }
+/* WebKit (Safari, Chrome) — overlay scrollbar override. */
 .agent-panel-body::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
 }
 .agent-panel-body::-webkit-scrollbar-track {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 5px;
 }
 .agent-panel-body::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    min-height: 36px;
 }
 .agent-panel-body::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-soft);
+    background: var(--accent);
+    background-clip: padding-box;
 }
 
 .agent-prompts {

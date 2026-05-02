@@ -83,6 +83,57 @@
         }
       ],
       "session_input": { "app_name": "app", "user_id": "eval_injection", "state": {} }
+    },
+    {
+      "eval_id": "azure_certifications",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "What about Azure certifications?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_certifications", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_azure_certs", "state": {} }
+    },
+    {
+      "eval_id": "aws_certifications",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Which AWS certifications does Gaurav hold?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_certifications", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_aws_certs", "state": {} }
+    },
+    {
+      "eval_id": "no_oracle_certifications",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Does Gaurav hold any Oracle certifications?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_certifications", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_oracle_certs", "state": {} }
     }
   ]
 }

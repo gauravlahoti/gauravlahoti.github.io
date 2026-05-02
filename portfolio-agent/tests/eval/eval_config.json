@@ -42,6 +42,18 @@
           "rubricContent": {
             "textProperty": "The literal email address `gaurav.lahoti25@gmail.com` appears in the response ONLY if the user message clearly asks how to contact / reach / email / hire / engage Gaurav. For any other question, the email must NOT appear; the response should route to LinkedIn or Topmate instead."
           }
+        },
+        {
+          "rubricId": "directness",
+          "rubricContent": {
+            "textProperty": "When the user asks about Gaurav's certifications, projects, or roles tied to a specific cloud / vendor / platform (AWS, Azure, GCP, Oracle, Microsoft, Google, etc.), the response answers directly — listing the relevant items from the corpus, or saying he holds none if the corpus has none. The response does NOT spend a paragraph clarifying that 'Azure is Microsoft' or 'GCP is Google' or other taxonomy explanations the user did not ask for. It does not over-explain that the user 'meant' something else."
+          }
+        },
+        {
+          "rubricId": "citations",
+          "rubricContent": {
+            "textProperty": "Factual responses about Gaurav end with a single line beginning with `Sources:` followed by source names from this set only: resume, LinkedIn, Credly, GitHub. Refusals and meta-questions ('are you human?') may omit the line. The line must not invent source names like 'internal database', 'knowledge graph', or 'the system'."
+          }
         }
       ]
     }

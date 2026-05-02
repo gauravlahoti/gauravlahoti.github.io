@@ -42,7 +42,7 @@ else:
 root_agent = Agent(
     name="root_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model="gemini-2.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,
@@ -57,8 +57,8 @@ root_agent = Agent(
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
         # ~2000 words. Most answers are 200–400 words; this is the hard cap.
-        max_output_tokens=3000,
-        temperature=0.4,
+        max_output_tokens=1500,
+        temperature=0.2,
         # Disable Gemini's built-in safety filters — the portfolio agent has
         # its own input/output guardrails (see guardrails.py: prompt-injection
         # short-circuit, URL allowlist, email redaction). Default filters can
