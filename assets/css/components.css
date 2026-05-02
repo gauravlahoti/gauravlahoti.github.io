@@ -543,28 +543,82 @@
 .trail-title span:nth-child(2) { color: var(--ink); opacity: 0.86; }
 .trail-title span:nth-child(3) { color: var(--accent); }
 
-/* Numerical anchor strip — gives the eye something to hold while the
-   prose around it breathes. */
+/* Stats — a four-cell metric strip. Big tabular numerals on top, small
+   uppercase labels below, hairline dividers between cells, brand-era
+   accent on each numeral so the strip foreshadows the timeline below. */
 .trail-stats {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-5);
-    padding: var(--space-3) 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: var(--space-5) 0;
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
+    margin: var(--space-4) 0;
+}
+.trail-stat {
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: 0 var(--space-5);
+}
+.trail-stat + .trail-stat::before {
+    /* hairline divider between cells */
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10%;
+    bottom: 10%;
+    width: 1px;
+    background: var(--border);
+}
+.trail-stat:first-child { padding-left: 0; }
+.trail-stat:last-child  { padding-right: 0; }
+
+.trail-stat-value {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: clamp(var(--text-2xl), 4.4vw, 2.75rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+}
+.trail-stat-unit {
+    font-size: 0.55em;
+    font-weight: 600;
+    margin-left: 2px;
+    color: var(--ink-muted);
+    letter-spacing: 0;
+}
+.trail-stat-label {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-muted);
-    letter-spacing: 0.04em;
-    margin: var(--space-2) 0;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
-.trail-stats li { display: flex; align-items: baseline; gap: 6px; }
-.trail-stats strong {
-    font-weight: 600;
-    color: var(--accent);
-    font-size: var(--text-sm);
-    font-variant-numeric: tabular-nums;
+
+/* Per-era colour on the numeral so the strip reads as a colour journey */
+.trail-stat[data-era="accenture"] .trail-stat-value { color: var(--era-accenture); }
+.trail-stat[data-era="ey"]        .trail-stat-value { color: var(--era-ey); }
+.trail-stat[data-era="deloitte"]  .trail-stat-value { color: var(--era-deloitte); }
+
+@media (max-width: 640px) {
+    .trail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-4) 0;
+        padding: var(--space-4) 0;
+    }
+    .trail-stat { padding: 0 var(--space-4); }
+    .trail-stat:nth-child(3) { padding-left: 0; }
+    .trail-stat:nth-child(2)::before,
+    .trail-stat:nth-child(4)::before { /* keep dividers only at column boundary */ }
+    /* in a 2-col layout, every odd item is column-start and shouldn't have a left divider */
+    .trail-stat:nth-child(odd)::before { display: none; }
 }
 
 .trail-sub {
@@ -572,8 +626,15 @@
     font-size: var(--text-lg);
     line-height: 1.55;
     max-width: 640px;
-    margin-top: var(--space-1);
+    margin-top: var(--space-2);
 }
+.trail-firm {
+    font-weight: 600;
+    color: var(--ink);
+}
+.trail-firm[data-era="accenture"] { color: var(--era-accenture); }
+.trail-firm[data-era="ey"]        { color: var(--era-ey); }
+.trail-firm[data-era="deloitte"]  { color: var(--era-deloitte); }
 
 .trail-grid {
     display: grid;
