@@ -109,23 +109,35 @@
 }
 
 @media (max-width: 720px) {
-    .nav-links { gap: var(--space-4); }
-    .nav-links a { font-size: var(--text-xs); }
-    .nav-cta { display: none; }
+    /* Hide the secondary scroll-anchor nav entries (Career, About,
+       Perspectives) on phones. They're reachable by scrolling the page
+       and the Perspectives flyout is desktop-only anyway. Keeps Resume
+       (modal trigger) — that one has no scroll alternative. */
+    .nav-links a[href="#graph"],
+    .nav-links a[href="#bento"],
+    .nav-link-group { display: none; }
+
+    /* With those gone, show Topmate alongside the channel icons again. */
+    .nav-cta { display: inline-flex; }
+
+    .nav-links { gap: var(--space-3); }
+    .nav-links a { font-size: var(--text-xs); white-space: nowrap; }
     .nav-channels { gap: 0; }
-    /* On coarse pointers we still want a 44×44 hit area; size the visible
-       chrome at 28×28 but pad the anchor to keep the tap target large. */
     .nav-channel { width: 32px; height: 32px; }
-    .nav-inner { padding: 0 var(--space-4); gap: var(--space-2); }
+    .nav-inner { padding: 0 var(--space-4); gap: var(--space-3); }
 }
 
 @media (max-width: 480px) {
-    .nav-links { gap: var(--space-3); }
     .nav-links a { font-size: 0.7rem; letter-spacing: 0; }
-    .nav-channels { gap: 0; }
     .nav-channel { width: 30px; height: 30px; }
     .nav-inner { padding: 0 var(--space-3); gap: var(--space-2); }
     .nav-brand { font-size: var(--text-xs); }
+}
+
+@media (max-width: 380px) {
+    /* Tightest phones: drop "Topmate" label to icon only via padding tweak. */
+    .nav-cta { padding-inline: var(--space-2); }
+    .nav-cta span { font-size: 0.7rem; }
 }
 
 /* Sections ------------------------------------------------------------ */
