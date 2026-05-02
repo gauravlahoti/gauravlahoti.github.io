@@ -18,6 +18,12 @@
     "date": "2026-04-21"
   },
   {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-gcp-adk-ugcPost-7441549845116583936-8CG0",
+    "firstLine": "I vibe coded a GCP Advisor agent that never guesses.",
+    "excerpt": "I just vibe coded a GCP Advisor agent using Gemini CLI and ADK agent skills, applying context engineering to go from prototype to production grade - powered by Google managed Developer Knowledge MCP server.\n\nAnd it never guesses.\n\nVibe coding gets you a prototype fast. But it cuts corners - hallucinated APIs, invented patterns, scaffolding that looks right until it doesn't.\n\nADK agent skills fix that. They give Gemini CLI the right context to build correctly - architecture patterns, tool specs, evaluation criteria. That's what takes you from prototype to production grade.",
+    "date": "2026-03-22"
+  },
+  {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-generativeai-aiagents-ugcPost-7439049642580992000-ds0L",
     "firstLine": "I built an agent that reads every GCP release note so you don't have to.",
     "excerpt": "I built an agent that reads every GCP release note so you don't have to.\n\nMeet ReleaseLens: an AI agent I built to monitor Google Cloud release notes, filter out the noise and tell developers exactly how updates impact their specific tech stacks.",
