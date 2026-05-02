@@ -1,7 +1,12 @@
 // posts-list.js — Writing section (LinkedIn posts feed) + nav flyout.
-// Exports: initPostsList(root)   → accordion in #writing
-//          initPostsFlyout(root) → flat list in nav dropdown
+// Exports: initPostsList(root)   → accordion in #writing (all posts)
+//          initPostsFlyout(root) → top FLYOUT_LIMIT posts in nav dropdown
+// Both surfaces sort by date descending so adding a newer post via
+// /add-post automatically rises to the top of the flyout — no need to
+// hand-order posts.json.
 // All text rendered via textContent (treat OG-scraped strings as untrusted).
+
+const FLYOUT_LIMIT = 3;
 
 let postsPromise = null;
 
@@ -14,9 +19,24 @@ function getPosts() {
             .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.json();
-            });
+            })
+            .then(arr => Array.isArray(arr) ? sortNewestFirst(arr) : []);
     }
     return postsPromise;
+}
+
+// ISO `YYYY-MM-DD` strings sort lexicographically the same as
+// chronologically, so `localeCompare` with reversed args gives newest-first.
+// Entries without a date sort to the bottom.
+function sortNewestFirst(posts) {
+    return [...posts].sort((a, b) => {
+        const da = (a && a.date) || "";
+        const db = (b && b.date) || "";
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return db.localeCompare(da);
+    });
 }
 
 export async function initPostsList(root) {
@@ -61,10 +81,13 @@ export async function initPostsFlyout(root) {
         return { destroy() {} };
     }
 
+    const top = posts.slice(0, FLYOUT_LIMIT);
+    const remaining = Math.max(0, posts.length - top.length);
+
     const list = document.createElement("ul");
     list.className = "nav-flyout-list";
     list.setAttribute("role", "none");
-    for (const post of posts) {
+    for (const post of top) {
         const item = renderFlyoutItem(post);
         if (item) list.appendChild(item);
     }
@@ -74,7 +97,9 @@ export async function initPostsFlyout(root) {
     foot.href = "#writing";
     foot.setAttribute("role", "menuitem");
     foot.dataset.cursor = "magnet";
-    foot.textContent = "View all perspectives →";
+    foot.textContent = remaining > 0
+        ? `View all perspectives (+${remaining}) →`
+        : "View all perspectives →";
 
     root.replaceChildren(list, foot);
     root.removeAttribute("hidden");
