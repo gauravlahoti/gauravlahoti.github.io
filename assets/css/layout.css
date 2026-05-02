@@ -666,27 +666,32 @@ main { padding-top: 0; }
 }
 .footer-link:hover, .footer-link:focus-visible { color: var(--accent); }
 
-/* Hero fallback mesh (spec 22) ----------------------------------------
-   Static SVG mesh layered over .hero-fallback. Reads as intentional
-   structure rather than a WebGL failure state. Visible on mobile (where
-   Three.js is skipped entirely) and as the desktop fallback when WebGL
-   fails or saveData/reduced-motion are set. */
+/* Hero fallback mesh (spec 22) — mobile-only.
+   On desktop the WebGL canvas is the hero visual; if WebGL fails we
+   reveal the original gradient-only .hero-fallback (unchanged). The
+   mesh would bleed through the alpha-transparent canvas on desktop,
+   so it's hidden everywhere outside the mobile gate below. */
 .hero-fallback-mesh {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    color: var(--accent);
-    opacity: 0.7;
+    display: none;
 }
-.hero-fallback-mesh circle { fill: currentColor; }
-.hero-fallback-mesh line   { stroke: currentColor; stroke-width: 0.4; }
 
 /* Spec 22 — Mobile overhaul (≤767px) ==================================
    Compress section rhythm so the page stops eating a full viewport per
    section. Every change here gates on <768px — desktop is untouched. */
 @media (max-width: 767px) {
+    .hero-fallback-mesh {
+        display: block;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        color: var(--accent);
+        opacity: 0.7;
+    }
+    .hero-fallback-mesh circle { fill: currentColor; }
+    .hero-fallback-mesh line   { stroke: currentColor; stroke-width: 0.4; }
+
     .section {
         min-height: auto;
         padding: var(--space-12) var(--space-4);
