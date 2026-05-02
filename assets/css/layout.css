@@ -105,8 +105,19 @@
     .nav-links a { font-size: var(--text-xs); }
     .nav-cta { display: none; }
     .nav-channels { gap: 0; }
-    .nav-channel { width: 28px; height: 28px; }
+    /* On coarse pointers we still want a 44×44 hit area; size the visible
+       chrome at 28×28 but pad the anchor to keep the tap target large. */
+    .nav-channel { width: 32px; height: 32px; }
     .nav-inner { padding: 0 var(--space-4); gap: var(--space-2); }
+}
+
+@media (max-width: 480px) {
+    .nav-links { gap: var(--space-3); }
+    .nav-links a { font-size: 0.7rem; letter-spacing: 0; }
+    .nav-channels { gap: 0; }
+    .nav-channel { width: 30px; height: 30px; }
+    .nav-inner { padding: 0 var(--space-3); gap: var(--space-2); }
+    .nav-brand { font-size: var(--text-xs); }
 }
 
 /* Sections ------------------------------------------------------------ */
@@ -145,6 +156,9 @@ main { padding-top: 0; }
     grid-template-rows: 1fr;
     overflow: hidden;
     isolation: isolate;
+    /* Respect iPhone safe-area on the bottom so the cert rail isn't clipped
+       by the home-indicator area. */
+    padding-bottom: var(--safe-bottom);
 }
 
 .hero-canvas {
@@ -219,8 +233,54 @@ main { padding-top: 0; }
     mix-blend-mode: screen;
 }
 
-@media (max-width: 1100px) {
-    .hero-portrait { display: none; }
+/* Mid-viewport: portrait stays on the right but narrower so the text stack
+   has more breathing room. */
+@media (max-width: 1100px) and (min-width: 769px) {
+    .hero-portrait {
+        width: min(36vw, 380px);
+        bottom: 200px;
+    }
+}
+
+/* Mobile (≤768px): re-compose the hero so the portrait sits centered above
+   the text stack as a circular avatar with a soft cyan rim glow. We keep
+   the figure in absolute flow (so the stack can still centre vertically),
+   reset the desktop fade mask, and switch to a circle. */
+@media (max-width: 768px) {
+    .hero-portrait {
+        position: absolute;
+        left: 50%;
+        right: auto;
+        top: calc(var(--nav-h) + var(--safe-top) + var(--space-4));
+        bottom: auto;
+        width: clamp(180px, 42vw, 240px);
+        height: clamp(180px, 42vw, 240px);
+        transform: translateX(-50%);
+        border-radius: 50%;
+        overflow: hidden;
+        /* Drop the desktop horizontal fade — show the full portrait, soft-edged. */
+        -webkit-mask-image: radial-gradient(circle at center,
+            black 62%,
+            rgba(0, 0, 0, 0.85) 78%,
+            transparent 100%);
+                mask-image: radial-gradient(circle at center,
+            black 62%,
+            rgba(0, 0, 0, 0.85) 78%,
+            transparent 100%);
+    }
+    .hero-portrait img {
+        /* Re-center on the face for the smaller circular crop. */
+        object-position: 50% 22%;
+    }
+    .hero-portrait::after {
+        /* Switch the rim glow into a circular halo around the avatar. */
+        background: radial-gradient(
+            circle at center,
+            transparent 55%,
+            rgba(0, 255, 209, 0.22) 72%,
+            transparent 92%
+        );
+    }
 }
 
 .hero::after {
@@ -279,8 +339,20 @@ main { padding-top: 0; }
 @media (max-width: 900px) {
     .hero-stack { padding-bottom: 200px; }
 }
+@media (max-width: 768px) {
+    /* Reserve room above the stack for the circular portrait avatar. */
+    .hero-stack {
+        padding-top: clamp(220px, 48vw, 280px);
+        padding-bottom: 140px;
+        align-self: start;
+        text-align: center;
+    }
+    .hero-identity {
+        justify-content: center;
+    }
+}
 @media (max-width: 600px) {
-    .hero-stack { padding-bottom: 150px; }
+    .hero-stack { padding-bottom: 130px; }
 }
 
 .hero-name {

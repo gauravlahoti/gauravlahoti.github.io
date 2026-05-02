@@ -59,6 +59,15 @@
     /* layout */
     --max-w: 1200px;
     --nav-h: 64px;
+
+    /* iOS safe-area insets — fall back to 0 on platforms without env() */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+
+    /* WCAG 2.5.5 minimum tap target */
+    --tap-min: 44px;
 }
 
 *, *::before, *::after {

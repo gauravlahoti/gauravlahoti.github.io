@@ -25,6 +25,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     initTrajectoryWhenVisible(profile);
     initCapabilities(profile);
     initCertRail(profile);
+    initCertTilesTouch();
     wireScrollTo();
     initCursorAsync();
     initResumeGateLazy(profile);
@@ -476,8 +477,11 @@ function initHeroGraphWhenVisible() {
     const canvas = document.getElementById("hero-gl");
     if (!canvas) return;
 
-    if (reduceMotion || isNarrow || saveData) {
-        // fall back: no canvas, the .hero-fallback gradient stays visible
+    // Width is no longer a kill switch — only reduced-motion and save-data
+    // drop the canvas. Narrow viewports get a slimmer mobile profile via
+    // the isMobile flag below; if the device truly can't keep up, the
+    // hero-graph FPS watchdog falls back gracefully.
+    if (reduceMotion || saveData) {
         canvas.remove();
         return;
     }
@@ -489,7 +493,7 @@ function initHeroGraphWhenVisible() {
             try {
                 const mod = await import("./hero-graph.js");
                 const accent = getComputedStyle(ROOT).getPropertyValue("--accent").trim() || "#00FFD1";
-                const inst = await mod.initHeroGraph(canvas, { accent, isTouch });
+                const inst = await mod.initHeroGraph(canvas, { accent, isTouch, isMobile: isNarrow });
                 if (inst && inst.canvas) inst.canvas.classList.add("is-ready");
                 else canvas.classList.add("is-ready");
                 window.__heroGraph = inst;
@@ -501,4 +505,25 @@ function initHeroGraphWhenVisible() {
     }, { rootMargin: "200px" });
 
     io.observe(canvas);
+}
+
+/* ---------- cert-tile tap-to-open (mobile) ---------- */
+
+function initCertTilesTouch() {
+    if (!matchMedia("(any-pointer: coarse)").matches) return;
+    const rail = document.querySelector("[data-cert-rail]");
+    if (!rail) return;
+
+    rail.addEventListener("click", (e) => {
+        const tile = e.target.closest(".cert-tile");
+        if (!tile || !rail.contains(tile)) return;
+        const wasOpen = tile.classList.contains("is-open");
+        rail.querySelectorAll(".cert-tile.is-open").forEach((t) => t.classList.remove("is-open"));
+        if (!wasOpen) tile.classList.add("is-open");
+    });
+
+    document.addEventListener("click", (e) => {
+        if (e.target.closest(".cert-tile")) return;
+        rail.querySelectorAll(".cert-tile.is-open").forEach((t) => t.classList.remove("is-open"));
+    });
 }
