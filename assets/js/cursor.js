@@ -33,11 +33,16 @@ export function initCursor(opts = {}) {
     }
 
     function findMagnet(x, y) {
-        // Snap to the magnet element whose bounding box is closest to the cursor
-        // (using distance to the nearest edge of each rect, capped at 120px).
+        // Snap only when the cursor is inside (or just kissing the edge of)
+        // a magnet element. A wide radius felt magical in isolation but in
+        // practice grabbed attention from neighbouring controls (e.g.,
+        // hovering a nav icon would still pull the bracket onto a button
+        // 80px away). Keep the grace zone tiny — 4px — so the bracket
+        // snaps as the cursor crosses the boundary, not before.
+        const SNAP_GRACE = 4;
         const magnets = document.querySelectorAll('[data-cursor="magnet"]');
         let best = null;
-        let bestDist = 120 * 120;
+        let bestDist = SNAP_GRACE * SNAP_GRACE;
         magnets.forEach(el => {
             const r = el.getBoundingClientRect();
             const nx = Math.max(r.left, Math.min(x, r.right));
