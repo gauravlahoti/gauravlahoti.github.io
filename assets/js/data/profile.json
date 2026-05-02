@@ -19,17 +19,21 @@
     "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
     "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
   },
-  "models": ["gemini-3-pro", "claude-haiku-4.5", "gpt-4.1"],
+  "models": ["gemini-3-pro", "claude-opus-4.7", "claude-sonnet-4.6", "claude-haiku-4.5", "gpt-5"],
   "capabilities": {
-    "technical": [
-      { "key": "agentic",     "label": "Agentic frameworks",  "context": "Orchestrating multi-agent workflows from prototype to production",     "items": ["LangChain", "LangGraph", "Google ADK"] },
-      { "key": "llms",        "label": "LLMs & model garden", "context": "Picking the right model for the job — proprietary, open, on-prem",     "items": ["Gemini 3 Pro/Flash", "Claude Haiku 4.5", "GPT-4.1", "Vertex AI", "AWS Bedrock"] },
-      { "key": "protocols",   "label": "AI protocols",        "context": "Wiring agents to tools, data, and each other through open standards",   "items": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)", "OpenAPI (OAS) for Tool Use"] },
-      { "key": "rag",         "label": "RAG & vector data",   "context": "Grounding generation in proprietary knowledge with retrieval pipelines","items": ["Pinecone", "Gecko Embeddings", "Titan Embeddings"] },
-      { "key": "cloud",       "label": "Cloud native",        "context": "Building on GCP and AWS primitives — serverless first, IaC always",     "items": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Vertex AI", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"] },
-      { "key": "integration", "label": "Integration & API",   "context": "Bridging legacy enterprise stacks to event-driven, API-first systems",  "items": ["Apigee X", "Microservices", "Boomi", "Event-Driven Architecture", "Oracle SOA/OSB", "ODI"] },
-      { "key": "security",    "label": "Security",            "context": "Designing for least privilege, zero trust, and data-loss prevention",   "items": ["OAuth2", "IAM", "Zero Trust Architecture", "DLP"] },
-      { "key": "languages",   "label": "Languages & tools",   "context": "Daily drivers for shipping production-grade services",                  "items": ["Python", "Pydantic", "FastAPI", "SQL"] }
+    "aiNative": [
+      { "key": "agentic",        "label": "Agentic frameworks",         "context": "Orchestrating multi-agent workflows from prototype to production",                                       "items": ["Google ADK", "LangGraph"] },
+      { "key": "llms",           "label": "Models",                      "context": "Picking the right model for the job. Proprietary, open, on-prem.",                                        "items": ["Gemini Series", "Claude Series"] },
+      { "key": "protocols",      "label": "AI protocols",               "context": "Wiring agents to tools, data, and each other through open standards",                                     "items": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)"] },
+      { "key": "rag",            "label": "RAG & vector data",          "context": "Grounding generation in proprietary knowledge. Embeddings, retrieval, reranking.",                        "items": ["pgvector", "AlloyDB AI", "Pinecone", "Gecko Embeddings", "Titan Embeddings", "Hybrid search", "Reranking"] },
+      { "key": "evals",          "label": "Evals & observability",      "context": "Trusting agents in production. Evals, tracing, guardrails, regression coverage.",                          "items": ["LangSmith", "Agent Engine"] },
+      { "key": "coding-agents",  "label": "Coding agents & dev tooling","context": "Building software with agents in the loop, and shipping skills users can install.",                       "items": ["Claude Code", "Gemini CLI", "GitHub Copilot"] }
+    ],
+    "cloud": [
+      { "key": "cloud",       "label": "Cloud native",      "context": "Building on GCP and AWS primitives. Serverless first, IaC always.",     "items": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Agent Platform (Vertex AI)", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"] },
+      { "key": "integration", "label": "Integration & API", "context": "Bridging legacy enterprise stacks to event-driven, API-first systems",  "items": ["Apigee X", "Microservices", "Boomi", "Event-Driven Architecture", "Oracle SOA/OSB", "ODI"] },
+      { "key": "security",    "label": "Security",          "context": "Designing for least privilege, zero trust, and data-loss prevention",   "items": ["OAuth2", "IAM", "Zero Trust Architecture", "DLP"] },
+      { "key": "languages",   "label": "Languages & tools", "context": "Daily drivers for shipping production-grade services",                  "items": ["Python", "Pydantic", "FastAPI", "SQL"] }
     ],
     "business": [
       { "key": "leadership", "label": "Engagement leadership", "context": "Steering AI engagements end-to-end with executive sponsors",          "items": ["Cross-functional alignment", "Executive communication", "Hiring & evaluation", "Org design"] },

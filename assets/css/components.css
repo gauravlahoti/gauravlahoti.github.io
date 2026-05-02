@@ -897,19 +897,62 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    /* Same per-axis indirection as .cap-card so the axis tag and divider
+       pick up the right tint. Defaults to mint. */
+    --card-accent:      var(--accent);
+    --card-accent-soft: var(--accent-soft);
+}
+.cap-axis[data-axis="ai-native"] {
+    --card-accent:      var(--axis-ai);
+    --card-accent-soft: var(--axis-ai-soft);
+}
+.cap-axis[data-axis="cloud"] {
+    --card-accent:      var(--axis-cloud);
+    --card-accent-soft: var(--axis-cloud-soft);
+}
+.cap-axis[data-axis="business"] {
+    --card-accent:      var(--axis-biz);
+    --card-accent-soft: var(--axis-biz-soft);
 }
 .cap-axis-head {
+    position: relative;
     display: flex;
     align-items: baseline;
     gap: var(--space-3);
     padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--card-accent-soft);
+    cursor: default;
+}
+/* Hover sweep: a thin accent-coloured underline draws in from left to
+   right over the static border, with a soft glow. Pairs with subtle
+   forward shifts on the tag and title. */
+.cap-axis-head::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 0;
+    height: 1px;
+    background: var(--card-accent);
+    box-shadow: 0 0 10px var(--card-accent-glow);
+    transition: width var(--dur-base) var(--ease-out);
+    pointer-events: none;
+}
+.cap-axis-head:hover::after {
+    width: 100%;
 }
 .cap-axis-tag {
     font-family: var(--font-mono);
     font-size: 0.7rem;
-    color: var(--ink-subtle);
+    color: var(--card-accent);
     letter-spacing: 0.08em;
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        letter-spacing var(--dur-base) var(--ease-out);
+}
+.cap-axis-head:hover .cap-axis-tag {
+    transform: translateX(3px);
+    letter-spacing: 0.12em;
 }
 .cap-axis-title {
     font-family: var(--font-sans);
@@ -917,6 +960,18 @@
     font-size: var(--text-xl);
     color: var(--ink);
     letter-spacing: -0.01em;
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        text-shadow var(--dur-base) var(--ease-out);
+}
+.cap-axis-head:hover .cap-axis-title {
+    transform: translateX(2px);
+    text-shadow: 0 0 18px var(--card-accent-glow);
+}
+@media (prefers-reduced-motion: reduce) {
+    .cap-axis-head::after,
+    .cap-axis-tag,
+    .cap-axis-title { transition: none; }
 }
 .cap-axis-cards {
     display: flex;
@@ -926,11 +981,18 @@
 
 .cap-card {
     --cap-bracket: 10px;
+    /* Per-axis accent indirection: each axis sets these three custom props,
+       and every card-internal rule reads through --card-accent so colour
+       theming follows the axis automatically. Defaults to mint. */
+    --card-accent:      var(--accent);
+    --card-accent-soft: var(--accent-soft);
+    --card-accent-glow: var(--accent-glow);
     position: relative;
     background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: var(--space-4) var(--space-5);
+    padding-right: calc(var(--space-5) + 3.5rem); /* room for oversized numeral */
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -941,6 +1003,21 @@
         transform var(--dur-base) var(--ease-out);
     will-change: transform, opacity;
 }
+.cap-card[data-axis="ai-native"] {
+    --card-accent:      var(--axis-ai);
+    --card-accent-soft: var(--axis-ai-soft);
+    --card-accent-glow: var(--axis-ai-glow);
+}
+.cap-card[data-axis="cloud"] {
+    --card-accent:      var(--axis-cloud);
+    --card-accent-soft: var(--axis-cloud-soft);
+    --card-accent-glow: var(--axis-cloud-glow);
+}
+.cap-card[data-axis="business"] {
+    --card-accent:      var(--axis-biz);
+    --card-accent-soft: var(--axis-biz-soft);
+    --card-accent-glow: var(--axis-biz-glow);
+}
 .cap-card:hover {
     border-color: var(--border-strong);
     background: linear-gradient(135deg, var(--bg-elev), var(--bg-card));
@@ -950,7 +1027,7 @@
     position: absolute;
     width: var(--cap-bracket);
     height: var(--cap-bracket);
-    border-color: var(--accent-soft);
+    border-color: var(--card-accent-soft);
     border-style: solid;
     border-width: 0;
     pointer-events: none;
@@ -966,13 +1043,13 @@
     border-bottom-width: 1px;
     border-right-width: 1px;
 }
-.cap-card:hover .cap-bracket { border-color: var(--accent); }
+.cap-card:hover .cap-bracket { border-color: var(--card-accent); }
 
 .cap-scan {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(90deg, transparent 0%, var(--accent-soft) 45%, var(--accent-soft) 55%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, var(--card-accent-soft) 45%, var(--card-accent-soft) 55%, transparent 100%);
     opacity: 0;
     transform: translateX(-100%);
 }
@@ -985,18 +1062,30 @@
     100% { opacity: 0; transform: translateX(100%); }
 }
 
+/* Card head: oversized axis numeral pinned top-right, label below. */
 .cap-card-head {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
 }
 .cap-index {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-4);
     font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--accent);
-    letter-spacing: 0.05em;
+    font-size: clamp(2.6rem, 4vw, 3.4rem);
+    font-weight: 200;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--card-accent);
+    opacity: 0.22;
     font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity var(--dur-base) var(--ease-out);
 }
+.cap-card:hover .cap-index { opacity: 0.32; }
 .cap-label {
     font-family: var(--font-sans);
     font-weight: 600;
@@ -1004,6 +1093,11 @@
     color: var(--ink);
     letter-spacing: -0.005em;
 }
+
+/* Context: collapsed to a single clipped line by default; reveals on
+   hover or keyboard focus (Progressive Disclosure — the very pattern the
+   AI-Native axis names). max-height + line-clamp avoids a layout jump
+   between cards. */
 .cap-context {
     font-family: var(--font-mono);
     font-size: 0.72rem;
@@ -1011,6 +1105,17 @@
     line-height: 1.5;
     font-style: italic;
     margin-top: -2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    line-clamp: 1;
+    overflow: hidden;
+    transition: -webkit-line-clamp var(--dur-base) var(--ease-out);
+}
+.cap-card:hover .cap-context,
+.cap-card:focus-within .cap-context {
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
 }
 
 .cap-chips {
@@ -1019,8 +1124,22 @@
     gap: 6px;
     list-style: none;
     margin-top: var(--space-1);
+    padding: 0;
 }
+/* Top-5 + reveal: chips beyond the 5th are tagged .cap-chip-extra and
+   hidden while the list is collapsed. The "+N more" trigger toggles
+   data-collapsed on the <ul>. */
+.cap-chips[data-collapsed="true"] > li.cap-chip-extra { display: none; }
+.cap-chips[data-collapsed="false"] > li.cap-chip-more-wrap { display: none; }
+
+/* Skill chips are presentational labels — non-clickable. They still get a
+   per-axis hover accent so the section feels alive, but no cursor: pointer
+   and no click-to-scroll behaviour. The "+N more" reveal button below is
+   the only real <button> in the chip list. */
 .cap-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--ink);
@@ -1028,36 +1147,54 @@
     border: 1px solid var(--border);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.02);
-    cursor: pointer;
+    cursor: default;
     line-height: 1.3;
     transition:
         border-color var(--dur-fast) var(--ease-out),
         color var(--dur-fast) var(--ease-out),
-        background var(--dur-fast) var(--ease-out),
-        transform var(--dur-fast) var(--ease-out);
+        background var(--dur-fast) var(--ease-out);
 }
-.cap-chip:hover, .cap-chip:focus-visible {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    outline: none;
-    transform: translateY(-1px);
-}
-.cap-chip.is-static {
-    cursor: default;
+.cap-chip-icon {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
     color: var(--ink-muted);
+    transition: color var(--dur-fast) var(--ease-out);
 }
-.cap-chip.is-static:hover {
-    color: var(--ink);
-    border-color: var(--border-strong);
-    background: rgba(255, 255, 255, 0.04);
-    transform: none;
+.cap-chip-label {
+    display: inline-block;
+}
+.cap-chip:hover {
+    color: var(--card-accent);
+    border-color: var(--card-accent);
+    background: var(--card-accent-soft);
+}
+.cap-chip:hover .cap-chip-icon {
+    color: var(--card-accent);
+}
+
+/* "+N more" / "Show fewer" — the only interactive button in the chip list.
+   Dashed border + accent text marks it as a different affordance. */
+.cap-chip-more {
+    border: 1px dashed var(--border-strong);
+    background: transparent;
+    color: var(--card-accent);
+    cursor: pointer;
+}
+.cap-chip-more:hover, .cap-chip-more:focus-visible {
+    color: var(--card-accent);
+    border-color: var(--card-accent);
+    background: var(--card-accent-soft);
+    outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
     .cap-scan { display: none; }
     .cap-chip { transition: none; }
     .cap-chip:hover { transform: none; }
+    .cap-context { transition: none; }
+    .cap-index { transition: none; }
+    .cap-chip-icon { transition: none; }
 }
 
 /* Coarse-pointer (touch) tap-target bumps — meet WCAG 2.5.5 where layout
