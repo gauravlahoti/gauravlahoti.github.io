@@ -193,7 +193,67 @@
     <main>
         <section id="hero" class="hero" aria-label="Introduction">
             <canvas id="hero-gl" class="hero-canvas" aria-hidden="true"></canvas>
-            <div class="hero-fallback" aria-hidden="true"></div>
+            <div class="hero-fallback" aria-hidden="true">
+                <svg class="hero-fallback-mesh" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                    <g opacity="0.35">
+                        <line x1="108"  y1="95"  x2="372"  y2="110"/>
+                        <line x1="372"  y1="110" x2="588"  y2="102"/>
+                        <line x1="588"  y1="102" x2="852"  y2="88"/>
+                        <line x1="852"  y1="88"  x2="1090" y2="105"/>
+                        <line x1="108"  y1="95"  x2="252"  y2="280"/>
+                        <line x1="372"  y1="110" x2="252"  y2="280"/>
+                        <line x1="372"  y1="110" x2="468"  y2="268"/>
+                        <line x1="588"  y1="102" x2="468"  y2="268"/>
+                        <line x1="588"  y1="102" x2="732"  y2="285"/>
+                        <line x1="852"  y1="88"  x2="732"  y2="285"/>
+                        <line x1="852"  y1="88"  x2="948"  y2="272"/>
+                        <line x1="1090" y1="105" x2="948"  y2="272"/>
+                        <line x1="252"  y1="280" x2="115"  y2="460"/>
+                        <line x1="252"  y1="280" x2="348"  y2="442"/>
+                        <line x1="468"  y1="268" x2="348"  y2="442"/>
+                        <line x1="468"  y1="268" x2="612"  y2="458"/>
+                        <line x1="732"  y1="285" x2="612"  y2="458"/>
+                        <line x1="732"  y1="285" x2="828"  y2="444"/>
+                        <line x1="948"  y1="272" x2="828"  y2="444"/>
+                        <line x1="948"  y1="272" x2="1092" y2="462"/>
+                        <line x1="115"  y1="460" x2="348"  y2="442"/>
+                        <line x1="348"  y1="442" x2="612"  y2="458"/>
+                        <line x1="612"  y1="458" x2="828"  y2="444"/>
+                        <line x1="828"  y1="444" x2="1092" y2="462"/>
+                        <line x1="115"  y1="460" x2="235"  y2="595"/>
+                        <line x1="348"  y1="442" x2="235"  y2="595"/>
+                        <line x1="348"  y1="442" x2="490"  y2="608"/>
+                        <line x1="612"  y1="458" x2="490"  y2="608"/>
+                        <line x1="612"  y1="458" x2="708"  y2="590"/>
+                        <line x1="828"  y1="444" x2="708"  y2="590"/>
+                        <line x1="828"  y1="444" x2="965"  y2="612"/>
+                        <line x1="1092" y1="462" x2="965"  y2="612"/>
+                        <line x1="235"  y1="595" x2="490"  y2="608"/>
+                        <line x1="490"  y1="608" x2="708"  y2="590"/>
+                        <line x1="708"  y1="590" x2="965"  y2="612"/>
+                    </g>
+                    <g>
+                        <circle cx="108"  cy="95"  r="3"/>
+                        <circle cx="372"  cy="110" r="3"/>
+                        <circle cx="588"  cy="102" r="3"/>
+                        <circle cx="852"  cy="88"  r="3"/>
+                        <circle cx="1090" cy="105" r="3"/>
+                        <circle cx="252"  cy="280" r="3"/>
+                        <circle cx="468"  cy="268" r="3"/>
+                        <circle cx="732"  cy="285" r="3"/>
+                        <circle cx="948"  cy="272" r="3"/>
+                        <circle cx="115"  cy="460" r="3"/>
+                        <circle cx="348"  cy="442" r="3"/>
+                        <circle cx="612"  cy="458" r="3"/>
+                        <circle cx="828"  cy="444" r="3"/>
+                        <circle cx="1092" cy="462" r="3"/>
+                        <circle cx="235"  cy="595" r="3"/>
+                        <circle cx="490"  cy="608" r="3"/>
+                        <circle cx="708"  cy="590" r="3"/>
+                        <circle cx="965"  cy="612" r="3"/>
+                    </g>
+                </svg>
+            </div>
 
             <div class="hero-chrome" aria-hidden="true">
                 <div class="chrome chrome-tl">// open to architecture engagements</div>
@@ -227,6 +287,18 @@
                     </span>
                 </p>
                 <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
+
+                <!-- Spec 22: mobile-only in-hero actions. Hidden on ≥768px. -->
+                <div class="hero-mobile-actions" aria-hidden="false">
+                    <button class="hero-cta-mobile btn btn-primary" type="button" data-agent-open>
+                        <span>Ask my agent</span>
+                        <span class="hero-cta-mobile-arrow" aria-hidden="true">→</span>
+                    </button>
+                    <button class="cert-rail-chip-mobile" type="button" data-cert-chip-trigger aria-haspopup="dialog">
+                        <span class="cert-chip-count" data-cert-chip-count>8 certifications</span>
+                        <span class="cert-chip-providers">AWS · GCP · Azure</span>
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -342,6 +414,19 @@
         </div>
       </div>
     </dialog>
+
+    <!-- Spec 22: mobile section-progress strip + bottom-bar.
+         Both are CSS-hidden on ≥768px; populated and wired in main.js. -->
+    <nav class="mobile-section-progress" data-section-progress aria-hidden="true"></nav>
+
+    <aside class="mobile-bottombar" data-mobile-bottombar aria-label="Primary actions">
+        <button class="mobile-bottombar-btn mobile-bottombar-btn-primary" type="button" data-agent-open>
+            <span>Ask my agent</span>
+        </button>
+        <button class="mobile-bottombar-btn" type="button" data-resume-trigger>
+            <span>Resume</span>
+        </button>
+    </aside>
 
     <!-- Mount point for the agent chat widget (spec 21). The widget renders
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->

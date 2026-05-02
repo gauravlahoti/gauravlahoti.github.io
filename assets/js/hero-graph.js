@@ -6,7 +6,7 @@
 const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 export async function initHeroGraph(canvas, opts = {}) {
-    const { accent = "#00FFD1", isTouch = false, isMobile = false } = opts;
+    const { accent = "#00FFD1", isTouch = false } = opts;
 
     let THREE;
     try {
@@ -31,9 +31,7 @@ export async function initHeroGraph(canvas, opts = {}) {
         return null;
     }
 
-    // Mobile gets a tighter pixel ratio so the GPU has less to do.
-    const dprCap = isMobile ? 1.25 : 1.5;
-    const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     renderer.setPixelRatio(dpr);
     renderer.setClearColor(0x000000, 0);
 
@@ -43,10 +41,7 @@ export async function initHeroGraph(canvas, opts = {}) {
 
     const accentColor = new THREE.Color(accent);
 
-    // ---- Build node positions on Fibonacci sphere with jitter ----
-    // Mobile profile: ~half the nodes so the k-NN edge-build (O(n²)) and
-    // per-frame draw cost both come down.
-    const NODE_COUNT = isMobile ? 40 : 80;
+    const NODE_COUNT = 80;
     const RADIUS = 3.2;
     const JITTER = 0.12;
     const positions = [];
@@ -221,39 +216,21 @@ export async function initHeroGraph(canvas, opts = {}) {
     io.observe(canvas);
 
     // ---- Render loop ----
-    // Mobile targets 30fps (cap render to ~33ms gaps); desktop free-runs at
-    // the rAF cadence (typically 60fps).
-    const targetFrameMs = isMobile ? 1000 / 30 : 0;
     let rafId;
-    let lastRenderMs = 0;
-
-    // FPS watchdog: sample over 1s windows; if 3 consecutive windows average
-    // under 24fps, dispose the canvas and reveal the gradient fallback.
-    let fpsWindowStart = performance.now();
-    let fpsFrames = 0;
-    let lowFpsStreak = 0;
-    let watchdogTripped = false;
 
     function tick() {
         rafId = requestAnimationFrame(tick);
         if (paused) return;
         const now = performance.now();
-
-        if (targetFrameMs > 0 && now - lastRenderMs < targetFrameMs - 1) return;
-        lastRenderMs = now;
-
         const t = now / 1000;
 
-        // Auto Y-rotation on base
         baseGroup.rotation.y += 0.0014;
 
-        // Parallax lerp on outer group
         curRX += (targetRX - curRX) * 0.06;
         curRY += (targetRY - curRY) * 0.06;
         parallaxGroup.rotation.x = curRX;
         parallaxGroup.rotation.y = curRY;
 
-        // Pulse progress
         const elapsed = t - pulseStart;
         if (elapsed >= PULSE_DUR) {
             pulseStart = t;
@@ -263,28 +240,6 @@ export async function initHeroGraph(canvas, opts = {}) {
         edgeMat.uniforms.uHead.value = u * (PATH_LEN - 1);
 
         renderer.render(scene, camera);
-
-        // FPS watchdog tick
-        fpsFrames += 1;
-        const windowMs = now - fpsWindowStart;
-        if (windowMs >= 1000) {
-            const fps = (fpsFrames * 1000) / windowMs;
-            const target = isMobile ? 24 : 30;
-            if (fps < target) {
-                lowFpsStreak += 1;
-                if (lowFpsStreak >= 3 && !watchdogTripped) {
-                    watchdogTripped = true;
-                    console.info("[hero-graph] FPS watchdog tripped at", fps.toFixed(1), "fps — falling back");
-                    destroy();
-                    canvas.remove();
-                    return;
-                }
-            } else {
-                lowFpsStreak = 0;
-            }
-            fpsFrames = 0;
-            fpsWindowStart = now;
-        }
     }
     tick();
 

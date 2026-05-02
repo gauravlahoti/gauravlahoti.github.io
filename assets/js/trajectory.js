@@ -77,7 +77,7 @@ export function initTrajectory(root, profile) {
 
     /* ---------- ScrollTrigger: rail draw + station activation + tile reveal ---------- */
 
-    if (gsap && ScrollTrigger && !reduceMotion) {
+    if (gsap && ScrollTrigger && !reduceMotion && !isNarrow) {
         gsap.registerPlugin(ScrollTrigger);
         const section = document.getElementById("graph");
 
@@ -134,6 +134,18 @@ export function initTrajectory(root, profile) {
         });
         resizeObserver.observe(root);
     }
+
+    /* ---------- spec 22: external remeasure trigger ----------
+       Mobile <details>/<summary> toggles change the page layout under us,
+       so we need to re-run the rail measurement and refresh ScrollTrigger
+       once the toggle settles. Fired by main.js. */
+    function onExternalRemeasure() {
+        requestAnimationFrame(() => {
+            measureRail();
+            if (window.ScrollTrigger) window.ScrollTrigger.refresh();
+        });
+    }
+    window.addEventListener("portfolio:trajectory-remeasure", onExternalRemeasure);
 
     /* ---------- skill highlight listener ---------- */
 
@@ -199,6 +211,7 @@ export function initTrajectory(root, profile) {
             triggers.forEach(t => { try { t.kill(); } catch (_) {} });
             try { resizeObserver && resizeObserver.disconnect(); } catch (_) {}
             document.removeEventListener("portfolio:highlight-skill", onSkillHighlight);
+            window.removeEventListener("portfolio:trajectory-remeasure", onExternalRemeasure);
             if (stationsRoot) stationsRoot.replaceChildren();
             root.replaceChildren();
         },
