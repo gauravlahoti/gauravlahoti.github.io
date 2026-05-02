@@ -33,28 +33,24 @@ export function initCursor(opts = {}) {
     }
 
     function findMagnet(x, y) {
-        // Snap only when the cursor is inside (or just kissing the edge of)
-        // a magnet element. A wide radius felt magical in isolation but in
-        // practice grabbed attention from neighbouring controls (e.g.,
-        // hovering a nav icon would still pull the bracket onto a button
-        // 80px away). Keep the grace zone tiny — 4px — so the bracket
-        // snaps as the cursor crosses the boundary, not before.
-        const SNAP_GRACE = 4;
-        const magnets = document.querySelectorAll('[data-cursor="magnet"]');
-        let best = null;
-        let bestDist = SNAP_GRACE * SNAP_GRACE;
-        magnets.forEach(el => {
-            const r = el.getBoundingClientRect();
-            const nx = Math.max(r.left, Math.min(x, r.right));
-            const ny = Math.max(r.top, Math.min(y, r.bottom));
-            const dx = x - nx, dy = y - ny;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < bestDist) {
-                bestDist = d2;
-                best = { el, rect: r };
-            }
-        });
-        return best;
+        // Use the browser's hit-testing via elementFromPoint instead of
+        // walking all `[data-cursor="magnet"]` rects. The previous approach
+        // matched on bounding-rect proximity, which would snap onto magnet
+        // elements inside *hidden* containers — e.g., the Perspectives nav
+        // flyout (`visibility: hidden; pointer-events: none`) and the
+        // mobile drawer (`transform: translateX(100%)`) both leave their
+        // children with valid layout rects, producing phantom brackets in
+        // the hero area when the cursor merely passed near where the
+        // (invisible) flyout would render.
+        // elementFromPoint respects visibility, opacity, pointer-events,
+        // and transforms — exactly the same rules the browser uses for
+        // click hit-testing — so the cursor only snaps to magnets that
+        // are actually reachable.
+        const el = document.elementFromPoint(x, y);
+        if (!el) return null;
+        const magnet = el.closest('[data-cursor="magnet"]');
+        if (!magnet) return null;
+        return { el: magnet, rect: magnet.getBoundingClientRect() };
     }
 
     function tick() {
