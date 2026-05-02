@@ -10,8 +10,15 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "24";
+const ASSET_VERSION = "25";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
+
+// A refresh should land on the hero, not wherever the visitor last scrolled
+// to. Disable the browser's auto scroll-restoration and force the top — but
+// keep deep links (`/...#writing`) working: only override when there's no
+// hash in the URL.
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+if (!location.hash || location.hash.length < 2) window.scrollTo(0, 0);
 
 (async function bootstrap() {
     let profile;
