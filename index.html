@@ -42,9 +42,9 @@
     <link rel="preconnect" href="https://rsms.me">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
-    <link rel="stylesheet" href="assets/css/base.css?v=14">
-    <link rel="stylesheet" href="assets/css/layout.css?v=14">
-    <link rel="stylesheet" href="assets/css/components.css?v=14">
+    <link rel="stylesheet" href="assets/css/base.css?v=15">
+    <link rel="stylesheet" href="assets/css/layout.css?v=15">
+    <link rel="stylesheet" href="assets/css/components.css?v=15">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
@@ -163,14 +163,28 @@
                     <span>Three firms.</span>
                     <span>One arc.</span>
                 </h2>
-                <ul class="trail-stats" aria-label="At a glance">
-                    <li><strong>11y</strong> tenure</li>
-                    <li><strong>3</strong> firms</li>
-                    <li><strong>7</strong> roles</li>
-                    <li><strong>4</strong> programs</li>
-                </ul>
+                <dl class="trail-stats" aria-label="At a glance">
+                    <div class="trail-stat" data-era="accenture">
+                        <dt class="trail-stat-label">tenure</dt>
+                        <dd class="trail-stat-value">11<span class="trail-stat-unit">y</span></dd>
+                    </div>
+                    <div class="trail-stat" data-era="accenture">
+                        <dt class="trail-stat-label">firms</dt>
+                        <dd class="trail-stat-value">3</dd>
+                    </div>
+                    <div class="trail-stat" data-era="ey">
+                        <dt class="trail-stat-label">roles</dt>
+                        <dd class="trail-stat-value">7</dd>
+                    </div>
+                    <div class="trail-stat" data-era="deloitte">
+                        <dt class="trail-stat-label">programs</dt>
+                        <dd class="trail-stat-value">4</dd>
+                    </div>
+                </dl>
                 <p class="trail-sub">
-                    Legacy SOA at Accenture &rarr; modern enterprise integration at EY &rarr; cloud-native AI at Deloitte.
+                    Legacy SOA at <span class="trail-firm" data-era="accenture">Accenture</span>
+                    &rarr; modern enterprise integration at <span class="trail-firm" data-era="ey">EY</span>
+                    &rarr; cloud-native AI at <span class="trail-firm" data-era="deloitte">Deloitte</span>.
                 </p>
             </header>
             <div class="trail-grid">
@@ -247,6 +261,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="assets/js/main.js?v=14"></script>
+    <script type="module" src="assets/js/main.js?v=15"></script>
 </body>
 </html>
