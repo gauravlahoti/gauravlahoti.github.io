@@ -16,5 +16,11 @@
     "firstLine": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned.",
     "excerpt": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned. So on-call engineers get sent down paths their teammates already ruled out last month.\n\nI built a multi-agent system that starts with your team",
     "date": "2026-04-21"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-generativeai-aiagents-ugcPost-7439049642580992000-ds0L",
+    "firstLine": "I built an agent that reads every GCP release note so you don't have to.",
+    "excerpt": "I built an agent that reads every GCP release note so you don't have to.\n\nMeet ReleaseLens: an AI agent I built to monitor Google Cloud release notes, filter out the noise and tell developers exactly how updates impact their specific tech stacks.",
+    "date": "2026-03-15"
   }
 ]
