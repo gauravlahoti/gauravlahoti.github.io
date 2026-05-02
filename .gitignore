@@ -24,3 +24,7 @@ _site/
 # Source PDFs kept locally for reference; the public resume lives in assets/img/.
 /Profile.pdf
 /Gaurav Lahoti Senior Architect Resume.pdf
+
+# Claude Code internal tooling.
+.claude/*.lock
+.claude/scheduled_tasks.lock

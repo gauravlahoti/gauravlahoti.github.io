@@ -1,0 +1,32 @@
+[
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_ai-agents-anthropic-share-7454222608767614976-sKnM",
+    "firstLine": "Context bloat is quietly wrecking your coding agent.",
+    "excerpt": "Context bloat is quietly wrecking your coding agent. Context engineering is how you fix it.\n\nI",
+    "date": "2026-04-26"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloudnext26-agentscli-adk-ugcPost-7453195946403987456-4_Ik",
+    "firstLine": "Build agents with agents 🤖",
+    "excerpt": "Build agents with agents 🤖\n\nEvery developer building AI agents today hits the same 2 walls.\n\n1. The tooling is fragmented. You need one tool to scaffold, another to evaluate, another to deploy, another to monitor. You spend more time gluing them together than building the actual agent.\n\n2. When they ask their coding agent for help, it hallucinates. They spend half their day in a loop of \"no, that",
+    "date": "2026-04-23"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_aiagents-googleadk-multiagent-ugcPost-7452201865829724160-Fum8",
+    "firstLine": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned.",
+    "excerpt": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned. So on-call engineers get sent down paths their teammates already ruled out last month.\n\nI built a multi-agent system that starts with your team",
+    "date": "2026-04-21"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-gcp-adk-ugcPost-7441549845116583936-8CG0",
+    "firstLine": "I vibe coded a GCP Advisor agent that never guesses.",
+    "excerpt": "I just vibe coded a GCP Advisor agent using Gemini CLI and ADK agent skills, applying context engineering to go from prototype to production grade - powered by Google managed Developer Knowledge MCP server.\n\nAnd it never guesses.\n\nVibe coding gets you a prototype fast. But it cuts corners - hallucinated APIs, invented patterns, scaffolding that looks right until it doesn't.\n\nADK agent skills fix that. They give Gemini CLI the right context to build correctly - architecture patterns, tool specs, evaluation criteria. That's what takes you from prototype to production grade.",
+    "date": "2026-03-22"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-generativeai-aiagents-ugcPost-7439049642580992000-ds0L",
+    "firstLine": "I built an agent that reads every GCP release note so you don't have to.",
+    "excerpt": "I built an agent that reads every GCP release note so you don't have to.\n\nMeet ReleaseLens: an AI agent I built to monitor Google Cloud release notes, filter out the noise and tell developers exactly how updates impact their specific tech stacks.",
+    "date": "2026-03-15"
+  }
+]

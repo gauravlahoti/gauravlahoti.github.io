@@ -45,6 +45,15 @@ Data files: `profile.json` (identity, bio, socials, full work history, certifica
 
 The static portfolio stays plain HTML/CSS/JS and ships to GitHub Pages independently. `assets/js/resume-gate.js` calls the backend; the PDF download fires only after the JWT verifies and the lead row is written. Specs 11 and 12 cover the gate and Google auth.
 
+## Agent chat widget (`portfolio-agent/`)
+
+Spec 21 adds a floating "Ask my agent" widget powered by a Google ADK Python agent deployed on Cloud Run (free tier, `min-instances=0`). The agent answers questions about Gaurav using five retrieval tools (`get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications`) over a frozen JSON snapshot bundled into the container. Frontend module: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback` and wired in `assets/js/main.js`. Sub-project: `portfolio-agent/` (scaffolded by `agents-cli scaffold create`; do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI reads them).
+
+- **Local dev** (from inside `portfolio-agent/`): `make dev` (FastAPI on `:8000`) or `agents-cli playground` (ADK web UI). For a one-shot smoke: `agents-cli run "your prompt"`.
+- **Eval gate** (must pass before deploy): `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json`.
+- **Deploy**: `agents-cli scaffold enhance . --deployment-target cloud_run --session-type in_memory` once, then `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0`. After deploy, paste the Cloud Run URL into `profile.json` `links.agentApi` / `links.agentWarm` and `index.html` CSP `connect-src`.
+- **Refresh corpus**: `make corpus` syncs `assets/js/data/*.json` → `portfolio-agent/app/corpus/`. The agent ships a frozen snapshot per deploy; redeploy to update.
+
 ## Conventions
 
 - **Content lives in JSON, not HTML.** All identity, career, and project data flows out of `assets/js/data/`. Markup stays template-only so updating the bio never touches code.

@@ -17,9 +17,7 @@
     "topmate": "https://topmate.io/gaurav_lahoti25",
     "resume": "assets/img/resume.pdf",
     "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
-    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
-    "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
-    "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
+    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
   },
   "models": ["gemini-3-pro", "claude-opus-4.7", "claude-sonnet-4.6", "claude-haiku-4.5", "gpt-5"],
   "capabilities": {

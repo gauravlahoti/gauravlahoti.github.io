@@ -1697,3 +1697,287 @@
    No display:none override here — that would break iPad / Windows-touch /
    laptop-with-touch-and-mouse, where the flyout should still work. The
    mobile nav drawer (separate component) is what truly small viewports get. */
+
+/* ---------- Agent chat widget (spec 21) -------------------------------- */
+/* Floating "Ask my agent" FAB + slide-in panel. Mounted into <div id="agent-root">.
+   Spec #20 §Templates is the design source; spec #21 adds prewarm + cold-start
+   loading copy. Plain text only — no Markdown rendering on assistant content. */
+
+.agent-widget-host {
+    position: fixed;
+    inset: auto var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom)) auto;
+    z-index: 60;
+    pointer-events: none;
+}
+.agent-widget-host > * { pointer-events: auto; }
+
+.agent-fab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-card);
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 var(--accent-glow);
+    transition:
+        transform var(--dur-fast) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out);
+}
+.agent-fab:hover,
+.agent-fab:focus-visible {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 24px 0 var(--accent-glow);
+    outline: none;
+}
+.agent-fab svg { color: var(--accent); }
+
+@keyframes agent-fab-pulse {
+    0%, 70%, 100% { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 var(--accent-glow); }
+    35%           { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 24px 6px var(--accent-glow); }
+}
+.agent-fab-pulse {
+    animation: agent-fab-pulse 4.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-fab-pulse { animation: none; }
+}
+
+.agent-panel {
+    position: fixed;
+    inset: auto var(--space-4) calc(var(--space-4) + 56px + env(safe-area-inset-bottom)) auto;
+    width: 380px;
+    max-height: min(72vh, 640px);
+    background: var(--bg-elev);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    transform: translateY(8px);
+    opacity: 0;
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        opacity var(--dur-base) var(--ease-out);
+}
+.agent-panel.is-open {
+    display: flex;
+    transform: translateY(0);
+    opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-panel { transition: none; transform: none; }
+}
+
+.agent-panel-head {
+    position: relative;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+}
+.agent-panel-eyebrow {
+    margin: 0 0 2px;
+    color: var(--ink-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+}
+.agent-panel-title {
+    margin: 0;
+    font-size: var(--text-base);
+    color: var(--ink);
+    letter-spacing: 0.01em;
+}
+.agent-panel-close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+.agent-panel-close:hover,
+.agent-panel-close:focus-visible {
+    color: var(--accent);
+    outline: none;
+}
+
+.agent-panel-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.agent-prompts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.agent-prompts.is-hidden { display: none; }
+.agent-prompts-head {
+    margin: 0;
+    color: var(--ink-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.04em;
+}
+.agent-prompt-chip {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-card);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    min-height: 44px;
+    transition:
+        border-color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out);
+}
+.agent-prompt-chip:hover,
+.agent-prompt-chip:focus-visible {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+}
+
+.agent-transcript {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.agent-message { padding: 0; }
+.agent-message p {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.agent-message-user p {
+    align-self: flex-end;
+    background: var(--accent-soft);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    margin-left: var(--space-6);
+}
+.agent-message-assistant p {
+    color: var(--ink);
+    padding: var(--space-2) var(--space-3);
+    border-left: 2px solid var(--accent);
+}
+.agent-message-system p {
+    color: var(--ink-muted);
+    font-style: italic;
+    border-left: 2px solid var(--ink-subtle);
+    padding: var(--space-2) var(--space-3);
+}
+.agent-message-text a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+.agent-input-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-end;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+}
+.agent-input {
+    flex: 1 1 auto;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-elev);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+}
+.agent-input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+}
+.agent-send {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+.agent-send:disabled { opacity: 0.4; cursor: progress; }
+.agent-send:hover:not(:disabled) { filter: brightness(1.1); }
+
+.agent-panel-foot {
+    padding: var(--space-2) var(--space-4);
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--ink-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.02em;
+}
+.agent-panel-foot a {
+    color: var(--accent);
+    text-decoration: none;
+}
+.agent-panel-foot a:hover,
+.agent-panel-foot a:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
+.agent-live {
+    position: absolute;
+    width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .agent-panel {
+        inset: var(--space-3) var(--space-3) calc(var(--space-3) + 56px + env(safe-area-inset-bottom)) var(--space-3);
+        width: auto;
+        max-height: none;
+    }
+}

@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "47";
+const ASSET_VERSION = "48";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -41,8 +41,31 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     wireScrollTo();
     initCursorAsync();
     initResumeGateLazy(profile);
+    initAgentWidgetWhenIdle(profile);
     auditConsole();
 })();
+
+function initAgentWidgetWhenIdle(profile) {
+    if (!profile || !profile.links || !profile.links.agentApi) return;
+    // Skip on bandwidth-saver + reduced-motion combo (per spec #20).
+    if (saveData && reduceMotion) return;
+    const root = document.getElementById("agent-root");
+    if (!root) return;
+
+    const start = () => {
+        import(v("./agent-widget.js"))
+            .then(({ initAgentWidget }) => {
+                window.__agentWidget = initAgentWidget(root, profile);
+            })
+            .catch((err) => console.warn("[agent-widget] failed to load", err));
+    };
+
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(start, { timeout: 2500 });
+    } else {
+        setTimeout(start, 1500);
+    }
+}
 
 function initResumeGateLazy(profile) {
     let inst = null;
