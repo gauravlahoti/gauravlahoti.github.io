@@ -52,9 +52,9 @@
     <link rel="preconnect" href="https://rsms.me">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
-    <link rel="stylesheet" href="assets/css/base.css?v=29">
-    <link rel="stylesheet" href="assets/css/layout.css?v=29">
-    <link rel="stylesheet" href="assets/css/components.css?v=29">
+    <link rel="stylesheet" href="assets/css/base.css?v=30">
+    <link rel="stylesheet" href="assets/css/layout.css?v=30">
+    <link rel="stylesheet" href="assets/css/components.css?v=30">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
@@ -86,6 +86,11 @@
     <header class="nav" role="banner">
         <div class="nav-inner">
             <a class="nav-brand" href="#hero" data-bind="profile.name">Gaurav Lahoti</a>
+            <button class="nav-menu-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-trigger>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+            </button>
             <nav class="nav-links" aria-label="Primary">
                 <a href="#graph" data-cursor="magnet">Career</a>
                 <a href="#bento" data-cursor="magnet">About</a>
@@ -128,6 +133,53 @@
             </div>
         </div>
     </header>
+
+    <aside class="nav-drawer" id="nav-drawer" aria-hidden="true" data-nav-drawer>
+        <div class="nav-drawer-backdrop" data-nav-close aria-hidden="true"></div>
+        <div class="nav-drawer-panel" role="dialog" aria-modal="true" aria-label="Site navigation">
+            <button class="nav-drawer-close" type="button" aria-label="Close menu" data-nav-close>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18"/>
+                </svg>
+            </button>
+            <nav class="nav-drawer-links" aria-label="Sections">
+                <a href="#graph">Career</a>
+                <a href="#bento">About</a>
+                <a href="#writing">Perspectives</a>
+                <a href="#" data-resume-trigger>Resume</a>
+            </nav>
+            <hr class="nav-drawer-divider" aria-hidden="true">
+            <ul class="nav-drawer-channels" aria-label="Channels">
+                <li>
+                    <a class="nav-channel" data-bind-href="mailto:profile.links.email" data-bind-title="profile.links.email" aria-label="Email">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="5" width="18" height="14" rx="2"/>
+                            <path d="M3 7l9 6 9-6"/>
+                        </svg>
+                    </a>
+                </li>
+                <li>
+                    <a class="nav-channel" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4V8h4v1.5"/>
+                            <rect x="2" y="9" width="4" height="12"/>
+                            <circle cx="4" cy="4" r="1.5"/>
+                        </svg>
+                    </a>
+                </li>
+                <li>
+                    <a class="nav-channel" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                        </svg>
+                    </a>
+                </li>
+            </ul>
+            <a class="nav-drawer-cta btn btn-ghost" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
+                <span>Book on Topmate</span>
+            </a>
+        </div>
+    </aside>
 
     <main>
         <section id="hero" class="hero" aria-label="Introduction">
@@ -275,6 +327,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="assets/js/main.js?v=29"></script>
+    <script type="module" src="assets/js/main.js?v=30"></script>
 </body>
 </html>
