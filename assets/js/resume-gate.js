@@ -32,7 +32,12 @@ export function initResumeGate(profile) {
     function setLoading(on, label) {
         if (!loadingRow) return;
         loadingRow.hidden = !on;
-        if (on && loadingLabel && label) loadingLabel.textContent = label;
+        // Accept empty string as an explicit "clear the label" — useful for
+        // the spinner-only state during verification (no confusing text
+        // before the download actually starts).
+        if (on && loadingLabel && typeof label === "string") {
+            loadingLabel.textContent = label;
+        }
     }
 
     function triggerDownload() {
@@ -75,7 +80,9 @@ export function initResumeGate(profile) {
         }
 
         showError("");
-        setLoading(true, "Confirming it's you…");
+        // Spinner only during verification — no label, since the modal's
+        // sub-line already explains what the wait is for.
+        setLoading(true, "");
         try {
             const res = await fetch(apiUrl, {
                 method: "POST",
