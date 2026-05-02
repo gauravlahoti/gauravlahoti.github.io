@@ -42,9 +42,9 @@
     <link rel="preconnect" href="https://rsms.me">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
-    <link rel="stylesheet" href="assets/css/base.css?v=18">
-    <link rel="stylesheet" href="assets/css/layout.css?v=18">
-    <link rel="stylesheet" href="assets/css/components.css?v=18">
+    <link rel="stylesheet" href="assets/css/base.css?v=23">
+    <link rel="stylesheet" href="assets/css/layout.css?v=23">
+    <link rel="stylesheet" href="assets/css/components.css?v=23">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
@@ -79,6 +79,10 @@
             <nav class="nav-links" aria-label="Primary">
                 <a href="#graph" data-cursor="magnet">Career</a>
                 <a href="#bento" data-cursor="magnet">About</a>
+                <div class="nav-link-group" data-flyout-group>
+                    <a href="#writing" data-cursor="magnet" aria-haspopup="true" aria-expanded="false">Perspectives</a>
+                    <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent perspectives" hidden></div>
+                </div>
                 <a href="#" data-resume-trigger data-cursor="magnet">Resume</a>
             </nav>
             <div class="nav-actions">
@@ -221,6 +225,15 @@
             </div>
         </section>
 
+        <section id="writing" class="section section-writing" aria-label="Perspectives">
+            <header class="posts-header">
+                <p class="posts-eyebrow">// perspectives</p>
+                <h2 class="posts-title">Perspectives.</h2>
+                <p class="posts-sub">Field-tested takes on agents, infra, and what production really looks like. Posted on LinkedIn — click any row to peek, or open the full thread.</p>
+            </header>
+            <div class="posts-list" data-posts-root></div>
+        </section>
+
     </main>
 
     <footer class="footer" role="contentinfo">
@@ -252,6 +265,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="assets/js/main.js?v=18"></script>
+    <script type="module" src="assets/js/main.js?v=23"></script>
 </body>
 </html>

@@ -7,6 +7,12 @@ const isTouch = matchMedia("(any-pointer: coarse)").matches;
 const isNarrow = matchMedia("(max-width: 767px)").matches;
 const saveData = !!(navigator.connection && navigator.connection.saveData);
 
+// Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
+// script also invalidates lazy-loaded modules. Bump together with the
+// ?v=N query strings on <link>/<script> in index.html.
+const ASSET_VERSION = "23";
+const v = (path) => `${path}?v=${ASSET_VERSION}`;
+
 (async function bootstrap() {
     let profile;
     try {
@@ -23,6 +29,8 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
     initTrajectoryWhenVisible(profile);
+    initPostsListWhenVisible();
+    initPostsFlyoutEager();
     initCapabilities(profile);
     initCertRail(profile);
     initCertTilesTouch();
@@ -41,7 +49,7 @@ function initResumeGateLazy(profile) {
         e.preventDefault();
         if (inst) { inst.open(); return; }
         if (loading) return;
-        loading = import("./resume-gate.js")
+        loading = import(v("./resume-gate.js"))
             .then(({ initResumeGate }) => {
                 inst = initResumeGate(profile);
                 inst.open();
@@ -57,7 +65,7 @@ async function initCursorAsync() {
     if (matchMedia("(any-pointer: coarse)").matches) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     try {
-        const { initCursor } = await import("./cursor.js");
+        const { initCursor } = await import(v("./cursor.js"));
         const inst = initCursor();
         window.__cursor = inst;
     } catch (err) {
@@ -246,7 +254,7 @@ function initTrajectoryWhenVisible(profile) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             try {
-                const { initTrajectory } = await import("./trajectory.js");
+                const { initTrajectory } = await import(v("./trajectory.js"));
                 const inst = initTrajectory(root, profile);
                 window.__trajectory = inst;
             } catch (err) {
@@ -255,6 +263,48 @@ function initTrajectoryWhenVisible(profile) {
         }
     }, { rootMargin: "300px" });
     io.observe(root);
+}
+
+function initPostsListWhenVisible() {
+    const root = document.querySelector("#writing [data-posts-root]");
+    if (!root) return;
+    const io = new IntersectionObserver(async (entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            try {
+                const { initPostsList } = await import(v("./posts-list.js"));
+                const inst = await initPostsList(root);
+                window.__postsList = inst;
+            } catch (err) {
+                console.warn("[posts] failed to init", err);
+            }
+        }
+    }, { rootMargin: "300px" });
+    io.observe(root);
+}
+
+async function initPostsFlyoutEager() {
+    const root = document.querySelector("[data-posts-flyout]");
+    if (!root) return;
+    // Skip on coarse pointers — CSS hides the flyout there too, no point fetching.
+    if (matchMedia("(any-pointer: coarse)").matches) return;
+    try {
+        const { initPostsFlyout } = await import(v("./posts-list.js"));
+        const inst = await initPostsFlyout(root);
+        window.__postsFlyout = inst;
+
+        const group = root.closest("[data-flyout-group]");
+        const link = group && group.querySelector("a[aria-haspopup]");
+        if (!group || !link) return;
+        const sync = (open) => link.setAttribute("aria-expanded", open ? "true" : "false");
+        group.addEventListener("mouseenter", () => sync(true));
+        group.addEventListener("mouseleave", () => sync(false));
+        group.addEventListener("focusin",   () => sync(true));
+        group.addEventListener("focusout",  () => sync(false));
+    } catch (err) {
+        console.warn("[posts-flyout] failed to init", err);
+    }
 }
 
 function wireScrollTo() {
@@ -491,7 +541,7 @@ function initHeroGraphWhenVisible() {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             try {
-                const mod = await import("./hero-graph.js");
+                const mod = await import(v("./hero-graph.js"));
                 const accent = getComputedStyle(ROOT).getPropertyValue("--accent").trim() || "#00FFD1";
                 const inst = await mod.initHeroGraph(canvas, { accent, isTouch, isMobile: isNarrow });
                 if (inst && inst.canvas) inst.canvas.classList.add("is-ready");

@@ -1271,3 +1271,273 @@
     }
     .resume-loading { animation: none; }
 }
+
+/* Writing section (spec 14) ----------------------------------------- */
+
+.posts-header {
+    max-width: 760px;
+    margin-bottom: var(--space-10);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.posts-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    letter-spacing: 0.06em;
+}
+.posts-title {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: clamp(var(--text-2xl), 5vw, var(--text-3xl));
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    color: var(--ink);
+}
+.posts-sub {
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    max-width: 620px;
+}
+
+.posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 760px;
+}
+
+.post {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--dur-base) var(--ease-out),
+                background var(--dur-base) var(--ease-out);
+}
+.post:hover,
+.post[open] {
+    border-color: var(--border-strong);
+}
+
+.post-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    min-height: var(--tap-min);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+.post-summary::-webkit-details-marker { display: none; }
+
+.post-summary::before {
+    content: "▸";
+    flex-shrink: 0;
+    width: 1em;
+    color: var(--accent);
+    font-size: var(--text-sm);
+    line-height: 1;
+    transition: transform var(--dur-fast) var(--ease-out);
+    transform-origin: 50% 50%;
+}
+.post[open] > .post-summary::before {
+    transform: rotate(90deg);
+}
+
+.post-summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: var(--radius-md);
+}
+
+.post-title {
+    flex: 1 1 auto;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.post-date {
+    flex: 0 0 auto;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.post-body {
+    padding: var(--space-2) var(--space-5) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.post-excerpt {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+}
+
+.post-link {
+    align-self: flex-start;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--accent-soft);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    transition: border-color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+}
+.post-link:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.post-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+    .post-summary {
+        flex-wrap: wrap;
+        padding: var(--space-3) var(--space-4);
+    }
+    .post-date {
+        flex-basis: 100%;
+        padding-left: calc(1em + var(--space-3));
+    }
+    .post-body {
+        padding: var(--space-2) var(--space-4) var(--space-4);
+    }
+}
+
+/* Nav flyout — recent posts dropdown on the Writing link (spec 14) ---- */
+
+.nav-link-group {
+    position: relative;
+}
+
+.nav-flyout {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    min-width: 320px;
+    max-width: 420px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
+    z-index: 100;
+}
+/* Invisible bridge: extends the flyout's hover hit-area up across the
+   space-2 gap so the mouse moving from link → panel doesn't fall into a
+   "no-element" zone and close the dropdown. pointer-events: auto must be
+   explicit (it inherits from .nav-flyout, which is "none" until hovered). */
+.nav-flyout::before {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--space-2));
+    left: 0;
+    right: 0;
+    height: var(--space-2);
+    pointer-events: auto;
+}
+.nav-link-group:hover .nav-flyout,
+.nav-link-group:focus-within .nav-flyout {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.nav-flyout-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+}
+
+.nav-flyout-link {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    transition: background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
+}
+.nav-flyout-link-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* Wrap long titles inside the panel; cap at 3 lines so the dropdown
+       stays compact even when LinkedIn's og:description is very long. */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+.nav-flyout-link::after {
+    content: "↗";
+    flex: 0 0 auto;
+    /* line-height matches the title's so the arrow optically aligns with
+       the first wrapped line, not the vertical centre of the link. */
+    line-height: 1.4;
+    color: var(--ink-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    transition: color var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
+}
+.nav-flyout-link:hover,
+.nav-flyout-link:focus-visible {
+    background: var(--bg-card);
+    color: var(--accent);
+    outline: none;
+}
+.nav-flyout-link:hover::after,
+.nav-flyout-link:focus-visible::after {
+    color: var(--accent);
+    transform: translate(2px, -2px);
+}
+
+.nav-flyout-foot {
+    display: block;
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--border);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.nav-flyout-foot:hover,
+.nav-flyout-foot:focus-visible {
+    color: var(--ink);
+    outline: none;
+}
+
+/* Touch / coarse-pointer: skip the hover flyout. The Writing link still
+   scrolls to the section, which is the right mobile UX. */
+@media (any-pointer: coarse) {
+    .nav-flyout { display: none; }
+}
