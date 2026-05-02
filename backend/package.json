@@ -13,6 +13,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "better-sqlite3": "^11.5.0"
+    "better-sqlite3": "^11.5.0",
+    "jose": "^6.2.3"
   }
 }

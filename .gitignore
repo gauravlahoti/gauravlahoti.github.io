@@ -6,6 +6,21 @@ node_modules/
 .idea/
 .vscode/
 
+# Editor/OS artifacts
+*.swp
+*.bak
+*~
+
+# Build output (none today, but reserved so they never sneak in)
+dist/
+build/
+coverage/
+_site/
+
+# Cloudflare wrangler local cache (also covered by backend/.gitignore but
+# pinning at root in case you ever run wrangler from a different folder).
+.wrangler/
+
 # Source PDFs kept locally for reference; the public resume lives in assets/img/.
 /Profile.pdf
 /Gaurav Lahoti Senior Architect Resume.pdf

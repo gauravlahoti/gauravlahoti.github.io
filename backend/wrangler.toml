@@ -10,3 +10,9 @@ database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 [vars]
 ALLOWED_ORIGINS = "https://gauravlahoti.github.io,http://localhost:5173"
 GOOGLE_CLIENT_ID = "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
+
+# Monthly retention cleanup — deletes resume_downloads rows older than 12
+# months (handler in src/index.js scheduled()). Runs at 02:00 UTC on the
+# 1st of each month. Cron syntax: minute hour day-of-month month day-of-week.
+[triggers]
+crons = ["0 2 1 * *"]

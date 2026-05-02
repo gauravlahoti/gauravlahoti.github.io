@@ -43,6 +43,24 @@ const recentLeads = db.prepare(
     `SELECT id, google_sub, email, email_verified, name, picture, downloaded_at, ip, user_agent, referrer
      FROM resume_downloads ORDER BY downloaded_at DESC LIMIT 200`
 );
+const recentForSub = db.prepare(
+    `SELECT 1 FROM resume_downloads WHERE google_sub = ? AND downloaded_at > ? LIMIT 1`
+);
+
+const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;
+
+// Mirror of the Worker's truncateIp (see backend/src/index.js). Keeps city-
+// level geolocation, drops precise host identification.
+function truncateIp(ip) {
+    if (!ip) return "";
+    if (ip.includes(":")) {
+        const hextets = ip.split(":").filter(Boolean).slice(0, 4);
+        return hextets.join(":") + "::x";
+    }
+    const parts = ip.split(".");
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
+    return "";
+}
 
 // ---------- helpers ----------
 function buildCors(origin) {
@@ -140,7 +158,19 @@ async function handleDownload(req, res, origin, cors) {
     if (!v.ok) return sendJson(res, v.status, { ok: false, error: v.error }, cors);
     const c = v.claims;
 
-    const ip = req.socket.remoteAddress || "";
+    // Dedupe per google_sub within 24h — same behaviour as the Worker.
+    const cutoff = Math.floor(Date.now() / 1000) - DEDUPE_WINDOW_SECONDS;
+    try {
+        if (recentForSub.get(c.sub, cutoff)) {
+            console.log(`[lead] dedupe — ${c.email} already recorded within 24h`);
+            return sendJson(res, 200, { ok: true, url: "/assets/img/resume.pdf", deduped: true }, cors);
+        }
+    } catch (err) {
+        console.warn("[dedupe] check failed", err);
+        // Fall through and let the INSERT happen.
+    }
+
+    const ip = truncateIp(req.socket.remoteAddress || "");
     const ua = (req.headers["user-agent"] || "").slice(0, 500);
     const referrer = (req.headers.referer || "").slice(0, 500);
     const at = Math.floor(Date.now() / 1000);
