@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "27";
+const ASSET_VERSION = "28";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -316,12 +316,44 @@ function wireScrollTo() {
         if (!anchor) return;
         const target = document.querySelector(anchor);
         if (!target) return;
-        const lenis = window.__lenis;
-        if (lenis && typeof lenis.scrollTo === "function") {
-            lenis.scrollTo(target, { offset: -80, duration: 1.2 });
-        } else {
-            target.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
+        scrollToTarget(target, { duration: 1.2 });
+    });
+}
+
+// Lenis snapshots the target's document Y at scrollTo() time and animates
+// to that fixed position. If lazy-loaded modules render between the
+// current viewport and the target during the animation, the page grows
+// and the target moves down — Lenis lands at the original (now stale)
+// position. Fix: after onComplete, re-check the target's position and
+// scroll the small remaining delta if it drifted.
+function scrollToTarget(target, opts) {
+    if (!target) return;
+    const offset   = (opts && typeof opts.offset   === "number") ? opts.offset   : -80;
+    const duration = (opts && typeof opts.duration === "number") ? opts.duration : 1.1;
+
+    const lenis = window.__lenis;
+    if (!lenis || typeof lenis.scrollTo !== "function") {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+    }
+
+    const expectedY = () => {
+        const r = target.getBoundingClientRect();
+        return r.top + window.scrollY + offset; // offset is negative
+    };
+
+    lenis.scrollTo(target, {
+        offset,
+        duration,
+        onComplete: () => {
+            // Wait one frame so any layout settling finishes, then verify.
+            requestAnimationFrame(() => {
+                const drift = expectedY() - window.scrollY;
+                if (Math.abs(drift) > 8) {
+                    lenis.scrollTo(target, { offset, duration: 0.4 });
+                }
+            });
+        },
     });
 }
 
@@ -387,7 +419,9 @@ function initLenis() {
 
     // Delegated listener: catches anchor clicks on links rendered after
     // bootstrap (e.g. the nav flyout's "View all perspectives →" footer)
-    // as well as anything present at boot.
+    // as well as anything present at boot. Routes through scrollToTarget
+    // so we get drift correction when lazy-loaded sections shift the
+    // target mid-scroll.
     document.addEventListener("click", (e) => {
         const a = e.target.closest('a[href^="#"]');
         if (!a) return;
@@ -396,7 +430,7 @@ function initLenis() {
         const target = document.querySelector(id);
         if (!target) return;
         e.preventDefault();
-        lenis.scrollTo(target, { offset: -80, duration: 1.1 });
+        scrollToTarget(target);
     });
 }
 
