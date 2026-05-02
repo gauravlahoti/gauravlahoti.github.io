@@ -4,10 +4,8 @@
 // text only — no Markdown, no innerHTML for assistant content.
 
 const STARTERS = [
-    "What has Gaurav shipped in production?",
-    "Walk me through the Fiber Broadband Fabric.",
-    "What does he write about on LinkedIn lately?",
-    "Is he open to engagements?",
+    "Which GCP certifications does Gaurav hold?",
+    "Describe Gaurav's role and recent work at Deloitte.",
 ];
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io"];
