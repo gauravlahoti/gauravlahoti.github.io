@@ -170,7 +170,7 @@ function renderPost(post) {
     if (post.excerpt) {
         const p = document.createElement("p");
         p.className = "post-excerpt";
-        p.textContent = post.excerpt;
+        p.textContent = withEllipsis(post.excerpt);
         body.appendChild(p);
     }
 
@@ -195,4 +195,15 @@ function formatDate(iso) {
         month: "short",
         day: "numeric",
     });
+}
+
+// LinkedIn's og:description hard-truncates at ~500 chars, so excerpts
+// almost always end mid-sentence. Append a single ellipsis so the cut-off
+// reads as intentional and signals "more on LinkedIn ↗" — no JSON
+// migration needed.
+function withEllipsis(s) {
+    const t = (s || "").trimEnd();
+    if (!t) return t;
+    if (t.endsWith("…") || t.endsWith("...")) return t;
+    return t + "…";
 }
