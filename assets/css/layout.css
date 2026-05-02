@@ -50,18 +50,26 @@
 
 .nav-links {
     display: flex;
-    gap: var(--space-6);
+    gap: var(--space-2);
     margin-left: auto;
     font-family: var(--font-mono);
     font-size: var(--text-sm);
 }
 .nav-links a {
+    display: inline-flex;
+    align-items: center;
     color: var(--ink-muted);
-    transition: color var(--dur-fast) var(--ease-out);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition:
+        color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out);
 }
 .nav-links a:hover,
 .nav-links a:focus-visible {
     color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
 }
 
 .nav-cta { white-space: nowrap; }
