@@ -152,14 +152,22 @@ async function tryFetchOg(url) {
     }
 }
 
-// Locate <meta property="og:..." content="..."> tolerantly across attribute order
-// and quote style. LinkedIn's HTML is messy; keep this resilient.
+// Locate <meta property="og:..." content="..."> tolerantly across attribute
+// order and quote style. The previous mixed character class `[^"']*` stopped
+// at *either* quote OR apostrophe — so a description like
+//   content="I built ... so you don't have to."
+// got truncated at the apostrophe in "don't". Match double-quoted and
+// single-quoted content= attributes separately so literal apostrophes inside
+// double-quoted values (and quotes inside single-quoted ones) pass through.
 function pickMeta(html, prop) {
     const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const patterns = [
-        new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content=["']([^"']*)["']`, "i"),
-        new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${escaped}["']`, "i"),
-        new RegExp(`<meta[^>]+name=["']${escaped}["'][^>]+content=["']([^"']*)["']`, "i"),
+        new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content="([^"]*)"`, "i"),
+        new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content='([^']*)'`, "i"),
+        new RegExp(`<meta[^>]+content="([^"]*)"[^>]+property=["']${escaped}["']`, "i"),
+        new RegExp(`<meta[^>]+content='([^']*)'[^>]+property=["']${escaped}["']`, "i"),
+        new RegExp(`<meta[^>]+name=["']${escaped}["'][^>]+content="([^"]*)"`, "i"),
+        new RegExp(`<meta[^>]+name=["']${escaped}["'][^>]+content='([^']*)'`, "i"),
     ];
     for (const re of patterns) {
         const m = html.match(re);
