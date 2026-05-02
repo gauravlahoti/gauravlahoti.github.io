@@ -2025,70 +2025,25 @@
 .agent-panel-drag-zone { display: none; }
 
 @media (max-width: 767px) {
-    /* Cert rail is hidden on mobile by default; the .cert-rail-chip-mobile
-       toggle below un-hides it via body[data-cert-chip-open]. */
-    .cert-rail { display: none; }
-    body[data-cert-chip-open="true"] .cert-rail {
-        display: block;
-        bottom: calc(var(--space-12) + 64px + env(safe-area-inset-bottom));
-        height: 132px;
+    /* Spec 22.1: keep the original animated cert ticker on mobile — the
+       static chip didn't add value. Lift the rail above the persistent
+       bottom-bar so they don't collide. The 600px breakpoint already sets
+       height: 108px and bottom: var(--space-8); we override `bottom` here
+       to clear the bar (≈ 88px tall including safe-area). */
+    .cert-rail {
+        bottom: calc(var(--space-3) + env(safe-area-inset-bottom) + 96px);
     }
 
-    /* In-hero mobile actions (Ask my agent + cert chip). */
-    .hero-mobile-actions {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: var(--space-3);
-        margin-top: var(--space-4);
-        width: 100%;
-    }
-    .hero-cta-mobile {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-2);
-        min-height: 48px;
-        padding: var(--space-3) var(--space-6);
-        font-size: var(--text-base);
-        font-weight: 600;
-        letter-spacing: 0.01em;
-    }
-    .hero-cta-mobile-arrow { transition: transform var(--dur-fast) var(--ease-out); }
-    .hero-cta-mobile:hover .hero-cta-mobile-arrow,
-    .hero-cta-mobile:focus-visible .hero-cta-mobile-arrow { transform: translateX(4px); }
-    @media (prefers-reduced-motion: reduce) {
-        .hero-cta-mobile-arrow { transition: none; }
-    }
+    /* Spec 22.1: hero CTA + cert chip removed from mobile. The bottom-bar
+       is the canonical "Ask my agent" entry point and the cert rail is the
+       canonical cert surface. The .hero-mobile-actions wrapper stays
+       display:none (declared above) so neither child renders. */
 
-    .cert-rail-chip-mobile {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-2);
-        min-height: 44px;
-        padding: var(--space-2) var(--space-4);
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        color: var(--ink-muted);
-        font-family: var(--font-mono);
-        font-size: var(--text-xs);
-        cursor: pointer;
-        transition:
-            border-color var(--dur-fast) var(--ease-out),
-            color var(--dur-fast) var(--ease-out);
-    }
-    .cert-rail-chip-mobile:hover,
-    .cert-rail-chip-mobile:focus-visible {
-        border-color: var(--accent);
-        color: var(--ink);
-        outline: none;
-    }
-    body[data-cert-chip-open="true"] .cert-rail-chip-mobile {
-        border-color: var(--accent);
-        color: var(--ink);
-    }
-    .cert-chip-count { color: var(--ink); font-weight: 500; }
-    .cert-chip-providers { color: var(--ink-muted); }
+    /* Spec 22.1: bottom-bar replaces the FAB on mobile entirely. The FAB
+       was previously hidden only when the panel was open, leaving it
+       visible alongside the bar otherwise — three "Ask my agent" entry
+       points at once. Hide it at every panel state on phones. */
+    .agent-fab { display: none !important; }
 
     /* Persistent bottom-bar (primary mobile CTA surface). */
     .mobile-bottombar {

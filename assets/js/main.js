@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "53";
+const ASSET_VERSION = "54";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -874,35 +874,12 @@ function initCertTilesTouch() {
 function initMobileEnhancements(profile) {
     if (!isNarrow) return;
 
-    setupCertChip(profile);
+    // Spec 22.1: cert chip removed in favour of restoring the original
+    // animated cert ticker on mobile. setupCertChip / .cert-rail-chip-mobile
+    // are no longer wired.
+    void profile;
     setupSectionProgress();
     setupScrollAwareBottombar();
-}
-
-function setupCertChip(profile) {
-    const chip = document.querySelector("[data-cert-chip-trigger]");
-    if (!chip) return;
-    const certs = (profile && profile.certifications) || [];
-    if (certs.length) {
-        const countEl = chip.querySelector("[data-cert-chip-count]");
-        if (countEl) countEl.textContent = `${certs.length} certifications`;
-    }
-    const toggle = (force) => {
-        const open = typeof force === "boolean"
-            ? force
-            : document.body.getAttribute("data-cert-chip-open") !== "true";
-        if (open) document.body.setAttribute("data-cert-chip-open", "true");
-        else document.body.removeAttribute("data-cert-chip-open");
-        chip.setAttribute("aria-expanded", String(open));
-    };
-    chip.setAttribute("aria-expanded", "false");
-    chip.addEventListener("click", (e) => { e.preventDefault(); toggle(); });
-    document.addEventListener("click", (e) => {
-        if (document.body.getAttribute("data-cert-chip-open") !== "true") return;
-        if (e.target.closest("[data-cert-chip-trigger]")) return;
-        if (e.target.closest(".cert-rail")) return;
-        toggle(false);
-    });
 }
 
 function setupSectionProgress() {
