@@ -44,6 +44,10 @@ export function initAgentWidget(root, profile) {
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
     dom.expandBtn.addEventListener("click", toggleExpand);
+
+    // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only;
+    // the drag zone is display:none on ≥768px so this never fires there).
+    setupDragToDismiss(panel, dom.dragZone, closePanel);
     sendBtn.addEventListener("click", sendCurrent);
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -76,6 +80,9 @@ export function initAgentWidget(root, profile) {
         panel.classList.add("is-open");
         panel.setAttribute("aria-hidden", "false");
         fab.setAttribute("aria-expanded", "true");
+        // Spec 22: signal panel-open globally so CSS can hide the FAB and
+        // the mobile bottom-bar (they'd otherwise sit behind the bottom sheet).
+        document.body.setAttribute("data-agent-open", "true");
         // Pre-warm Cloud Run on first open of the session.
         if (!warmedThisSession && warmUrl) {
             warmedThisSession = true;
@@ -89,6 +96,7 @@ export function initAgentWidget(root, profile) {
         panel.classList.remove("is-open");
         panel.setAttribute("aria-hidden", "true");
         fab.setAttribute("aria-expanded", "false");
+        document.body.removeAttribute("data-agent-open");
         fab.focus();
     }
 
@@ -252,6 +260,14 @@ function renderShell(root) {
     panel.setAttribute("aria-labelledby", "agent-panel-title");
     panel.setAttribute("aria-hidden", "true");
 
+    // Spec 22: bottom-sheet drag handle (visible only on mobile via CSS).
+    const dragZone = document.createElement("div");
+    dragZone.className = "agent-panel-drag-zone";
+    dragZone.setAttribute("aria-hidden", "true");
+    const dragHandle = document.createElement("span");
+    dragHandle.className = "agent-panel-drag-handle";
+    dragZone.appendChild(dragHandle);
+
     const head = document.createElement("header");
     head.className = "agent-panel-head";
     head.innerHTML = `
@@ -311,6 +327,7 @@ function renderShell(root) {
     liveRegion.setAttribute("aria-live", "polite");
     liveRegion.setAttribute("aria-atomic", "true");
 
+    panel.appendChild(dragZone);
     panel.appendChild(head);
     panel.appendChild(body);
     panel.appendChild(inputRow);
@@ -321,9 +338,57 @@ function renderShell(root) {
     root.appendChild(panel);
 
     return {
-        fab, panel, body, head, closeBtn, expandBtn,
+        fab, panel, body, head, dragZone, closeBtn, expandBtn,
         prompts, transcript, input, sendBtn, liveRegion,
     };
+}
+
+// Spec 22: drag-to-dismiss for the mobile bottom-sheet panel. Active only
+// when the drag handle is visible (CSS gates that on ≤767px). Drag distance
+// > 80px past the resting position closes the panel; otherwise it springs back.
+function setupDragToDismiss(panel, dragZone, closePanel) {
+    if (!dragZone) return;
+    let startY = null;
+    let dragging = false;
+
+    function onPointerDown(e) {
+        // Bail if the drag handle isn't actually visible (i.e. desktop).
+        if (getComputedStyle(dragZone).display === "none") return;
+        startY = e.clientY;
+        dragging = true;
+        dragZone.setPointerCapture?.(e.pointerId);
+        panel.style.transition = "none";
+    }
+    function onPointerMove(e) {
+        if (!dragging || startY === null) return;
+        const dy = e.clientY - startY;
+        if (dy <= 0) {
+            panel.style.transform = "translateY(0)";
+            return;
+        }
+        panel.style.transform = `translateY(${dy}px)`;
+    }
+    function onPointerUp(e) {
+        if (!dragging || startY === null) return;
+        const dy = e.clientY - startY;
+        dragging = false;
+        startY = null;
+        panel.style.transition = "";
+        panel.style.transform = "";
+        try { dragZone.releasePointerCapture?.(e.pointerId); } catch { /* noop */ }
+        if (dy > 80) closePanel();
+    }
+    function onPointerCancel() {
+        dragging = false;
+        startY = null;
+        panel.style.transition = "";
+        panel.style.transform = "";
+    }
+
+    dragZone.addEventListener("pointerdown", onPointerDown);
+    dragZone.addEventListener("pointermove", onPointerMove);
+    dragZone.addEventListener("pointerup", onPointerUp);
+    dragZone.addEventListener("pointercancel", onPointerCancel);
 }
 
 function startLoadingStages(assistantLi) {

@@ -2014,10 +2014,301 @@
     clip: rect(0, 0, 0, 0); white-space: nowrap;
 }
 
-@media (max-width: 720px) {
+/* ==================== Spec 22 — Mobile overhaul ==================== */
+/* Hidden by default on desktop. Each block below opts elements back in
+   for ≤767px viewports only — desktop remains untouched. */
+
+.hero-mobile-actions { display: none; }
+.mobile-bottombar { display: none; }
+.mobile-section-progress { display: none; }
+.agent-panel-drag-handle { display: none; }
+.agent-panel-drag-zone { display: none; }
+
+@media (max-width: 767px) {
+    /* Cert rail is hidden on mobile by default; the .cert-rail-chip-mobile
+       toggle below un-hides it via body[data-cert-chip-open]. */
+    .cert-rail { display: none; }
+    body[data-cert-chip-open="true"] .cert-rail {
+        display: block;
+        bottom: calc(var(--space-12) + 64px + env(safe-area-inset-bottom));
+        height: 132px;
+    }
+
+    /* In-hero mobile actions (Ask my agent + cert chip). */
+    .hero-mobile-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-3);
+        margin-top: var(--space-4);
+        width: 100%;
+    }
+    .hero-cta-mobile {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-height: 48px;
+        padding: var(--space-3) var(--space-6);
+        font-size: var(--text-base);
+        font-weight: 600;
+        letter-spacing: 0.01em;
+    }
+    .hero-cta-mobile-arrow { transition: transform var(--dur-fast) var(--ease-out); }
+    .hero-cta-mobile:hover .hero-cta-mobile-arrow,
+    .hero-cta-mobile:focus-visible .hero-cta-mobile-arrow { transform: translateX(4px); }
+    @media (prefers-reduced-motion: reduce) {
+        .hero-cta-mobile-arrow { transition: none; }
+    }
+
+    .cert-rail-chip-mobile {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-height: 44px;
+        padding: var(--space-2) var(--space-4);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        color: var(--ink-muted);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        cursor: pointer;
+        transition:
+            border-color var(--dur-fast) var(--ease-out),
+            color var(--dur-fast) var(--ease-out);
+    }
+    .cert-rail-chip-mobile:hover,
+    .cert-rail-chip-mobile:focus-visible {
+        border-color: var(--accent);
+        color: var(--ink);
+        outline: none;
+    }
+    body[data-cert-chip-open="true"] .cert-rail-chip-mobile {
+        border-color: var(--accent);
+        color: var(--ink);
+    }
+    .cert-chip-count { color: var(--ink); font-weight: 500; }
+    .cert-chip-providers { color: var(--ink-muted); }
+
+    /* Persistent bottom-bar (primary mobile CTA surface). */
+    .mobile-bottombar {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom));
+        background: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(8, 10, 18, 0.85) 30%,
+            rgba(8, 10, 18, 0.95) 100%
+        );
+        -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+        border-top: 1px solid var(--border);
+        transform: translateY(0);
+        transition: transform var(--dur-base) var(--ease-out);
+    }
+    .mobile-bottombar[data-hidden="true"] { transform: translateY(110%); }
+    .mobile-bottombar-btn {
+        flex: 1;
+        min-height: 48px;
+        padding: var(--space-2) var(--space-4);
+        background: var(--bg-card);
+        color: var(--ink);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-md);
+        font-family: var(--font-mono);
+        font-size: var(--text-sm);
+        font-weight: 500;
+        cursor: pointer;
+        transition:
+            border-color var(--dur-fast) var(--ease-out),
+            background var(--dur-fast) var(--ease-out);
+    }
+    .mobile-bottombar-btn:hover,
+    .mobile-bottombar-btn:focus-visible {
+        border-color: var(--accent);
+        outline: none;
+    }
+    .mobile-bottombar-btn-primary {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+        font-weight: 600;
+    }
+    .mobile-bottombar-btn-primary:hover,
+    .mobile-bottombar-btn-primary:focus-visible {
+        background: var(--accent);
+        color: var(--bg);
+        opacity: 0.92;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .mobile-bottombar { transition: none; }
+        .mobile-bottombar[data-hidden="true"] { transform: translateY(0); }
+    }
+
+    /* Section-progress strip — sits above the fixed nav. */
+    .mobile-section-progress {
+        display: flex;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        z-index: 11;
+        gap: 2px;
+        padding: 0 var(--space-2);
+        pointer-events: auto;
+        background: transparent;
+    }
+    .mobile-section-progress-dot {
+        position: relative;
+        flex: 1;
+        height: 4px;
+        background: var(--border);
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        transition: background var(--dur-fast) var(--ease-out);
+    }
+    .mobile-section-progress-dot[aria-current="true"] { background: var(--accent); }
+    /* Larger invisible hit area so 4px-tall dots still meet 44px tap target. */
+    .mobile-section-progress-dot::after {
+        content: "";
+        position: absolute;
+        inset: -20px 0 -20px 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .mobile-section-progress-dot { transition: none; }
+    }
+
+    /* Hide FAB and bottom-bar while the agent panel is open so neither
+       sits behind the bottom sheet. */
+    body[data-agent-open="true"] .agent-fab,
+    body[data-agent-open="true"] .mobile-bottombar { display: none !important; }
+
+    /* Agent panel becomes a bottom sheet (replaces the old ≤720px rule). */
     .agent-panel {
-        inset: var(--space-3) var(--space-3) calc(var(--space-3) + 56px + env(safe-area-inset-bottom)) var(--space-3);
+        inset: auto 0 0 0;
         width: auto;
-        max-height: none;
+        max-height: 80vh;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        touch-action: pan-y;
+        transform: translateY(100%);
+    }
+    .agent-panel.is-open { transform: translateY(0); }
+    .agent-panel.is-expanded { max-height: 92vh; }
+
+    /* Drag handle — visible only on mobile; rendered by agent-widget.js. */
+    .agent-panel-drag-handle {
+        display: block;
+        width: 44px;
+        height: 4px;
+        margin: var(--space-2) auto 0;
+        background: var(--border-strong);
+        border-radius: 2px;
+        flex-shrink: 0;
+        pointer-events: none;
+    }
+    .agent-panel-drag-zone {
+        display: block;
+        padding: var(--space-1) 0 var(--space-2);
+        cursor: grab;
+        flex-shrink: 0;
+        touch-action: none;
+    }
+    .agent-panel-drag-zone:active { cursor: grabbing; }
+
+    /* Capabilities — collapsed-by-default on mobile. */
+    .cap-axis[data-mobile-collapsed="true"] .cap-axis-cards { display: none; }
+    .cap-axis-mobile-preview {
+        display: none;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+        margin-top: var(--space-3);
+        list-style: none;
+        padding: 0;
+    }
+    .cap-axis[data-mobile-collapsed="true"] .cap-axis-mobile-preview { display: flex; }
+    .cap-axis-mobile-preview li {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--ink-muted);
+        padding: 2px var(--space-2);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+    }
+    .cap-axis-mobile-toggle {
+        display: none;
+        width: 100%;
+        margin-top: var(--space-3);
+        min-height: 44px;
+        padding: var(--space-2) var(--space-3);
+        background: transparent;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-md);
+        color: var(--ink-muted);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        cursor: pointer;
+        text-align: left;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        transition:
+            border-color var(--dur-fast) var(--ease-out),
+            color var(--dur-fast) var(--ease-out);
+    }
+    .cap-axis[data-mobile-collapsed] .cap-axis-mobile-toggle { display: flex; }
+    .cap-axis-mobile-toggle:hover,
+    .cap-axis-mobile-toggle:focus-visible {
+        border-color: var(--accent);
+        color: var(--ink);
+        outline: none;
+    }
+    .cap-axis-mobile-toggle-arrow { transition: transform var(--dur-fast) var(--ease-out); }
+    .cap-axis[data-mobile-collapsed="false"] .cap-axis-mobile-toggle-arrow { transform: rotate(90deg); }
+    @media (prefers-reduced-motion: reduce) {
+        .cap-axis-mobile-toggle-arrow { transition: none; }
+    }
+
+    /* Trajectory — collapse companies behind <details> on mobile. The
+       <details>/<summary> wrappers are inserted in main.js after trajectory
+       init; the .company-header is moved inside <summary>. */
+    .trail-company[data-mobile-collapsible] > details > summary {
+        list-style: none;
+        cursor: pointer;
+        min-height: 44px;
+        padding: var(--space-3) 0;
+        position: relative;
+    }
+    .trail-company[data-mobile-collapsible] > details > summary::-webkit-details-marker {
+        display: none;
+    }
+    .trail-company[data-mobile-collapsible] > details > summary .company-header {
+        margin: 0;
+    }
+    .trail-company-summary-arrow {
+        position: absolute;
+        right: var(--space-2);
+        top: 50%;
+        transform: translateY(-50%);
+        font-family: var(--font-mono);
+        color: var(--ink-muted);
+        transition: transform var(--dur-fast) var(--ease-out);
+        pointer-events: none;
+    }
+    .trail-company[data-mobile-collapsible] > details[open] .trail-company-summary-arrow {
+        transform: translateY(-50%) rotate(90deg);
+    }
+    /* Hide the rail decoration entirely on mobile — nothing to measure. */
+    .trail-rail { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+        .trail-company-summary-arrow { transition: none; }
     }
 }

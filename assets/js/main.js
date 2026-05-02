@@ -42,6 +42,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initCursorAsync();
     initResumeGateLazy(profile);
     initAgentWidgetWhenIdle(profile);
+    initMobileEnhancements(profile);
     auditConsole();
 })();
 
@@ -52,13 +53,32 @@ function initAgentWidgetWhenIdle(profile) {
     const root = document.getElementById("agent-root");
     if (!root) return;
 
+    let loading = null;
     const start = () => {
-        import(v("./agent-widget.js"))
+        if (window.__agentWidget) return Promise.resolve(window.__agentWidget);
+        if (loading) return loading;
+        loading = import(v("./agent-widget.js"))
             .then(({ initAgentWidget }) => {
                 window.__agentWidget = initAgentWidget(root, profile);
+                return window.__agentWidget;
             })
-            .catch((err) => console.warn("[agent-widget] failed to load", err));
+            .catch((err) => {
+                console.warn("[agent-widget] failed to load", err);
+                loading = null;
+            });
+        return loading;
     };
+
+    // Spec 22: hero CTA + mobile bottom-bar use [data-agent-open]. Any tap
+    // eagerly loads the widget (if not already idle-loaded) and opens it.
+    document.addEventListener("click", (e) => {
+        const trigger = e.target.closest("[data-agent-open]");
+        if (!trigger) return;
+        // FAB has its own internal handler; don't double-open.
+        if (trigger.classList.contains("agent-fab")) return;
+        e.preventDefault();
+        Promise.resolve(start()).then((api) => api && api.open && api.open());
+    });
 
     if ("requestIdleCallback" in window) {
         requestIdleCallback(start, { timeout: 2500 });
@@ -119,6 +139,9 @@ function initCapabilities(profile) {
     renderAxis("ai-native", caps.aiNative || []);
     renderAxis("cloud",     caps.cloud    || []);
     renderAxis("business",  caps.business || []);
+
+    // Spec 22: collapse each axis behind a 3-chip preview on mobile.
+    if (isNarrow) setupCapabilitiesMobileCollapse(root);
 
     const cards = root.querySelectorAll(".cap-card");
     if (!cards.length) return;
@@ -391,6 +414,8 @@ function initTrajectoryWhenVisible(profile) {
                 const { initTrajectory } = await import(v("./trajectory.js"));
                 const inst = initTrajectory(root, profile);
                 window.__trajectory = inst;
+                // Spec 22: collapse companies behind <details> on mobile.
+                if (isNarrow) setupTrajectoryMobileCollapse(root);
             } catch (err) {
                 console.warn("[trajectory] failed to init", err);
             }
@@ -735,11 +760,10 @@ function initHeroGraphWhenVisible() {
     const canvas = document.getElementById("hero-gl");
     if (!canvas) return;
 
-    // Width is no longer a kill switch — only reduced-motion and save-data
-    // drop the canvas. Narrow viewports get a slimmer mobile profile via
-    // the isMobile flag below; if the device truly can't keep up, the
-    // hero-graph FPS watchdog falls back gracefully.
-    if (reduceMotion || saveData) {
+    // Spec 22: mobile (<768px) skips Three.js entirely and renders the
+    // upgraded static .hero-fallback SVG mesh. Reduced-motion and save-data
+    // remain the desktop kill switches.
+    if (reduceMotion || saveData || isNarrow) {
         canvas.remove();
         return;
     }
@@ -751,7 +775,7 @@ function initHeroGraphWhenVisible() {
             try {
                 const mod = await import(v("./hero-graph.js"));
                 const accent = getComputedStyle(ROOT).getPropertyValue("--accent").trim() || "#00FFD1";
-                const inst = await mod.initHeroGraph(canvas, { accent, isTouch, isMobile: isNarrow });
+                const inst = await mod.initHeroGraph(canvas, { accent, isTouch });
                 if (inst && inst.canvas) inst.canvas.classList.add("is-ready");
                 else canvas.classList.add("is-ready");
                 window.__heroGraph = inst;
@@ -837,5 +861,196 @@ function initCertTilesTouch() {
     document.addEventListener("click", (e) => {
         if (e.target.closest(".cert-tile")) return;
         rail.querySelectorAll(".cert-tile.is-open").forEach((t) => t.classList.remove("is-open"));
+    });
+}
+
+/* ========== Spec 22 — Mobile enhancements ============================
+   Wires the cert chip toggle, sticky section-progress strip, and the
+   scroll-aware bottom-bar. Capabilities + Trajectory collapse helpers
+   live below; they're called from initCapabilities and the trajectory
+   lazy-load callback respectively.
+   All side effects gate on isNarrow — desktop is untouched. */
+
+function initMobileEnhancements(profile) {
+    if (!isNarrow) return;
+
+    setupCertChip(profile);
+    setupSectionProgress();
+    setupScrollAwareBottombar();
+}
+
+function setupCertChip(profile) {
+    const chip = document.querySelector("[data-cert-chip-trigger]");
+    if (!chip) return;
+    const certs = (profile && profile.certifications) || [];
+    if (certs.length) {
+        const countEl = chip.querySelector("[data-cert-chip-count]");
+        if (countEl) countEl.textContent = `${certs.length} certifications`;
+    }
+    const toggle = (force) => {
+        const open = typeof force === "boolean"
+            ? force
+            : document.body.getAttribute("data-cert-chip-open") !== "true";
+        if (open) document.body.setAttribute("data-cert-chip-open", "true");
+        else document.body.removeAttribute("data-cert-chip-open");
+        chip.setAttribute("aria-expanded", String(open));
+    };
+    chip.setAttribute("aria-expanded", "false");
+    chip.addEventListener("click", (e) => { e.preventDefault(); toggle(); });
+    document.addEventListener("click", (e) => {
+        if (document.body.getAttribute("data-cert-chip-open") !== "true") return;
+        if (e.target.closest("[data-cert-chip-trigger]")) return;
+        if (e.target.closest(".cert-rail")) return;
+        toggle(false);
+    });
+}
+
+function setupSectionProgress() {
+    const strip = document.querySelector("[data-section-progress]");
+    if (!strip) return;
+    const sections = Array.from(document.querySelectorAll("main > section[id]"));
+    if (!sections.length) return;
+
+    strip.replaceChildren();
+    const dots = sections.map((sec) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "mobile-section-progress-dot";
+        const label = sec.getAttribute("aria-label") || sec.id;
+        dot.setAttribute("aria-label", `Jump to ${label}`);
+        dot.addEventListener("click", () => {
+            window.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { id: sec.id } }));
+            sec.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+        });
+        strip.appendChild(dot);
+        return dot;
+    });
+    strip.setAttribute("aria-hidden", "false");
+
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const idx = sections.indexOf(entry.target);
+            if (idx < 0) return;
+            dots.forEach((d, i) => {
+                if (i === idx) d.setAttribute("aria-current", "true");
+                else d.removeAttribute("aria-current");
+            });
+        });
+    }, { rootMargin: "-40% 0px -55% 0px", threshold: 0 });
+    sections.forEach((sec) => io.observe(sec));
+}
+
+function setupScrollAwareBottombar() {
+    if (reduceMotion) return; // bottom-bar stays fixed when motion is reduced.
+    const bar = document.querySelector("[data-mobile-bottombar]");
+    if (!bar) return;
+    let lastY = window.scrollY;
+    let raf = 0;
+    const onScroll = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+            raf = 0;
+            const y = window.scrollY;
+            // Don't hide near the very top — visitors haven't seen the CTA yet.
+            if (y < 120) {
+                bar.removeAttribute("data-hidden");
+            } else if (y > lastY + 4) {
+                bar.setAttribute("data-hidden", "true");
+            } else if (y < lastY - 4) {
+                bar.removeAttribute("data-hidden");
+            }
+            lastY = y;
+        });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+}
+
+function setupCapabilitiesMobileCollapse(root) {
+    const axes = root.querySelectorAll(".cap-axis");
+    axes.forEach((axis) => {
+        const cards = axis.querySelectorAll(".cap-card");
+        if (!cards.length) return;
+
+        // Build a 3-label preview from the first three capability labels.
+        const previewLabels = Array.from(cards).slice(0, 3).map((card) => {
+            const label = card.querySelector(".cap-label");
+            return label ? label.textContent.trim() : "";
+        }).filter(Boolean);
+
+        const preview = document.createElement("ul");
+        preview.className = "cap-axis-mobile-preview";
+        preview.setAttribute("aria-hidden", "true");
+        previewLabels.forEach((text) => {
+            const li = document.createElement("li");
+            li.textContent = text;
+            preview.appendChild(li);
+        });
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "cap-axis-mobile-toggle";
+        const labelEl = document.createElement("span");
+        labelEl.textContent = `Show ${cards.length} capabilities`;
+        const arrow = document.createElement("span");
+        arrow.className = "cap-axis-mobile-toggle-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.textContent = "›";
+        toggle.appendChild(labelEl);
+        toggle.appendChild(arrow);
+        toggle.setAttribute("aria-expanded", "false");
+
+        const cardsEl = axis.querySelector(".cap-axis-cards");
+        if (cardsEl) {
+            cardsEl.parentNode.insertBefore(preview, cardsEl);
+            cardsEl.parentNode.insertBefore(toggle, cardsEl);
+        } else {
+            axis.appendChild(preview);
+            axis.appendChild(toggle);
+        }
+
+        axis.setAttribute("data-mobile-collapsed", "true");
+
+        toggle.addEventListener("click", () => {
+            const collapsed = axis.getAttribute("data-mobile-collapsed") === "true";
+            axis.setAttribute("data-mobile-collapsed", collapsed ? "false" : "true");
+            toggle.setAttribute("aria-expanded", String(collapsed));
+            labelEl.textContent = collapsed
+                ? "Hide capabilities"
+                : `Show ${cards.length} capabilities`;
+        });
+    });
+}
+
+function setupTrajectoryMobileCollapse(root) {
+    const companies = root.querySelectorAll(".trail-company");
+    if (!companies.length) return;
+    companies.forEach((company, idx) => {
+        if (company.hasAttribute("data-mobile-collapsible")) return;
+
+        const header = company.querySelector(".company-header");
+        const roleList = company.querySelector(".role-list");
+        if (!header || !roleList) return;
+
+        const details = document.createElement("details");
+        // First company opens by default so the section isn't fully blank.
+        if (idx === 0) details.open = true;
+
+        const summary = document.createElement("summary");
+        summary.appendChild(header);
+        const arrow = document.createElement("span");
+        arrow.className = "trail-company-summary-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.textContent = "›";
+        summary.appendChild(arrow);
+
+        details.appendChild(summary);
+        details.appendChild(roleList);
+        company.appendChild(details);
+        company.setAttribute("data-mobile-collapsible", "true");
+
+        details.addEventListener("toggle", () => {
+            window.dispatchEvent(new CustomEvent("portfolio:trajectory-remeasure"));
+        });
     });
 }
