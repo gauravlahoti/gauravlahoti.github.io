@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "41";
+const ASSET_VERSION = "46";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -321,7 +321,6 @@ function renderCertTile(c, isDuplicate = false) {
     img.alt = isDuplicate ? "" : c.name;
     img.loading = "lazy";
     img.decoding = "async";
-    li.appendChild(img);
 
     const pop = document.createElement("div");
     pop.className = "cert-tile-popover";
@@ -330,27 +329,29 @@ function renderCertTile(c, isDuplicate = false) {
         <div class="cert-tile-popover-name">${escapeHtml(c.name)}</div>
         <div class="cert-tile-popover-meta"><span class="issuer">${escapeHtml(c.issuer || "")}</span>${c.issuedAt ? ` · ${escapeHtml(c.issuedAt)}` : ""}</div>
     `;
-    li.appendChild(pop);
+
+    // Real <a> wrapper so right-click "Open in new tab", browser hover URL
+    // preview, and screen-reader link semantics all work natively. If a
+    // credlyUrl is missing for some reason, fall back to a plain wrapper.
+    const wrapper = c.credlyUrl ? document.createElement("a") : document.createElement("div");
+    wrapper.className = "cert-tile-link";
+    if (c.credlyUrl) {
+        wrapper.href = c.credlyUrl;
+        wrapper.target = "_blank";
+        wrapper.rel = "noopener noreferrer";
+    }
+    wrapper.appendChild(img);
+    wrapper.appendChild(pop);
+    li.appendChild(wrapper);
 
     if (isDuplicate) {
         li.setAttribute("aria-hidden", "true");
-        li.setAttribute("tabindex", "-1");
-    } else {
-        li.setAttribute("tabindex", "0");
-        li.setAttribute("role", "button");
-        li.setAttribute("aria-label", `${c.name} — ${c.issuer || ""}`);
-        li.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                if (c.credlyUrl) window.open(c.credlyUrl, "_blank", "noopener,noreferrer");
-            } else if (e.key === "Escape") {
-                li.blur();
-            }
-        });
+        // Keep the mirror tile out of the tab order — it duplicates the
+        // first half of the rail for the seamless marquee loop.
+        if (c.credlyUrl) wrapper.setAttribute("tabindex", "-1");
+    } else if (c.credlyUrl) {
+        wrapper.setAttribute("aria-label", `${c.name} — verify on Credly (opens in new tab)`);
     }
-    li.addEventListener("click", () => {
-        if (c.credlyUrl) window.open(c.credlyUrl, "_blank", "noopener,noreferrer");
-    });
 
     return li;
 }
