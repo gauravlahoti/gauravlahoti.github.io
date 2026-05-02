@@ -20,6 +20,17 @@
     --era-ey:        #FFE600;
     --era-deloitte:  #86BC25;
 
+    /* capabilities — per-axis accent tokens (mint stays the lead) */
+    --axis-ai:         var(--accent);
+    --axis-ai-soft:    var(--accent-soft);
+    --axis-ai-glow:    var(--accent-glow);
+    --axis-cloud:      #6FB1FF;
+    --axis-cloud-soft: rgba(111, 177, 255, 0.12);
+    --axis-cloud-glow: rgba(111, 177, 255, 0.30);
+    --axis-biz:        #C7A6FF;
+    --axis-biz-soft:   rgba(199, 166, 255, 0.12);
+    --axis-biz-glow:   rgba(199, 166, 255, 0.30);
+
     /* typography */
     --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
     --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;

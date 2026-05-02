@@ -601,15 +601,29 @@ main { padding-top: 0; }
 
 .capabilities-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-6);
     align-items: start;
+}
+
+/* 2-column layout for mid-width: AI-Native + Cloud share row 1, Business
+   takes row 2 spanning the full width so it doesn't orphan in a half-row. */
+@media (max-width: 1100px) {
+    .capabilities-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .capabilities-grid > .cap-axis[data-axis="business"] {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 880px) {
     .capabilities-grid {
         grid-template-columns: 1fr;
         gap: var(--space-8);
+    }
+    .capabilities-grid > .cap-axis[data-axis="business"] {
+        grid-column: auto;
     }
 }
 
