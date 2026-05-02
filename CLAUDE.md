@@ -19,6 +19,7 @@ python3 -m http.server 5173
 - `/create-spec <step> <slug>` — scaffold a new spec + feature branch
 - `/implement-spec <step>` — read spec, plan, implement
 - `/add-project` — add a project node to `graph.json`
+- `/add-post <linkedin-url>` — fetch a LinkedIn post's title via OG meta, show it for approval, then prepend to `posts.json`
 - `/ship` — commit feature-branch work, open PR, squash-merge to main
 - `/publish` — commit, push, trigger Pages deploy
 

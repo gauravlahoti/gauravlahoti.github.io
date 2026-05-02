@@ -452,6 +452,16 @@ main { padding-top: 0; }
     }
 }
 
+/* Writing section (spec 14) ------------------------------------------ */
+
+.section-writing {
+    display: block;
+    max-width: 1200px;
+    padding-top: var(--space-16);
+    padding-bottom: var(--space-24);
+    min-height: 0;
+}
+
 
 /* Footer -------------------------------------------------------------- */
 
