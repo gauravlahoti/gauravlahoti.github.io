@@ -80,6 +80,9 @@
 
 html {
     scroll-behavior: smooth;
+    /* Anchor jumps land below the fixed nav (64px) plus a 16px breathing
+       gap. Lenis-handled scrolls use a matching -80 offset in main.js. */
+    scroll-padding-top: calc(var(--nav-h) + var(--space-4));
 }
 
 body {
