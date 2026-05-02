@@ -208,6 +208,32 @@
     100% { transform: translate(40px, 28px); opacity: 0; }
 }
 
+/* Mobile: shrink the agent flight distances so they don't escape a
+   360px-wide viewport. Same shape, half the travel. */
+@media (max-width: 600px) {
+    @keyframes agent-fly-1 {
+        0%   { transform: translate(-15px, -8px); opacity: 0; }
+        15%  { opacity: 1; }
+        50%  { transform: translate(45px, -14px); opacity: 1; }
+        85%  { opacity: 1; }
+        100% { transform: translate(85px, 4px); opacity: 0; }
+    }
+    @keyframes agent-fly-2 {
+        0%   { transform: translate(95px, 10px); opacity: 0; }
+        15%  { opacity: 1; }
+        50%  { transform: translate(35px, 18px); opacity: 1; }
+        85%  { opacity: 1; }
+        100% { transform: translate(-20px, 8px); opacity: 0; }
+    }
+    @keyframes agent-fly-3 {
+        0%   { transform: translate(20px, -18px); opacity: 0; }
+        20%  { opacity: 1; }
+        50%  { transform: translate(60px, 0); opacity: 1; }
+        80%  { opacity: 1; }
+        100% { transform: translate(20px, 18px); opacity: 0; }
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .hi-hat {
         animation: none;
@@ -993,6 +1019,26 @@
     .cap-scan { display: none; }
     .cap-chip { transition: none; }
     .cap-chip:hover { transform: none; }
+}
+
+/* Coarse-pointer (touch) tap-target bumps — meet WCAG 2.5.5 where layout
+   permits. Visual sizing stays close to desktop; we add min height/padding
+   so fingers have something to land on. */
+@media (any-pointer: coarse) {
+    .cap-chip {
+        min-height: 40px;
+        padding: 10px 14px;
+        font-size: 0.78rem;
+    }
+    .btn {
+        min-height: var(--tap-min);
+    }
+    .btn-sm {
+        min-height: 36px;
+    }
+    /* Cert tiles: use .is-open to show the popover on tap (CSS hook
+       already in place at line ~402; main.js wires the click). */
+    .cert-tile { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Custom cursor (spec 08) -------------------------------------------- */
