@@ -75,7 +75,7 @@ export function initResumeGate(profile) {
         }
 
         showError("");
-        setLoading(true, "Verifying…");
+        setLoading(true, "Confirming it's you…");
         try {
             const res = await fetch(apiUrl, {
                 method: "POST",
