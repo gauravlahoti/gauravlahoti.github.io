@@ -696,10 +696,12 @@ main { padding-top: 0; }
         min-height: auto;
         padding: var(--space-12) var(--space-4);
     }
-    /* Cert rail is hidden on mobile (replaced by .cert-rail-chip-mobile
-       in components.css); release the 130–140px reservation. */
+    /* Spec 22.3: reserve room for the cert rail (108px tall) lifted 96px
+       above the bottom-bar, plus the iOS safe-area and a little breathing
+       room. Without this, the tagline crashes into the cert tiles when
+       100svh is short (e.g. iPhone Safari with toolbars visible). */
     .hero-stack {
-        padding-bottom: var(--space-10);
+        padding-bottom: calc(108px + 96px + env(safe-area-inset-bottom) + var(--space-4));
     }
     .site-footer {
         padding: var(--space-6) var(--space-4);
