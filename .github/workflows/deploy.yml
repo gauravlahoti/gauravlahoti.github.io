@@ -33,6 +33,7 @@ jobs:
             --exclude='.claude' \
             --exclude='backend' \
             --exclude='node_modules' \
+            --exclude='scripts' \
             --exclude='_site' \
             ./ _site/
 

@@ -4,16 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
-    <script>
-        // Refresh always lands on the hero (unless URL has a hash).
-        // Inlined in <head> so it runs before the browser's auto scroll-
-        // restoration and before bfcache restore. Both setting `manual`
-        // and the pageshow listener are needed to cover every browser path.
-        if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-        addEventListener("pageshow", function () {
-            if (!location.hash || location.hash.length < 2) scrollTo(0, 0);
-        });
-    </script>
+    <!-- Content Security Policy. 'unsafe-inline' on style-src is required for
+         GSAP's runtime style mutations and for the Google Sign-In iframe's
+         inline styles; everything else is locked down. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self' https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://accounts.google.com https://www.googleapis.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <script src="assets/js/scroll-restore.js?v=35"></script>
     <title>Gaurav Lahoti — Senior Cloud & AI-Native Architect</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.github.io/">
@@ -50,16 +45,30 @@
     </script>
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
-    <link rel="stylesheet" href="assets/css/base.css?v=34">
-    <link rel="stylesheet" href="assets/css/layout.css?v=34">
-    <link rel="stylesheet" href="assets/css/components.css?v=34">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css"
+          integrity="sha384-STiTZ2kjdnc/em4jSELZZ6VypRToc92cA0m6Nppx3J8C4mt0fjMNUm1xnm1yoP96"
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
+          integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="assets/css/base.css?v=35">
+    <link rel="stylesheet" href="assets/css/layout.css?v=35">
+    <link rel="stylesheet" href="assets/css/components.css?v=35">
 
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/TextPlugin.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/lenis@1.0.45/dist/lenis.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
+            integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
+            crossorigin="anonymous" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"
+            integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d"
+            crossorigin="anonymous" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/TextPlugin.min.js"
+            integrity="sha384-H9lgiXCT4RMeFoo3a1x6w8E97EDvcwJPjXxTh1txaW5qjmle8agpE/xU3/W+RCTp"
+            crossorigin="anonymous" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lenis@1.0.45/dist/lenis.min.js"
+            integrity="sha384-o3Jw8w4GQVg4a7wdJn3EY6OiObjk4e3VFa1VF4fEtDoIWnmdXuM1CkjpBS4zSKvU"
+            crossorigin="anonymous" defer></script>
+    <!-- Google Identity Services (no SRI: GSI is intentionally rolling — Google
+         updates the script without notice and SRI would break sign-in). -->
     <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
@@ -327,6 +336,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="assets/js/main.js?v=34"></script>
+    <script type="module" src="assets/js/main.js?v=35"></script>
 </body>
 </html>

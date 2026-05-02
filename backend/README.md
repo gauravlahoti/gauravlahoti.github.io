@@ -144,10 +144,30 @@ testing, or keep it pointed at production.
 
 ```
 backend/
-├── wrangler.toml                          # Worker config + D1 binding + GOOGLE_CLIENT_ID
-├── src/index.js                           # Router, Google JWT verify, D1 insert, admin GET
+├── wrangler.toml                          # Worker config + D1 binding + GOOGLE_CLIENT_ID + cron
+├── src/index.js                           # Router, JWKS verify, dedupe, D1 insert, admin GET, cron handler
 ├── schema.sql                             # CREATE TABLE for fresh installs
 ├── migrations/001-add-google-fields.sql   # v1 (spec 11) → v2 (spec 12) migration
 ├── README.md                              # this file
 └── .gitignore                             # node_modules, .wrangler/, .dev.vars
 ```
+
+## Privacy & retention
+
+- **JWT verification:** the Worker validates Google ID tokens cryptographically against Google's JWKS (`oauth2/v3/certs`) — no dependency on the `tokeninfo` debug endpoint.
+- **IP truncation:** stored IPs are truncated to `/24` (IPv4) or the first 4 hextets (IPv6). City-level geolocation is preserved; precise host identification is not. Applies to both the Worker and the local Node server.
+- **Per-user dedupe:** the same `google_sub` recorded within a 24h window is collapsed to a single row. Closes JWT-replay and limits table bloat from repeat visitors.
+- **Retention:** rows older than 12 months are auto-deleted by a Cloudflare cron trigger that runs at `02:00 UTC` on the 1st of each month. Configured in `wrangler.toml` (`[triggers] crons`); handler is the `scheduled()` export in `src/index.js`. Adjust the cutoff via `RETENTION_SECONDS` in `src/index.js`.
+- **Erasure requests:** to remove a lead manually, run e.g. `npx wrangler d1 execute resume-leads --remote --command="DELETE FROM resume_downloads WHERE email = 'x@y.com'"`.
+
+## Secret rotation
+
+To rotate `ADMIN_TOKEN`:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+# paste the new token; old one is invalidated on next deploy
+wrangler deploy
+```
+
+Tokens are stored in Cloudflare's secret store (not in `wrangler.toml`).
