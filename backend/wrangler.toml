@@ -5,7 +5,7 @@ compatibility_date = "2026-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "resume-leads"
-database_id = "<filled-in-after-create>"
+database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 
 [vars]
 ALLOWED_ORIGINS = "https://gauravlahoti.github.io,http://localhost:5173"
