@@ -108,36 +108,185 @@
     outline: none;
 }
 
+/* Hamburger trigger — visible only on mobile */
+.nav-menu-trigger {
+    display: none;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    color: var(--ink);
+    border-radius: var(--radius-sm);
+    transition: background var(--dur-fast) var(--ease-out);
+}
+.nav-menu-trigger:hover,
+.nav-menu-trigger:focus-visible {
+    background: var(--accent-soft);
+    outline: none;
+}
+.nav-menu-trigger-bar {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+    transform-origin: 50% 50%;
+    transition: transform var(--dur-fast) var(--ease-out),
+                opacity var(--dur-fast) var(--ease-out);
+}
+.nav-menu-trigger[aria-expanded="true"] .nav-menu-trigger-bar:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+.nav-menu-trigger[aria-expanded="true"] .nav-menu-trigger-bar:nth-child(2) {
+    opacity: 0;
+}
+.nav-menu-trigger[aria-expanded="true"] .nav-menu-trigger-bar:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Drawer (mobile-only). The aside is always in the DOM but invisible
+   and pointer-events: none until .is-open. */
+.nav-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    visibility: hidden;
+    transition: visibility 0s var(--dur-base);
+}
+.nav-drawer.is-open {
+    pointer-events: auto;
+    visibility: visible;
+    transition: visibility 0s;
+}
+.nav-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+.nav-drawer.is-open .nav-drawer-backdrop {
+    opacity: 1;
+}
+.nav-drawer-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(85vw, 320px);
+    background: var(--bg-elev);
+    border-left: 1px solid var(--border-strong);
+    padding: calc(var(--nav-h) + var(--space-2)) var(--space-5)
+             calc(var(--space-6) + var(--safe-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    transform: translateX(100%);
+    transition: transform var(--dur-base) var(--ease-out);
+    overflow-y: auto;
+    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.5);
+}
+.nav-drawer.is-open .nav-drawer-panel {
+    transform: translateX(0);
+}
+.nav-drawer-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+}
+.nav-drawer-close:hover,
+.nav-drawer-close:focus-visible {
+    color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+}
+.nav-drawer-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-family: var(--font-mono);
+}
+.nav-drawer-links a {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-size: var(--text-lg);
+    transition: color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+    min-height: var(--tap-min);
+    line-height: 1.4;
+}
+.nav-drawer-links a:hover,
+.nav-drawer-links a:focus-visible {
+    color: var(--accent);
+    background: var(--accent-soft);
+    outline: none;
+}
+.nav-drawer-divider {
+    border: 0;
+    height: 1px;
+    background: var(--border);
+    margin: 0;
+}
+.nav-drawer-channels {
+    list-style: none;
+    display: flex;
+    gap: var(--space-2);
+    padding: 0;
+    margin: 0;
+}
+.nav-drawer-channels .nav-channel {
+    width: var(--tap-min);
+    height: var(--tap-min);
+}
+.nav-drawer-cta {
+    margin-top: auto;
+    text-align: center;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Lock body scroll while drawer is open. */
+body.is-nav-drawer-open {
+    overflow: hidden;
+}
+
 @media (max-width: 720px) {
-    /* Hide the secondary scroll-anchor nav entries (Career, About,
-       Perspectives) on phones. They're reachable by scrolling the page
-       and the Perspectives flyout is desktop-only anyway. Keeps Resume
-       (modal trigger) — that one has no scroll alternative. */
-    .nav-links a[href="#graph"],
-    .nav-links a[href="#bento"],
-    .nav-link-group { display: none; }
-
-    /* With those gone, show Topmate alongside the channel icons again. */
-    .nav-cta { display: inline-flex; }
-
-    .nav-links { gap: var(--space-3); }
-    .nav-links a { font-size: var(--text-xs); white-space: nowrap; }
-    .nav-channels { gap: 0; }
-    .nav-channel { width: 32px; height: 32px; }
-    .nav-inner { padding: 0 var(--space-4); gap: var(--space-3); }
+    /* Mobile: hide the inline nav contents — everything moves into the
+       drawer. Show just brand on the left + hamburger on the right. */
+    .nav-links,
+    .nav-actions { display: none; }
+    .nav-menu-trigger { display: inline-flex; }
+    .nav-inner { padding: 0 var(--space-4); gap: var(--space-2); }
 }
 
 @media (max-width: 480px) {
-    .nav-links a { font-size: 0.7rem; letter-spacing: 0; }
-    .nav-channel { width: 30px; height: 30px; }
-    .nav-inner { padding: 0 var(--space-3); gap: var(--space-2); }
+    .nav-inner { padding: 0 var(--space-3); }
     .nav-brand { font-size: var(--text-xs); }
-}
-
-@media (max-width: 380px) {
-    /* Tightest phones: drop "Topmate" label to icon only via padding tweak. */
-    .nav-cta { padding-inline: var(--space-2); }
-    .nav-cta span { font-size: 0.7rem; }
 }
 
 /* Sections ------------------------------------------------------------ */
