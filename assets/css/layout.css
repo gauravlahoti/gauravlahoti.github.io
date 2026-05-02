@@ -242,22 +242,24 @@ main { padding-top: 0; }
     }
 }
 
-/* Mobile (≤768px): re-compose the hero so the portrait sits centered above
-   the text stack as a circular avatar with a soft cyan rim glow. We keep
-   the figure in absolute flow (so the stack can still centre vertically),
-   reset the desktop fade mask, and switch to a circle. */
+/* Mobile (≤768px): re-compose the hero as a real two-row grid so portrait
+   and text can't overlap. Row 1 = portrait (auto-sized), Row 2 = stack (1fr).
+   Chrome lines and cert rail stay absolute over the top. */
 @media (max-width: 768px) {
+    .hero {
+        grid-template-rows: auto 1fr;
+    }
     .hero-portrait {
-        position: absolute;
-        left: 50%;
-        right: auto;
-        top: calc(var(--nav-h) + var(--safe-top) + var(--space-4));
-        bottom: auto;
-        width: clamp(180px, 42vw, 240px);
-        height: clamp(180px, 42vw, 240px);
-        transform: translateX(-50%);
+        position: static;
+        grid-row: 1;
+        grid-column: 1;
+        justify-self: center;
+        margin: calc(var(--nav-h) + var(--safe-top) + var(--space-8)) auto var(--space-4);
+        width: clamp(170px, 44vw, 220px);
+        height: clamp(170px, 44vw, 220px);
         border-radius: 50%;
         overflow: hidden;
+        z-index: 2;
         /* Drop the desktop horizontal fade — show the full portrait, soft-edged. */
         -webkit-mask-image: radial-gradient(circle at center,
             black 62%,
@@ -340,9 +342,11 @@ main { padding-top: 0; }
     .hero-stack { padding-bottom: 200px; }
 }
 @media (max-width: 768px) {
-    /* Reserve room above the stack for the circular portrait avatar. */
+    /* Stack drops into grid-row 2, naturally below the portrait. No
+       padding-top hack needed — the grid keeps them apart. */
     .hero-stack {
-        padding-top: clamp(220px, 48vw, 280px);
+        grid-row: 2;
+        padding-top: 0;
         padding-bottom: 140px;
         align-self: start;
         text-align: center;
@@ -350,6 +354,9 @@ main { padding-top: 0; }
     .hero-identity {
         justify-content: center;
     }
+    /* Hide the chrome status line on mobile — it overlaps the portrait
+       column at narrow widths and the brand row already conveys context. */
+    .chrome-tl { display: none; }
 }
 @media (max-width: 600px) {
     .hero-stack { padding-bottom: 130px; }
