@@ -543,12 +543,12 @@
 .trail-title span:nth-child(2) { color: var(--ink); opacity: 0.86; }
 .trail-title span:nth-child(3) { color: var(--accent); }
 
-/* Stats — a four-cell metric strip. Big tabular numerals on top, small
+/* Stats — a three-cell metric strip. Big tabular numerals on top, small
    uppercase labels below, hairline dividers between cells, brand-era
    accent on each numeral so the strip foreshadows the timeline below. */
 .trail-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0;
     padding: var(--space-5) 0;
     border-top: 1px solid var(--border);
@@ -609,32 +609,10 @@
 
 @media (max-width: 640px) {
     .trail-stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--space-4) 0;
         padding: var(--space-4) 0;
     }
     .trail-stat { padding: 0 var(--space-4); }
-    .trail-stat:nth-child(3) { padding-left: 0; }
-    .trail-stat:nth-child(2)::before,
-    .trail-stat:nth-child(4)::before { /* keep dividers only at column boundary */ }
-    /* in a 2-col layout, every odd item is column-start and shouldn't have a left divider */
-    .trail-stat:nth-child(odd)::before { display: none; }
 }
-
-.trail-sub {
-    color: var(--ink-muted);
-    font-size: var(--text-lg);
-    line-height: 1.55;
-    max-width: 640px;
-    margin-top: var(--space-2);
-}
-.trail-firm {
-    font-weight: 600;
-    color: var(--ink);
-}
-.trail-firm[data-era="accenture"] { color: var(--era-accenture); }
-.trail-firm[data-era="ey"]        { color: var(--era-ey); }
-.trail-firm[data-era="deloitte"]  { color: var(--era-deloitte); }
 
 .trail-grid {
     display: grid;
