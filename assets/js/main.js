@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "23";
+const ASSET_VERSION = "24";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 (async function bootstrap() {
@@ -315,7 +315,7 @@ function wireScrollTo() {
         if (!target) return;
         const lenis = window.__lenis;
         if (lenis && typeof lenis.scrollTo === "function") {
-            lenis.scrollTo(target, { offset: -64, duration: 1.2 });
+            lenis.scrollTo(target, { offset: -80, duration: 1.2 });
         } else {
             target.scrollIntoView({ behavior: "smooth", block: "start" });
         }
@@ -382,15 +382,18 @@ function initLenis() {
     requestAnimationFrame(raf);
     window.__lenis = lenis;
 
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-        a.addEventListener("click", (e) => {
-            const id = a.getAttribute("href");
-            if (id.length < 2) return;
-            const target = document.querySelector(id);
-            if (!target) return;
-            e.preventDefault();
-            lenis.scrollTo(target, { offset: -64, duration: 1.1 });
-        });
+    // Delegated listener: catches anchor clicks on links rendered after
+    // bootstrap (e.g. the nav flyout's "View all perspectives →" footer)
+    // as well as anything present at boot.
+    document.addEventListener("click", (e) => {
+        const a = e.target.closest('a[href^="#"]');
+        if (!a) return;
+        const id = a.getAttribute("href");
+        if (!id || id.length < 2) return;
+        const target = document.querySelector(id);
+        if (!target) return;
+        e.preventDefault();
+        lenis.scrollTo(target, { offset: -80, duration: 1.1 });
     });
 }
 
