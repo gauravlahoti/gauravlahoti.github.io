@@ -56,8 +56,32 @@ root_agent = Agent(
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
-        max_output_tokens=600,
+        # ~2000 words. Most answers are 200–400 words; this is the hard cap.
+        max_output_tokens=3000,
         temperature=0.4,
+        # Disable Gemini's built-in safety filters — the portfolio agent has
+        # its own input/output guardrails (see guardrails.py: prompt-injection
+        # short-circuit, URL allowlist, email redaction). Default filters can
+        # false-positive on enterprise security topics that legitimately come
+        # up in Gaurav's work (zero-trust, DLP, IAM).
+        safety_settings=[
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold=types.HarmBlockThreshold.OFF,
+            ),
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold=types.HarmBlockThreshold.OFF,
+            ),
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold=types.HarmBlockThreshold.OFF,
+            ),
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold=types.HarmBlockThreshold.OFF,
+            ),
+        ],
     ),
 )
 

@@ -1776,6 +1776,12 @@
     transform: translateY(0);
     opacity: 1;
 }
+/* Expanded view: ~25% wider + taller for long answers. Mobile (<= 720px) is
+   already full-screen and ignores this. */
+.agent-panel.is-expanded {
+    width: 475px;
+    max-height: min(90vh, 800px);
+}
 @media (prefers-reduced-motion: reduce) {
     .agent-panel { transition: none; transform: none; }
 }
@@ -1785,13 +1791,10 @@
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     background: var(--bg-card);
-}
-.agent-panel-eyebrow {
-    margin: 0 0 2px;
-    color: var(--ink-subtle);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
 }
 .agent-panel-title {
     margin: 0;
@@ -1799,25 +1802,34 @@
     color: var(--ink);
     letter-spacing: 0.01em;
 }
-.agent-panel-close {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
-    min-width: 44px;
-    min-height: 44px;
+.agent-panel-head-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+.agent-panel-close,
+.agent-panel-expand {
+    min-width: 36px;
+    min-height: 36px;
     background: transparent;
     border: none;
     color: var(--ink-muted);
-    font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
     border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
+.agent-panel-close { font-size: 1.5rem; }
 .agent-panel-close:hover,
-.agent-panel-close:focus-visible {
+.agent-panel-close:focus-visible,
+.agent-panel-expand:hover,
+.agent-panel-expand:focus-visible {
     color: var(--accent);
     outline: none;
 }
+.agent-panel-expand[aria-pressed="true"] { color: var(--accent); }
 
 .agent-panel-body {
     flex: 1 1 auto;

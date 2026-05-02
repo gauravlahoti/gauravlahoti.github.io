@@ -45,6 +45,7 @@ export function initAgentWidget(root, profile) {
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
+    dom.expandBtn.addEventListener("click", toggleExpand);
     sendBtn.addEventListener("click", sendCurrent);
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -65,6 +66,12 @@ export function initAgentWidget(root, profile) {
 
     function togglePanel() {
         if (isOpen) closePanel(); else openPanel();
+    }
+    function toggleExpand() {
+        const expanded = panel.classList.toggle("is-expanded");
+        dom.expandBtn.setAttribute("aria-pressed", String(expanded));
+        dom.expandBtn.setAttribute("aria-label", expanded ? "Shrink panel" : "Expand panel");
+        dom.expandBtn.title = expanded ? "Shrink" : "Expand";
     }
     function openPanel() {
         isOpen = true;
@@ -250,11 +257,18 @@ function renderShell(root) {
     const head = document.createElement("header");
     head.className = "agent-panel-head";
     head.innerHTML = `
-        <p class="agent-panel-eyebrow">// agent::experimental</p>
         <h3 id="agent-panel-title" class="agent-panel-title">Ask my agent</h3>
-        <button type="button" class="agent-panel-close" aria-label="Close agent">×</button>
+        <div class="agent-panel-head-actions">
+            <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7 V3 H7 M13 9 V13 H9 M3 3 L7 7 M13 13 L9 9"/>
+                </svg>
+            </button>
+            <button type="button" class="agent-panel-close" aria-label="Close agent">×</button>
+        </div>
     `;
     const closeBtn = head.querySelector(".agent-panel-close");
+    const expandBtn = head.querySelector(".agent-panel-expand");
 
     const body = document.createElement("div");
     body.className = "agent-panel-body";
@@ -292,7 +306,7 @@ function renderShell(root) {
 
     const foot = document.createElement("footer");
     foot.className = "agent-panel-foot";
-    foot.innerHTML = `Powered by Gemini · model may be wrong · <a href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">contact Gaurav on LinkedIn</a>`;
+    foot.textContent = "Powered by ADK + Gemini";
 
     const liveRegion = document.createElement("div");
     liveRegion.className = "agent-live";
@@ -309,7 +323,7 @@ function renderShell(root) {
     root.appendChild(panel);
 
     return {
-        fab, panel, body, head, closeBtn,
+        fab, panel, body, head, closeBtn, expandBtn,
         prompts, transcript, input, sendBtn, liveRegion,
     };
 }
