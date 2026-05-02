@@ -54,6 +54,18 @@ _ALLOWED_HOSTS = (
     "topmate.io",
 )
 
+# Defense against the model hallucinating a direct PDF or download path on
+# the portfolio domain (observed: it invented `gauravlahoti.github.io/resume.pdf`
+# which doesn't exist). Only the bare root URL is legitimate; any path that
+# looks like a download or a deep link is treated as a hallucination and
+# replaced with a navigation hint.
+_HALLUCINATED_PORTFOLIO_PATH_RE = re.compile(
+    r"https?://(?:www\.)?gauravlahoti\.github\.io/[^\s<>()\[\]]*"
+    r"(?:\.pdf|/resume|/download|/file)[^\s<>()\[\]]*",
+    re.IGNORECASE,
+)
+_RESUME_HINT = "(click the Resume button on this page)"
+
 _MAX_USER_CHARS = 1000
 
 _INJECTION_REPLY = (
@@ -115,6 +127,11 @@ def before_model_callback(
 
 
 def _strip_disallowed_urls(text: str) -> str:
+    # First: catch hallucinated portfolio paths (resume.pdf etc.) before the
+    # general filter would let them through (the host IS allowed, but the
+    # path is fictional).
+    text = _HALLUCINATED_PORTFOLIO_PATH_RE.sub(_RESUME_HINT, text)
+
     def _replace(match: re.Match[str]) -> str:
         url = match.group(0)
         host = url.split("//", 1)[-1].split("/", 1)[0].lower()

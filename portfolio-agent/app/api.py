@@ -11,8 +11,10 @@ event format. Three routes:
   FAB-open to spin up Cloud Run before the user types.
 - `GET  /healthz` — Cloud Run liveness probe.
 
-Rate limiting is enforced before the ADK runner is invoked. We reuse the
-spec #20 numbers (20 msg/session/h, 100 msg/IP-hash/24h).
+Rate limiting is enforced before the ADK runner is invoked. The strategy
+is layered: 4 messages per sessionId per 24h AND 4 messages per IP-hash
+per 24h. The IP cap is the ceiling — reloading to get a fresh sessionId
+does not bypass it. See `rate_limit.py` for details.
 """
 
 from __future__ import annotations
@@ -185,14 +187,15 @@ def register_routes(app: FastAPI) -> None:
             )
 
         ip_hash = limiter.hash_ip(_client_ip(request))
-        allowed, reason = limiter.check_and_record(session_id, ip_hash)
+        allowed, _reason = limiter.check_and_record(session_id, ip_hash)
         if not allowed:
+            # Both session and IP buckets cap at 4/24h, so the user-facing
+            # message is the same regardless of which one fired.
             msg = (
-                "I've been chatting a lot in this session — try again in a "
-                "few minutes, or reach Gaurav on LinkedIn for anything urgent."
-                if reason == "session"
-                else "I'm at my daily limit for visitors from your network. "
-                "Try again tomorrow, or reach Gaurav on LinkedIn."
+                "Thanks for the conversation — that's the question budget for "
+                "today (4 per visitor). For anything more, the best place is "
+                "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
+                "tomorrow!"
             )
             return JSONResponse(
                 status_code=429, content={"error": msg}

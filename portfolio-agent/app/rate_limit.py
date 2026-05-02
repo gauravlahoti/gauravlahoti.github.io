@@ -3,14 +3,26 @@
 Best-effort across Cloud Run instances: each instance keeps its own counters.
 At `min-instances=0, max-instances=3, concurrency=20` for portfolio traffic
 this is acceptable — a determined attacker could fan across instances, but
-they'd still hit the AI Studio free-tier RPM quota first.
+they'd still hit the model RPM quota first.
 
-Limits (mirroring spec #20 §"Database changes"):
-- Per session: 20 messages per 1 hour rolling window.
-- Per IP hash: 100 messages per 24 hour rolling window.
+# Strategy
+
+Hard cap: **4 messages per visitor**, defended at two layers so no single
+identifier (sessionId, web-session, machine, IP) gets more than 4 questions
+in a 24-hour window.
+
+- Layer 1 — sessionId (per page-load UUID): 4 per 24h. The 5th hit on the
+  same `sessionId` returns 429.
+- Layer 2 — IP-hash (per network endpoint, per UTC day): 4 per 24h. Stops
+  the trivial "reload page to get a new sessionId" bypass; the IP cap is
+  the true ceiling.
 
 IP is hashed with `sha256(ip + UTC_DATE)` so the hash rotates daily by
 construction — no manual salt rotation needed.
+
+Both buckets share the same `4 / 24h` shape so the limits agree: a visitor
+who reloads to escape the session cap will be stopped by the IP cap. After
+24 hours, both budgets refresh.
 """
 
 from __future__ import annotations
@@ -20,11 +32,11 @@ import threading
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-SESSION_WINDOW_S = 60 * 60  # 1 hour
-SESSION_LIMIT = 20
+SESSION_WINDOW_S = 24 * 60 * 60  # 24 hours
+SESSION_LIMIT = 4
 
 IP_WINDOW_S = 24 * 60 * 60  # 24 hours
-IP_LIMIT = 100
+IP_LIMIT = 4
 
 
 class RateLimiter:
