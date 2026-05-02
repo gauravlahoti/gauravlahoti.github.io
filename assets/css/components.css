@@ -1612,7 +1612,8 @@
     pointer-events: auto;
 }
 .nav-link-group:hover .nav-flyout,
-.nav-link-group:focus-within .nav-flyout {
+.nav-link-group:focus-within .nav-flyout,
+.nav-link-group.is-open .nav-flyout {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
@@ -1691,8 +1692,8 @@
     outline: none;
 }
 
-/* Touch / coarse-pointer: skip the hover flyout. The Writing link still
-   scrolls to the section, which is the right mobile UX. */
-@media (any-pointer: coarse) {
-    .nav-flyout { display: none; }
-}
+/* Touch / coarse-pointer: the JS in initPostsFlyoutEager() handles the
+   "first tap opens, second tap navigates" pattern with the .is-open class.
+   No display:none override here — that would break iPad / Windows-touch /
+   laptop-with-touch-and-mouse, where the flyout should still work. The
+   mobile nav drawer (separate component) is what truly small viewports get. */

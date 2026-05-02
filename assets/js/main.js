@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "46";
+const ASSET_VERSION = "47";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -398,8 +398,6 @@ function initPostsListWhenVisible() {
 async function initPostsFlyoutEager() {
     const root = document.querySelector("[data-posts-flyout]");
     if (!root) return;
-    // Skip on coarse pointers — CSS hides the flyout there too, no point fetching.
-    if (matchMedia("(any-pointer: coarse)").matches) return;
     try {
         const { initPostsFlyout } = await import(v("./posts-list.js"));
         const inst = await initPostsFlyout(root);
@@ -409,10 +407,49 @@ async function initPostsFlyoutEager() {
         const link = group && group.querySelector("a[aria-haspopup]");
         if (!group || !link) return;
         const sync = (open) => link.setAttribute("aria-expanded", open ? "true" : "false");
+
+        // Mouse / keyboard: CSS :hover and :focus-within drive the reveal —
+        // we just mirror state into aria-expanded for assistive tech.
         group.addEventListener("mouseenter", () => sync(true));
         group.addEventListener("mouseleave", () => sync(false));
         group.addEventListener("focusin",   () => sync(true));
         group.addEventListener("focusout",  () => sync(false));
+
+        // Touch (iPad, touch laptops, mobile-with-large-viewport): the link
+        // would otherwise navigate to #writing on the first tap, never
+        // revealing the flyout. Standard "first tap opens, second tap
+        // navigates" pattern, with tap-outside to dismiss.
+        if (matchMedia("(any-pointer: coarse)").matches) {
+            const setOpen = (open) => {
+                group.classList.toggle("is-open", open);
+                sync(open);
+            };
+            link.addEventListener("click", (e) => {
+                if (!group.classList.contains("is-open")) {
+                    e.preventDefault();
+                    setOpen(true);
+                }
+                // Else: link click goes through and navigates to #writing.
+            });
+            document.addEventListener("click", (e) => {
+                if (!group.classList.contains("is-open")) return;
+                if (group.contains(e.target)) {
+                    // Tap on a flyout item inside — let native navigation
+                    // happen and then close the flyout.
+                    if (e.target.closest("a[href]") && e.target !== link) {
+                        setOpen(false);
+                    }
+                    return;
+                }
+                setOpen(false);
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && group.classList.contains("is-open")) {
+                    setOpen(false);
+                    link.blur();
+                }
+            });
+        }
     } catch (err) {
         console.warn("[posts-flyout] failed to init", err);
     }
