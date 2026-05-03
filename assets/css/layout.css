@@ -416,7 +416,7 @@ main { padding-top: 0; }
    Chrome lines and cert rail stay absolute over the top. */
 @media (max-width: 768px) {
     .hero {
-        grid-template-rows: auto 1fr;
+        grid-template-rows: auto auto;
     }
     .hero-portrait {
         position: static;
