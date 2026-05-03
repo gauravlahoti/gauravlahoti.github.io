@@ -3,7 +3,7 @@
   "title": "Senior Cloud & AI-Native Architect",
   "company": "Deloitte",
   "location": "Gurugram, India",
-  "tagline": "Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.",
+  "tagline": "Spent a decade making enterprise systems talk to each other. Now I wire AI into that fabric, making it reason, adapt, and act. Curiosity drives the exploration; 10+ years of enterprise delivery keeps it grounded.",
   "bio": [
     "11+ years engineering leadership in distributed systems and cloud-native architecture (GCP / AWS).",
     "Building production-grade AI with LangGraph, Google ADK, and Model Context Protocol (MCP).",
@@ -17,7 +17,9 @@
     "topmate": "https://topmate.io/gaurav_lahoti25",
     "resume": "assets/img/resume.pdf",
     "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
-    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
+    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
+    "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
+    "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
   },
   "models": ["gemini-3-pro", "claude-opus-4.7", "claude-sonnet-4.6", "claude-haiku-4.5", "gpt-5"],
   "capabilities": {

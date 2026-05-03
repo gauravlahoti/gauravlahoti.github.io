@@ -151,6 +151,7 @@ export function initAgentWidget(root, profile) {
 
         const assistant = appendAssistantPlaceholder();
         const stages = startLoadingStages(assistant);
+        let errorShown = false;
 
         try {
             await streamAgent({
@@ -163,9 +164,8 @@ export function initAgentWidget(root, profile) {
                 },
                 onDone: (full) => {
                     stages.cancel();
-                    if (!full) {
-                        // No content streamed — show a friendly message.
-                        appendDelta(assistant, "(no response)");
+                    if (!full && !errorShown) {
+                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?");
                     }
                     if (full) {
                         // Linkify allowlisted URLs in the assembled text.
@@ -176,6 +176,7 @@ export function initAgentWidget(root, profile) {
                 },
                 onError: (msg) => {
                     stages.cancel();
+                    errorShown = true;
                     appendDelta(assistant, msg);
                 },
             });
@@ -421,11 +422,11 @@ function startLoadingStages(assistantLi) {
     const t1 = setTimeout(() => {
         if (p.textContent.startsWith("Connecting")) {
             stage = 1;
-            p.textContent = "Spinning up the model — first request takes a moment.";
+            p.textContent = "Agent is loading up — first request takes a moment.";
         }
     }, 3000);
     const t2 = setTimeout(() => {
-        if (stage <= 1 && (p.textContent.startsWith("Spinning") || p.textContent.startsWith("Connecting"))) {
+        if (stage <= 1 && (p.textContent.startsWith("Agent is loading") || p.textContent.startsWith("Connecting"))) {
             p.textContent =
                 "Still warming up. If this hangs, reach me on LinkedIn (https://www.linkedin.com/in/glahoti/).";
         }
@@ -437,7 +438,7 @@ function startLoadingStages(assistantLi) {
             // Clear the loading copy so streaming output starts fresh.
             if (
                 p.textContent.startsWith("Connecting") ||
-                p.textContent.startsWith("Spinning") ||
+                p.textContent.startsWith("Agent is loading") ||
                 p.textContent.startsWith("Still warming")
             ) {
                 p.textContent = "";
