@@ -423,7 +423,7 @@ main { padding-top: 0; }
         grid-row: 1;
         grid-column: 1;
         justify-self: center;
-        margin: calc(var(--nav-h) + var(--safe-top) + var(--space-8)) auto var(--space-4);
+        margin: calc(var(--nav-h) + var(--safe-top) + var(--space-2)) auto var(--space-4);
         width: clamp(170px, 44vw, 220px);
         height: clamp(170px, 44vw, 220px);
         border-radius: 50%;
