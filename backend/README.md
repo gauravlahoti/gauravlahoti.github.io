@@ -148,6 +148,7 @@ backend/
 ├── src/index.js                           # Router, JWKS verify, dedupe, D1 insert, admin GET, cron handler
 ├── schema.sql                             # CREATE TABLE for fresh installs
 ├── migrations/001-add-google-fields.sql   # v1 (spec 11) → v2 (spec 12) migration
+├── migrations/002-agent-interactions.sql  # spec 23 — adds agent_interactions table
 ├── README.md                              # this file
 └── .gitignore                             # node_modules, .wrangler/, .dev.vars
 ```
@@ -160,6 +161,49 @@ backend/
 - **Retention:** rows older than 12 months are auto-deleted by a Cloudflare cron trigger that runs at `02:00 UTC` on the 1st of each month. Configured in `wrangler.toml` (`[triggers] crons`); handler is the `scheduled()` export in `src/index.js`. Adjust the cutoff via `RETENTION_SECONDS` in `src/index.js`.
 - **Erasure requests:** to remove a lead manually, run e.g. `npx wrangler d1 execute resume-leads --remote --command="DELETE FROM resume_downloads WHERE email = 'x@y.com'"`.
 
+## Agent audit log (Spec #23)
+
+Every question asked in the "Ask my agent" widget is logged to a second table, `agent_interactions`, in the same D1 database. The Cloud Run agent calls `POST /api/agent-log` with a shared token after each turn. Gaurav can review correctness over time and identify question patterns to tune the corpus.
+
+### Endpoints
+
+- `POST /api/agent-log` — write endpoint for the Cloud Run agent (not the browser). `X-Internal-Token: <AGENT_LOG_TOKEN>`. Returns `{ok: true, id}`.
+- `GET /api/agent-log` — admin dump (last 200 rows). `Authorization: Bearer $ADMIN_TOKEN` (same token as `/api/leads`).
+
+### Local queries
+
+```bash
+# Quick view via npm script
+npm run agent-log
+
+# Or interactively
+sqlite3 backend/leads.db
+sqlite> SELECT session_id, turn_index, datetime(logged_at,'unixepoch') AS at,
+               status, question, response
+        FROM agent_interactions ORDER BY logged_at DESC LIMIT 20;
+
+# Join to see who downloaded the resume AND asked questions
+sqlite> SELECT ai.session_id, ai.question, rd.email, datetime(ai.logged_at,'unixepoch') AS at
+        FROM agent_interactions ai
+        LEFT JOIN resume_downloads rd ON ai.google_sub = rd.google_sub
+        ORDER BY ai.logged_at DESC LIMIT 20;
+```
+
+### Secrets
+
+| Secret | Where set | Purpose |
+|---|---|---|
+| `AGENT_LOG_TOKEN` | `wrangler secret put AGENT_LOG_TOKEN` | Shared token between Cloud Run and this Worker. Without it, `/api/agent-log` returns 503. |
+
+The token is also set on the Cloud Run service via Secret Manager → `--secrets AGENT_LOG_TOKEN=agent-log-token`. Both sides must match.
+
+### Privacy & retention
+
+- **Retention:** rows older than **90 days** are auto-deleted by the same monthly cron that cleans `resume_downloads` (which stays at 365 days). Both cleanups are wrapped in independent `try/catch` so one failure doesn't block the other.
+- **Identity:** `google_sub` and `email` are populated only when the visitor has signed in for the resume gate. Otherwise both columns are `NULL`. The identity is self-asserted by the browser (see Spec #23 §Trust model) — `resume_downloads` rows remain the authoritative source for verified identity.
+- **IP truncation:** same `/24` (IPv4) or `/64` (IPv6) rule as `resume_downloads`.
+- **No local cron:** retention cleanup only runs in production (Cloudflare cron trigger). Delete rows manually if needed: `wrangler d1 execute resume-leads --remote --command="DELETE FROM agent_interactions WHERE google_sub = 'xxx'"`.
+
 ## Secret rotation
 
 To rotate `ADMIN_TOKEN`:
@@ -168,6 +212,16 @@ To rotate `ADMIN_TOKEN`:
 wrangler secret put ADMIN_TOKEN
 # paste the new token; old one is invalidated on next deploy
 wrangler deploy
+```
+
+To rotate `AGENT_LOG_TOKEN`:
+
+```bash
+wrangler secret put AGENT_LOG_TOKEN          # update the Worker secret
+# then update the Cloud Run service:
+gcloud secrets versions add agent-log-token --data-file=-   # paste new token
+gcloud run services update portfolio-agent --region=us-central1 \
+  --update-secrets=AGENT_LOG_TOKEN=agent-log-token:latest
 ```
 
 Tokens are stored in Cloudflare's secret store (not in `wrangler.toml`).

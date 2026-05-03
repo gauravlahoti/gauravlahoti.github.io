@@ -15,6 +15,19 @@ const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 let warmedThisSession = false;
 
+// Read the self-asserted identity persisted by resume-gate.js after Google sign-in.
+// Returned value is {sub, email} if present and within the 30-day TTL, else null.
+function readIdentity() {
+    try {
+        const raw = localStorage.getItem("resumeGateIdentity_v1");
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj?.sub || !obj?.email || !obj?.at) return null;
+        if (Date.now() - obj.at > 30 * 24 * 60 * 60 * 1000) return null; // 30d TTL
+        return { sub: obj.sub, email: obj.email };
+    } catch (_) { return null; }
+}
+
 export function initAgentWidget(root, profile) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
@@ -27,6 +40,7 @@ export function initAgentWidget(root, profile) {
     // Generate a fresh sessionId per page load (not persisted to localStorage).
     const sessionId = uuidv4();
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
+    const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
 
     const dom = renderShell(root);
     const fab = dom.fab;
@@ -158,6 +172,7 @@ export function initAgentWidget(root, profile) {
                 apiUrl,
                 sessionId,
                 messages,
+                identity,
                 onDelta: (delta) => {
                     stages.cancel();
                     appendDelta(assistant, delta);
@@ -447,15 +462,16 @@ function startLoadingStages(assistantLi) {
     };
 }
 
-async function streamAgent({ apiUrl, sessionId, messages, onDelta, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onDone, onError }) {
     let response;
     try {
+        const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
         response = await fetch(apiUrl, {
             method: "POST",
             mode: "cors",
             cache: "no-store",
             headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-            body: JSON.stringify({ sessionId, messages }),
+            body: JSON.stringify(reqBody),
         });
     } catch (err) {
         onError("I couldn't reach the agent. You appear to be offline, or the service is down. Try LinkedIn instead: https://www.linkedin.com/in/glahoti/");

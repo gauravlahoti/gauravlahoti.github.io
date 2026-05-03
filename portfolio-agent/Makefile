@@ -1,7 +1,7 @@
 # Convenience targets for the portfolio-agent sub-project.
 # `make help` prints this list.
 
-.PHONY: help corpus install dev playground smoke eval lint clean
+.PHONY: help corpus install dev playground smoke eval lint clean audit
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -29,6 +29,9 @@ eval: ## Run the eval suite.
 
 lint: ## Lint with ruff (auto-fix).
 	agents-cli lint --fix
+
+audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit log).
+	uv run python -m app.app_utils.audit_log_smoke
 
 clean: ## Drop __pycache__ and .pytest_cache.
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

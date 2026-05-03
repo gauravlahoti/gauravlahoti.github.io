@@ -2,7 +2,19 @@
 // Lazy-loaded by main.js on first click of [data-resume-trigger].
 
 const STORAGE_KEY = "resumeGatePassed_v2";
+const IDENTITY_KEY = "resumeGateIdentity_v1";
 const BYPASS_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Decode the payload segment of a JWT (no signature check — the Worker has
+// already verified the token cryptographically; this is purely for surfacing
+// claims so the agent widget can correlate questions with the verified identity).
+function decodeJwtPayload(jwt) {
+    try {
+        const seg = jwt.split(".")[1];
+        const json = atob(seg.replace(/-/g, "+").replace(/_/g, "/"));
+        return JSON.parse(decodeURIComponent(escape(json)));
+    } catch (_) { return null; }
+}
 
 export function initResumeGate(profile) {
     const dialog = document.querySelector("[data-resume-modal]");
@@ -96,6 +108,14 @@ export function initResumeGate(profile) {
                 throw new Error(data.error || `Request failed (${res.status})`);
             }
             rememberPass();
+            try {
+                const claims = decodeJwtPayload(credential);
+                if (claims?.sub && claims?.email) {
+                    localStorage.setItem(IDENTITY_KEY, JSON.stringify({
+                        sub: claims.sub, email: claims.email, at: Date.now()
+                    }));
+                }
+            } catch (_) { /* non-fatal */ }
             setLoading(true, "Downloading…");
             triggerDownload();
             setTimeout(close, 600);

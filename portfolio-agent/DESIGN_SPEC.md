@@ -63,6 +63,29 @@ Manual smoke (after deploy):
 - `python/agents/safety-plugins` — guardrail plugin idiom (ADK `BasePlugin`, `before_model_callback`, `after_model_callback`). We use plain callbacks on the agent rather than the full plugin layer; the cheap regex filters do not need an LLM-as-judge sub-agent. ModelArmor is paid and skipped for v1.
 - `python/agents/ambient-expense-agent` — `get_fast_api_app(agents_dir=..., web=True)` pattern + Cloud Run Dockerfile. We follow the same FastAPI layout and add custom `/api/agent-chat` SSE / `/api/agent-chat/warm` / `/healthz` routes that wrap ADK's runner internally so the frontend stays decoupled from ADK's native event format.
 
+## Audit log (Spec #23)
+
+Every agent turn is durably logged to the resume-gate Cloudflare D1 database (`agent_interactions` table) via a fire-and-forget POST from the Cloud Run service after the SSE stream completes.
+
+**Key points:**
+- **Zero user-visible latency.** The log call uses `asyncio.create_task` and runs after `yield _sse({"done": True})` — the browser already has the complete response before the log attempt starts.
+- **Fail-silent.** `audit_log.log_interaction` swallows all exceptions; a network error or wrong token never breaks a user response.
+- **What's logged:** `session_id`, `turn_index`, `question`, `response` (full assembled), `tool_calls` (array of `{name, args}`), `tokens_input`, `tokens_output`, `latency_ms`, `status` (`ok | error | injection_blocked | too_long | rate_limited`), `error_message`, `google_sub` + `email` when the visitor has signed in for the resume gate, truncated IP, UA, referrer, `agent_version` (= `COMMIT_SHA`).
+- **Retention:** 90 days, auto-deleted by the Worker's monthly cron.
+- **Identity is self-asserted.** `google_sub` / `email` are forwarded from the browser's localStorage by `agent-widget.js`; the agent does not re-verify the JWT. See Spec #23 §Trust model.
+
+**Environment variables** (set in Secret Manager + `agents-cli deploy` flags):
+```
+AGENT_LOG_URL    = https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-log
+AGENT_LOG_TOKEN  = <shared secret matching wrangler secret put AGENT_LOG_TOKEN>
+```
+Both are optional for local dev — if either is unset, logging is silently skipped.
+
+**Local smoke test:**
+```bash
+make audit   # requires AGENT_LOG_URL and AGENT_LOG_TOKEN to be set in .env
+```
+
 ## Non-goals (v1)
 - Authentication / per-user identity. v1 is anonymous, IP-hash rate-limited.
 - Conversation history persistence. Sessions are in-memory; cleared on instance restart.

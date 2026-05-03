@@ -22,8 +22,9 @@ const JWKS = jose.createRemoteJWKSet(
     new URL("https://www.googleapis.com/oauth2/v3/certs")
 );
 
-const RETENTION_SECONDS = 365 * 24 * 60 * 60; // 12 months
-const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;   // 24 hours
+const RETENTION_SECONDS = 365 * 24 * 60 * 60;       // 12 months (resume_downloads)
+const AGENT_LOG_RETENTION_SECONDS = 90 * 24 * 60 * 60; // 90 days (agent_interactions)
+const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;         // 24 hours
 
 export default {
     async fetch(request, env) {
@@ -44,6 +45,14 @@ export default {
             return handleLeads(request, env, corsHeaders);
         }
 
+        if (url.pathname === "/api/agent-log" && request.method === "POST") {
+            return handleAgentLog(request, env);
+        }
+
+        if (url.pathname === "/api/agent-log" && request.method === "GET") {
+            return handleAgentLogRead(request, env, corsHeaders);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
@@ -55,9 +64,19 @@ export default {
             const { meta } = await env.DB.prepare(
                 "DELETE FROM resume_downloads WHERE downloaded_at < ?"
             ).bind(cutoff).run();
-            console.log(`[retention] deleted ${meta?.changes ?? 0} rows older than ${RETENTION_SECONDS}s (cutoff=${cutoff})`);
+            console.log(`[retention] resume: deleted ${meta?.changes ?? 0} rows older than 365d`);
         } catch (err) {
-            console.error("[retention] cleanup failed", err);
+            console.error("[retention] resume cleanup failed", err);
+        }
+
+        const cutoffAgent = Math.floor(Date.now() / 1000) - AGENT_LOG_RETENTION_SECONDS;
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM agent_interactions WHERE logged_at < ?"
+            ).bind(cutoffAgent).run();
+            console.log(`[retention] agent: deleted ${meta?.changes ?? 0} rows older than 90d`);
+        } catch (err) {
+            console.error("[retention] agent cleanup failed", err);
         }
     }
 };
@@ -214,6 +233,108 @@ async function handleLeads(request, env, corsHeaders) {
         return json({ ok: true, leads: results }, 200, corsHeaders);
     } catch (err) {
         console.error("D1 read failed", err);
+        return json({ ok: false, error: "Internal" }, 500, corsHeaders);
+    }
+}
+
+// POST /api/agent-log — internal write endpoint called by Cloud Run after each agent turn.
+// Auth: X-Internal-Token header must match env.AGENT_LOG_TOKEN (no CORS — browser never calls this).
+// Self-asserted identity — see Spec #23 §Trust model. Do not add JWT verification here.
+async function handleAgentLog(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Agent log endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+
+    // Validate required fields.
+    const sessionId = body?.sessionId;
+    const turnIndex = body?.turnIndex;
+    const question  = body?.question;
+    const status    = body?.status;
+    const VALID_STATUSES = new Set(["ok", "error", "injection_blocked", "too_long", "rate_limited"]);
+
+    if (typeof sessionId !== "string" || sessionId.length < 1 || sessionId.length > 64) {
+        return json({ ok: false, error: "Invalid sessionId" }, 400, {});
+    }
+    if (typeof turnIndex !== "number" || turnIndex < 0 || !Number.isInteger(turnIndex)) {
+        return json({ ok: false, error: "Invalid turnIndex" }, 400, {});
+    }
+    if (typeof question !== "string" || question.length < 1) {
+        return json({ ok: false, error: "Invalid question" }, 400, {});
+    }
+    if (typeof status !== "string" || !VALID_STATUSES.has(status)) {
+        return json({ ok: false, error: "Invalid status" }, 400, {});
+    }
+
+    // Clamp + sanitize all string fields (same discipline as handleDownload).
+    const response     = String(body?.response     ?? "").slice(0, 16000);
+    const toolCallsRaw = body?.toolCalls;
+    const toolCalls    = toolCallsRaw ? JSON.stringify(toolCallsRaw).slice(0, 8000) : null;
+    const errorMessage = body?.errorMessage ? String(body.errorMessage).slice(0, 500) : null;
+    const identity     = (body?.identity && typeof body.identity === "object") ? body.identity : {};
+    const googleSub    = identity.sub  ? String(identity.sub).slice(0, 200)  : null;
+    const email        = identity.email ? String(identity.email).slice(0, 200) : null;
+    const ip           = truncateIp(String(body?.ip ?? ""));
+    const userAgent    = String(body?.userAgent   ?? "").slice(0, 500);
+    const referrer     = String(body?.referrer    ?? "").slice(0, 500);
+    const agentVersion = String(body?.agentVersion ?? "").slice(0, 100);
+    const tokensInput  = Number.isInteger(body?.tokensInput)  ? body.tokensInput  : null;
+    const tokensOutput = Number.isInteger(body?.tokensOutput) ? body.tokensOutput : null;
+    const latencyMs    = Number.isInteger(body?.latencyMs)    ? body.latencyMs    : null;
+    const loggedAt     = Math.floor(Date.now() / 1000);
+
+    try {
+        const { meta } = await env.DB.prepare(
+            `INSERT INTO agent_interactions
+               (session_id, turn_index, logged_at, question, response, tool_calls,
+                tokens_input, tokens_output, latency_ms, status, error_message,
+                google_sub, email, ip, user_agent, referrer, agent_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+            sessionId, turnIndex, loggedAt,
+            question.slice(0, 4000), response, toolCalls,
+            tokensInput, tokensOutput, latencyMs,
+            status, errorMessage,
+            googleSub, email, ip, userAgent, referrer, agentVersion
+        ).run();
+        return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
+    } catch (err) {
+        console.error("[agent-log] D1 insert failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// GET /api/agent-log — admin dump of recent agent interactions.
+// Reuses ADMIN_TOKEN from spec #11 (same secret, no new credential to manage).
+async function handleAgentLogRead(request, env, corsHeaders) {
+    const token = env.ADMIN_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Admin endpoint disabled" }, 503, corsHeaders);
+    }
+    const auth = request.headers.get("Authorization") || "";
+    if (auth !== `Bearer ${token}`) {
+        return json({ ok: false, error: "Unauthorized" }, 401, corsHeaders);
+    }
+    try {
+        const { results } = await env.DB.prepare(
+            `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
+                    tokens_input, tokens_output, latency_ms, status, error_message,
+                    google_sub, email, ip, user_agent, referrer, agent_version
+             FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
+        ).all();
+        return json({ ok: true, leads: results }, 200, corsHeaders);
+    } catch (err) {
+        console.error("[agent-log] D1 read failed", err);
         return json({ ok: false, error: "Internal" }, 500, corsHeaders);
     }
 }

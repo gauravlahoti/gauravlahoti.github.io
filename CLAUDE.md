@@ -45,6 +45,8 @@ Data files: `profile.json` (identity, bio, socials, full work history, certifica
 
 The static portfolio stays plain HTML/CSS/JS and ships to GitHub Pages independently. `assets/js/resume-gate.js` calls the backend; the PDF download fires only after the JWT verifies and the lead row is written. Specs 11 and 12 cover the gate and Google auth.
 
+**Agent audit log (Spec #23):** the same D1 database holds a second table, `agent_interactions`, with one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email` when the visitor has signed in). The Cloud Run agent writes to it via `POST /api/agent-log` (gated by `AGENT_LOG_TOKEN`, a shared secret set via `wrangler secret put` on the Worker and in Secret Manager on Cloud Run). Admin read: `GET /api/agent-log` with the same `Authorization: Bearer $ADMIN_TOKEN` as `/api/leads`. Rows auto-delete after 90 days via the existing monthly cron. Source: `portfolio-agent/app/app_utils/audit_log.py`.
+
 ## Agent chat widget (`portfolio-agent/`)
 
 Spec 21 adds a floating "Ask my agent" widget powered by a Google ADK Python agent deployed on Cloud Run (free tier, `min-instances=0`). The agent answers questions about Gaurav using five retrieval tools (`get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications`) over a frozen JSON snapshot bundled into the container. Frontend module: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback` and wired in `assets/js/main.js`. Sub-project: `portfolio-agent/` (scaffolded by `agents-cli scaffold create`; do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI reads them).

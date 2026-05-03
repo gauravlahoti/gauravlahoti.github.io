@@ -7,7 +7,8 @@
   "main": "local-server.js",
   "scripts": {
     "start": "node local-server.js",
-    "leads": "sqlite3 leads.db \"SELECT name, email, datetime(downloaded_at,'unixepoch') AS at FROM resume_downloads ORDER BY downloaded_at DESC LIMIT 50\""
+    "leads": "sqlite3 leads.db \"SELECT name, email, datetime(downloaded_at,'unixepoch') AS at FROM resume_downloads ORDER BY downloaded_at DESC LIMIT 50\"",
+    "agent-log": "sqlite3 leads.db \"SELECT id, session_id, turn_index, datetime(logged_at,'unixepoch') AS at, status, length(question) AS qlen, length(response) AS rlen FROM agent_interactions ORDER BY id DESC LIMIT 50\""
   },
   "engines": {
     "node": ">=20"

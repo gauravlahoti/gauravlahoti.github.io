@@ -21,6 +21,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ||
     "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+const AGENT_LOG_TOKEN = process.env.AGENT_LOG_TOKEN || "";
 
 const ALLOWED_ISS = new Set([
     "accounts.google.com",
@@ -45,6 +46,20 @@ const recentLeads = db.prepare(
 );
 const recentForSub = db.prepare(
     `SELECT 1 FROM resume_downloads WHERE google_sub = ? AND downloaded_at > ? LIMIT 1`
+);
+
+const insertAgentInteraction = db.prepare(
+    `INSERT INTO agent_interactions
+       (session_id, turn_index, logged_at, question, response, tool_calls,
+        tokens_input, tokens_output, latency_ms, status, error_message,
+        google_sub, email, ip, user_agent, referrer, agent_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+);
+const recentAgentInteractions = db.prepare(
+    `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
+            tokens_input, tokens_output, latency_ms, status, error_message,
+            google_sub, email, ip, user_agent, referrer, agent_version
+     FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
 );
 
 const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;
@@ -198,6 +213,83 @@ function handleLeads(req, res, cors) {
     sendJson(res, 200, { ok: true, leads: recentLeads.all() }, cors);
 }
 
+// POST /api/agent-log — internal write endpoint called by Cloud Run after each agent turn.
+// Auth: X-Internal-Token header must match AGENT_LOG_TOKEN env var (no CORS — browser never calls this).
+// Self-asserted identity — see Spec #23 §Trust model. Do not add JWT verification here.
+async function handleAgentLog(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Agent log endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 64 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+
+    const sessionId = body?.sessionId;
+    const turnIndex = body?.turnIndex;
+    const question  = body?.question;
+    const status    = body?.status;
+    const VALID_STATUSES = new Set(["ok", "error", "injection_blocked", "too_long", "rate_limited"]);
+
+    if (typeof sessionId !== "string" || sessionId.length < 1 || sessionId.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid sessionId" }, {});
+    }
+    if (typeof turnIndex !== "number" || turnIndex < 0 || !Number.isInteger(turnIndex)) {
+        return sendJson(res, 400, { ok: false, error: "Invalid turnIndex" }, {});
+    }
+    if (typeof question !== "string" || question.length < 1) {
+        return sendJson(res, 400, { ok: false, error: "Invalid question" }, {});
+    }
+    if (typeof status !== "string" || !VALID_STATUSES.has(status)) {
+        return sendJson(res, 400, { ok: false, error: "Invalid status" }, {});
+    }
+
+    const response     = String(body?.response     ?? "").slice(0, 16000);
+    const toolCallsRaw = body?.toolCalls;
+    const toolCalls    = toolCallsRaw ? JSON.stringify(toolCallsRaw).slice(0, 8000) : null;
+    const errorMessage = body?.errorMessage ? String(body.errorMessage).slice(0, 500) : null;
+    const identity     = (body?.identity && typeof body.identity === "object") ? body.identity : {};
+    const googleSub    = identity.sub   ? String(identity.sub).slice(0, 200)   : null;
+    const email        = identity.email ? String(identity.email).slice(0, 200) : null;
+    const ip           = truncateIp(String(body?.ip ?? ""));
+    const userAgent    = String(body?.userAgent    ?? "").slice(0, 500);
+    const referrer     = String(body?.referrer     ?? "").slice(0, 500);
+    const agentVersion = String(body?.agentVersion ?? "").slice(0, 100);
+    const tokensInput  = Number.isInteger(body?.tokensInput)  ? body.tokensInput  : null;
+    const tokensOutput = Number.isInteger(body?.tokensOutput) ? body.tokensOutput : null;
+    const latencyMs    = Number.isInteger(body?.latencyMs)    ? body.latencyMs    : null;
+    const loggedAt     = Math.floor(Date.now() / 1000);
+
+    try {
+        const result = insertAgentInteraction.run(
+            sessionId, turnIndex, loggedAt,
+            question.slice(0, 4000), response, toolCalls,
+            tokensInput, tokensOutput, latencyMs,
+            status, errorMessage,
+            googleSub, email, ip, userAgent, referrer, agentVersion
+        );
+        console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
+        sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
+    } catch (err) {
+        console.error("[agent-log] insert failed", err);
+        sendJson(res, 500, { ok: false, error: "Internal" }, {});
+    }
+}
+
+// GET /api/agent-log — admin dump of recent agent interactions.
+// Reuses ADMIN_TOKEN from spec #11 (no new credential to manage).
+function handleAgentLogRead(req, res, cors) {
+    if (!ADMIN_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Admin endpoint disabled (set ADMIN_TOKEN)" }, cors);
+    }
+    if ((req.headers.authorization || "") !== `Bearer ${ADMIN_TOKEN}`) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, cors);
+    }
+    sendJson(res, 200, { ok: true, leads: recentAgentInteractions.all() }, cors);
+}
+
 // ---------- server ----------
 const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";
@@ -215,6 +307,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/leads" && req.method === "GET") {
         return handleLeads(req, res, cors);
+    }
+    if (url.pathname === "/api/agent-log" && req.method === "POST") {
+        return handleAgentLog(req, res);
+    }
+    if (url.pathname === "/api/agent-log" && req.method === "GET") {
+        return handleAgentLogRead(req, res, cors);
     }
     if (url.pathname === "/health" && req.method === "GET") {
         return sendJson(res, 200, { ok: true, db: dbPath }, cors);
