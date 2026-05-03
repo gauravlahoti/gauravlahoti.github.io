@@ -48,6 +48,17 @@ export function initAgentWidget(root, profile) {
     // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only;
     // the drag zone is display:none on ≥768px so this never fires there).
     setupDragToDismiss(panel, dom.dragZone, closePanel);
+
+    // Prevent wheel events from leaking to the page when there is content to scroll.
+    panel.addEventListener("wheel", (e) => {
+        const b = dom.body;
+        const atTop    = b.scrollTop <= 0;
+        const atBottom = b.scrollTop + b.clientHeight >= b.scrollHeight - 1;
+        if (!(atTop && e.deltaY < 0) && !(atBottom && e.deltaY > 0)) {
+            e.stopPropagation();
+        }
+    }, { passive: true });
+
     sendBtn.addEventListener("click", sendCurrent);
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -89,7 +100,7 @@ export function initAgentWidget(root, profile) {
             fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
                 .catch(() => { /* best-effort; failure is harmless */ });
         }
-        requestAnimationFrame(() => input.focus());
+        requestAnimationFrame(() => { input.focus(); syncScrollHint(); });
     }
     function closePanel() {
         isOpen = false;
@@ -221,12 +232,22 @@ export function initAgentWidget(root, profile) {
         renderTextWithLinks(p, fullText);
     }
 
+    function syncScrollHint() {
+        const b = dom.body;
+        const overflows = b.scrollHeight > b.clientHeight + 8;
+        const atBottom  = b.scrollTop + b.clientHeight >= b.scrollHeight - 8;
+        b.classList.toggle("has-overflow", overflows && !atBottom);
+    }
+
     function scrollToEnd() {
         // Scroll the body, not the input. Use rAF so layout settles.
         requestAnimationFrame(() => {
             dom.body.scrollTop = dom.body.scrollHeight;
+            syncScrollHint();
         });
     }
+
+    dom.body.addEventListener("scroll", syncScrollHint, { passive: true });
 
     return { open: openPanel, close: closePanel };
 }
@@ -286,6 +307,7 @@ function renderShell(root) {
 
     const body = document.createElement("div");
     body.className = "agent-panel-body";
+    body.tabIndex = 0;
 
     const prompts = document.createElement("div");
     prompts.className = "agent-prompts";

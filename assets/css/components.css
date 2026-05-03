@@ -1769,8 +1769,9 @@
 /* Expanded view: ~25% wider + taller for long answers. Mobile (<= 720px) is
    already full-screen and ignores this. */
 .agent-panel.is-expanded {
-    width: 475px;
-    max-height: min(90vh, 800px);
+    width: 620px;
+    min-height: min(60vh, 560px);
+    max-height: min(92vh, 900px);
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-panel { transition: none; transform: none; }
@@ -1823,6 +1824,7 @@
 
 .agent-panel-body {
     flex: 1 1 auto;
+    min-height: 0;
     /* `scroll` (not `auto`) forces the scrollbar to render even on macOS
        where overlay scrollbars hide by default — visitors couldn't
        discover the scrollable region until they touched it. */
@@ -1843,11 +1845,11 @@
     width: 10px;
 }
 .agent-panel-body::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 5px;
 }
 .agent-panel-body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.5);
     border-radius: 5px;
     border: 2px solid transparent;
     background-clip: padding-box;
@@ -1856,6 +1858,19 @@
 .agent-panel-body::-webkit-scrollbar-thumb:hover {
     background: var(--accent);
     background-clip: padding-box;
+}
+/* Gradient hint shown via JS when content overflows — works on mobile where
+   native overlay scrollbars are invisible by default. */
+.agent-panel-body.has-overflow::after {
+    content: '';
+    position: sticky;
+    bottom: 0;
+    display: block;
+    flex-shrink: 0;
+    align-self: stretch;
+    height: 40px;
+    background: linear-gradient(transparent, var(--bg-elev));
+    pointer-events: none;
 }
 
 .agent-prompts {
@@ -2146,7 +2161,7 @@
         transform: translateY(100%);
     }
     .agent-panel.is-open { transform: translateY(0); }
-    .agent-panel.is-expanded { max-height: 92vh; }
+    .agent-panel.is-expanded { min-height: 75vh; max-height: 96vh; }
 
     /* Drag handle — visible only on mobile; rendered by agent-widget.js. */
     .agent-panel-drag-handle {
