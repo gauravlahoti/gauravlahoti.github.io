@@ -56,6 +56,8 @@ Spec 21 adds a floating "Ask my agent" widget powered by a Google ADK Python age
 - **Deploy**: `agents-cli scaffold enhance . --deployment-target cloud_run --session-type in_memory` once, then `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0`. After deploy, paste the Cloud Run URL into `profile.json` `links.agentApi` / `links.agentWarm` and `index.html` CSP `connect-src`.
 - **Refresh corpus**: `make corpus` syncs `assets/js/data/*.json` → `portfolio-agent/app/corpus/`. The agent ships a frozen snapshot per deploy; redeploy to update.
 
+**Conversation upgrades (Spec #24):** every reply ends with a server-stripped `[[META]]…[[/META]]` JSON block carrying `citations`, `suggestions` (follow-up chips), and an optional `cta`. `_stream_agent` detects the sentinel, strips it from the delta stream, parses the block (last-wins via `rfind`), validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as `citations` / `suggestions` / `cta` SSE events before `done`. The widget renders inline `[N]` superscripts (after `done`, not during streaming), a chip row, and a Topmate / LinkedIn CTA button when applicable. Audit log gains `citations_count`, `suggestions_count`, and `cta` columns (Spec #23 schema extended via `backend/migrations/003-agent-meta.sql`). `[[META]]` / `[[/META]]` are stripped from user input in `before_model_callback` as a first-line injection defense. Copy for CTA buttons and scroll nudge lives in `profile.agentCopy`; transparency modal copy lives in `profile.agentExplainer`.
+
 ## Conventions
 
 - **Content lives in JSON, not HTML.** All identity, career, and project data flows out of `assets/js/data/`. Markup stays template-only so updating the bio never touches code.

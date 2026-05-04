@@ -52,7 +52,7 @@
         {
           "rubricId": "citations",
           "rubricContent": {
-            "textProperty": "Factual responses about Gaurav end with a single line beginning with `Sources:` followed by source names from this set only: resume, LinkedIn, Credly, GitHub. Refusals and meta-questions ('are you human?') may omit the line. The line must not invent source names like 'internal database', 'knowledge graph', or 'the system'."
+            "textProperty": "Factual responses about Gaurav contain [N] superscript markers (e.g. [1], [2]) next to specific claims, AND end with a [[META]] block whose citations list maps each marker id to a URL on the allowlist (linkedin.com, github.com, topmate.io, gauravlahoti.github.io). The response does NOT end with a 'Sources:' plain-text line. Every [N] marker has a matching citations[id] entry in the [[META]] block. Refusals and meta-questions ('are you human?') may have empty citations but must still include the [[META]] block. No citations are invented outside tool output. Target: 0.95 (citations correctness is binary — a citation either points to the right source or it does not)."
           }
         }
       ]

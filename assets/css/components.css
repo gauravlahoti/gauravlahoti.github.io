@@ -2090,6 +2090,230 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     clip: rect(0, 0, 0, 0); white-space: nowrap;
 }
 
+/* ==================== Spec #24 — Conversation upgrades ==================== */
+
+/* Typing caret — blinks while the agent is streaming a response. */
+.agent-cursor {
+    display: inline-block;
+    width: 0.5ch;
+    height: 1em;
+    background: var(--accent);
+    margin-left: 1px;
+    vertical-align: -0.1em;
+    animation: agent-cursor-blink 1s steps(2, end) infinite;
+}
+@keyframes agent-cursor-blink { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+    .agent-cursor { animation: none; opacity: 1; }
+}
+
+/* Inline citation superscripts [1], [2], [3]. */
+sup.agent-cite {
+    font-size: 0.7em;
+    line-height: 0;
+    vertical-align: super;
+}
+sup.agent-cite a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+    padding: 0 2px;
+}
+sup.agent-cite a:hover,
+sup.agent-cite a:focus-visible {
+    background: var(--accent-soft);
+    outline: none;
+}
+
+/* Follow-up suggestion chips — rendered after a response completes. */
+.agent-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+.agent-suggestion-chip {
+    text-align: left;
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-card);
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    min-height: 36px;
+    transition:
+        border-color var(--dur-fast) var(--ease-out),
+        color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out);
+}
+.agent-suggestion-chip:hover,
+.agent-suggestion-chip:focus-visible {
+    border-color: var(--accent);
+    color: var(--ink);
+    background: var(--accent-soft);
+    outline: none;
+}
+
+/* CTA button — Topmate / LinkedIn off-ramp on personal/off-topic punts. */
+.agent-cta-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-3);
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    text-decoration: none;
+    cursor: pointer;
+    transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.agent-cta-action:hover,
+.agent-cta-action:focus-visible {
+    box-shadow: 0 0 24px var(--accent-glow);
+    outline: none;
+}
+
+/* Scroll nudge bubble — appears above the FAB when Career section enters view. */
+.agent-nudge {
+    position: fixed;
+    bottom: calc(var(--space-4) + 56px + env(safe-area-inset-bottom));
+    right: var(--space-4);
+    max-width: 240px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    z-index: var(--z-agent-nudge);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--ink);
+}
+.agent-nudge-text { flex: 1; }
+.agent-nudge-dismiss {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 var(--space-1);
+}
+.agent-nudge-dismiss:hover { color: var(--ink); }
+
+/* Transparency / explainer modal — centered in the viewport via native showModal(). */
+.agent-explainer-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--ink);
+    width: min(520px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: var(--space-5);
+    z-index: 100;
+}
+.agent-explainer-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+.agent-explainer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+.agent-explainer-title {
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    color: var(--accent);
+    margin: 0;
+}
+.agent-explainer-close {
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+}
+.agent-explainer-close:hover { color: var(--ink); }
+.agent-explainer-body p {
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    color: var(--ink-muted);
+    margin-bottom: var(--space-3);
+}
+.agent-explainer-body p:last-child { margin-bottom: 0; }
+.agent-explainer-foot {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+}
+.agent-explainer-foot a {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: none;
+}
+.agent-explainer-foot a:hover { text-decoration: underline; }
+
+/* Explainer trigger button in the panel footer. */
+.agent-explainer-trigger {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+.agent-explainer-trigger:hover,
+.agent-explainer-trigger:focus-visible {
+    color: var(--accent);
+    outline: none;
+}
+
+/* Inline retry button — shown after mid-stream network failure. */
+.agent-retry-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition:
+        color var(--dur-fast) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out);
+}
+.agent-retry-inline:hover,
+.agent-retry-inline:focus-visible {
+    color: var(--ink);
+    border-color: var(--accent-soft);
+    outline: none;
+}
+
 /* ==================== Spec 22 — Mobile overhaul ==================== */
 /* Hidden by default on desktop. Each block below opts elements back in
    for ≤767px viewports only — desktop remains untouched. */
@@ -2232,7 +2456,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         transform: translateY(100%);
     }
     .agent-panel.is-open { transform: translateY(0); }
-    .agent-panel.is-expanded { min-height: 75vh; max-height: 96vh; }
+    .agent-panel.is-expanded { min-height: 60vh; max-height: 92vh; }
 
     /* Drag handle — visible only on mobile; rendered by agent-widget.js. */
     .agent-panel-drag-handle {

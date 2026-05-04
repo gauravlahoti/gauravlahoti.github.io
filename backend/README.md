@@ -225,3 +225,35 @@ gcloud run services update portfolio-agent --region=us-central1 \
 ```
 
 Tokens are stored in Cloudflare's secret store (not in `wrangler.toml`).
+
+## Agent audit log — Spec #24 meta-block columns
+
+Three nullable columns were added to `agent_interactions` in Spec #24 to capture the meta-block parsed server-side from each agent reply:
+
+| Column | Type | Content |
+|---|---|---|
+| `citations_count` | INTEGER | Number of citation entries emitted (0 if none) |
+| `suggestions_count` | INTEGER | Number of follow-up chip suggestions (2–3 for normal turns) |
+| `cta` | TEXT | `'topmate'`, `'linkedin'`, or NULL |
+
+Run the production migration once:
+
+```bash
+wrangler d1 execute resume-leads --file=backend/migrations/003-agent-meta.sql --remote
+```
+
+Sample analytics query — personal-punt rate and follow-up coverage:
+
+```sql
+SELECT
+    DATE(logged_at, 'unixepoch') AS day,
+    COUNT(*) AS turns,
+    SUM(CASE WHEN cta = 'topmate' THEN 1 ELSE 0 END) AS topmate_punts,
+    AVG(suggestions_count) AS avg_suggestions,
+    AVG(citations_count) AS avg_citations
+FROM agent_interactions
+WHERE status = 'ok'
+GROUP BY day
+ORDER BY day DESC
+LIMIT 30;
+```

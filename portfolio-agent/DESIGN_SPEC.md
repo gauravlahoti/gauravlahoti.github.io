@@ -92,3 +92,47 @@ make audit   # requires AGENT_LOG_URL and AGENT_LOG_TOKEN to be set in .env
 - Voice, multimodal input.
 - Embedding-based RAG / vector store.
 - Markdown rendering on the frontend (plain text only — XSS surface minimization).
+
+## Conversation upgrades — Spec #24
+
+### Meta-block protocol
+
+Every reply from the model ends with a server-stripped `[[META]]…[[/META]]` JSON block:
+
+```
+[[META]]
+{"citations":[{"id":1,"url":"https://...","label":"..."}],
+ "suggestions":["Q1?","Q2?","Q3?"],
+ "cta":null}
+[[/META]]
+```
+
+`_stream_agent` in `app/api.py`:
+1. Detects the `[[META]]` sentinel during streaming and stops forwarding to the client.
+2. Accumulates the block, parses it after `[[/META]]` (or end-of-stream).
+3. Uses `rfind` to locate the **last** `[[META]]` in the output (last-wins — defends against forged earlier sentinels echoed from hostile user input).
+4. Validates citation URLs against `_ALLOWED_CITE_HOSTS` (server is canonical).
+5. Emits structured SSE events before `done`.
+
+### Extended SSE event types
+
+| Event | Shape | Notes |
+|---|---|---|
+| `delta` | `{"delta": "str"}` | unchanged |
+| `citations` | `{"citations": [{id, url, label}]}` | before `done`; max 3 entries |
+| `suggestions` | `{"suggestions": ["str", ...]}` | before `done`; 2–3 items |
+| `cta` | `{"cta": "topmate"\|"linkedin"}` | optional; personal/off-topic punts |
+| `done` | `{"done": true}` | unchanged |
+
+The protocol is non-breaking — older clients ignore unknown event keys.
+
+### Injection hardening
+
+- `before_model_callback` strips `[[META]]` and `[[/META]]` from user input before it reaches the model.
+- The last-wins parser ensures forged earlier sentinels can't override the canonical trailing block.
+- Server-side `_ALLOWED_CITE_HOSTS` is the single source of truth for citation URL admissibility.
+
+### Audit log extension (Spec #23 ← #24)
+
+Three nullable columns added to `agent_interactions`: `citations_count INTEGER`, `suggestions_count INTEGER`, `cta TEXT`. The `response` column stores only user-visible text (no `[[META]]` content). Migration: `backend/migrations/003-agent-meta.sql`.
+

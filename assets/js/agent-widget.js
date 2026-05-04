@@ -1,7 +1,17 @@
 // agent-widget.js — bottom-right "Ask my agent" FAB + slide-in panel.
 // Talks to a Cloud Run ADK agent over SSE (POST /api/agent-chat).
-// Pre-warms the container on FAB-open to mask cold-start. Renders plain
-// text only — no Markdown, no innerHTML for assistant content.
+// Spec #24 adds: typing caret, inline [N] citation superscripts, follow-up
+// chips, Topmate/LinkedIn CTA button, scroll nudge, transparency modal,
+// and mid-stream network-error retry. All gated by FEATURES flags below.
+
+const FEATURES = Object.freeze({
+    citations:       true,
+    suggestions:     true,
+    cta:             true,
+    typingCursor:    true,
+    scrollNudge:     true,
+    explainerDialog: true,
+});
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
@@ -37,8 +47,10 @@ export function initAgentWidget(root, profile) {
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
     const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
+    const agentCopy = (profile && profile.agentCopy) || {};
+    const agentExplainer = (profile && profile.agentExplainer) || {};
 
-    const dom = renderShell(root);
+    const dom = renderShell(root, agentExplainer);
     const fab = dom.fab;
     const panel = dom.panel;
     const transcript = dom.transcript;
@@ -48,15 +60,18 @@ export function initAgentWidget(root, profile) {
     const promptsEl = dom.prompts;
     let isOpen = false;
     let isPending = false; // true while a response is streaming
+    let panelEverOpened = false; // for scroll nudge — flipped on first open
+    let nudgeIo = null; // IntersectionObserver for scroll nudge
 
     renderStarters();
+    setupExplainerModal(dom, agentExplainer);
+    setupScrollNudge();
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
     dom.expandBtn.addEventListener("click", toggleExpand);
 
-    // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only;
-    // the drag zone is display:none on ≥768px so this never fires there).
+    // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only).
     setupDragToDismiss(panel, dom.dragZone, closePanel);
 
     // Prevent wheel events from leaking to the page when there is content to scroll.
@@ -98,16 +113,11 @@ export function initAgentWidget(root, profile) {
     }
     function openPanel() {
         isOpen = true;
+        panelEverOpened = true;
         panel.classList.add("is-open");
         panel.setAttribute("aria-hidden", "false");
         fab.setAttribute("aria-expanded", "true");
-        // Spec 22: signal panel-open globally so CSS can hide the FAB and
-        // the mobile bottom-bar (they'd otherwise sit behind the bottom sheet).
-        // Attribute is intentionally distinct from `data-agent-open` (the
-        // trigger marker on hero/bottom-bar buttons) so the global click
-        // handler in main.js doesn't match `<body>` and swallow every click.
         document.body.setAttribute("data-agent-panel-open", "true");
-        // Pre-warm Cloud Run on first open of the session.
         if (!warmedThisSession && warmUrl) {
             warmedThisSession = true;
             fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
@@ -148,17 +158,77 @@ export function initAgentWidget(root, profile) {
         });
     }
 
+    function setupScrollNudge() {
+        if (!FEATURES.scrollNudge) return;
+        if (!matchMedia("(min-width: 768px)").matches) return;
+        const career = document.querySelector("#career, [data-section='career'], section[id*='career']");
+        const NUDGE_KEY = "agent_nudge_v1";
+        if (!career || sessionStorage.getItem(NUDGE_KEY) === "shown") return;
+
+        nudgeIo = new IntersectionObserver((entries) => {
+            for (const e of entries) {
+                if (e.isIntersecting && !panelEverOpened) {
+                    sessionStorage.setItem(NUDGE_KEY, "shown");
+                    nudgeIo.disconnect();
+                    nudgeIo = null;
+                    showNudge(agentCopy?.nudge?.label || "Want a TL;DR of his career arc?",
+                              agentCopy?.nudge?.prompt || "Give me a TL;DR of his career arc");
+                }
+            }
+        }, { threshold: 0.4 });
+        nudgeIo.observe(career);
+    }
+
+    function showNudge(label, prompt) {
+        const existing = root.querySelector(".agent-nudge");
+        if (existing) return;
+
+        const nudge = document.createElement("div");
+        nudge.className = "agent-nudge";
+        nudge.setAttribute("role", "status");
+        const txt = document.createElement("span");
+        txt.className = "agent-nudge-text";
+        txt.textContent = label;
+        const dismiss = document.createElement("button");
+        dismiss.type = "button";
+        dismiss.className = "agent-nudge-dismiss";
+        dismiss.setAttribute("aria-label", "Dismiss");
+        dismiss.textContent = "×";
+        nudge.appendChild(txt);
+        nudge.appendChild(dismiss);
+        root.appendChild(nudge);
+
+        const autoTimer = setTimeout(() => nudge.remove(), 8000);
+
+        dismiss.addEventListener("click", () => {
+            clearTimeout(autoTimer);
+            nudge.remove();
+        });
+        txt.addEventListener("click", () => {
+            clearTimeout(autoTimer);
+            nudge.remove();
+            openPanel();
+            // Small delay so the panel animation starts before we send
+            setTimeout(() => {
+                input.value = prompt;
+                sendCurrent();
+            }, 80);
+        });
+    }
+
+    // ---- send / stream ---------------------------------------------------
+
     async function sendCurrent() {
         if (isPending) return;
         const text = (input.value || "").trim();
         if (!text) return;
         if (text.length > 1000) {
-            appendSystem(
-                "That message is a bit long for me — could you trim it under ~1000 characters?",
-            );
+            appendSystem("That message is a bit long for me — could you trim it under ~1000 characters?");
             return;
         }
-        // Hide the starter prompts after the first send.
+        // Remove suggestion chips from the previous assistant message
+        transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
+
         promptsEl.classList.add("is-hidden");
         input.value = "";
         sendBtn.disabled = true;
@@ -169,7 +239,15 @@ export function initAgentWidget(root, profile) {
 
         const assistant = appendAssistantPlaceholder();
         const stages = startLoadingStages(assistant);
+        let firstDelta = true;
         let errorShown = false;
+        let midStreamError = false;
+        let pendingCitations = {};
+        let pendingCta = null;
+        let lastUserText = text;
+
+        // Per-turn state holders written by SSE callbacks
+        const turnState = { citations: {}, suggestions: [], cta: null };
 
         try {
             await streamAgent({
@@ -177,26 +255,56 @@ export function initAgentWidget(root, profile) {
                 sessionId,
                 messages,
                 identity,
-                onDelta: (delta) => {
-                    stages.cancel();
-                    appendDelta(assistant, delta);
+                onDelta(delta) {
+                    if (firstDelta) {
+                        firstDelta = false;
+                        stages.cancel(); // clear loading indicator on first char
+                    }
+                    appendDelta(assistant, delta, FEATURES.typingCursor);
                 },
-                onDone: (full) => {
+                onCitations(citations) {
+                    // Store for post-done render — do NOT re-render yet (caret active)
+                    turnState.citations = Object.fromEntries(citations.map(c => [c.id, c]));
+                },
+                onSuggestions(suggestions) {
+                    turnState.suggestions = suggestions;
+                },
+                onCta(cta) {
+                    turnState.cta = cta;
+                },
+                onDone(full) {
                     stages.cancel();
                     if (!full && !errorShown) {
-                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?");
+                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
                     }
                     if (full) {
-                        // Linkify allowlisted URLs in the assembled text.
-                        finalizeAssistant(assistant, full);
+                        // Remove typing caret first, then do one-shot render with citations
+                        finalizeAssistant(assistant, full, turnState.citations);
                         messages.push({ role: "assistant", content: full });
                         liveRegion.textContent = stripUrls(full).slice(0, 240);
+
+                        // Render follow-up chips
+                        if (FEATURES.suggestions && turnState.suggestions.length) {
+                            renderSuggestions(assistant, turnState.suggestions);
+                        }
+                        // Render CTA button
+                        if (FEATURES.cta && turnState.cta) {
+                            renderCta(assistant, turnState.cta, agentCopy);
+                        }
                     }
                 },
-                onError: (msg) => {
+                onError(msg, isMidStream) {
                     stages.cancel();
                     errorShown = true;
-                    appendDelta(assistant, msg);
+                    midStreamError = !!isMidStream;
+                    // Remove cursor if streaming was interrupted
+                    removeCaret(assistant);
+                    if (isMidStream) {
+                        // Keep partial text; append retry button
+                        appendRetryButton(assistant, lastUserText);
+                    } else {
+                        appendDelta(assistant, msg, false);
+                    }
                 },
             });
         } finally {
@@ -204,6 +312,23 @@ export function initAgentWidget(root, profile) {
             isPending = false;
         }
     }
+
+    function appendRetryButton(assistantLi, userText) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "agent-retry-inline";
+        btn.textContent = "Connection dropped — retry?";
+        btn.addEventListener("click", () => {
+            btn.remove();
+            // Re-send the last user message; append a fresh assistant bubble
+            input.value = userText;
+            sendCurrent();
+        });
+        assistantLi.appendChild(btn);
+        scrollToEnd();
+    }
+
+    // ---- DOM helpers -------------------------------------------------------
 
     function appendUser(text) {
         const li = document.createElement("li");
@@ -237,19 +362,65 @@ export function initAgentWidget(root, profile) {
         return li;
     }
 
-    function appendDelta(li, delta) {
+    function appendDelta(li, delta, withCursor) {
         const p = li.querySelector(".agent-message-text");
         if (!p) return;
-        // Plain textContent — no markdown, no HTML.
-        p.textContent = (p.textContent || "") + delta;
+        // Remove stale caret before appending (it will be re-appended at the end)
+        const existingCaret = p.querySelector(".agent-cursor");
+        if (existingCaret) existingCaret.remove();
+        p.appendChild(document.createTextNode(delta));
+        if (withCursor && FEATURES.typingCursor) {
+            const caret = document.createElement("span");
+            caret.className = "agent-cursor";
+            caret.setAttribute("aria-hidden", "true");
+            p.appendChild(caret);
+        }
         scrollToEnd();
     }
 
-    function finalizeAssistant(li, fullText) {
+    function removeCaret(li) {
+        const caret = li.querySelector(".agent-cursor");
+        if (caret) caret.remove();
+    }
+
+    function finalizeAssistant(li, fullText, citations) {
         const p = li.querySelector(".agent-message-text");
         if (!p) return;
+        removeCaret(li);
         p.replaceChildren();
-        renderTextWithLinks(p, fullText);
+        renderTextWithLinks(p, fullText, citations);
+    }
+
+    function renderSuggestions(assistantLi, suggestions) {
+        const row = document.createElement("div");
+        row.className = "agent-suggestions";
+        suggestions.forEach(s => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agent-suggestion-chip";
+            btn.textContent = s;
+            btn.addEventListener("click", () => {
+                if (isPending) return;
+                input.value = s;
+                sendCurrent();
+            });
+            row.appendChild(btn);
+        });
+        assistantLi.appendChild(row);
+        scrollToEnd();
+    }
+
+    function renderCta(assistantLi, cta, agentCopy) {
+        const entry = agentCopy?.cta?.[cta];
+        if (!entry?.url) return;
+        const btn = document.createElement("a");
+        btn.className = "agent-cta-action";
+        btn.href = entry.url;
+        btn.target = "_blank";
+        btn.rel = "noopener noreferrer";
+        btn.textContent = entry.label || "Open →";
+        assistantLi.appendChild(btn);
+        scrollToEnd();
     }
 
     function syncScrollHint() {
@@ -260,7 +431,6 @@ export function initAgentWidget(root, profile) {
     }
 
     function scrollToEnd() {
-        // Scroll the body, not the input. Use rAF so layout settles.
         requestAnimationFrame(() => {
             dom.body.scrollTop = dom.body.scrollHeight;
             syncScrollHint();
@@ -272,11 +442,47 @@ export function initAgentWidget(root, profile) {
     return { open: openPanel, close: closePanel };
 }
 
-// --- helpers ----------------------------------------------------------------
+// --- Explainer modal --------------------------------------------------------
 
-function renderShell(root) {
+function setupExplainerModal(dom, agentExplainer) {
+    if (!FEATURES.explainerDialog) return;
+    const trigger = dom.footerTrigger;
+    const dialog = dom.explainerDialog;
+    if (!trigger || !dialog) return;
+
+    // Populate dialog content from profile.agentExplainer
+    const titleEl = dialog.querySelector(".agent-explainer-title");
+    const bodyEl  = dialog.querySelector(".agent-explainer-body");
+    const footEl  = dialog.querySelector(".agent-explainer-foot");
+
+    if (titleEl && agentExplainer.title) titleEl.textContent = agentExplainer.title;
+    if (bodyEl && Array.isArray(agentExplainer.body)) {
+        bodyEl.replaceChildren();
+        agentExplainer.body.forEach(para => {
+            const p = document.createElement("p");
+            p.textContent = para;
+            bodyEl.appendChild(p);
+        });
+    }
+    // No repo link in current copy — hide the footer element if empty
+    if (footEl && !agentExplainer.repoUrl) footEl.style.display = "none";
+
+    trigger.addEventListener("click", () => dialog.showModal());
+
+    const closeBtn = dialog.querySelector(".agent-explainer-close");
+    if (closeBtn) closeBtn.addEventListener("click", () => dialog.close());
+
+    dialog.addEventListener("click", (e) => {
+        // Click on the backdrop (outside the dialog content) — close
+        if (e.target === dialog) dialog.close();
+    });
+}
+
+// --- shell renderer ---------------------------------------------------------
+
+function renderShell(root, agentExplainer) {
     root.classList.add("agent-widget-host");
-    root.innerHTML = ""; // root is our owned div
+    root.innerHTML = "";
 
     const fab = document.createElement("button");
     fab.type = "button";
@@ -301,7 +507,6 @@ function renderShell(root) {
     panel.setAttribute("aria-labelledby", "agent-panel-title");
     panel.setAttribute("aria-hidden", "true");
 
-    // Spec 22: bottom-sheet drag handle (visible only on mobile via CSS).
     const dragZone = document.createElement("div");
     dragZone.className = "agent-panel-drag-zone";
     dragZone.setAttribute("aria-hidden", "true");
@@ -362,7 +567,17 @@ function renderShell(root) {
 
     const foot = document.createElement("footer");
     foot.className = "agent-panel-foot";
-    foot.textContent = "Powered by ADK + Gemini";
+
+    // Transparency modal trigger (Spec #24)
+    if (FEATURES.explainerDialog) {
+        const trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "agent-explainer-trigger";
+        trigger.textContent = "Powered by ADK + Gemini";
+        foot.appendChild(trigger);
+    } else {
+        foot.textContent = "Powered by ADK + Gemini";
+    }
 
     const liveRegion = document.createElement("div");
     liveRegion.className = "agent-live";
@@ -376,25 +591,41 @@ function renderShell(root) {
     panel.appendChild(foot);
     panel.appendChild(liveRegion);
 
+    // Explainer dialog element (portal-appended to root, outside the panel)
+    const explainerDialog = document.createElement("dialog");
+    explainerDialog.className = "agent-explainer-dialog";
+    explainerDialog.setAttribute("aria-modal", "true");
+    explainerDialog.innerHTML = `
+        <div class="agent-explainer-head">
+            <h4 class="agent-explainer-title">How this agent works</h4>
+            <button type="button" class="agent-explainer-close" aria-label="Close">×</button>
+        </div>
+        <div class="agent-explainer-body"></div>
+        <footer class="agent-explainer-foot"></footer>
+    `;
+
     root.appendChild(fab);
     root.appendChild(panel);
+    // Append dialog to body, not the widget host — the host is position:fixed
+    // in the bottom-right corner, which breaks native showModal() centering.
+    document.body.appendChild(explainerDialog);
 
     return {
         fab, panel, body, head, dragZone, closeBtn, expandBtn,
         prompts, transcript, input, sendBtn, liveRegion,
+        footerTrigger: foot.querySelector(".agent-explainer-trigger"),
+        explainerDialog,
     };
 }
 
-// Spec 22: drag-to-dismiss for the mobile bottom-sheet panel. Active only
-// when the drag handle is visible (CSS gates that on ≤767px). Drag distance
-// > 80px past the resting position closes the panel; otherwise it springs back.
+// --- drag-to-dismiss --------------------------------------------------------
+
 function setupDragToDismiss(panel, dragZone, closePanel) {
     if (!dragZone) return;
     let startY = null;
     let dragging = false;
 
     function onPointerDown(e) {
-        // Bail if the drag handle isn't actually visible (i.e. desktop).
         if (getComputedStyle(dragZone).display === "none") return;
         startY = e.clientY;
         dragging = true;
@@ -404,10 +635,7 @@ function setupDragToDismiss(panel, dragZone, closePanel) {
     function onPointerMove(e) {
         if (!dragging || startY === null) return;
         const dy = e.clientY - startY;
-        if (dy <= 0) {
-            panel.style.transform = "translateY(0)";
-            return;
-        }
+        if (dy <= 0) { panel.style.transform = "translateY(0)"; return; }
         panel.style.transform = `translateY(${dy}px)`;
     }
     function onPointerUp(e) {
@@ -433,6 +661,8 @@ function setupDragToDismiss(panel, dragZone, closePanel) {
     dragZone.addEventListener("pointercancel", onPointerCancel);
 }
 
+// --- loading stages ---------------------------------------------------------
+
 function startLoadingStages(assistantLi) {
     const p = assistantLi.querySelector(".agent-message-text");
     if (!p) return { cancel() {} };
@@ -454,7 +684,6 @@ function startLoadingStages(assistantLi) {
         cancel() {
             clearTimeout(t1);
             clearTimeout(t2);
-            // Clear the loading copy so streaming output starts fresh.
             if (
                 p.textContent.startsWith("Connecting") ||
                 p.textContent.startsWith("Agent is loading") ||
@@ -466,7 +695,9 @@ function startLoadingStages(assistantLi) {
     };
 }
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onDone, onError }) {
+// --- SSE streaming ----------------------------------------------------------
+
+async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
@@ -478,7 +709,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onD
             body: JSON.stringify(reqBody),
         });
     } catch (err) {
-        onError("I couldn't reach the agent. You appear to be offline, or the service is down. Try LinkedIn instead: https://www.linkedin.com/in/glahoti/");
+        onError("I couldn't reach the agent. You appear to be offline, or the service is down. Try LinkedIn instead: https://www.linkedin.com/in/glahoti/", false);
         onDone("");
         return;
     }
@@ -486,11 +717,11 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onD
         let detail;
         try { detail = (await response.json()).error; } catch { detail = null; }
         if (response.status === 429) {
-            onError(detail || "I've been chatting a lot — try again in a few minutes, or reach me on LinkedIn.");
+            onError(detail || "I've been chatting a lot — try again in a few minutes, or reach me on LinkedIn.", false);
         } else if (response.status >= 500) {
-            onError("The agent hit a server error. Try again in a moment, or reach me on LinkedIn for anything urgent.");
+            onError("The agent hit a server error. Try again in a moment, or reach me on LinkedIn for anything urgent.", false);
         } else {
-            onError(detail || `Request failed (${response.status}).`);
+            onError(detail || `Request failed (${response.status}).`, false);
         }
         onDone("");
         return;
@@ -501,14 +732,21 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onD
     let buffer = "";
     let full = "";
     let done = false;
+    let hadDeltas = false;
 
     try {
-        // eslint-disable-next-line no-constant-condition
         while (true) {
-            const chunk = await reader.read();
+            let chunk;
+            try {
+                chunk = await reader.read();
+            } catch (readErr) {
+                // Network dropped mid-stream
+                onError("", true /* isMidStream */);
+                onDone(hadDeltas ? full : "");
+                return;
+            }
             if (chunk.done) break;
             buffer += decoder.decode(chunk.value, { stream: true });
-            // SSE frames are separated by blank lines.
             let idx;
             while ((idx = buffer.indexOf("\n\n")) >= 0) {
                 const frame = buffer.slice(0, idx);
@@ -519,11 +757,18 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onD
                 if (!payload) continue;
                 let evt;
                 try { evt = JSON.parse(payload); } catch { continue; }
-                if (evt.delta) {
+
+                if (typeof evt.delta === "string") {
                     full += evt.delta;
+                    hadDeltas = true;
                     onDelta(evt.delta);
-                }
-                if (evt.done) {
+                } else if (evt.citations && FEATURES.citations) {
+                    onCitations(evt.citations);
+                } else if (evt.suggestions && FEATURES.suggestions) {
+                    onSuggestions(evt.suggestions);
+                } else if (evt.cta && FEATURES.cta) {
+                    onCta(evt.cta);
+                } else if (evt.done === true) {
                     done = true;
                     break;
                 }
@@ -531,39 +776,90 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onD
             if (done) break;
         }
     } catch (err) {
-        onError("The connection dropped. Try again, or reach me on LinkedIn.");
+        onError("", hadDeltas /* isMidStream */);
+        onDone(hadDeltas ? full : "");
+        return;
     }
     onDone(full);
 }
 
-function renderTextWithLinks(container, text) {
-    let last = 0;
-    URL_RE.lastIndex = 0;
+// --- text rendering ---------------------------------------------------------
+
+function renderTextWithLinks(container, text, citations) {
+    // Replace [N] citation markers first
+    const citationMap = citations || {};
+    const hasCitations = Object.keys(citationMap).length > 0;
+
+    // Split text on [N] markers and URLs together
+    // Strategy: scan character by character to handle both URL and [N] markup
+    let pos = 0;
+    const segments = [];
+
+    // Build a combined regex for URLs and [N] markers
+    const combined = /https?:\/\/[^\s<>()\[\]]+|\[(\d)\]/gi;
+    combined.lastIndex = 0;
     let match;
-    // eslint-disable-next-line no-cond-assign
-    while ((match = URL_RE.exec(text))) {
-        const url = match[0];
-        const start = match.index;
-        if (start > last) {
-            container.appendChild(document.createTextNode(text.slice(last, start)));
+    while ((match = combined.exec(text)) !== null) {
+        if (match.index > pos) {
+            segments.push({ type: "text", value: text.slice(pos, match.index) });
         }
-        const host = (url.split("//")[1] || "").split("/")[0].toLowerCase();
-        const allowed = ALLOWED_HOSTS.some((h) => host === h || host.endsWith("." + h));
-        if (allowed) {
-            const a = document.createElement("a");
-            a.href = url;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.textContent = url;
-            container.appendChild(a);
+        if (match[1] !== undefined) {
+            // [N] citation marker
+            segments.push({ type: "cite", n: Number(match[1]), raw: match[0] });
         } else {
-            container.appendChild(document.createTextNode(url));
+            // URL
+            segments.push({ type: "url", value: match[0] });
         }
-        last = start + url.length;
+        pos = match.index + match[0].length;
     }
-    if (last < text.length) {
-        container.appendChild(document.createTextNode(text.slice(last)));
+    if (pos < text.length) {
+        segments.push({ type: "text", value: text.slice(pos) });
     }
+
+    for (const seg of segments) {
+        if (seg.type === "text") {
+            container.appendChild(document.createTextNode(seg.value));
+        } else if (seg.type === "url") {
+            const url = seg.value;
+            const host = (url.split("//")[1] || "").split("/")[0].toLowerCase();
+            const allowed = ALLOWED_HOSTS.some(h => host === h || host.endsWith("." + h));
+            if (allowed) {
+                const a = document.createElement("a");
+                a.href = url;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                a.textContent = url;
+                container.appendChild(a);
+            } else {
+                container.appendChild(document.createTextNode(url));
+            }
+        } else if (seg.type === "cite") {
+            const c = citationMap[seg.n];
+            if (c && FEATURES.citations) {
+                const sup = document.createElement("sup");
+                sup.className = "agent-cite";
+                const a = document.createElement("a");
+                a.href = escapeUrl(c.url);
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                a.title = c.label || "";
+                a.setAttribute("data-cite-id", String(seg.n));
+                a.textContent = `[${seg.n}]`;
+                sup.appendChild(a);
+                container.appendChild(sup);
+            } else {
+                // No citation data yet (shouldn't happen post-done) — render plain
+                container.appendChild(document.createTextNode(seg.raw));
+            }
+        }
+    }
+}
+
+function escapeUrl(url) {
+    // Basic XSS guard — reject javascript: and data: schemes
+    const s = String(url || "").trim();
+    if (/^javascript:/i.test(s) || /^data:/i.test(s)) return "#";
+    return s;
 }
 
 function stripUrls(text) {
@@ -572,7 +868,6 @@ function stripUrls(text) {
 
 function uuidv4() {
     if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
-    // Fallback (very old browsers)
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);
     bytes[6] = (bytes[6] & 0x0f) | 0x40;

@@ -56,8 +56,10 @@ root_agent = Agent(
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
-        # ~2000 words. Most answers are 200–400 words; this is the hard cap.
-        max_output_tokens=1500,
+        # ~2300 words. Bumped from 1500 to 1800 (Spec #24) to keep the
+        # user-visible body whole on long answers — the trailing [[META]]
+        # block adds ~80–150 tokens to every reply.
+        max_output_tokens=1800,
         temperature=0.2,
         # Disable Gemini's built-in safety filters — the portfolio agent has
         # its own input/output guardrails (see guardrails.py: prompt-injection
