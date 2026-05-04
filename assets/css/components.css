@@ -727,6 +727,10 @@
     color: var(--ink-subtle);
     letter-spacing: 0.04em;
     transition: color var(--dur-base) var(--ease-out);
+    position: relative;
+    z-index: 1;
+    background: var(--bg);
+    padding: 0 var(--space-1);
 }
 .trail-station .trail-station-dot.is-active + .trail-station-year {
     color: var(--ink);
@@ -904,11 +908,23 @@
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--border);
 }
+.skill-pill.is-hidden { display: none; }
 .skill-pill-extra {
     font-family: var(--font-mono);
     font-size: 0.72rem;
     color: var(--ink-muted);
     padding: 3px 9px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+.skill-pill-extra:hover,
+.skill-pill-extra:focus-visible {
+    color: var(--ink);
+    border-color: var(--accent);
+    outline: none;
 }
 
 @media (max-width: 768px) {

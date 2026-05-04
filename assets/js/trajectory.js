@@ -20,7 +20,9 @@ export function initTrajectory(root, profile) {
     /* ---------- render company tiles ---------- */
 
     root.replaceChildren();
-    const companies = profile.experience;
+    // Most-recent company first (LinkedIn-style). Source JSON stays chronological
+    // so other consumers (agent corpus, etc.) aren't affected.
+    const companies = [...profile.experience].reverse();
     const companyEls = companies.map(co => renderCompany(co));
     companyEls.forEach(({ li }) => root.appendChild(li));
 
@@ -119,6 +121,18 @@ export function initTrajectory(root, profile) {
             },
         });
         if (Array.isArray(batch)) triggers.push(...batch);
+
+        // On macOS, Lenis init churn triggers ScrollTrigger.refresh() implicitly
+        // and the rail's start/end positions land on correctly-laid-out content.
+        // On Windows we skip Lenis (perf), so nothing forces a refresh after
+        // fonts/images settle — ScrollTrigger latches onto stale geometry and
+        // `progress` ends up clamped at 1, freezing the line fully drawn.
+        // Refresh once layout has settled, and again on full window load.
+        const refresh = () => { try { ScrollTrigger.refresh(); } catch (_) {} };
+        requestAnimationFrame(() => requestAnimationFrame(refresh));
+        if (document.readyState !== "complete") {
+            window.addEventListener("load", refresh, { once: true });
+        }
     }
 
     /* ---------- responsive re-measure ---------- */
@@ -241,7 +255,8 @@ function renderCompany(co) {
 
     const roleListEl = document.createElement("ol");
     roleListEl.className = "role-list";
-    const roleEls = (co.roles || []).map(r => renderRole(r));
+    // Most-recent role first within each company.
+    const roleEls = [...(co.roles || [])].reverse().map(r => renderRole(r));
     roleEls.forEach(el => roleListEl.appendChild(el));
 
     li.appendChild(header);
@@ -256,7 +271,8 @@ function renderRole(r) {
 
     const period = `${formatPeriod(r.start)} – ${r.end ? formatPeriod(r.end) : "Present"}`;
     const skills = r.skills || [];
-    const extra = r.extraSkills || 0;
+    const VISIBLE = 2;
+    const hidden = Math.max(0, skills.length - VISIBLE);
 
     tile.innerHTML = `
         <h4 class="role-title">${escapeHtml(r.title)}</h4>
@@ -266,12 +282,24 @@ function renderRole(r) {
             <span class="role-duration">${escapeHtml(r.duration || "")}</span>
         </p>
         <p class="role-location">${escapeHtml(r.location || "")}</p>
-        ${skills.length || extra ? `
+        ${skills.length ? `
         <ul class="role-skills" aria-label="Key skills">
-            ${skills.map(s => `<li class="skill-pill">${escapeHtml(s)}</li>`).join("")}
-            ${extra ? `<li class="skill-pill-extra">+${extra} more</li>` : ""}
+            ${skills.map((s, i) => `<li class="skill-pill${i >= VISIBLE ? " is-hidden" : ""}">${escapeHtml(s)}</li>`).join("")}
+            ${hidden ? `<li><button type="button" class="skill-pill-extra" aria-expanded="false">+${hidden} more</button></li>` : ""}
         </ul>` : ""}
     `;
+
+    if (hidden) {
+        const btn = tile.querySelector(".skill-pill-extra");
+        const hiddenPills = tile.querySelectorAll(".skill-pill.is-hidden");
+        btn.addEventListener("click", () => {
+            const expanded = btn.getAttribute("aria-expanded") === "true";
+            const next = !expanded;
+            btn.setAttribute("aria-expanded", String(next));
+            hiddenPills.forEach(p => p.classList.toggle("is-hidden", !next));
+            btn.textContent = next ? "show less" : `+${hidden} more`;
+        });
+    }
     return tile;
 }
 
