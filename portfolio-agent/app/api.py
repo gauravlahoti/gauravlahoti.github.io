@@ -28,6 +28,7 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
@@ -99,6 +100,9 @@ _ALLOWED_CTA = {"topmate", "linkedin"}
 _ALLOWED_CITE_HOSTS = {
     "linkedin.com", "www.linkedin.com",
     "github.com", "topmate.io", "gauravlahoti.github.io",
+    "credly.com", "www.credly.com",           # certification badge verification
+    "cp.certmetrics.com",                      # AWS cert verify links
+    "learn.microsoft.com",                     # Microsoft/Azure cert verify
 }
 
 
@@ -225,6 +229,7 @@ async def _stream_agent(
             user_id=session_id,
             session_id=session_id,
             new_message=new_message,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
             # Collect tool calls from function_call parts.
             content = getattr(event, "content", None)

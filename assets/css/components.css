@@ -1887,11 +1887,25 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-panel-close:hover,
 .agent-panel-close:focus-visible,
 .agent-panel-expand:hover,
-.agent-panel-expand:focus-visible {
+.agent-panel-expand:focus-visible,
+.agent-panel-minimize:hover,
+.agent-panel-minimize:focus-visible {
     color: var(--accent);
     outline: none;
 }
 .agent-panel-expand[aria-pressed="true"] { color: var(--accent); }
+
+/* Minimized state — only the header bar is visible. */
+.agent-panel.is-minimized {
+    max-height: none;
+    min-height: auto;
+    cursor: pointer;
+}
+.agent-panel.is-minimized .agent-panel-body,
+.agent-panel.is-minimized .agent-input-row,
+.agent-panel.is-minimized .agent-panel-foot,
+.agent-panel.is-minimized .agent-panel-drag-zone { display: none; }
+.agent-panel.is-minimized .agent-panel-head { border-bottom: none; }
 
 .agent-panel-body {
     flex: 1 1 auto;

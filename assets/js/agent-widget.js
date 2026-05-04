@@ -60,6 +60,7 @@ export function initAgentWidget(root, profile) {
     const liveRegion = dom.liveRegion;
     const promptsEl = dom.prompts;
     let isOpen = false;
+    let isMinimized = false;
     let isPending = false; // true while a response is streaming
     let panelEverOpened = false; // for scroll nudge — flipped on first open
     let nudgeIo = null; // IntersectionObserver for scroll nudge
@@ -71,6 +72,11 @@ export function initAgentWidget(root, profile) {
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
     dom.expandBtn.addEventListener("click", toggleExpand);
+    dom.minimizeBtn.addEventListener("click", toggleMinimize);
+    // Click on the minimized header bar to restore
+    dom.head.addEventListener("click", (e) => {
+        if (isMinimized && !e.target.closest("button")) restore();
+    });
 
     // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only).
     setupDragToDismiss(panel, dom.dragZone, closePanel);
@@ -104,7 +110,27 @@ export function initAgentWidget(root, profile) {
     });
 
     function togglePanel() {
-        if (isOpen) closePanel(); else openPanel();
+        if (isOpen) {
+            if (isMinimized) restore(); else closePanel();
+        } else {
+            openPanel();
+        }
+    }
+    function toggleMinimize() {
+        if (isMinimized) restore(); else minimize();
+    }
+    function minimize() {
+        isMinimized = true;
+        panel.classList.add("is-minimized");
+        dom.minimizeBtn.setAttribute("aria-label", "Restore panel");
+        dom.minimizeBtn.title = "Restore";
+    }
+    function restore() {
+        isMinimized = false;
+        panel.classList.remove("is-minimized");
+        dom.minimizeBtn.setAttribute("aria-label", "Minimize panel");
+        dom.minimizeBtn.title = "Minimize";
+        requestAnimationFrame(() => { input.focus(); syncScrollHint(); });
     }
     function toggleExpand() {
         const expanded = panel.classList.toggle("is-expanded");
@@ -549,11 +575,17 @@ function renderShell(root, agentExplainer) {
                     <path d="M3 7 V3 H7 M13 9 V13 H9 M3 3 L7 7 M13 13 L9 9"/>
                 </svg>
             </button>
+            <button type="button" class="agent-panel-minimize" aria-label="Minimize panel" title="Minimize">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                    <path d="M3 8 H13"/>
+                </svg>
+            </button>
             <button type="button" class="agent-panel-close" aria-label="Close agent">×</button>
         </div>
     `;
     const closeBtn = head.querySelector(".agent-panel-close");
     const expandBtn = head.querySelector(".agent-panel-expand");
+    const minimizeBtn = head.querySelector(".agent-panel-minimize");
 
     const body = document.createElement("div");
     body.className = "agent-panel-body";
@@ -636,7 +668,7 @@ function renderShell(root, agentExplainer) {
     document.body.appendChild(explainerDialog);
 
     return {
-        fab, panel, body, head, dragZone, closeBtn, expandBtn,
+        fab, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
         prompts, transcript, input, sendBtn, liveRegion,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,

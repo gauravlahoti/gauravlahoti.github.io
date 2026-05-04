@@ -52,6 +52,9 @@ _ALLOWED_HOSTS = (
     "github.com",
     "gauravlahoti.github.io",
     "topmate.io",
+    "credly.com",          # certification badge verification
+    "cp.certmetrics.com",  # AWS cert verify links
+    "learn.microsoft.com", # Microsoft/Azure cert verify
 )
 
 # Defense against the model hallucinating a direct PDF or download path on
