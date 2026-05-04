@@ -292,20 +292,26 @@ async function handleAgentLog(request, env) {
     const tokensOutput = Number.isInteger(body?.tokensOutput) ? body.tokensOutput : null;
     const latencyMs    = Number.isInteger(body?.latencyMs)    ? body.latencyMs    : null;
     const loggedAt     = Math.floor(Date.now() / 1000);
+    // Spec #24 — meta-block extracted server-side, persisted as flat columns.
+    const citationsCount   = Number.isInteger(body?.citationsCount)   ? body.citationsCount   : null;
+    const suggestionsCount = Number.isInteger(body?.suggestionsCount) ? body.suggestionsCount : null;
+    const cta = (body?.cta === "topmate" || body?.cta === "linkedin") ? body.cta : null;
 
     try {
         const { meta } = await env.DB.prepare(
             `INSERT INTO agent_interactions
                (session_id, turn_index, logged_at, question, response, tool_calls,
                 tokens_input, tokens_output, latency_ms, status, error_message,
-                google_sub, email, ip, user_agent, referrer, agent_version)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                google_sub, email, ip, user_agent, referrer, agent_version,
+                citations_count, suggestions_count, cta)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             sessionId, turnIndex, loggedAt,
             question.slice(0, 4000), response, toolCalls,
             tokensInput, tokensOutput, latencyMs,
             status, errorMessage,
-            googleSub, email, ip, userAgent, referrer, agentVersion
+            googleSub, email, ip, userAgent, referrer, agentVersion,
+            citationsCount, suggestionsCount, cta
         ).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
@@ -329,7 +335,8 @@ async function handleAgentLogRead(request, env, corsHeaders) {
         const { results } = await env.DB.prepare(
             `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
                     tokens_input, tokens_output, latency_ms, status, error_message,
-                    google_sub, email, ip, user_agent, referrer, agent_version
+                    google_sub, email, ip, user_agent, referrer, agent_version,
+                    citations_count, suggestions_count, cta
              FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
         ).all();
         return json({ ok: true, leads: results }, 200, corsHeaders);

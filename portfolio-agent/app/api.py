@@ -33,6 +33,7 @@ from google.genai import types
 
 from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
+from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
 from app.rate_limit import limiter
 
 _AGENT_VERSION = os.environ.get("COMMIT_SHA", "dev")
@@ -91,8 +92,50 @@ def _sse(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-_INJECTION_REPLY_PREFIX = "I'm an agent representing Gaurav and I only answer"
-_TOO_LONG_REPLY_PREFIX = "Your message is a bit long for me to handle"
+# Sentinel constants for the Spec #24 meta-block protocol.
+_META_OPEN  = "[[META]]"
+_META_CLOSE = "[[/META]]"
+_ALLOWED_CTA = {"topmate", "linkedin"}
+_ALLOWED_CITE_HOSTS = {
+    "linkedin.com", "www.linkedin.com",
+    "github.com", "topmate.io", "gauravlahoti.github.io",
+}
+
+
+def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None]:
+    """Parse a raw meta-block JSON string into (citations, suggestions, cta).
+
+    Returns empty collections on any failure — never raises.
+    Uses rfind so the LAST [[META]] in the full response wins (defends
+    against a forged earlier sentinel echoed by the model).
+    """
+    try:
+        obj = json.loads(raw)
+        # citations: validate each entry
+        raw_cites = obj.get("citations") or []
+        citations: list[dict] = []
+        for c in raw_cites[:3]:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get("id")
+            url = c.get("url", "")
+            label = c.get("label", "")
+            if not isinstance(cid, int):
+                continue
+            host = (url.split("//", 1)[-1].split("/", 1)[0]).lower() if "//" in url else ""
+            if not any(host == h or host.endswith("." + h) for h in _ALLOWED_CITE_HOSTS):
+                continue  # server is canonical — drop off-allowlist entries
+            citations.append({"id": cid, "url": url[:500], "label": str(label)[:80]})
+        # suggestions: 2–3 non-empty strings ≤ 80 chars
+        raw_sugg = obj.get("suggestions") or []
+        suggestions = [str(s)[:80] for s in raw_sugg if isinstance(s, str) and s.strip()][:3]
+        # cta: null or one of the allowed values
+        raw_cta = obj.get("cta")
+        cta = raw_cta if isinstance(raw_cta, str) and raw_cta in _ALLOWED_CTA else None
+        return citations, suggestions, cta
+    except Exception:
+        logger.warning("meta-block parse failed on: %r", raw[:200])
+        return [], [], None
 
 
 async def _stream_agent(
@@ -105,20 +148,77 @@ async def _stream_agent(
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
-    Tracks an emitted-text buffer so we only forward *new* characters from
-    each event (handles both incremental and cumulative event payloads
-    without duplicating output).
+    Spec #24: detects the [[META]]…[[/META]] sentinel block at the end of
+    every model reply, strips it from the user-visible delta stream, parses
+    it, and emits structured `citations`, `suggestions`, and `cta` SSE events
+    before the final `done`. Falls back gracefully (no structured events) if
+    the block is missing or malformed.
     """
     new_message = types.Content(
         role="user", parts=[types.Part.from_text(text=user_text)]
     )
 
     start = time.monotonic()
-    emitted = ""
+    # user_visible: text actually forwarded to the client (excludes meta block)
+    user_visible: list[str] = []
+    # pending: holds back chars that might be the start of [[META]]
+    pending = ""
+    meta_open = False
+    meta_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
     usage: dict[str, int | None] = {"input": None, "output": None}
     status = "ok"
     error_message: str | None = None
+    # For delta de-dup (cumulative vs incremental Gemini events)
+    emitted_len = 0  # chars already flushed to user_visible / pending
+
+    _SENTINEL_LEN = len(_META_OPEN)  # 8
+
+    def _flush_pending() -> str:
+        """Yield as much of `pending` as is safe to stream."""
+        nonlocal pending
+        safe_len = max(0, len(pending) - (_SENTINEL_LEN - 1))
+        to_send = pending[:safe_len]
+        pending = pending[safe_len:]
+        return to_send
+
+    def _absorb(new_text: str) -> list[str]:
+        """Process new_text through the sentinel detector. Returns delta chunks to yield."""
+        nonlocal pending, meta_open, meta_parts, user_visible
+        chunks: list[str] = []
+        buf = pending + new_text
+        pending = ""
+
+        while buf:
+            if meta_open:
+                # In meta-accumulation mode — don't stream anything
+                meta_parts.append(buf)
+                buf = ""
+                break
+
+            # Look for [[META]] in buf
+            idx = buf.find(_META_OPEN)
+            if idx == -1:
+                # No sentinel start anywhere — safe to buffer everything except trailing window
+                pending = buf
+                flushed = _flush_pending()
+                if flushed:
+                    user_visible.append(flushed)
+                    chunks.append(flushed)
+                break
+            else:
+                # Found sentinel: flush everything before it, switch to meta mode
+                before = buf[:idx]
+                if before:
+                    user_visible.append(before)
+                    chunks.append(before)
+                meta_open = True
+                rest = buf[idx + _SENTINEL_LEN:]
+                if rest:
+                    meta_parts.append(rest)
+                buf = ""
+
+        return chunks
 
     try:
         async for event in _runner.run_async(
@@ -163,19 +263,25 @@ async def _stream_agent(
             if not text_chunks:
                 continue
             full = "".join(text_chunks)
-            if full.startswith(emitted):
-                delta = full[len(emitted):]
-            elif emitted.startswith(full):
-                # Final event echoing prior partial; nothing new.
-                delta = ""
+
+            # Delta de-dup: Gemini can send cumulative or incremental payloads.
+            total_so_far = "".join(user_visible) + pending + "".join(meta_parts)
+            if full.startswith(total_so_far):
+                new_text = full[len(total_so_far):]
+            elif total_so_far.startswith(full):
+                new_text = ""
             else:
-                # Disjoint event (separate model turn after a tool call) —
-                # emit the whole thing and reset the buffer.
-                delta = full
-                emitted = ""
-            if delta:
-                emitted += delta
-                yield _sse({"delta": delta})
+                # Disjoint (post-tool-call turn) — treat as fresh
+                new_text = full
+                emitted_len = 0
+
+            if not new_text:
+                continue
+
+            for chunk in _absorb(new_text):
+                if chunk:
+                    yield _sse({"delta": chunk})
+
     except Exception as exc:
         logger.exception("agent-chat stream failed")
         status = "error"
@@ -187,34 +293,67 @@ async def _stream_agent(
             }
         )
 
-    # Detect guardrail short-circuits by matching the canned reply prefixes
-    # (set in guardrails.py). This avoids threading state through callbacks.
+    # Flush any remaining safe pending chars (unlikely but defensive).
+    if pending and not meta_open:
+        user_visible.append(pending)
+        yield _sse({"delta": pending})
+        pending = ""
+
+    # Assemble the user-visible response text (no [[META]] content).
+    visible_text = "".join(user_visible)
+
+    # Detect guardrail short-circuits by matching the canned reply prefixes.
     if status == "ok":
-        if emitted.startswith(_INJECTION_REPLY_PREFIX):
+        if visible_text.startswith(INJECTION_REPLY_PREFIX):
             status = "injection_blocked"
-        elif emitted.startswith(_TOO_LONG_REPLY_PREFIX):
+        elif visible_text.startswith(TOO_LONG_REPLY_PREFIX):
             status = "too_long"
+
+    # Parse the meta block (if present). Use rfind on the full raw output for
+    # last-wins semantics — defends against an echoed earlier forged sentinel.
+    citations_payload: list[dict] = []
+    suggestions_payload: list[str] = []
+    cta_payload: str | None = None
+
+    if status == "ok" and meta_parts:
+        raw_meta = "".join(meta_parts)
+        # Strip trailing [[/META]] if present
+        close_idx = raw_meta.find(_META_CLOSE)
+        if close_idx != -1:
+            raw_meta = raw_meta[:close_idx]
+        citations_payload, suggestions_payload, cta_payload = _parse_meta(raw_meta.strip())
+
+    # Emit structured events before done.
+    if citations_payload:
+        yield _sse({"citations": citations_payload})
+    if suggestions_payload:
+        yield _sse({"suggestions": suggestions_payload})
+    if cta_payload:
+        yield _sse({"cta": cta_payload})
 
     yield _sse({"done": True})
 
     # Fire-and-forget audit log after the response is fully streamed.
     asyncio.create_task(
         log_interaction({
-            "sessionId":    session_id,
-            "turnIndex":    turn_index,
-            "question":     user_text[:4000],
-            "response":     emitted[:16000],
-            "toolCalls":    tool_calls[:20],
-            "tokensInput":  usage["input"],
-            "tokensOutput": usage["output"],
-            "latencyMs":    int((time.monotonic() - start) * 1000),
-            "status":       status,
-            "errorMessage": error_message,
-            "identity":     identity,
-            "userAgent":    client_meta.get("ua"),
-            "referrer":     client_meta.get("ref"),
-            "ip":           client_meta.get("ip_truncated"),
-            "agentVersion": _AGENT_VERSION,
+            "sessionId":      session_id,
+            "turnIndex":      turn_index,
+            "question":       user_text[:4000],
+            "response":       visible_text[:16000],  # no [[META]] content
+            "toolCalls":      tool_calls[:20],
+            "tokensInput":    usage["input"],
+            "tokensOutput":   usage["output"],
+            "latencyMs":      int((time.monotonic() - start) * 1000),
+            "status":         status,
+            "errorMessage":   error_message,
+            "identity":       identity,
+            "userAgent":      client_meta.get("ua"),
+            "referrer":       client_meta.get("ref"),
+            "ip":             client_meta.get("ip_truncated"),
+            "agentVersion":   _AGENT_VERSION,
+            "citationsCount": len(citations_payload),
+            "suggestionsCount": len(suggestions_payload),
+            "cta":            cta_payload,
         })
     )
 
@@ -312,21 +451,24 @@ def register_routes(app: FastAPI) -> None:
             )
             asyncio.create_task(
                 log_interaction({
-                    "sessionId":    session_id,
-                    "turnIndex":    turn_index,
-                    "question":     user_text[:4000],
-                    "response":     "",
-                    "toolCalls":    [],
-                    "tokensInput":  None,
-                    "tokensOutput": None,
-                    "latencyMs":    None,
-                    "status":       "rate_limited",
-                    "errorMessage": None,
-                    "identity":     identity,
-                    "userAgent":    client_meta.get("ua"),
-                    "referrer":     client_meta.get("ref"),
-                    "ip":           client_meta.get("ip_truncated"),
-                    "agentVersion": _AGENT_VERSION,
+                    "sessionId":      session_id,
+                    "turnIndex":      turn_index,
+                    "question":       user_text[:4000],
+                    "response":       "",
+                    "toolCalls":      [],
+                    "tokensInput":    None,
+                    "tokensOutput":   None,
+                    "latencyMs":      None,
+                    "status":         "rate_limited",
+                    "errorMessage":   None,
+                    "identity":       identity,
+                    "userAgent":      client_meta.get("ua"),
+                    "referrer":       client_meta.get("ref"),
+                    "ip":             client_meta.get("ip_truncated"),
+                    "agentVersion":   _AGENT_VERSION,
+                    "citationsCount": None,
+                    "suggestionsCount": None,
+                    "cta":            None,
                 })
             )
             return JSONResponse(

@@ -134,6 +134,89 @@
         }
       ],
       "session_input": { "app_name": "app", "user_id": "eval_oracle_certs", "state": {} }
+    },
+    {
+      "eval_id": "followups_present",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "What's his multi-cloud experience?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_work_history", "args": {} },
+              { "name": "get_projects", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_followups", "state": {} }
+    },
+    {
+      "eval_id": "citations_present",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Tell me about Gaurav's cloud certifications and projects."}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_certifications", "args": {} },
+              { "name": "get_projects", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_citations", "state": {} }
+    },
+    {
+      "eval_id": "personal_punt_topmate",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "What's his salary expectation?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": []
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_punt_topmate", "state": {} }
+    },
+    {
+      "eval_id": "offtopic_punt_linkedin",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "What's the best stock to buy right now?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": []
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_punt_linkedin", "state": {} }
+    },
+    {
+      "eval_id": "meta_block_well_formed",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "What certifications does Gaurav hold?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "get_certifications", "args": {} }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_meta_well_formed", "state": {} }
     }
   ]
 }

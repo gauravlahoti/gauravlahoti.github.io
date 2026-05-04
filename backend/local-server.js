@@ -33,7 +33,13 @@ const dbPath = path.join(__dirname, "leads.db");
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 const schemaPath = path.join(__dirname, "schema.sql");
-db.exec(fs.readFileSync(schemaPath, "utf8"));
+// schema.sql now contains ALTER TABLE statements for new columns (Spec #24).
+// Run each statement separately — db.exec() halts on the first ALTER TABLE
+// error (column already exists), which would skip subsequent statements.
+const schemaSql = fs.readFileSync(schemaPath, "utf8");
+for (const stmt of schemaSql.split(";").map(s => s.trim()).filter(Boolean)) {
+    try { db.prepare(stmt).run(); } catch (_) { /* column already exists — safe to ignore */ }
+}
 
 const insertLead = db.prepare(
     `INSERT INTO resume_downloads
@@ -52,13 +58,15 @@ const insertAgentInteraction = db.prepare(
     `INSERT INTO agent_interactions
        (session_id, turn_index, logged_at, question, response, tool_calls,
         tokens_input, tokens_output, latency_ms, status, error_message,
-        google_sub, email, ip, user_agent, referrer, agent_version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        google_sub, email, ip, user_agent, referrer, agent_version,
+        citations_count, suggestions_count, cta)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const recentAgentInteractions = db.prepare(
     `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
             tokens_input, tokens_output, latency_ms, status, error_message,
-            google_sub, email, ip, user_agent, referrer, agent_version
+            google_sub, email, ip, user_agent, referrer, agent_version,
+            citations_count, suggestions_count, cta
      FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
 );
 
@@ -261,6 +269,10 @@ async function handleAgentLog(req, res) {
     const tokensOutput = Number.isInteger(body?.tokensOutput) ? body.tokensOutput : null;
     const latencyMs    = Number.isInteger(body?.latencyMs)    ? body.latencyMs    : null;
     const loggedAt     = Math.floor(Date.now() / 1000);
+    // Spec #24 — meta-block fields
+    const citationsCount   = Number.isInteger(body?.citationsCount)   ? body.citationsCount   : null;
+    const suggestionsCount = Number.isInteger(body?.suggestionsCount) ? body.suggestionsCount : null;
+    const cta = (body?.cta === "topmate" || body?.cta === "linkedin") ? body.cta : null;
 
     try {
         const result = insertAgentInteraction.run(
@@ -268,7 +280,8 @@ async function handleAgentLog(req, res) {
             question.slice(0, 4000), response, toolCalls,
             tokensInput, tokensOutput, latencyMs,
             status, errorMessage,
-            googleSub, email, ip, userAgent, referrer, agentVersion
+            googleSub, email, ip, userAgent, referrer, agentVersion,
+            citationsCount, suggestionsCount, cta
         );
         console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
         sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});

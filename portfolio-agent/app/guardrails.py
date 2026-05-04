@@ -68,12 +68,17 @@ _RESUME_HINT = "(click the Resume button on this page)"
 
 _MAX_USER_CHARS = 1000
 
-_INJECTION_REPLY = (
+# Public prefixes imported by api.py for audit-log status detection.
+# Must match the opening of the corresponding full reply strings below.
+INJECTION_REPLY_PREFIX = "I'm an agent representing Gaurav and I only answer"
+TOO_LONG_REPLY_PREFIX  = "Your message is a bit long for me to handle"
+
+INJECTION_REPLY = (
     "I'm an agent representing Gaurav and I only answer questions about his "
     "work, perspectives, and projects. If you'd like to chat directly, the "
     "best place is LinkedIn: https://www.linkedin.com/in/glahoti/."
 )
-_TOO_LONG_REPLY = (
+TOO_LONG_REPLY = (
     "Your message is a bit long for me to handle reliably. Could you keep it "
     "under ~1000 characters? Or reach Gaurav on LinkedIn for anything "
     "involved: https://www.linkedin.com/in/glahoti/."
@@ -112,16 +117,20 @@ def before_model_callback(
 ) -> LlmResponse | None:
     """Run before each model call. Return an LlmResponse to short-circuit."""
     user_text = _latest_user_text(llm_request)
+    # Strip meta-block sentinels so a hostile visitor can't smuggle a forged
+    # [[META]] payload through the user message. Server-side rfind is the
+    # primary defense; this removes the attack surface on the input side.
+    user_text = user_text.replace("[[META]]", "").replace("[[/META]]", "")
     state = callback_context.state
 
     # Stash contact-intent flag for the output filter.
     state["contact_intent"] = bool(_CONTACT_INTENT_RE.search(user_text))
 
     if len(user_text) > _MAX_USER_CHARS:
-        return _short_circuit(_TOO_LONG_REPLY)
+        return _short_circuit(TOO_LONG_REPLY)
 
     if _INJECTION_RE.search(user_text):
-        return _short_circuit(_INJECTION_REPLY)
+        return _short_circuit(INJECTION_REPLY)
 
     return None
 

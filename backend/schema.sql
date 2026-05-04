@@ -39,3 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_ai_session ON agent_interactions(session_id);
 CREATE INDEX IF NOT EXISTS idx_ai_at      ON agent_interactions(logged_at);
 CREATE INDEX IF NOT EXISTS idx_ai_sub     ON agent_interactions(google_sub);
 CREATE INDEX IF NOT EXISTS idx_ai_status  ON agent_interactions(status);
+
+-- Spec #24 — meta-block extracted server-side, persisted as flat columns.
+ALTER TABLE agent_interactions ADD COLUMN citations_count   INTEGER;
+ALTER TABLE agent_interactions ADD COLUMN suggestions_count INTEGER;
+ALTER TABLE agent_interactions ADD COLUMN cta               TEXT;
