@@ -232,6 +232,17 @@
     .hi-agent { display: none; }
 }
 
+/* Off-screen pause: when #hero leaves the viewport, freeze the looping
+   identity-line cursor blink and the three flying agent dots. The hero is
+   visually unchanged while visible; the only difference is that paint work
+   stops the moment it scrolls away. */
+#hero[data-paused="true"] .hi-noun-text::after,
+#hero[data-paused="true"] .hi-agent,
+#hero[data-paused="true"] .caret,
+#hero[data-paused="true"] .dot {
+    animation-play-state: paused;
+}
+
 /* Used by .bento-card-foot .kw and other nested keyword spans */
 .kw { color: var(--accent); }
 
@@ -286,6 +297,13 @@
     animation-play-state: paused;
 }
 
+/* Off-screen pause: when the cert rail leaves the viewport, freeze the
+   ticker. Resumes from the same offset when scrolled back into view, so
+   the visual identity is preserved while the GPU layer stops repainting. */
+.cert-rail[data-paused="true"] .cert-rail-list {
+    animation-play-state: paused;
+}
+
 @keyframes cert-ticker {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
@@ -307,11 +325,16 @@
     cursor: pointer;
     padding: 0;
     transform-style: preserve-3d;
-    will-change: transform, opacity, filter;
     transition:
         transform var(--dur-base) var(--ease-out),
         box-shadow var(--dur-base) var(--ease-out),
         border-color var(--dur-fast) var(--ease-out);
+}
+/* will-change is transient by design — pin the GPU layer only when the
+   tile is actually being interacted with, not for all 20 tiles at rest. */
+.cert-tile:hover,
+.cert-tile:focus-visible {
+    will-change: transform, box-shadow;
 }
 
 /* Real anchor wrapping each cert. Sized to fill the tile so the existing
@@ -383,6 +406,14 @@
     50%  { background-position: -20% -20%; opacity: 1; }
     60%  { opacity: 0; }
     100% { background-position: -20% -20%; opacity: 0; }
+}
+
+/* Off-screen pause for the per-tile shimmer (animates background-position,
+   which is paint-bound and expensive on Windows). Frozen while the rail is
+   not visible so paint cost goes to zero. (Reduced-motion guard for the
+   shimmer + ticker is already covered ~80 lines below.) */
+.cert-rail[data-paused="true"] .cert-tile::after {
+    animation-play-state: paused;
 }
 
 /* Magnetic hover: pronounced lift + scale to make the badge feel alive */
@@ -1731,15 +1762,31 @@
 }
 .agent-fab svg { color: var(--accent); }
 
-@keyframes agent-fab-pulse {
-    0%, 70%, 100% { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 var(--accent-glow); }
-    35%           { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 24px 6px var(--accent-glow); }
-}
+/* Pulsing halo: a sibling layer with a STATIC box-shadow whose only
+   animated property is opacity. Animating opacity is GPU-composited and
+   essentially free; animating box-shadow (the prior approach) forced a
+   full repaint of the FAB's bounding box every frame — visible as scroll
+   jank on Windows where the FAB stays fixed in the viewport. Visual
+   result is identical to before. */
 .agent-fab-pulse {
-    animation: agent-fab-pulse 4.5s ease-in-out infinite;
+    position: relative;
+}
+.agent-fab-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 24px 6px var(--accent-glow);
+    opacity: 0;
+    pointer-events: none;
+    animation: agent-fab-pulse-opacity 4.5s ease-in-out infinite;
+}
+@keyframes agent-fab-pulse-opacity {
+    0%, 70%, 100% { opacity: 0; }
+    35%           { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .agent-fab-pulse { animation: none; }
+    .agent-fab-pulse::after { animation: none; }
 }
 
 .agent-panel {
