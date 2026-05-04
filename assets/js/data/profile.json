@@ -21,6 +21,12 @@
     "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
   },
+  "agentPrompts": [
+    "What's his multi-cloud experience?",
+    "What is he writing about lately on LinkedIn?",
+    "Which cloud certifications does he hold?",
+    "What kinds of problems does he solve for clients?"
+  ],
   "models": ["gemini-3-pro", "claude-opus-4.7", "claude-sonnet-4.6", "claude-haiku-4.5", "gpt-5"],
   "capabilities": {
     "aiNative": [

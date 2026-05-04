@@ -1311,6 +1311,12 @@
 }
 .cursor.is-hidden { opacity: 0; }
 
+/* Hide the magnetic cursor while the agent panel is open. Otherwise the
+   brackets stay snapped to whichever magnet was last under the mouse
+   (e.g., the Resume nav link) and stop tracking the page until the
+   panel closes. The native OS pointer is unaffected. */
+body[data-agent-panel-open="true"] .cursor { display: none; }
+
 /* Hide custom cursor on touch / coarse pointers */
 @media (any-pointer: coarse), (prefers-reduced-motion: reduce) {
     .cursor { display: none !important; }
@@ -2213,8 +2219,8 @@
 
     /* Hide FAB and bottom-bar while the agent panel is open so neither
        sits behind the bottom sheet. */
-    body[data-agent-open="true"] .agent-fab,
-    body[data-agent-open="true"] .mobile-bottombar { display: none !important; }
+    body[data-agent-panel-open="true"] .agent-fab,
+    body[data-agent-panel-open="true"] .mobile-bottombar { display: none !important; }
 
     /* Agent panel becomes a bottom sheet (replaces the old ≤720px rule). */
     .agent-panel {

@@ -21,6 +21,12 @@
     "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
   },
+  "agentPrompts": [
+    "What's his multi-cloud experience?",
+    "What is he writing about lately on LinkedIn?",
+    "Which cloud certifications does he hold?",
+    "What kinds of problems does he solve for clients?"
+  ],
   "models": ["gemini-3-pro", "claude-opus-4.7", "claude-sonnet-4.6", "claude-haiku-4.5", "gpt-5"],
   "capabilities": {
     "aiNative": [
@@ -126,9 +132,9 @@
       "tenure": "3 yrs 3 mos",
       "workMode": "On-site",
       "roles": [
-        { "title": "Associate Software Engineer", "start": "2015-04", "end": "2016-05", "duration": "1 yr 2 mos", "location": "Greater Hyderabad Area", "skills": [] },
-        { "title": "Application Development Analyst", "start": "2016-06", "end": "2017-11", "duration": "1 yr 6 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle BPM", "Oracle Data Integrator (ODI)"], "extraSkills": 2 },
-        { "title": "Application Development Senior Analyst", "start": "2017-12", "end": "2018-06", "duration": "7 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle SOA Suite", "Oracle Data Integrator (ODI)"], "extraSkills": 2 }
+        { "title": "Associate Software Engineer", "start": "2015-04", "end": "2016-05", "duration": "1 yr 2 mos", "location": "Greater Hyderabad Area", "skills": ["Oracle SOA Suite", "Oracle BPM", "Oracle Service Bus (OSB)", "Oracle Data Integrator (ODI)"] },
+        { "title": "Application Development Analyst", "start": "2016-06", "end": "2017-11", "duration": "1 yr 6 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle SOA Suite", "Oracle BPM", "Oracle Service Bus (OSB)", "Oracle Data Integrator (ODI)"] },
+        { "title": "Application Development Senior Analyst", "start": "2017-12", "end": "2018-06", "duration": "7 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Oracle SOA Suite", "Oracle BPM", "Oracle Service Bus (OSB)", "Oracle Data Integrator (ODI)"] }
       ]
     },
     {
@@ -137,7 +143,7 @@
       "tenure": "1 yr 3 mos",
       "workMode": "On-site",
       "roles": [
-        { "title": "Consultant", "start": "2018-06", "end": "2019-08", "duration": "1 yr 3 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Boomi", "Oracle SOA Suite"] }
+        { "title": "Consultant", "start": "2018-06", "end": "2019-08", "duration": "1 yr 3 mos", "location": "Bengaluru, Karnataka, India", "skills": ["Boomi", "Oracle SOA Suite", "Python"] }
       ]
     },
     {
@@ -146,9 +152,9 @@
       "tenure": "6 yrs 9 mos",
       "workMode": "Hybrid",
       "roles": [
-        { "title": "Consultant", "start": "2019-09", "end": "2021-05", "duration": "1 yr 9 mos", "location": "Hyderabad, Telangana, India", "skills": ["Boomi", "Apigee X"], "extraSkills": 2 },
-        { "title": "Senior Consultant", "start": "2021-06", "end": "2025-05", "duration": "4 yrs 1 mo", "location": "Hyderabad, Telangana, India", "skills": ["Google Cloud Platform (GCP)", "Apigee X"], "extraSkills": 4 },
-        { "title": "Manager", "start": "2025-06", "end": null, "duration": "1 yr", "location": "Gurugram, Haryana, India", "skills": ["LangGraph", "AI Agents"], "extraSkills": 5 }
+        { "title": "Consultant", "start": "2019-09", "end": "2021-05", "duration": "1 yr 9 mos", "location": "Hyderabad, Telangana, India", "skills": ["Boomi", "Apigee X", "Google Cloud", "AWS"] },
+        { "title": "Senior Consultant", "start": "2021-06", "end": "2025-05", "duration": "4 yrs 1 mo", "location": "Hyderabad, Telangana, India", "skills": ["Apigee X", "Google Cloud", "AWS ML", "Python"] },
+        { "title": "Manager", "start": "2025-06", "end": null, "duration": "1 yr", "location": "Gurugram, Haryana, India", "skills": ["Google Cloud", "AWS", "ADK", "LangGraph", "MCP", "A2A", "Claude Code"] }
       ]
     }
   ]

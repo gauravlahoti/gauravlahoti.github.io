@@ -3,11 +3,6 @@
 // Pre-warms the container on FAB-open to mask cold-start. Renders plain
 // text only — no Markdown, no innerHTML for assistant content.
 
-const STARTERS = [
-    "Which GCP certifications does Gaurav hold?",
-    "Describe Gaurav's role and recent work at Deloitte.",
-];
-
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
 
@@ -41,6 +36,7 @@ export function initAgentWidget(root, profile) {
     const sessionId = uuidv4();
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
+    const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
 
     const dom = renderShell(root);
     const fab = dom.fab;
@@ -107,7 +103,10 @@ export function initAgentWidget(root, profile) {
         fab.setAttribute("aria-expanded", "true");
         // Spec 22: signal panel-open globally so CSS can hide the FAB and
         // the mobile bottom-bar (they'd otherwise sit behind the bottom sheet).
-        document.body.setAttribute("data-agent-open", "true");
+        // Attribute is intentionally distinct from `data-agent-open` (the
+        // trigger marker on hero/bottom-bar buttons) so the global click
+        // handler in main.js doesn't match `<body>` and swallow every click.
+        document.body.setAttribute("data-agent-panel-open", "true");
         // Pre-warm Cloud Run on first open of the session.
         if (!warmedThisSession && warmUrl) {
             warmedThisSession = true;
@@ -121,24 +120,29 @@ export function initAgentWidget(root, profile) {
         panel.classList.remove("is-open");
         panel.setAttribute("aria-hidden", "true");
         fab.setAttribute("aria-expanded", "false");
-        document.body.removeAttribute("data-agent-open");
+        document.body.removeAttribute("data-agent-panel-open");
         fab.focus();
     }
 
     function renderStarters() {
         promptsEl.replaceChildren();
+        if (!starters.length) {
+            promptsEl.classList.add("is-hidden");
+            return;
+        }
         const heading = document.createElement("p");
         heading.className = "agent-prompts-head";
         heading.textContent = "Try asking…";
         promptsEl.appendChild(heading);
-        STARTERS.forEach((p) => {
+        starters.forEach((p) => {
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "agent-prompt-chip";
             btn.textContent = p;
             btn.addEventListener("click", () => {
+                if (isPending) return;
                 input.value = p;
-                input.focus();
+                sendCurrent();
             });
             promptsEl.appendChild(btn);
         });
