@@ -25,11 +25,26 @@ export function initCursor(opts = {}) {
     let mouseY = window.innerHeight / 2;
     let curX = mouseX - IDLE_SIZE / 2, curY = mouseY - IDLE_SIZE / 2;
     let curW = IDLE_SIZE, curH = IDLE_SIZE;
-    let raf;
+    let raf = 0;
+
+    // Cache the most recent hit-test so we can skip elementFromPoint while
+    // the lerp is still catching up but nothing else has moved.
+    let lastTestX = NaN, lastTestY = NaN;
+    let cachedMagnet = null;
+    let needsHitTest = true;
 
     function onMove(e) {
         mouseX = e.clientX;
         mouseY = e.clientY;
+        needsHitTest = true;
+        ensureRunning();
+    }
+
+    // The element under the (stationary) cursor changes during scroll, so
+    // a wheel tick must retarget the brackets even if the mouse didn't move.
+    function onScroll() {
+        needsHitTest = true;
+        ensureRunning();
     }
 
     function findMagnet(x, y) {
@@ -50,28 +65,42 @@ export function initCursor(opts = {}) {
         if (!el) return null;
         const magnet = el.closest('[data-cursor="magnet"]');
         if (!magnet) return null;
-        return { el: magnet, rect: magnet.getBoundingClientRect() };
+        return { el: magnet };
     }
 
     function tick() {
-        const magnet = findMagnet(mouseX, mouseY);
+        raf = 0;
+
+        // Re-hit-test only when the cursor's screen position changed or a
+        // scroll moved the layout under it. Saves a per-frame
+        // elementFromPoint call (which is significantly slower on Windows
+        // than on macOS) when the user is just reading or settling.
+        if (needsHitTest || mouseX !== lastTestX || mouseY !== lastTestY) {
+            cachedMagnet = findMagnet(mouseX, mouseY);
+            lastTestX = mouseX;
+            lastTestY = mouseY;
+            needsHitTest = false;
+        }
+
         let targetX, targetY, targetW, targetH;
-        if (magnet) {
-            // Snap brackets to the magnet element's bounding box.
+        if (cachedMagnet) {
             cursor.classList.add("is-magnet");
+            // Re-read rect each frame so the brackets follow the magnet
+            // element if it moves (e.g., a card animating in).
+            const rect = cachedMagnet.el.getBoundingClientRect();
             const pad = 6;
-            targetX = magnet.rect.left - pad;
-            targetY = magnet.rect.top - pad;
-            targetW = magnet.rect.width + pad * 2;
-            targetH = magnet.rect.height + pad * 2;
+            targetX = rect.left - pad;
+            targetY = rect.top - pad;
+            targetW = rect.width + pad * 2;
+            targetH = rect.height + pad * 2;
         } else {
-            // Idle: small reticle centered on the cursor.
             cursor.classList.remove("is-magnet");
             targetX = mouseX - IDLE_SIZE / 2;
             targetY = mouseY - IDLE_SIZE / 2;
             targetW = IDLE_SIZE;
             targetH = IDLE_SIZE;
         }
+
         const lerp = 0.22;
         curX += (targetX - curX) * lerp;
         curY += (targetY - curY) * lerp;
@@ -80,7 +109,39 @@ export function initCursor(opts = {}) {
         cursor.style.transform = `translate(${curX}px, ${curY}px)`;
         cursor.style.width = `${curW}px`;
         cursor.style.height = `${curH}px`;
+
+        // Stop the loop once the lerp has settled. The next mousemove or
+        // scroll restarts it via ensureRunning(). Avoids burning a 60 Hz
+        // rAF + style-write budget while the user is reading.
+        const settled =
+            Math.abs(targetX - curX) < 0.1 &&
+            Math.abs(targetY - curY) < 0.1 &&
+            Math.abs(targetW - curW) < 0.1 &&
+            Math.abs(targetH - curH) < 0.1;
+        if (settled) {
+            // Snap to exact target so the final visual matches the math.
+            curX = targetX; curY = targetY; curW = targetW; curH = targetH;
+            cursor.style.transform = `translate(${curX}px, ${curY}px)`;
+            cursor.style.width = `${curW}px`;
+            cursor.style.height = `${curH}px`;
+            return;
+        }
         raf = requestAnimationFrame(tick);
+    }
+
+    function ensureRunning() {
+        if (raf || document.hidden) return;
+        raf = requestAnimationFrame(tick);
+    }
+
+    function stop() {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+    }
+
+    function onVisibility() {
+        if (document.hidden) stop();
+        else ensureRunning();
     }
 
     function onLeave() {
@@ -88,19 +149,24 @@ export function initCursor(opts = {}) {
     }
     function onEnter() {
         cursor.classList.remove("is-hidden");
+        ensureRunning();
     }
 
     window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("mouseenter", onEnter);
-    raf = requestAnimationFrame(tick);
+    document.addEventListener("visibilitychange", onVisibility);
+    ensureRunning();
 
     return {
         destroy() {
-            cancelAnimationFrame(raf);
+            stop();
             window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("scroll", onScroll);
             document.removeEventListener("mouseleave", onLeave);
             document.removeEventListener("mouseenter", onEnter);
+            document.removeEventListener("visibilitychange", onVisibility);
             cursor.remove();
         },
     };

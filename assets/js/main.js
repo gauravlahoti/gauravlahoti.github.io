@@ -10,7 +10,7 @@ const saveData = !!(navigator.connection && navigator.connection.saveData);
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "63";
+const ASSET_VERSION = "64";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -38,6 +38,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initCapabilities(profile);
     initCertRail(profile);
     initCertTilesTouch();
+    initOffscreenAnimationPause();
     wireScrollTo();
     initCursorAsync();
     initResumeGateLazy(profile);
@@ -600,11 +601,16 @@ function setYear() {
 function initLenis() {
     if (reduceMotion || isNarrow) return;
     if (typeof window.Lenis !== "function") return;
+    // Shorter smoothing window: each wheel tick resolves in ~0.6 s instead of
+    // 1.05 s, so the per-input frame cost on Windows (where backdrop-filter,
+    // animated box-shadow, and many GPU layers compound under D3D11/ANGLE)
+    // is roughly halved. Trackpad users on macOS still feel smooth because
+    // small frequent inputs don't notice the shorter elastic window.
     const lenis = new window.Lenis({
-        duration: 1.05,
+        duration: 0.6,
         easing: (t) => 1 - Math.pow(1 - t, 3),
         smoothWheel: true,
-        wheelMultiplier: 1,
+        wheelMultiplier: 1.1,
     });
     function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
     requestAnimationFrame(raf);
@@ -752,6 +758,36 @@ function scrambleName(nameEl) {
         }, start);
     });
     return tl;
+}
+
+/* ---------- off-screen animation pause ----------
+   The hero (cursor blink, three flying-agent dots, dot-pulse) and the cert
+   rail (36 s ticker + per-tile shimmer) keep their GPU layers animating
+   even when scrolled out of view. On Windows that compounds with the
+   backdrop-filter on the fixed nav into measurable scroll jank.
+
+   Toggling `data-paused="true"` when the section leaves the viewport pairs
+   with CSS rules that set `animation-play-state: paused` on the looped
+   keyframes. When the section scrolls back into view the animations
+   resume from the same offset, so the visual identity is preserved. */
+function initOffscreenAnimationPause() {
+    const targets = [
+        document.getElementById("hero"),
+        document.querySelector(".cert-rail"),
+    ].filter(Boolean);
+    if (!targets.length || !("IntersectionObserver" in window)) return;
+
+    const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (entry.isIntersecting) {
+                entry.target.removeAttribute("data-paused");
+            } else {
+                entry.target.setAttribute("data-paused", "true");
+            }
+        }
+    }, { threshold: 0 });
+
+    targets.forEach((el) => io.observe(el));
 }
 
 /* ---------- hero graph lazy load ---------- */

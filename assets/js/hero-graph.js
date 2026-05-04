@@ -211,16 +211,25 @@ export async function initHeroGraph(canvas, opts = {}) {
     // ---- Pause when hero leaves viewport ----
     let paused = false;
     const io = new IntersectionObserver(([entry]) => {
+        const wasPaused = paused;
         paused = !entry.isIntersecting;
+        if (paused) stop();
+        else if (wasPaused) start();
     }, { threshold: 0 });
     io.observe(canvas);
 
+    function onVisibility() {
+        if (document.hidden) stop();
+        else if (!paused) start();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+
     // ---- Render loop ----
-    let rafId;
+    let rafId = 0;
 
     function tick() {
-        rafId = requestAnimationFrame(tick);
-        if (paused) return;
+        rafId = 0;
+        if (paused || document.hidden) return;
         const now = performance.now();
         const t = now / 1000;
 
@@ -240,12 +249,29 @@ export async function initHeroGraph(canvas, opts = {}) {
         edgeMat.uniforms.uHead.value = u * (PATH_LEN - 1);
 
         renderer.render(scene, camera);
+
+        rafId = requestAnimationFrame(tick);
     }
-    tick();
+
+    function start() {
+        if (rafId || paused || document.hidden) return;
+        // Reset the pulse clock so the visual restarts cleanly after a
+        // long pause (otherwise it'd burst-fire pickNewPath repeatedly).
+        pulseStart = performance.now() / 1000;
+        rafId = requestAnimationFrame(tick);
+    }
+
+    function stop() {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+    }
+
+    start();
 
     function destroy() {
-        cancelAnimationFrame(rafId);
+        stop();
         io.disconnect();
+        document.removeEventListener("visibilitychange", onVisibility);
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("resize", resize);
         nodeGeo.dispose();
@@ -258,7 +284,11 @@ export async function initHeroGraph(canvas, opts = {}) {
     return {
         canvas,
         destroy,
-        setPaused: (v) => { paused = !!v; },
+        setPaused: (v) => {
+            paused = !!v;
+            if (paused) stop();
+            else start();
+        },
     };
 }
 
