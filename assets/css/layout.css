@@ -24,6 +24,16 @@
     background: linear-gradient(to bottom, rgba(0,0,0,0.65), rgba(0,0,0,0.25));
     border-bottom: 1px solid var(--border);
 }
+/* Drop the backdrop-filter while the page is actively scrolling. Re-blurring
+   a 1920×64 strip every frame is the single largest scroll cost on Windows
+   (DXGI/ANGLE pays per-pixel cost for blur+saturate); macOS Metal absorbs
+   it. The gradient background stays, so the bar remains readable; the
+   filter snaps back on idle. While scrolling fast the blur is imperceptible
+   anyway — by the time the user stops, the blur is back. */
+body.is-scrolling .nav {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
 
 .nav-inner {
     max-width: var(--max-w);
