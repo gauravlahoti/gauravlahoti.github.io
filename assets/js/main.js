@@ -7,10 +7,21 @@ const isTouch = matchMedia("(any-pointer: coarse)").matches;
 const isNarrow = matchMedia("(max-width: 767px)").matches;
 const saveData = !!(navigator.connection && navigator.connection.saveData);
 
+// Used to gate Lenis: Windows wheel input + DXGI/ANGLE composite cost
+// makes smoothing compound badly. UA-Client-Hints first (modern Edge/Chrome
+// on Windows), then a userAgent fallback for older browsers.
+function isWindows() {
+    const uaData = navigator.userAgentData;
+    if (uaData && typeof uaData.platform === "string") {
+        return uaData.platform.toLowerCase().includes("windows");
+    }
+    return /Win(dows|32|64|NT)/i.test(navigator.userAgent);
+}
+
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "64";
+const ASSET_VERSION = "65";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -39,6 +50,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initCertRail(profile);
     initCertTilesTouch();
     initOffscreenAnimationPause();
+    initScrollStateClass();
     wireScrollTo();
     initCursorAsync();
     initResumeGateLazy(profile);
@@ -601,11 +613,16 @@ function setYear() {
 function initLenis() {
     if (reduceMotion || isNarrow) return;
     if (typeof window.Lenis !== "function") return;
-    // Shorter smoothing window: each wheel tick resolves in ~0.6 s instead of
-    // 1.05 s, so the per-input frame cost on Windows (where backdrop-filter,
-    // animated box-shadow, and many GPU layers compound under D3D11/ANGLE)
-    // is roughly halved. Trackpad users on macOS still feel smooth because
-    // small frequent inputs don't notice the shorter elastic window.
+    // Skip Lenis on Windows. A real wheel mouse fires coarse 120-unit ticks,
+    // and Lenis stretches each one into ~36 painted frames of smoothing —
+    // every one of which has to repaint the fixed nav, the WebGL hero
+    // canvas, and 20 cert tiles. Windows DXGI/ANGLE pays a much higher
+    // per-frame composite cost than macOS Metal, so the smoothing buys
+    // jank instead of polish. Native Windows wheel scroll is bound by the
+    // input rate (~30 ticks/sec max) — far cheaper. macOS keeps Lenis
+    // because trackpads already produce small frequent inputs that
+    // benefit from the elastic curve.
+    if (isWindows()) return;
     const lenis = new window.Lenis({
         duration: 0.6,
         easing: (t) => 1 - Math.pow(1 - t, 3),
@@ -758,6 +775,35 @@ function scrambleName(nameEl) {
         }, start);
     });
     return tl;
+}
+
+/* ---------- scroll-state class ----------
+   Toggles `body.is-scrolling` while the page is actively scrolling. The CSS
+   uses this to drop the fixed-nav backdrop-filter during scroll (re-blurring
+   a 1920×64 strip every frame is the single biggest scroll cost on Windows
+   under DXGI/ANGLE) and snap it back ~150 ms after the user stops. The
+   blur is imperceptible while scrolling fast and identical when stationary. */
+function initScrollStateClass() {
+    if (reduceMotion) return;
+    const body = document.body;
+    let raf = 0;
+    let idleTimer = 0;
+    const IDLE_MS = 150;
+    const onScroll = () => {
+        if (!body.classList.contains("is-scrolling")) {
+            body.classList.add("is-scrolling");
+        }
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            body.classList.remove("is-scrolling");
+            idleTimer = 0;
+        }, IDLE_MS);
+        raf = 0;
+    };
+    window.addEventListener("scroll", () => {
+        if (raf) return;
+        raf = requestAnimationFrame(onScroll);
+    }, { passive: true });
 }
 
 /* ---------- off-screen animation pause ----------

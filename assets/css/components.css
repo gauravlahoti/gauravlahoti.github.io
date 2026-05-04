@@ -318,8 +318,10 @@
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-strong);
     background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    /* No backdrop-filter: the tile background is rgba(255,255,255,0.04)
+       over a solid black hero, so blur(8px) had nothing to actually blur.
+       Removing it eliminates 20 simultaneous GPU blur layers — pure win
+       on Windows compositors with no visible difference. */
     box-shadow: 0 0 24px rgba(0, 255, 209, 0.18);
     overflow: visible;
     cursor: pointer;
