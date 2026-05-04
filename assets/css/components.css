@@ -1870,7 +1870,8 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     gap: var(--space-1);
 }
 .agent-panel-close,
-.agent-panel-expand {
+.agent-panel-expand,
+.agent-panel-minimize {
     min-width: 36px;
     min-height: 36px;
     background: transparent;
