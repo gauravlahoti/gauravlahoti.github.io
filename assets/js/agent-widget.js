@@ -13,7 +13,8 @@ const FEATURES = Object.freeze({
     explainerDialog: true,
 });
 
-const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io"];
+const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io",
+                       "credly.com", "cp.certmetrics.com", "learn.microsoft.com"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -388,7 +389,31 @@ export function initAgentWidget(root, profile) {
         if (!p) return;
         removeCaret(li);
         p.replaceChildren();
+        // Render text — citations passed for [N] → superscript conversion
         renderTextWithLinks(p, fullText, citations);
+        // Render source list below text (reliable fallback + mobile-friendly)
+        if (FEATURES.citations && Object.keys(citations).length > 0) {
+            renderCitationList(li, citations);
+        }
+    }
+
+    function renderCitationList(assistantLi, citations) {
+        const ids = Object.keys(citations).map(Number).sort((a, b) => a - b);
+        if (!ids.length) return;
+        const wrap = document.createElement("div");
+        wrap.className = "agent-sources";
+        ids.forEach(id => {
+            const c = citations[id];
+            if (!c?.url) return;
+            const a = document.createElement("a");
+            a.className = "agent-source-link";
+            a.href = escapeUrl(c.url);
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = `[${id}] ${c.label || c.url}`;
+            wrap.appendChild(a);
+        });
+        if (wrap.children.length) assistantLi.appendChild(wrap);
     }
 
     function renderSuggestions(assistantLi, suggestions) {
