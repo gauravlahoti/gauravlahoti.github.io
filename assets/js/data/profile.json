@@ -21,6 +21,12 @@
     "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
   },
+  "agentActions": [
+    {
+      "label": "Email me his resume",
+      "prefill": "Email me Gaurav's resume at "
+    }
+  ],
   "agentPrompts": [
     "What's his multi-cloud experience?",
     "What is he writing about lately on LinkedIn?",

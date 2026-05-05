@@ -48,6 +48,7 @@ export function initAgentWidget(root, profile) {
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
     const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
+    const actions  = Array.isArray(profile && profile.agentActions) ? profile.agentActions : [];
     const agentCopy = (profile && profile.agentCopy) || {};
     const agentExplainer = (profile && profile.agentExplainer) || {};
 
@@ -165,10 +166,45 @@ export function initAgentWidget(root, profile) {
 
     function renderStarters() {
         promptsEl.replaceChildren();
-        if (!starters.length) {
+        if (!starters.length && !actions.length) {
             promptsEl.classList.add("is-hidden");
             return;
         }
+
+        // Action chips render first — visually distinct (accent border, leading
+        // icon) to signal "this *does* something" vs the question chips below.
+        // Click prefills the input and focuses it, leaving the visitor to add
+        // any address details and send. The agent will ask for an email if the
+        // prefill doesn't include one.
+        actions.forEach((a) => {
+            if (!a || typeof a !== "object") return;
+            const label   = String(a.label   || "").trim();
+            const prefill = String(a.prefill || a.label || "").trim();
+            if (!label || !prefill) return;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agent-action-chip";
+            btn.innerHTML =
+                '<svg class="agent-action-chip-icon" viewBox="0 0 24 24" width="16" height="16" ' +
+                'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+                'stroke-linejoin="round" aria-hidden="true">' +
+                '<rect x="3" y="5" width="18" height="14" rx="2"/>' +
+                '<path d="m3 7 9 7 9-7"/></svg>' +
+                '<span class="agent-action-chip-label"></span>';
+            btn.querySelector(".agent-action-chip-label").textContent = label;
+            btn.addEventListener("click", () => {
+                if (isPending) return;
+                input.value = prefill + (prefill.endsWith(" ") ? "" : " ");
+                input.focus();
+                // Place caret at end so the visitor types the email straight in.
+                const len = input.value.length;
+                try { input.setSelectionRange(len, len); } catch (_) { /* ignore */ }
+            });
+            promptsEl.appendChild(btn);
+        });
+
+        if (!starters.length) return;
+
         const heading = document.createElement("p");
         heading.className = "agent-prompts-head";
         heading.textContent = "Try asking…";

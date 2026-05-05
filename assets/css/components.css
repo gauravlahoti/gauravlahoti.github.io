@@ -2039,6 +2039,45 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     outline: none;
 }
 
+/* Action chips. Visually distinct from question-asking chips: accent border
+   at rest, leading mail icon, signals "this *does* something." Renders
+   above .agent-prompt-chip rows in renderStarters(). */
+.agent-action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    background: var(--accent-soft);
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    min-height: 44px;
+    align-self: flex-start;
+    transition:
+        border-color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out);
+}
+.agent-action-chip:hover,
+.agent-action-chip:focus-visible {
+    background: var(--accent);
+    color: var(--bg);
+    outline: none;
+}
+.agent-action-chip-icon {
+    flex-shrink: 0;
+    color: var(--accent);
+}
+.agent-action-chip:hover .agent-action-chip-icon,
+.agent-action-chip:focus-visible .agent-action-chip-icon {
+    color: var(--bg);
+}
+
 .agent-transcript {
     list-style: none;
     margin: 0;
