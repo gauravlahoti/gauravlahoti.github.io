@@ -44,3 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_ai_status  ON agent_interactions(status);
 ALTER TABLE agent_interactions ADD COLUMN citations_count   INTEGER;
 ALTER TABLE agent_interactions ADD COLUMN suggestions_count INTEGER;
 ALTER TABLE agent_interactions ADD COLUMN cta               TEXT;
+
+-- Visitor geo-location, resolved server-side from the untruncated client IP.
+ALTER TABLE agent_interactions ADD COLUMN country TEXT;
+ALTER TABLE agent_interactions ADD COLUMN region  TEXT;
+ALTER TABLE agent_interactions ADD COLUMN city    TEXT;

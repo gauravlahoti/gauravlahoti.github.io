@@ -296,6 +296,15 @@ async function handleAgentLog(request, env) {
     const citationsCount   = Number.isInteger(body?.citationsCount)   ? body.citationsCount   : null;
     const suggestionsCount = Number.isInteger(body?.suggestionsCount) ? body.suggestionsCount : null;
     const cta = (body?.cta === "topmate" || body?.cta === "linkedin") ? body.cta : null;
+    // Geo fields resolved on Cloud Run from the untruncated client IP.
+    const geoStr = (v) => {
+        if (typeof v !== "string") return null;
+        const s = v.slice(0, 64).trim();
+        return s.length ? s : null;
+    };
+    const country = geoStr(body?.country);
+    const region  = geoStr(body?.region);
+    const city    = geoStr(body?.city);
 
     try {
         const { meta } = await env.DB.prepare(
@@ -303,15 +312,17 @@ async function handleAgentLog(request, env) {
                (session_id, turn_index, logged_at, question, response, tool_calls,
                 tokens_input, tokens_output, latency_ms, status, error_message,
                 google_sub, email, ip, user_agent, referrer, agent_version,
-                citations_count, suggestions_count, cta)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                citations_count, suggestions_count, cta,
+                country, region, city)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             sessionId, turnIndex, loggedAt,
             question.slice(0, 4000), response, toolCalls,
             tokensInput, tokensOutput, latencyMs,
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
-            citationsCount, suggestionsCount, cta
+            citationsCount, suggestionsCount, cta,
+            country, region, city
         ).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
@@ -336,7 +347,8 @@ async function handleAgentLogRead(request, env, corsHeaders) {
             `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
                     tokens_input, tokens_output, latency_ms, status, error_message,
                     google_sub, email, ip, user_agent, referrer, agent_version,
-                    citations_count, suggestions_count, cta
+                    citations_count, suggestions_count, cta,
+                    country, region, city
              FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
         ).all();
         return json({ ok: true, leads: results }, 200, corsHeaders);
