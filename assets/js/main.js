@@ -18,10 +18,20 @@ function isWindows() {
     return /Win(dows|32|64|NT)/i.test(navigator.userAgent);
 }
 
+// Chrome on macOS uses ANGLE/Skia (not Metal), so its per-frame composite
+// cost for fixed/backdrop-filter elements is similar to Windows DXGI/ANGLE.
+// Lenis's continuous RAF loop hurts Chrome scrolling regardless of OS.
+// UA-Client-Hints brands check first; UA string fallback excludes Edge.
+function isChrome() {
+    const brands = navigator.userAgentData?.brands;
+    if (brands) return brands.some((b) => b.brand === "Google Chrome");
+    return /Chrome\//.test(navigator.userAgent) && !/Edg\//.test(navigator.userAgent);
+}
+
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "69";
+const ASSET_VERSION = "70";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -635,7 +645,7 @@ function initLenis() {
     // input rate (~30 ticks/sec max) — far cheaper. macOS keeps Lenis
     // because trackpads already produce small frequent inputs that
     // benefit from the elastic curve.
-    if (isWindows()) return;
+    if (isWindows() || isChrome()) return;
     const lenis = new window.Lenis({
         duration: 0.6,
         easing: (t) => 1 - Math.pow(1 - t, 3),
@@ -801,7 +811,7 @@ function initScrollStateClass() {
     const body = document.body;
     let raf = 0;
     let idleTimer = 0;
-    const IDLE_MS = 150;
+    const IDLE_MS = 250;
     const onScroll = () => {
         if (!body.classList.contains("is-scrolling")) {
             body.classList.add("is-scrolling");

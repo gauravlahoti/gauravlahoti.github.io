@@ -128,16 +128,18 @@
 }
 .hi-noun-text { position: relative; z-index: 1; }
 .hi-noun-text::after {
-    content: '|';
+    content: '•';
     color: var(--accent);
-    font-weight: 300;
-    margin-left: 2px;
-    text-shadow: 0 0 8px var(--accent-glow);
-    animation: cursor-blink 1s step-end infinite;
+    font-size: 0.65em;
+    margin-left: 5px;
+    vertical-align: middle;
+    display: inline-block;
+    text-shadow: 0 0 10px var(--accent-glow), 0 0 20px var(--accent-glow);
+    animation: dot-breathe 2s ease-in-out infinite;
 }
-@keyframes cursor-blink {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0; }
+@keyframes dot-breathe {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50%       { opacity: 1;   transform: scale(1.25); }
 }
 
 .hi-agents {
@@ -227,7 +229,8 @@
 @media (prefers-reduced-motion: reduce) {
     .hi-noun-text::after {
         animation: none;
-        opacity: 1;
+        opacity: 0.7;
+        transform: scale(1);
     }
     .hi-agent { display: none; }
 }
@@ -381,7 +384,9 @@
     opacity: 0.65;
 }
 
-/* Shimmer sweep — diagonal highlight that crosses the badge surface */
+/* Shimmer sweep — diagonal highlight that crosses the badge surface.
+   Uses clip-path sweep (compositor-safe in Chrome 108+) instead of
+   background-position (paint-bound), eliminating per-tile repaints on scroll. */
 .cert-tile::after {
     content: "";
     position: absolute;
@@ -389,31 +394,29 @@
     border-radius: var(--radius-md);
     background: linear-gradient(
         115deg,
-        transparent 35%,
-        rgba(0, 255, 209, 0.22) 50%,
-        transparent 65%
+        transparent 25%,
+        rgba(0, 255, 209, 0.26) 50%,
+        transparent 75%
     );
-    background-size: 240% 240%;
-    background-position: 100% 100%;
     pointer-events: none;
     z-index: 2;
     mix-blend-mode: screen;
+    will-change: clip-path, opacity;
     animation: cert-shimmer 7s linear infinite;
     animation-delay: var(--shimmer-delay, 0s);
 }
 
 @keyframes cert-shimmer {
-    0%   { background-position: 120% 120%; opacity: 0; }
-    20%  { opacity: 1; }
-    50%  { background-position: -20% -20%; opacity: 1; }
-    60%  { opacity: 0; }
-    100% { background-position: -20% -20%; opacity: 0; }
+    0%   { clip-path: inset(0 110% 0 -10% round var(--radius-md)); opacity: 0; }
+    15%  { clip-path: inset(0 90%  0 -10% round var(--radius-md)); opacity: 1; }
+    50%  { clip-path: inset(0 40%  0  40% round var(--radius-md)); opacity: 1; }
+    70%  { clip-path: inset(0 -10% 0  90% round var(--radius-md)); opacity: 0; }
+    100% { clip-path: inset(0 110% 0 -10% round var(--radius-md)); opacity: 0; }
 }
 
-/* Off-screen pause for the per-tile shimmer (animates background-position,
-   which is paint-bound and expensive on Windows). Frozen while the rail is
-   not visible so paint cost goes to zero. (Reduced-motion guard for the
-   shimmer + ticker is already covered ~80 lines below.) */
+/* Off-screen pause for the per-tile shimmer. Frozen while the rail is
+   not visible so compositor layer cost goes to zero. (Reduced-motion guard
+   for the shimmer + ticker is already covered ~80 lines below.) */
 .cert-rail[data-paused="true"] .cert-tile::after {
     animation-play-state: paused;
 }
@@ -678,8 +681,9 @@
 .trail-rail-line {
     stroke-dasharray: 1000;
     stroke-dashoffset: 1000;
-    opacity: 0.85;
-    filter: drop-shadow(0 0 4px var(--accent-glow));
+    opacity: 0.92;
+    /* drop-shadow removed: CSS filter on a position:sticky element forces
+       Chrome to repaint on every scroll frame. Higher opacity compensates. */
 }
 
 .trail-stations {
