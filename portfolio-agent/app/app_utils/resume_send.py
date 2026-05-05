@@ -110,7 +110,7 @@ def _email_html() -> str:
         "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"
         "font-size:15px;line-height:1.5;color:#1a1a1a;\">"
         "<p>Hi,</p>"
-        "<p>You requested Gaurav Lahoti's resume from the chat agent at "
+        "<p>You requested Gaurav Lahoti's resume from the AI Agent at "
         "<a href=\"https://gauravlahoti.github.io\">gauravlahoti.github.io</a>. "
         "The PDF is attached.</p>"
         "<p>If you didn't request this, ignore the email — your address won't be used again.</p>"
@@ -118,7 +118,7 @@ def _email_html() -> str:
         "LinkedIn: <a href=\"https://www.linkedin.com/in/glahoti/\">linkedin.com/in/glahoti</a><br>"
         "Topmate (advisory): <a href=\"https://topmate.io/gaurav_lahoti\">topmate.io/gaurav_lahoti</a></p>"
         "<p style=\"color:#666;font-size:13px;margin-top:24px;\">"
-        "— Sent automatically by the portfolio agent. Replies are not monitored.</p>"
+        "— Sent automatically by the AI Agent. Replies are not monitored.</p>"
         "</div>"
     )
 
@@ -126,13 +126,13 @@ def _email_html() -> str:
 def _email_text() -> str:
     return (
         "Hi,\n\n"
-        "You requested Gaurav Lahoti's resume from the chat agent at "
+        "You requested Gaurav Lahoti's resume from the AI Agent at "
         "https://gauravlahoti.github.io. The PDF is attached.\n\n"
         "If you didn't request this, ignore the email — your address won't be used again.\n\n"
         "To follow up directly:\n"
         "LinkedIn: https://www.linkedin.com/in/glahoti/\n"
         "Topmate (advisory): https://topmate.io/gaurav_lahoti\n\n"
-        "— Sent automatically by the portfolio agent. Replies are not monitored.\n"
+        "— Sent automatically by the AI Agent. Replies are not monitored.\n"
     )
 
 
