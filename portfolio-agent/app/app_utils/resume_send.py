@@ -1,20 +1,17 @@
 """Send-resume-by-email helpers for the portfolio agent.
 
-The visitor-facing flow:
+Architecture:
   agent.send_resume(email)
     → validate format
     → POST /api/resume-send-check (Worker) → {allowed}
-    → POST https://api.resend.com/emails with PDF attached
+    → call MCP tool `send-email` on the resend-mcp-server (Streamable HTTP)
     → POST /api/resume-send-record (Worker) → row in resume_sends
     → return {ok, message}
 
-Why direct Resend REST instead of the resend-mcp-server: same Resend
-account, same DKIM/SPF, one fewer hop, no MCP transport dependency.
-The resend-mcp-server stays available for clients that genuinely need
-MCP (Cursor, Claude Desktop, etc.).
-
-All recipient hashing uses the same UTC-date salt as `RateLimiter.hash_ip`
-so the hash rotates daily and raw recipient addresses never reach D1.
+The Resend API key lives ONLY on the resend-mcp-server (mounted via
+Secret Manager). The portfolio agent has no Resend credentials — it
+just speaks MCP to a trusted internal service. Recipient address is
+hashed (sha256(email|UTC_DATE)[:16]) before any persistence.
 """
 from __future__ import annotations
 
@@ -26,16 +23,18 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
 logger = logging.getLogger(__name__)
 
 # RFC 5322-loose: enough to reject obvious typos, not strict enough to bounce
-# valid edge cases. Resend's API will reject malformed addresses anyway.
+# valid edge cases. Resend will reject malformed addresses anyway.
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 _MAX_EMAIL_LEN = 200
 
-_RESEND_API = "https://api.resend.com/emails"
 _HTTP_TIMEOUT_S = 8.0
+_MCP_TIMEOUT_S = 15.0  # MCP initialize + tool call may legitimately take a few seconds
 
 
 def _env(name: str) -> str:
@@ -107,7 +106,6 @@ async def _record_send(email_hash: str, token: str) -> None:
 
 
 def _email_html() -> str:
-    # Plain, bot-safe HTML. Recipient context up top so they never feel surprised.
     return (
         "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"
         "font-size:15px;line-height:1.5;color:#1a1a1a;\">"
@@ -125,8 +123,28 @@ def _email_html() -> str:
     )
 
 
+async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
+    """Call the resend-mcp-server's `send-email` tool. Returns (ok, error_message)."""
+    mcp_url = _env("RESEND_MCP_URL")
+    if not mcp_url:
+        return False, "RESEND_MCP_URL not configured"
+    try:
+        async with streamablehttp_client(mcp_url) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool("send-email", arguments)
+        if getattr(result, "isError", False):
+            payload = getattr(result, "content", None)
+            logger.warning("MCP send-email returned error: %r", payload)
+            return False, "MCP server returned error"
+        return True, None
+    except Exception as exc:
+        logger.warning("MCP send-email errored: %s", exc)
+        return False, "MCP transport error"
+
+
 async def send_resume_email(email: str) -> dict[str, Any]:
-    """Validate → rate-limit → send via Resend → record. Returns a result dict.
+    """Validate → rate-limit → send via MCP → record. Returns a result dict.
 
     Schema returned to the agent:
         {"ok": bool, "message": str, "code": "<short-code>"}
@@ -135,19 +153,19 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         invalid_email     — bad format, agent should ask for a valid one
         rate_limited      — already sent in the past 24h to this address
         not_configured    — server-side env vars missing (dev / misconfig)
-        send_failed       — Resend API rejected or network error
+        send_failed       — MCP / Resend rejected or transport error
         ok                — sent successfully
     """
     if not is_valid_email(email):
         return {"ok": False, "code": "invalid_email",
                 "message": "That doesn't look like a valid email address. Could you double-check it?"}
 
-    api_key  = _env("RESEND_API_KEY")
     sender   = _env("RESEND_FROM_ADDRESS")
     pdf_url  = _env("RESUME_PDF_URL") or "https://gauravlahoti.github.io/assets/img/resume.pdf"
     log_tok  = _env("AGENT_LOG_TOKEN")
+    mcp_url  = _env("RESEND_MCP_URL")
 
-    if not api_key or not sender:
+    if not sender or not mcp_url:
         return {"ok": False, "code": "not_configured",
                 "message": "Email send isn't configured on this environment."}
 
@@ -162,7 +180,7 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         return {"ok": False, "code": "rate_limited",
                 "message": "Looks like that resume already went out to that address today. Check your inbox (and spam folder)."}
 
-    payload = {
+    arguments = {
         "from": f"Resume <{sender}>",
         "to": [email_clean],
         "subject": "Resume — Gaurav Lahoti",
@@ -173,23 +191,8 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         }],
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
-            r = await client.post(
-                _RESEND_API,
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-    except Exception as exc:
-        logger.warning("Resend POST errored: %s", exc)
-        return {"ok": False, "code": "send_failed",
-                "message": "The email service didn't respond — try again shortly."}
-
-    if r.status_code >= 400:
-        logger.warning("Resend send failed: %s %s", r.status_code, r.text[:300])
+    ok, mcp_err = await _send_via_mcp(arguments)
+    if not ok:
         return {"ok": False, "code": "send_failed",
                 "message": "The email couldn't be sent right now. Try again, or reach Gaurav on LinkedIn."}
 
