@@ -59,14 +59,16 @@ const insertAgentInteraction = db.prepare(
        (session_id, turn_index, logged_at, question, response, tool_calls,
         tokens_input, tokens_output, latency_ms, status, error_message,
         google_sub, email, ip, user_agent, referrer, agent_version,
-        citations_count, suggestions_count, cta)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        citations_count, suggestions_count, cta,
+        country, region, city)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const recentAgentInteractions = db.prepare(
     `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
             tokens_input, tokens_output, latency_ms, status, error_message,
             google_sub, email, ip, user_agent, referrer, agent_version,
-            citations_count, suggestions_count, cta
+            citations_count, suggestions_count, cta,
+            country, region, city
      FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
 );
 
@@ -273,6 +275,14 @@ async function handleAgentLog(req, res) {
     const citationsCount   = Number.isInteger(body?.citationsCount)   ? body.citationsCount   : null;
     const suggestionsCount = Number.isInteger(body?.suggestionsCount) ? body.suggestionsCount : null;
     const cta = (body?.cta === "topmate" || body?.cta === "linkedin") ? body.cta : null;
+    const geoStr = (v) => {
+        if (typeof v !== "string") return null;
+        const s = v.slice(0, 64).trim();
+        return s.length ? s : null;
+    };
+    const country = geoStr(body?.country);
+    const region  = geoStr(body?.region);
+    const city    = geoStr(body?.city);
 
     try {
         const result = insertAgentInteraction.run(
@@ -281,7 +291,8 @@ async function handleAgentLog(req, res) {
             tokensInput, tokensOutput, latencyMs,
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
-            citationsCount, suggestionsCount, cta
+            citationsCount, suggestionsCount, cta,
+            country, region, city
         );
         console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
         sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});

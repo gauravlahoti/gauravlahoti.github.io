@@ -34,6 +34,7 @@ from google.genai import types
 
 from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
+from app.app_utils.geo_lookup import lookup_geo
 from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
 from app.rate_limit import limiter
 
@@ -355,6 +356,9 @@ async def _stream_agent(
             "userAgent":      client_meta.get("ua"),
             "referrer":       client_meta.get("ref"),
             "ip":             client_meta.get("ip_truncated"),
+            "country":        client_meta.get("country"),
+            "region":         client_meta.get("region"),
+            "city":           client_meta.get("city"),
             "agentVersion":   _AGENT_VERSION,
             "citationsCount": len(citations_payload),
             "suggestionsCount": len(suggestions_payload),
@@ -437,10 +441,16 @@ def register_routes(app: FastAPI) -> None:
         )
 
         raw_ip = _client_ip(request)
+        # Best-effort geo on the untruncated IP. Never blocks the request:
+        # bounded by lookup_geo's 250ms timeout and exception-swallowing.
+        geo = await lookup_geo(raw_ip)
         client_meta = {
             "ip_truncated": _truncate_ip(raw_ip),
             "ua":           (request.headers.get("user-agent") or "")[:500],
             "ref":          (request.headers.get("referer") or "")[:500],
+            "country":      (geo or {}).get("country"),
+            "region":       (geo or {}).get("region"),
+            "city":         (geo or {}).get("city"),
         }
 
         ip_hash = limiter.hash_ip(raw_ip)
@@ -470,6 +480,9 @@ def register_routes(app: FastAPI) -> None:
                     "userAgent":      client_meta.get("ua"),
                     "referrer":       client_meta.get("ref"),
                     "ip":             client_meta.get("ip_truncated"),
+                    "country":        client_meta.get("country"),
+                    "region":         client_meta.get("region"),
+                    "city":           client_meta.get("city"),
                     "agentVersion":   _AGENT_VERSION,
                     "citationsCount": None,
                     "suggestionsCount": None,
