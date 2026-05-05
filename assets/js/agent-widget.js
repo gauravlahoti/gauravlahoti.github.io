@@ -133,6 +133,8 @@ export function initAgentWidget(root, profile) {
         requestAnimationFrame(() => { input.focus(); syncScrollHint(); });
     }
     function toggleExpand() {
+        // If minimized, restore the panel to normal view first
+        if (isMinimized) { restore(); return; }
         const expanded = panel.classList.toggle("is-expanded");
         dom.expandBtn.setAttribute("aria-pressed", String(expanded));
         dom.expandBtn.setAttribute("aria-label", expanded ? "Shrink panel" : "Expand panel");
