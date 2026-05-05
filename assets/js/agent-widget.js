@@ -537,6 +537,29 @@ export function initAgentWidget(root, profile) {
 
 // --- Explainer modal --------------------------------------------------------
 
+// Tiny `**term**` parser used by the explainer body — wraps highlighted
+// terms in <strong class="agent-highlight"> without using innerHTML.
+function parseEmphasis(text) {
+    const frag = document.createDocumentFragment();
+    const re = /\*\*([^*]+)\*\*/g;
+    let lastIdx = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index > lastIdx) {
+            frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
+        }
+        const strong = document.createElement("strong");
+        strong.className = "agent-highlight";
+        strong.textContent = m[1];
+        frag.appendChild(strong);
+        lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+    }
+    return frag;
+}
+
 function setupExplainerModal(dom, agentExplainer) {
     if (!FEATURES.explainerDialog) return;
     const trigger = dom.footerTrigger;
@@ -553,7 +576,7 @@ function setupExplainerModal(dom, agentExplainer) {
         bodyEl.replaceChildren();
         agentExplainer.body.forEach(para => {
             const p = document.createElement("p");
-            p.textContent = para;
+            p.appendChild(parseEmphasis(para));
             bodyEl.appendChild(p);
         });
     }
