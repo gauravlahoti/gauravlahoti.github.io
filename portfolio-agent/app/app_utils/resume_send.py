@@ -123,6 +123,19 @@ def _email_html() -> str:
     )
 
 
+def _email_text() -> str:
+    return (
+        "Hi,\n\n"
+        "You requested Gaurav Lahoti's resume from the chat agent at "
+        "https://gauravlahoti.github.io. The PDF is attached.\n\n"
+        "If you didn't request this, ignore the email — your address won't be used again.\n\n"
+        "To follow up directly:\n"
+        "LinkedIn: https://www.linkedin.com/in/glahoti/\n"
+        "Topmate (advisory): https://topmate.io/gaurav_lahoti\n\n"
+        "— Sent automatically by the portfolio agent. Replies are not monitored.\n"
+    )
+
+
 async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
     """Call the resend-mcp-server's `send-email` tool. Returns (ok, error_message)."""
     mcp_url = _env("RESEND_MCP_URL")
@@ -181,13 +194,17 @@ async def send_resume_email(email: str) -> dict[str, Any]:
                 "message": "Looks like that resume already went out to that address today. Check your inbox (and spam folder)."}
 
     arguments = {
-        "from": f"Resume <{sender}>",
+        "from": sender,
         "to": [email_clean],
         "subject": "Resume — Gaurav Lahoti",
         "html": _email_html(),
+        "text": _email_text(),
+        # The resend-mcp tool wraps attachments differently from Resend's
+        # REST API — `url` here is renamed to `path` before forwarding.
+        # See node_modules/resend-mcp/dist/tools/emails.js (att.url → result.path).
         "attachments": [{
-            "path": pdf_url,
             "filename": "Gaurav-Lahoti-Resume.pdf",
+            "url": pdf_url,
         }],
     }
 
