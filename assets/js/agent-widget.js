@@ -171,11 +171,15 @@ export function initAgentWidget(root, profile) {
             return;
         }
 
-        // Action chips render first — visually distinct (accent border, leading
-        // icon) to signal "this *does* something" vs the question chips below.
-        // Click prefills the input and focuses it, leaving the visitor to add
-        // any address details and send. The agent will ask for an email if the
-        // prefill doesn't include one.
+        const heading = document.createElement("p");
+        heading.className = "agent-prompts-head";
+        heading.textContent = "Try asking…";
+        promptsEl.appendChild(heading);
+
+        // Action chips first within the chip list — same visual weight as
+        // question chips, just a leading mail icon. Click prefills the input
+        // and focuses it; the agent will ask for an email if the prefill
+        // doesn't include one.
         actions.forEach((a) => {
             if (!a || typeof a !== "object") return;
             const label   = String(a.label   || "").trim();
@@ -203,12 +207,6 @@ export function initAgentWidget(root, profile) {
             promptsEl.appendChild(btn);
         });
 
-        if (!starters.length) return;
-
-        const heading = document.createElement("p");
-        heading.className = "agent-prompts-head";
-        heading.textContent = "Try asking…";
-        promptsEl.appendChild(heading);
         starters.forEach((p) => {
             const btn = document.createElement("button");
             btn.type = "button";
