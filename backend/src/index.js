@@ -23,8 +23,9 @@ const JWKS = jose.createRemoteJWKSet(
 );
 
 const RETENTION_SECONDS = 365 * 24 * 60 * 60;       // 12 months (resume_downloads)
-const AGENT_LOG_RETENTION_SECONDS = 90 * 24 * 60 * 60; // 90 days (agent_interactions)
+const AGENT_LOG_RETENTION_SECONDS = 90 * 24 * 60 * 60; // 90 days (agent_interactions, resume_sends)
 const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;         // 24 hours
+const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
 
 export default {
     async fetch(request, env) {
@@ -53,6 +54,14 @@ export default {
             return handleAgentLogRead(request, env, corsHeaders);
         }
 
+        if (url.pathname === "/api/resume-send-check" && request.method === "POST") {
+            return handleResumeSendCheck(request, env);
+        }
+
+        if (url.pathname === "/api/resume-send-record" && request.method === "POST") {
+            return handleResumeSendRecord(request, env);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
@@ -77,6 +86,15 @@ export default {
             console.log(`[retention] agent: deleted ${meta?.changes ?? 0} rows older than 90d`);
         } catch (err) {
             console.error("[retention] agent cleanup failed", err);
+        }
+
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM resume_sends WHERE sent_at < ?"
+            ).bind(cutoffAgent).run();
+            console.log(`[retention] resume_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
+        } catch (err) {
+            console.error("[retention] resume_sends cleanup failed", err);
         }
     }
 };
@@ -327,6 +345,72 @@ async function handleAgentLog(request, env) {
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
         console.error("[agent-log] D1 insert failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// POST /api/resume-send-check — pre-send rate-limit gate for the agent's send_resume tool.
+// Returns { allowed: boolean } based on whether the same email_hash has been
+// recorded in the last RESUME_SEND_WINDOW_SECONDS. No row is written here.
+async function handleResumeSendCheck(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return json({ ok: false, error: "Invalid emailHash" }, 400, {});
+    }
+    const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
+    try {
+        const { results } = await env.DB.prepare(
+            "SELECT 1 FROM resume_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
+        ).bind(emailHash, cutoff).all();
+        return json({ ok: true, allowed: !(results && results.length > 0) }, 200, {});
+    } catch (err) {
+        console.error("[resume-send-check] D1 read failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// POST /api/resume-send-record — records a successful send. Only called by
+// the agent after the MCP/Resend send returned ok. Two endpoints (check vs
+// record) so a denied check never accidentally writes a row.
+async function handleResumeSendRecord(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return json({ ok: false, error: "Invalid emailHash" }, 400, {});
+    }
+    const sentAt = Math.floor(Date.now() / 1000);
+    try {
+        const { meta } = await env.DB.prepare(
+            "INSERT INTO resume_sends (email_hash, sent_at) VALUES (?, ?)"
+        ).bind(emailHash, sentAt).run();
+        return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
+    } catch (err) {
+        console.error("[resume-send-record] D1 insert failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});
     }
 }

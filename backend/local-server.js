@@ -314,6 +314,54 @@ function handleAgentLogRead(req, res, cors) {
     sendJson(res, 200, { ok: true, leads: recentAgentInteractions.all() }, cors);
 }
 
+// Per-recipient rate-limit gate for the agent's send_resume tool. Mirrors
+// handleResumeSendCheck / handleResumeSendRecord in src/index.js.
+const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;
+const recentResumeSendForHash = db.prepare(
+    "SELECT 1 FROM resume_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
+);
+const insertResumeSend = db.prepare(
+    "INSERT INTO resume_sends (email_hash, sent_at) VALUES (?, ?)"
+);
+
+async function handleResumeSendCheck(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
+    }
+    const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
+    const hit = recentResumeSendForHash.get(emailHash, cutoff);
+    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+}
+
+async function handleResumeSendRecord(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
+    }
+    const sentAt = Math.floor(Date.now() / 1000);
+    const result = insertResumeSend.run(emailHash, sentAt);
+    sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
+}
+
 // ---------- server ----------
 const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";
@@ -337,6 +385,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/agent-log" && req.method === "GET") {
         return handleAgentLogRead(req, res, cors);
+    }
+    if (url.pathname === "/api/resume-send-check" && req.method === "POST") {
+        return handleResumeSendCheck(req, res);
+    }
+    if (url.pathname === "/api/resume-send-record" && req.method === "POST") {
+        return handleResumeSendRecord(req, res);
     }
     if (url.pathname === "/health" && req.method === "GET") {
         return sendJson(res, 200, { ok: true, db: dbPath }, cors);

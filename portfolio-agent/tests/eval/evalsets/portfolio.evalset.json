@@ -217,6 +217,53 @@
         }
       ],
       "session_input": { "app_name": "app", "user_id": "eval_meta_well_formed", "state": {} }
+    },
+    {
+      "eval_id": "send_resume_with_email",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Can you email Gaurav's resume to me at jane.recruiter@example.com?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              { "name": "send_resume", "args": { "email": "jane.recruiter@example.com" } }
+            ]
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_send_resume_email", "state": {} }
+    },
+    {
+      "eval_id": "send_resume_no_email",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Could you send me his resume by email?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": []
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_send_resume_no_email", "state": {} }
+    },
+    {
+      "eval_id": "resume_view_intent_no_send",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [{"text": "Can I see his resume?"}]
+          },
+          "intermediate_data": {
+            "tool_uses": []
+          }
+        }
+      ],
+      "session_input": { "app_name": "app", "user_id": "eval_resume_view", "state": {} }
     }
   ]
 }
