@@ -52,16 +52,21 @@ Build the `entry` object: `{ url, firstLine, excerpt, date }`.
 
 ## Step 3 — Show the parsed entry
 
+Tags are extracted automatically — no prompt needed. The script derives `tags` from the
+LinkedIn post hashtags in the OG description text (preferred) or the URL slug (fallback).
+Do not ask the user for a tag; do not pass `--tag` to the script.
+
 Print a brief preview to chat (markdown, not a tool call):
 
 > **Parsed from LinkedIn**
 >
 > - **Title:** `{firstLine}`
 > - **Date:** `{date}`
+> - **Tags:** `{tags.map(t => "#" + t).join(" ")}` *(or "none detected" if empty)*
 > - **Excerpt:** `{excerpt}` *(truncate to ~200 chars in the preview if longer)*
 > - **URL:** `{url}`
 
-## Step 4 — Get explicit approval
+## Step 5 — Get explicit approval
 
 Use **AskUserQuestion** with these options:
 
@@ -71,10 +76,10 @@ Use **AskUserQuestion** with these options:
 4. **Cancel** — abort, don't touch anything.
 
 If the user picks "Edit the title" or "Edit the date", ask in chat for
-the new value, update the `entry` object, then go back to Step 3 with
+the new value, update the `entry` object, then go back to Step 4 with
 the updated entry. Loop until the user picks "Add as-is" or "Cancel".
 
-## Step 5 — Write to posts.json (only on "Add as-is")
+## Step 6 — Write to posts.json (only on "Add as-is")
 
 1. Read `assets/js/data/posts.json`.
 2. Parse JSON. If it's not an array, stop with an error.
@@ -83,7 +88,7 @@ the updated entry. Loop until the user picks "Add as-is" or "Cancel".
 4. Prepend the new entry (newest-first ordering).
 5. Write back as 2-space-indented JSON with a trailing newline.
 
-## Step 6 — Report
+## Step 7 — Report
 
 Print:
 
@@ -100,7 +105,7 @@ Do not commit. Do not bump asset versions — `posts.json` is data, not
 code, and is fetched with `cache: "no-cache"` so a normal reload picks
 it up.
 
-## Step 7 — On cancel
+## Step 8 — On cancel
 
 If the user cancels at any point, leave `posts.json` untouched and
 print a single line:

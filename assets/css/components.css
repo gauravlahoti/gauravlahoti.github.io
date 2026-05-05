@@ -1513,113 +1513,154 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     max-width: 760px;
 }
 
-.post {
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    transition: border-color var(--dur-base) var(--ease-out),
-                background var(--dur-base) var(--ease-out);
-}
-.post:hover,
-.post[open] {
-    border-color: var(--border-strong);
-}
+/* Post filter chips (spec 25) ---------------------------------------- */
 
-.post-summary {
+.post-filter-bar {
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-5);
-    min-height: var(--tap-min);
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
-}
-.post-summary::-webkit-details-marker { display: none; }
-
-.post-summary::before {
-    content: "▸";
-    flex-shrink: 0;
-    width: 1em;
-    color: var(--accent);
-    font-size: var(--text-sm);
-    line-height: 1;
-    transition: transform var(--dur-fast) var(--ease-out);
-    transform-origin: 50% 50%;
-}
-.post[open] > .post-summary::before {
-    transform: rotate(90deg);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    max-width: 760px;
+    margin-bottom: var(--space-4);
 }
 
-.post-summary:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-    border-radius: var(--radius-md);
-}
-
-.post-title {
-    flex: 1 1 auto;
-    color: var(--ink);
-    font-family: var(--font-sans);
-    font-size: var(--text-base);
-    font-weight: 500;
-    line-height: 1.4;
-}
-
-.post-date {
-    flex: 0 0 auto;
-    color: var(--ink-muted);
+.post-filter-chip {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
-    line-height: 1;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+}
+.post-filter-chip:hover,
+.post-filter-chip:focus-visible {
+    border-color: var(--border-strong);
+    color: var(--ink);
+    outline: none;
+}
+.post-filter-chip.is-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* Post rows — flat anchor cards (spec 25) ----------------------------- */
+
+.post-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+        "title arrow"
+        "preview preview"
+        "foot foot";
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-elev);
+    color: inherit;
+    text-decoration: none;
+    position: relative;
+    transition: border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out);
+}
+.post-row:hover,
+.post-row:focus-visible {
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 1px var(--accent-glow) inset;
+    outline: none;
+}
+
+.post-row-title {
+    grid-area: title;
+    color: var(--ink-strong);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.post-body {
-    padding: var(--space-2) var(--space-5) var(--space-5);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-}
-
-.post-excerpt {
+.post-row-preview {
+    grid-area: preview;
     color: var(--ink-muted);
     font-size: var(--text-sm);
-    line-height: 1.6;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: var(--space-2);
 }
 
-.post-link {
-    align-self: flex-start;
+.post-row-foot {
+    grid-area: foot;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    margin-top: var(--space-3);
+}
+
+.post-row-date {
+    color: var(--ink-muted);
+}
+
+.post-row-tags {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.post-row-tag {
     color: var(--accent);
+    letter-spacing: 0.02em;
+}
+
+.post-row-arrow {
+    grid-area: arrow;
+    align-self: start;
+    color: var(--ink-muted);
     font-family: var(--font-mono);
     font-size: var(--text-sm);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--accent-soft);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    transition: border-color var(--dur-fast) var(--ease-out),
-                background var(--dur-fast) var(--ease-out);
+    line-height: 1.35;
+    transition: transform var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
-.post-link:hover {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-.post-link:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+.post-row:hover .post-row-arrow,
+.post-row:focus-visible .post-row-arrow {
+    color: var(--accent);
+    transform: translate(2px, -2px);
 }
 
-@media (max-width: 480px) {
-    .post-summary {
-        flex-wrap: wrap;
+@media (max-width: 600px) {
+    .post-row {
         padding: var(--space-3) var(--space-4);
     }
-    .post-date {
-        flex-basis: 100%;
-        padding-left: calc(1em + var(--space-3));
+    .post-row-title {
+        font-size: var(--text-sm);
     }
-    .post-body {
-        padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .post-row {
+        transition: border-color var(--dur-fast) var(--ease-out);
+    }
+    .post-row-arrow {
+        transition: color var(--dur-fast) var(--ease-out);
+    }
+    .post-row:hover .post-row-arrow,
+    .post-row:focus-visible .post-row-arrow {
+        transform: none;
     }
 }
 
