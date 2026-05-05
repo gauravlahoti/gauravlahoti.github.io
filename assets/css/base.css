@@ -99,6 +99,14 @@ html {
     scroll-padding-top: calc(var(--nav-h) + var(--space-4));
 }
 
+/* Non-Retina displays (Windows Chrome 100–125% DPI, DPR ≤ 1.49x) render
+   rem-based sizes noticeably larger than macOS Retina (DPR 2x). Dropping
+   the root font-size to 14px (87.5%) matches the 85–90% manual zoom
+   Windows users typically need. All rem tokens scale proportionally. */
+@media (max-resolution: 1.49dppx) {
+    html { font-size: 14px; }
+}
+
 body {
     background: var(--bg);
     color: var(--ink);
