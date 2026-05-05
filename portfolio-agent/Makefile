@@ -1,7 +1,13 @@
 # Convenience targets for the portfolio-agent sub-project.
 # `make help` prints this list.
 
-.PHONY: help corpus install dev playground smoke eval lint clean audit
+# Production runs in us-central1 (service: portfolio-agent). agents-cli's
+# default region is us-east1 — always pass --region us-central1 (or use
+# `make deploy`) so the deploy targets the existing prod service instead
+# of building a phantom one in another region.
+GCP_REGION ?= us-central1
+
+.PHONY: help corpus install dev playground smoke eval lint clean audit deploy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -32,6 +38,9 @@ lint: ## Lint with ruff (auto-fix).
 
 audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit log).
 	uv run python -m app.app_utils.audit_log_smoke
+
+deploy: corpus ## Refresh corpus + deploy to Cloud Run (us-central1). Pass FLAGS=... for extras.
+	agents-cli deploy --no-confirm-project --region $(GCP_REGION) $(FLAGS)
 
 clean: ## Drop __pycache__ and .pytest_cache.
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
