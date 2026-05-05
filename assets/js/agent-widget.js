@@ -82,6 +82,12 @@ export function initAgentWidget(root, profile) {
     // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only).
     setupDragToDismiss(panel, dom.dragZone, closePanel);
 
+    // Spec 26: keep the panel sized to the actually-visible viewport so the
+    // soft keyboard doesn't cover the input row. dvh handles URL-bar
+    // collapse on iOS Safari, but the keyboard is invisible to dvh — the
+    // visualViewport API is the only signal that fires when it opens.
+    trackVisualViewport(panel);
+
     // Prevent wheel events from leaking to the page when there is content to scroll.
     panel.addEventListener("wheel", (e) => {
         const b = dom.body;
@@ -675,6 +681,12 @@ function renderShell(root, agentExplainer) {
     input.maxLength = 1000;
     input.placeholder = "Ask about Gaurav's work…";
     input.setAttribute("aria-label", "Message");
+    // Spec 26: native-feeling soft-keyboard hints on touch devices.
+    input.setAttribute("enterkeyhint", "send");
+    input.setAttribute("inputmode", "text");
+    input.setAttribute("autocapitalize", "sentences");
+    input.setAttribute("autocorrect", "on");
+    input.setAttribute("spellcheck", "true");
     const sendBtn = document.createElement("button");
     sendBtn.type = "submit";
     sendBtn.className = "agent-send";
@@ -738,6 +750,28 @@ function renderShell(root, agentExplainer) {
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
+}
+
+// --- visualViewport tracker (Spec 26) --------------------------------------
+// Writes the visible viewport height onto the panel as a CSS custom
+// property `--agent-vv-height` (px). The mobile `.agent-panel` max-height
+// rules read it via min(calc(var(--agent-vv-height, 80dvh) - 24px), 720px),
+// so the panel shrinks in real time when the soft keyboard opens. No-op
+// when visualViewport is unavailable (older browsers fall back to dvh).
+function trackVisualViewport(panel) {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let raf = 0;
+    const sync = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+            raf = 0;
+            panel.style.setProperty("--agent-vv-height", `${vv.height}px`);
+        });
+    };
+    vv.addEventListener("resize", sync, { passive: true });
+    vv.addEventListener("scroll", sync, { passive: true });
+    sync();
 }
 
 // --- drag-to-dismiss --------------------------------------------------------

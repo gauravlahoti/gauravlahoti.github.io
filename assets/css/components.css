@@ -1917,8 +1917,11 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-panel-close,
 .agent-panel-expand,
 .agent-panel-minimize {
-    min-width: 36px;
-    min-height: 36px;
+    /* Spec 26: bump from 36px to --tap-min (44px) so thumb-taps on phones
+       hit reliably and we align with the spec-24 tap-target rule. */
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 0 var(--space-1);
     background: transparent;
     border: none;
     color: var(--ink-muted);
@@ -2143,6 +2146,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-input:focus-visible {
     outline: none;
     border-color: var(--accent);
+}
+/* Spec 26: prevent iOS Safari from force-zooming when the input is
+   focused. iOS triggers zoom whenever a focused form control's computed
+   font-size is below 16px. Coarse-pointer scope keeps the desktop
+   typography untouched. */
+@media (any-pointer: coarse) {
+    .agent-input { font-size: 16px; }
 }
 .agent-send {
     flex: 0 0 auto;
@@ -2582,19 +2592,44 @@ sup.agent-cite a:focus-visible {
     body[data-agent-panel-open="true"] .agent-fab,
     body[data-agent-panel-open="true"] .mobile-bottombar { display: none !important; }
 
-    /* Agent panel becomes a bottom sheet (replaces the old ≤720px rule). */
+    /* Spec 26: lock the underlying page while the bottom sheet is open so
+       it doesn't scroll behind the panel and pull-to-refresh can't fire.
+       Don't use `position: fixed` body — it conflicts with scroll-restore.js
+       and jumps the page to the top on close. */
+    body[data-agent-panel-open="true"] {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    /* Agent panel becomes a bottom sheet (replaces the old ≤720px rule).
+       Spec 26: use dynamic viewport units (dvh) so the panel reacts to the
+       URL bar collapsing/expanding on iOS Safari, plus a `min()` clamp so
+       large-screen phones (Pro Max, Ultra) don't get a wastefully tall
+       sheet. The visualViewport JS hook (assets/js/agent-widget.js) sets
+       --agent-vv-height when the soft keyboard is open; the third
+       declaration prefers it when present, otherwise falls back to dvh. */
     .agent-panel {
         inset: auto 0 0 0;
         width: auto;
         max-height: 80vh;
+        max-height: min(80dvh, 720px);
+        max-height: min(calc(var(--agent-vv-height, 80dvh) - 24px), 720px);
         border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         touch-action: pan-y;
         transform: translateY(100%);
     }
     .agent-panel.is-open { transform: translateY(0); }
-    .agent-panel.is-expanded { min-height: 60vh; max-height: 92vh; }
+    .agent-panel.is-expanded {
+        min-height: 60vh;
+        min-height: 60dvh;
+        max-height: 92vh;
+        max-height: min(92dvh, 920px);
+    }
 
-    /* Drag handle — visible only on mobile; rendered by agent-widget.js. */
+    /* Drag handle — visible only on mobile; rendered by agent-widget.js.
+       Spec 26: pad the drag zone and head with safe-area-inset so the
+       handle and header controls don't tuck under the iPhone notch in
+       landscape. */
     .agent-panel-drag-handle {
         display: block;
         width: 44px;
@@ -2607,12 +2642,34 @@ sup.agent-cite a:focus-visible {
     }
     .agent-panel-drag-zone {
         display: block;
-        padding: var(--space-1) 0 var(--space-2);
+        padding: var(--space-1) env(safe-area-inset-right) var(--space-2) env(safe-area-inset-left);
         cursor: grab;
         flex-shrink: 0;
         touch-action: none;
     }
     .agent-panel-drag-zone:active { cursor: grabbing; }
+    .agent-panel-head {
+        padding-left: max(var(--space-4), env(safe-area-inset-left));
+        padding-right: max(var(--space-4), env(safe-area-inset-right));
+    }
+
+    /* Spec 26: landscape phones are short and the keyboard eats most of the
+       available height. Let the panel claim almost the full viewport,
+       prefer the visualViewport-measured height when present, and shrink
+       the head padding to reclaim a few rows for the conversation. */
+    @media (orientation: landscape) and (max-height: 500px) {
+        .agent-panel {
+            max-height: 96dvh;
+            max-height: min(96dvh, calc(var(--agent-vv-height, 96dvh) - 8px));
+        }
+        .agent-panel.is-expanded {
+            max-height: 96dvh;
+        }
+        .agent-panel-head {
+            padding-top: var(--space-2);
+            padding-bottom: var(--space-2);
+        }
+    }
 
     /* Capabilities — collapsed-by-default on mobile. */
     .cap-axis[data-mobile-collapsed="true"] .cap-axis-cards { display: none; }
