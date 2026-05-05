@@ -123,6 +123,14 @@
       "slug": "gcp-security-engineer",
       "badge": "assets/img/badges/gcp-security-engineer.png",
       "credlyUrl": "https://www.credly.com/badges/6f2d203e-3a76-4872-893f-1ddad8631fa4/public_url"
+    },
+    {
+      "name": "Google Cloud Agentic Premier League — Champion",
+      "issuer": "Google Cloud",
+      "category": "ai",
+      "slug": "gcp-agentic-premier-league-champion",
+      "badge": "assets/img/badges/gcp-agentic-premier-league-champion.png",
+      "credlyUrl": ""
     }
   ],
   "experience": [

@@ -306,7 +306,7 @@
 
 @keyframes cert-ticker {
     from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
+    to   { transform: translateX(var(--cert-ticker-dist, -33.33%)); }
 }
 
 .cert-tile {
