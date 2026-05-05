@@ -188,14 +188,7 @@ export function initAgentWidget(root, profile) {
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "agent-action-chip";
-            btn.innerHTML =
-                '<svg class="agent-action-chip-icon" viewBox="0 0 24 24" width="16" height="16" ' +
-                'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
-                'stroke-linejoin="round" aria-hidden="true">' +
-                '<rect x="3" y="5" width="18" height="14" rx="2"/>' +
-                '<path d="m3 7 9 7 9-7"/></svg>' +
-                '<span class="agent-action-chip-label"></span>';
-            btn.querySelector(".agent-action-chip-label").textContent = label;
+            btn.textContent = label;
             btn.addEventListener("click", () => {
                 if (isPending) return;
                 input.value = prefill + (prefill.endsWith(" ") ? "" : " ");
