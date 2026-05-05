@@ -55,11 +55,15 @@ async function main() {
 
     let entry;
     if (fetched) {
+        const desc = (fetched.description || "").trim();
+        const tags = deriveTagsFromUrl(url);
+        const textTags = extractTagsFromText(desc);
         entry = {
             url,
-            firstLine: deriveFirstLine(fetched.description || fetched.title || ""),
-            excerpt:   (fetched.description || "").trim(),
+            firstLine: deriveFirstLine(desc || fetched.title || ""),
+            excerpt:   desc,
             date:      deriveDateFromUrl(url) || todayIso(),
+            tags:      textTags.length ? textTags : tags,
         };
     } else if (printOnly) {
         console.error("FETCH_FAILED could not retrieve OG metadata");
@@ -71,6 +75,7 @@ async function main() {
             console.log("Cancelled. No changes made.");
             exit(1);
         }
+        entry.tags = deriveTagsFromUrl(url);
     }
 
     if (printOnly) {
@@ -228,6 +233,24 @@ function todayIso() {
 // recover the actual publish date — far more accurate than defaulting to
 // "today the user happened to add it." Returns null if the URL doesn't
 // contain a recognisable activity ID or the decoded date is implausible.
+// Extract hashtags from the URL slug: /posts/USERNAME_TAG1-TAG2-TAG3-ugcPost-ID
+// LinkedIn encodes the post's first 2–3 hashtags in the URL slug, making this
+// a reliable source even when the OG description is truncated.
+function deriveTagsFromUrl(url) {
+    const m = url && url.match(/\/posts\/[^_]+_(.+?)-(?:ugcPost|share)-/i);
+    if (!m) return [];
+    return m[1].split("-").filter(t => t.length > 1);
+}
+
+// Extract #hashtag tokens from post body text (OG description).
+// Preferred over URL slug when available — gives all hashtags, not just the first few.
+function extractTagsFromText(text) {
+    const seen = new Set();
+    return (text.match(/#(\w+)/g) || [])
+        .map(t => t.slice(1).toLowerCase())
+        .filter(t => seen.has(t) ? false : seen.add(t));
+}
+
 function deriveDateFromUrl(url) {
     const m = url && url.match(/(\d{15,21})/);
     if (!m) return null;

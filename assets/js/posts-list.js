@@ -1,5 +1,5 @@
 // posts-list.js — Writing section (LinkedIn posts feed) + nav flyout.
-// Exports: initPostsList(root)   → accordion in #writing (all posts)
+// Exports: initPostsList(root)   → flat-link rows in #writing (all posts)
 //          initPostsFlyout(root) → top FLYOUT_LIMIT posts in nav dropdown
 // Both surfaces sort by date descending so adding a newer post via
 // /add-post automatically rises to the top of the flyout — no need to
@@ -55,14 +55,25 @@ export async function initPostsList(root) {
     }
 
     const frag = document.createDocumentFragment();
+    const allRows = [];
     for (const post of posts) {
         const node = renderPost(post);
-        if (node) frag.appendChild(node);
+        if (node) {
+            const tags = Array.isArray(post.tags) ? post.tags : (post.tag ? [post.tag] : []);
+            node.dataset.tags = tags.join(" ");
+            frag.appendChild(node);
+            allRows.push(node);
+        }
     }
     root.replaceChildren(frag);
+    buildFilterBar(root, allRows);
 
     return {
-        destroy() { root.replaceChildren(); },
+        destroy() {
+            const bar = root.parentElement && root.parentElement.querySelector(".post-filter-bar");
+            if (bar) bar.remove();
+            root.replaceChildren();
+        },
     };
 }
 
@@ -138,53 +149,116 @@ function renderFlyoutItem(post) {
     return li;
 }
 
+function buildFilterBar(root, rows) {
+    const freq = new Map();
+    for (const row of rows) {
+        for (const t of (row.dataset.tags || "").split(" ").filter(Boolean)) {
+            freq.set(t, (freq.get(t) || 0) + 1);
+        }
+    }
+
+    const chips = [...freq.entries()]
+        .filter(([, count]) => count >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .map(([tag]) => tag);
+
+    if (chips.length === 0) return;
+
+    let activeTag = null;
+
+    const bar = document.createElement("div");
+    bar.className = "post-filter-bar";
+    bar.setAttribute("role", "group");
+    bar.setAttribute("aria-label", "Filter posts by topic");
+
+    const applyFilter = (tag) => {
+        activeTag = tag;
+        for (const btn of bar.querySelectorAll(".post-filter-chip")) {
+            const isActive = btn.dataset.filterTag === (tag || "");
+            btn.setAttribute("aria-pressed", String(isActive));
+            btn.classList.toggle("is-active", isActive);
+        }
+        for (const row of rows) {
+            if (!tag) {
+                row.style.display = "";
+            } else {
+                row.style.display = row.dataset.tags.split(" ").includes(tag) ? "" : "none";
+            }
+        }
+    };
+
+    const makeChip = (label, tag) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "post-filter-chip";
+        btn.textContent = label;
+        btn.dataset.filterTag = tag;
+        btn.setAttribute("aria-pressed", tag === "" ? "true" : "false");
+        if (tag === "") btn.classList.add("is-active");
+        btn.addEventListener("click", () => applyFilter(activeTag === tag ? null : tag || null));
+        return btn;
+    };
+
+    bar.appendChild(makeChip("All", ""));
+    for (const tag of chips) bar.appendChild(makeChip(`#${tag}`, tag));
+
+    root.before(bar);
+}
+
 function renderPost(post) {
     if (!post || typeof post.url !== "string" || typeof post.firstLine !== "string") {
         return null;
     }
 
-    const details = document.createElement("details");
-    details.className = "post";
+    const a = document.createElement("a");
+    a.className = "post-row";
+    a.href = post.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.dataset.cursor = "magnet";
+    const titleEl = document.createElement("span");
+    titleEl.className = "post-row-title";
+    titleEl.textContent = post.firstLine;
+    a.appendChild(titleEl);
 
-    const summary = document.createElement("summary");
-    summary.className = "post-summary";
+    const preview = document.createElement("span");
+    preview.className = "post-row-preview";
+    preview.textContent = post.excerpt ? withEllipsis(post.excerpt) : "";
+    a.appendChild(preview);
 
-    const title = document.createElement("span");
-    title.className = "post-title";
-    title.textContent = post.firstLine;
-    summary.appendChild(title);
+    const foot = document.createElement("span");
+    foot.className = "post-row-foot";
 
     if (post.date) {
         const time = document.createElement("time");
-        time.className = "post-date";
+        time.className = "post-row-date";
         time.dateTime = post.date;
         time.textContent = formatDate(post.date);
-        summary.appendChild(time);
+        foot.appendChild(time);
     }
 
-    details.appendChild(summary);
-
-    const body = document.createElement("div");
-    body.className = "post-body";
-
-    if (post.excerpt) {
-        const p = document.createElement("p");
-        p.className = "post-excerpt";
-        p.textContent = withEllipsis(post.excerpt);
-        body.appendChild(p);
+    const tags = Array.isArray(post.tags) ? post.tags : (post.tag ? [post.tag] : []);
+    if (tags.length) {
+        const tagsEl = document.createElement("span");
+        tagsEl.className = "post-row-tags";
+        for (const t of tags) {
+            const span = document.createElement("span");
+            span.className = "post-row-tag";
+            span.textContent = `#${t}`;
+            tagsEl.appendChild(span);
+        }
+        foot.appendChild(tagsEl);
     }
 
-    const link = document.createElement("a");
-    link.className = "post-link";
-    link.href = post.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.dataset.cursor = "magnet";
-    link.textContent = "Read full post on LinkedIn ↗";
-    body.appendChild(link);
+    a.appendChild(foot);
 
-    details.appendChild(body);
-    return details;
+    const arrow = document.createElement("span");
+    arrow.className = "post-row-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "↗";
+    a.appendChild(arrow);
+
+    return a;
 }
 
 function formatDate(iso) {
