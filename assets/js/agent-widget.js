@@ -681,10 +681,10 @@ function renderShell(root, agentExplainer) {
         const trigger = document.createElement("button");
         trigger.type = "button";
         trigger.className = "agent-explainer-trigger";
-        trigger.textContent = "Powered by ADK + Gemini";
+        trigger.textContent = "Powered by ADK + Gemini + MCP";
         foot.appendChild(trigger);
     } else {
-        foot.textContent = "Powered by ADK + Gemini";
+        foot.textContent = "Powered by ADK + Gemini + MCP";
     }
 
     const liveRegion = document.createElement("div");

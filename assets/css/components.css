@@ -2039,43 +2039,40 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     outline: none;
 }
 
-/* Action chips. Visually distinct from question-asking chips: accent border
-   at rest, leading mail icon, signals "this *does* something." Renders
-   above .agent-prompt-chip rows in renderStarters(). */
+/* Action chips. Same visual weight as .agent-prompt-chip — just a leading
+   mail icon as subtle differentiator. Rendered above the question chips in
+   renderStarters() so it sits at the top of the starter row. */
 .agent-action-chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: var(--space-2);
     text-align: left;
     padding: var(--space-2) var(--space-3);
-    background: var(--accent-soft);
+    background: var(--bg-card);
     color: var(--ink);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-family: var(--font-sans);
     font-size: var(--text-sm);
-    font-weight: 500;
     cursor: pointer;
     min-height: 44px;
-    align-self: flex-start;
     transition:
         border-color var(--dur-fast) var(--ease-out),
-        background var(--dur-fast) var(--ease-out),
-        transform var(--dur-fast) var(--ease-out);
+        background var(--dur-fast) var(--ease-out);
 }
 .agent-action-chip:hover,
 .agent-action-chip:focus-visible {
-    background: var(--accent);
-    color: var(--bg);
+    border-color: var(--accent);
+    background: var(--accent-soft);
     outline: none;
 }
 .agent-action-chip-icon {
     flex-shrink: 0;
-    color: var(--accent);
+    color: var(--ink-subtle);
 }
 .agent-action-chip:hover .agent-action-chip-icon,
 .agent-action-chip:focus-visible .agent-action-chip-icon {
-    color: var(--bg);
+    color: var(--accent);
 }
 
 .agent-transcript {
@@ -2408,7 +2405,7 @@ sup.agent-cite a:focus-visible {
 .agent-explainer-trigger {
     background: transparent;
     border: none;
-    color: inherit;
+    color: var(--accent);
     cursor: pointer;
     font: inherit;
     padding: 0;
@@ -2418,7 +2415,8 @@ sup.agent-cite a:focus-visible {
 }
 .agent-explainer-trigger:hover,
 .agent-explainer-trigger:focus-visible {
-    color: var(--accent);
+    color: var(--accent-strong, var(--accent));
+    text-decoration-style: solid;
     outline: none;
 }
 

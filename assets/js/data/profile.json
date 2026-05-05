@@ -28,7 +28,6 @@
     }
   ],
   "agentPrompts": [
-    "What's his multi-cloud experience?",
     "What is he writing about lately on LinkedIn?",
     "Which cloud certifications does he hold?",
     "What kinds of problems does he solve for clients?"
@@ -175,7 +174,7 @@
   "agentExplainer": {
     "title": "How this agent works",
     "body": [
-      "An agent built on Google's Agent Development Kit and Gemini 2.5 Flash, running on Cloud Run. The first reply may take a moment while it warms up.",
+      "An agent built on Google's Agent Development Kit and Gemini 2.5 Flash, running on Cloud Run. It calls out to a Resend MCP server for actions like emailing the resume — Model Context Protocol for the agent-to-tool wiring. The first reply may take a moment while it warms up.",
       "It works off a versioned snapshot of my profile, projects, certifications, and recent writing, refreshed on every deploy. Each turn, it decides what to cite, what you might want to ask next, and when to point you toward a direct conversation with me. The follow-up chips and inline [1] markers show what it's confident about and where it's pulling from.",
       "It knows its limits. It won't quote a salary, commit to my calendar, or make up opinions I haven't shared. For anything outside that fence, it'll point you to me directly."
     ]
