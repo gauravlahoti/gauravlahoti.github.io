@@ -2400,7 +2400,6 @@ sup.agent-cite a:focus-visible {
 .agent-explainer-body p:last-child { margin-bottom: 0; }
 .agent-explainer-body .agent-highlight {
     color: var(--accent);
-    font-weight: 600;
     /* Keep tracking inherited; do not change line-height. */
 }
 .agent-explainer-foot {
