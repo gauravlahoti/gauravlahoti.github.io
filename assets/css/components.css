@@ -2166,8 +2166,12 @@ sup.agent-cite a:focus-visible {
     outline: none;
 }
 .agent-source-internal {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
     font-style: italic;
+    color: var(--ink-subtle);
     cursor: default;
+    user-select: none;
 }
 
 /* Follow-up suggestion chips — rendered after a response completes. */

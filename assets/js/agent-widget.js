@@ -432,7 +432,7 @@ export function initAgentWidget(root, profile) {
         const wrap = document.createElement("div");
         wrap.className = "agent-sources";
         const span = document.createElement("span");
-        span.className = "agent-source-link agent-source-internal";
+        span.className = "agent-source-internal";
         span.textContent = "Internal — profile data";
         wrap.appendChild(span);
         assistantLi.appendChild(wrap);
