@@ -417,12 +417,25 @@ export function initAgentWidget(root, profile) {
         if (!p) return;
         removeCaret(li);
         p.replaceChildren();
-        // Render text — citations passed for [N] → superscript conversion
         renderTextWithLinks(p, fullText, citations);
-        // Render source list below text (reliable fallback + mobile-friendly)
-        if (FEATURES.citations && Object.keys(citations).length > 0) {
-            renderCitationList(li, citations);
+        if (FEATURES.citations) {
+            if (Object.keys(citations).length > 0) {
+                renderCitationList(li, citations);
+            } else if (/\[\d\]/.test(fullText)) {
+                // [N] marker present but server sent no citations (URL dropped or internal source)
+                renderFallbackSource(li);
+            }
         }
+    }
+
+    function renderFallbackSource(assistantLi) {
+        const wrap = document.createElement("div");
+        wrap.className = "agent-sources";
+        const span = document.createElement("span");
+        span.className = "agent-source-link agent-source-internal";
+        span.textContent = "Internal — profile data";
+        wrap.appendChild(span);
+        assistantLi.appendChild(wrap);
     }
 
     function renderCitationList(assistantLi, citations) {

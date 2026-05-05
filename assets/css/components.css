@@ -2165,6 +2165,10 @@ sup.agent-cite a:focus-visible {
     text-decoration: underline;
     outline: none;
 }
+.agent-source-internal {
+    font-style: italic;
+    cursor: default;
+}
 
 /* Follow-up suggestion chips — rendered after a response completes. */
 .agent-suggestions {
