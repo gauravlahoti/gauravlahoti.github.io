@@ -49,3 +49,14 @@ ALTER TABLE agent_interactions ADD COLUMN cta               TEXT;
 ALTER TABLE agent_interactions ADD COLUMN country TEXT;
 ALTER TABLE agent_interactions ADD COLUMN region  TEXT;
 ALTER TABLE agent_interactions ADD COLUMN city    TEXT;
+
+-- Per-recipient rate-limit ledger for the agent's send_resume action.
+-- Email hashed (sha256(email|UTC_DATE)[:16]) before storage; raw addresses
+-- never persisted. Cleaned by the same retention cron as agent_interactions.
+CREATE TABLE IF NOT EXISTS resume_sends (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  email_hash  TEXT    NOT NULL,
+  sent_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rs_hash ON resume_sends(email_hash);
+CREATE INDEX IF NOT EXISTS idx_rs_at   ON resume_sends(sent_at);

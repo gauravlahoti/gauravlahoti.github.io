@@ -1,17 +1,22 @@
-"""Portfolio retrieval tools.
+"""Portfolio retrieval + action tools.
 
 Each function here is registered as an ADK tool. Functions are plain Python —
-ADK derives the JSON schema from the type hints + docstring. All data is loaded
-once at module import from `app/corpus/` (a frozen snapshot bundled into the
-container at build time via `make corpus`).
+ADK derives the JSON schema from the type hints + docstring. Retrieval tools
+load their data once at module import from `app/corpus/` (a frozen snapshot
+bundled into the container at build time via `make corpus`).
 
-No tool makes outbound HTTP. Every fact comes from the bundled corpus.
+The retrieval tools make no outbound HTTP. The single action tool
+(`send_resume`) does — it talks to Resend's REST API and the resume-gate
+Worker for rate-limit bookkeeping.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
+
+from app.app_utils.resume_send import send_resume_email
 
 _CORPUS_DIR = Path(__file__).parent / "corpus"
 
@@ -173,6 +178,35 @@ def get_recent_posts(limit: int = 5) -> list[dict]:
         excerpt, date}.
     """
     return list(_POSTS[: max(1, min(limit, len(_POSTS)))])
+
+
+async def send_resume(email: str) -> dict[str, Any]:
+    """Email Gaurav's resume PDF to the visitor on explicit request.
+
+    Call this tool ONLY when the visitor has clearly asked for the resume to
+    be emailed AND has provided a destination address (e.g. "send the resume
+    to me at name@company.com"). Do NOT call this for general "tell me about
+    Gaurav" or resume-display intents — those should route to the on-site
+    Resume button as described in the system instructions.
+
+    The tool validates the email, enforces a 1-send-per-address-per-24h rate
+    limit, and sends a single transactional email with the resume PDF
+    attached. The visitor's address is hashed (with a daily-rotating salt)
+    before any persistence — raw addresses are never stored.
+
+    Args:
+        email: The recipient address provided by the visitor.
+
+    Returns:
+        A dict {ok: bool, code: str, message: str}. Surface `message` in the
+        visible reply. Codes:
+            ok              — sent successfully.
+            invalid_email   — ask the visitor for a valid address.
+            rate_limited    — that address already received the resume today.
+            not_configured  — env not set (dev / misconfig); apologize briefly.
+            send_failed     — transient error; suggest LinkedIn as fallback.
+    """
+    return await send_resume_email(email)
 
 
 def get_certifications() -> list[dict]:
