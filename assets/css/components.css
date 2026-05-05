@@ -2388,6 +2388,11 @@ sup.agent-cite a:focus-visible {
     margin-bottom: var(--space-3);
 }
 .agent-explainer-body p:last-child { margin-bottom: 0; }
+.agent-explainer-body .agent-highlight {
+    color: var(--accent);
+    font-weight: 600;
+    /* Keep tracking inherited; do not change line-height. */
+}
 .agent-explainer-foot {
     margin-top: var(--space-4);
     padding-top: var(--space-3);
