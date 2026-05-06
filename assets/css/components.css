@@ -275,7 +275,11 @@
     bottom: var(--space-12);
     height: 180px;
     z-index: 4;
-    overflow: hidden;
+    /* Clip horizontally only — vertical visible so a hovered tile (lifted
+       -12px + scaled 1.35×) isn't cropped at the top by the rail bounds.
+       `clip` is paint-only so it doesn't create a scroll container. */
+    overflow-x: clip;
+    overflow-y: visible;
     pointer-events: none;
     /* Tiny edge fade so badges don't hard-pop at the absolute viewport edges */
     -webkit-mask-image: linear-gradient(to right, transparent 0%, black 1.5%, black 98.5%, transparent 100%);
@@ -319,7 +323,11 @@
     width: 130px;
     height: 130px;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border-strong);
+    /* Darker teal frame than the global --border-strong (which is white at
+       16% opacity and reads as faint gray on the dark hero). A muted dark
+       teal gives each tile a "decent dark" defined edge while still
+       harmonizing with the cyan glow halo. */
+    border: 1px solid rgba(0, 130, 110, 0.55);
     background: rgba(255, 255, 255, 0.04);
     /* No backdrop-filter: the tile background is rgba(255,255,255,0.04)
        over a solid black hero, so blur(8px) had nothing to actually blur.
