@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "76";
+const ASSET_VERSION = "77";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -378,10 +378,6 @@ function initCertRail(profile) {
         list.appendChild(renderCertTile(c, true));
     }
     root.appendChild(list);
-
-    root.querySelectorAll(".cert-tile").forEach((t) => {
-        t.style.setProperty("--shimmer-delay", `${(Math.random() * -7).toFixed(2)}s`);
-    });
 
     // Measure the exact pixel distance from list start to the first duplicate
     // so the keyframe loops back to precisely the same visual position.

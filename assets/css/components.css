@@ -370,23 +370,11 @@
     object-fit: contain;
 }
 
-/* AI badges: extra cyan ring + stronger glow */
-.cert-tile.is-ai {
-    box-shadow: 0 0 28px rgba(0, 255, 209, 0.32);
-}
-.cert-tile.is-ai::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: calc(var(--radius-md) + 2px);
-    border: 1px solid var(--accent);
-    pointer-events: none;
-    opacity: 0.65;
-}
-
-/* Shimmer sweep — diagonal highlight that crosses the badge surface.
-   Uses clip-path sweep (compositor-safe in Chrome 108+) instead of
-   background-position (paint-bound), eliminating per-tile repaints on scroll. */
+/* Shimmer sweep — single diagonal highlight that fires once on hover/focus.
+   Replaces the previous always-on per-tile loop, which kept ~20 compositor
+   layers animating at rest and produced a random-phase flicker across the
+   rail. The pseudo stays so the gradient/clip-path can animate; opacity 0
+   keeps it invisible until interacted with. */
 .cert-tile::after {
     content: "";
     position: absolute;
@@ -401,9 +389,12 @@
     pointer-events: none;
     z-index: 2;
     mix-blend-mode: screen;
-    will-change: clip-path, opacity;
-    animation: cert-shimmer 7s linear infinite;
-    animation-delay: var(--shimmer-delay, 0s);
+    opacity: 0;
+}
+.cert-tile:hover::after,
+.cert-tile:focus-visible::after,
+.cert-tile.is-open::after {
+    animation: cert-shimmer 1.4s var(--ease-out) 1;
 }
 
 @keyframes cert-shimmer {
@@ -412,13 +403,6 @@
     50%  { clip-path: inset(0 40%  0  40% round var(--radius-md)); opacity: 1; }
     70%  { clip-path: inset(0 -10% 0  90% round var(--radius-md)); opacity: 0; }
     100% { clip-path: inset(0 110% 0 -10% round var(--radius-md)); opacity: 0; }
-}
-
-/* Off-screen pause for the per-tile shimmer. Frozen while the rail is
-   not visible so compositor layer cost goes to zero. (Reduced-motion guard
-   for the shimmer + ticker is already covered ~80 lines below.) */
-.cert-rail[data-paused="true"] .cert-tile::after {
-    animation-play-state: paused;
 }
 
 /* Magnetic hover: pronounced lift + scale to make the badge feel alive */
@@ -494,6 +478,9 @@
 
 @media (prefers-reduced-motion: reduce) {
     .cert-tile::after { animation: none; opacity: 0; }
+    .cert-tile:hover::after,
+    .cert-tile:focus-visible::after,
+    .cert-tile.is-open::after { animation: none; }
     .cert-tile:hover,
     .cert-tile:focus-visible {
         transform: translateY(-4px) scale(1.1);
