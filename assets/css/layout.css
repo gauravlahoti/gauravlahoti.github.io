@@ -617,14 +617,15 @@ main { padding-top: 0; }
     align-items: stretch;
 }
 
-/* Row alignment across the 3 axis columns is handled by JS in
-   equalizeCapabilityRows() — see assets/js/main.js. CSS `display: contents`
-   + `grid-template-rows` approaches were tried and proved unreliable:
-   components.css's `.cap-axis { display: flex }` kept winning the cascade
-   in practice, and even when we forced display:contents the row-track
-   sizing didn't fully equalize. JS measures each card's natural height
-   per axis-row and applies the row's max as min-height to every card in
-   that row, giving guaranteed alignment that survives content changes. */
+/* Row alignment across the 3 axis columns is handled by CSS in
+   components.css — `.cap-axis` + `.cap-axis-cards` switch to display:
+   contents at ≥1101px so cards become direct items of this grid; with
+   explicit grid-column per data-axis, auto-flow places card-N of each
+   axis into grid row N+1 and CSS Grid sizes the row to the tallest card,
+   aligning tops and bottoms by construction. Earlier attempts at this
+   lived here in layout.css and lost the cascade against components.css
+   (loaded later); the override is now co-located with the flex rules
+   it overrides, so source-order resolves it correctly. */
 
 /* 2-col layout: AI-Native + Cloud share row 1, Business spans row 2.
    Equalizer doesn't apply here either — too few cards per row to matter

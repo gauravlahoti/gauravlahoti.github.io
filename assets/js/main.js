@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "87";
+const ASSET_VERSION = "89";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -166,28 +166,8 @@ function initCapabilities(profile) {
     // Spec 22: collapse each axis behind a 3-chip preview on mobile.
     if (isNarrow) setupCapabilitiesMobileCollapse(root);
 
-    // Align card heights row-by-row across the 3 axis columns on desktop.
-    // CSS-only attempts (subgrid, display:contents + nth-child grid-row)
-    // kept losing the cascade or leaving stale rows. JS-side equalization
-    // is small, deterministic, and survives "+N more" reveals via resize.
-    equalizeCapabilityRows(root);
-    let resizeTimer;
-    window.addEventListener("resize", () => {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => equalizeCapabilityRows(root), 120);
-    });
-    // "+N more" buttons grow their card; re-equalize when any card's
-    // chip list toggles between collapsed and expanded states.
-    root.querySelectorAll("[data-cap-more]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            requestAnimationFrame(() => equalizeCapabilityRows(root));
-        });
-    });
-    root.querySelectorAll(".cap-chip-fewer-wrap .cap-chip").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            requestAnimationFrame(() => equalizeCapabilityRows(root));
-        });
-    });
+    // Row alignment across the 3 axis columns is now CSS-only — see the
+    // `display: contents` block in components.css.
 
     const cards = root.querySelectorAll(".cap-card");
     if (!cards.length) return;
@@ -199,39 +179,24 @@ function initCapabilities(profile) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             if (gsap && !reduceMotion) {
-                gsap.from(cards, { opacity: 0, y: 20, stagger: 0.05, duration: 0.5, ease: "power3.out" });
+                // Opacity-only fade. We dropped the `y: 20` because the
+                // staggered tween left a residual `transform: translate(0,20px)`
+                // on later cards (cloud/business), shifting them 20px below
+                // their grid position and breaking row alignment. clearProps
+                // also ensures GSAP wipes inline transform/opacity once the
+                // tween finishes so nothing leaks into post-animation layout.
+                gsap.from(cards, {
+                    opacity: 0,
+                    stagger: 0.05,
+                    duration: 0.5,
+                    ease: "power3.out",
+                    clearProps: "opacity,transform",
+                });
             }
             triggerScanLines(cards);
         }
     }, { rootMargin: "0px 0px -10% 0px" });
     io.observe(root);
-}
-
-/* Equalize card heights row-by-row across the three axis columns. Only
-   active on the 3-col desktop layout (≥1101px) — below that the columns
-   reflow and row-alignment isn't meaningful (Business spans full width
-   on 2-col, everything stacks on mobile). */
-function equalizeCapabilityRows(root) {
-    if (!root) return;
-    const desktop = matchMedia("(min-width: 1101px)").matches;
-    const cardsByAxis = Array.from(root.querySelectorAll(".cap-axis-cards")).map(
-        (a) => Array.from(a.children).filter((el) => el.classList.contains("cap-card"))
-    );
-    if (cardsByAxis.length < 2) return;
-
-    // Reset previous min-heights (so a viewport shrink back to mobile,
-    // or a content change, doesn't leave stale floors in place).
-    cardsByAxis.flat().forEach((c) => { c.style.minHeight = ""; });
-
-    if (!desktop) return;
-
-    const maxRows = Math.max(...cardsByAxis.map((c) => c.length));
-    for (let r = 0; r < maxRows; r++) {
-        const rowCards = cardsByAxis.map((c) => c[r]).filter(Boolean);
-        if (rowCards.length < 2) continue;
-        const max = Math.max(...rowCards.map((c) => c.offsetHeight));
-        rowCards.forEach((c) => { c.style.minHeight = `${max}px`; });
-    }
 }
 
 const CHIP_VISIBLE_LIMIT = 5;

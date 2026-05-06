@@ -1047,6 +1047,44 @@
     gap: var(--space-3);
 }
 
+/* Desktop only: flatten each axis into the parent .capabilities-grid so all
+   axis headers and all cards become direct grid items. With explicit
+   grid-column per data-axis and default grid-auto-flow: row, card N of
+   each axis lands in grid row N+1 — CSS Grid then sizes that row to the
+   tallest card in it, aligning tops AND bottoms across the three axes
+   with no measurement, no JS, no font-load race. The .cap-axis and
+   .cap-axis-cards boxes are removed from layout via display: contents
+   while remaining in the DOM (semantics, querySelector, ARIA preserved).
+   Placed AFTER the flex declarations above so it wins source-order — an
+   earlier attempt put this in layout.css and lost the cascade because
+   components.css loads later. */
+@media (min-width: 1101px) {
+    /* dense backfills auto-placed cards into the earliest empty cell of
+       their explicit column. Without dense, sparse auto-flow advances a
+       cursor as it places axis-1's six cards in column 1 rows 2–7, then
+       refuses to backtrack — axis-2/axis-3 cards end up *below* row 7
+       instead of in row 2. */
+    .capabilities-grid { grid-auto-flow: dense; }
+
+    .cap-axis,
+    .cap-axis-cards {
+        display: contents;
+    }
+    .cap-axis[data-axis="ai-native"] > .cap-axis-head,
+    .cap-axis[data-axis="ai-native"]   .cap-card { grid-column: 1; }
+    .cap-axis[data-axis="cloud"]     > .cap-axis-head,
+    .cap-axis[data-axis="cloud"]       .cap-card { grid-column: 2; }
+    .cap-axis[data-axis="business"]  > .cap-axis-head,
+    .cap-axis[data-axis="business"]    .cap-card { grid-column: 3; }
+    .cap-axis-head {
+        grid-row: 1;
+        /* The flex container used to give us gap: var(--space-4) between
+           the head and the first card. Parent grid row-gap is var(--space-3),
+           so add the missing var(--space-1) below the head. */
+        margin-bottom: calc(var(--space-4) - var(--space-3));
+    }
+}
+
 .cap-card {
     --cap-bracket: 10px;
     /* Per-axis accent indirection: each axis sets these three custom props,
