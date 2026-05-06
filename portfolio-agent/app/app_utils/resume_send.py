@@ -111,7 +111,7 @@ def _email_html() -> str:
         "font-size:15px;line-height:1.5;color:#1a1a1a;\">"
         "<p>Hi,</p>"
         "<p>You requested Gaurav Lahoti's resume from the AI Agent at "
-        "<a href=\"https://gauravlahoti.github.io\">gauravlahoti.github.io</a>. "
+        "<a href=\"https://gauravlahoti.dev\">gauravlahoti.dev</a>. "
         "The PDF is attached.</p>"
         "<p>If you didn't request this, ignore the email — your address won't be used again.</p>"
         "<p>To follow up directly:<br>"
@@ -127,7 +127,7 @@ def _email_text() -> str:
     return (
         "Hi,\n\n"
         "You requested Gaurav Lahoti's resume from the AI Agent at "
-        "https://gauravlahoti.github.io. The PDF is attached.\n\n"
+        "https://gauravlahoti.dev. The PDF is attached.\n\n"
         "If you didn't request this, ignore the email — your address won't be used again.\n\n"
         "To follow up directly:\n"
         "LinkedIn: https://www.linkedin.com/in/glahoti/\n"
@@ -174,7 +174,7 @@ async def send_resume_email(email: str) -> dict[str, Any]:
                 "message": "That doesn't look like a valid email address. Could you double-check it?"}
 
     sender   = _env("RESEND_FROM_ADDRESS")
-    pdf_url  = _env("RESUME_PDF_URL") or "https://gauravlahoti.github.io/assets/img/resume.pdf"
+    pdf_url  = _env("RESUME_PDF_URL") or "https://gauravlahoti.dev/assets/img/resume.pdf"
     log_tok  = _env("AGENT_LOG_TOKEN")
     mcp_url  = _env("RESEND_MCP_URL")
 

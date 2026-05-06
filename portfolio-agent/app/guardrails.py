@@ -50,7 +50,8 @@ _URL_RE = re.compile(r"https?://[^\s<>()\[\]]+", re.IGNORECASE)
 _ALLOWED_HOSTS = (
     "linkedin.com",
     "github.com",
-    "gauravlahoti.github.io",
+    "gauravlahoti.dev",
+    "gauravlahoti.github.io",  # legacy host, kept during cutover
     "topmate.io",
     "credly.com",          # certification badge verification
     "cp.certmetrics.com",  # AWS cert verify links
@@ -58,12 +59,12 @@ _ALLOWED_HOSTS = (
 )
 
 # Defense against the model hallucinating a direct PDF or download path on
-# the portfolio domain (observed: it invented `gauravlahoti.github.io/resume.pdf`
+# the portfolio domain (observed: it invented `gauravlahoti.dev/resume.pdf`
 # which doesn't exist). Only the bare root URL is legitimate; any path that
 # looks like a download or a deep link is treated as a hallucination and
 # replaced with a navigation hint.
 _HALLUCINATED_PORTFOLIO_PATH_RE = re.compile(
-    r"https?://(?:www\.)?gauravlahoti\.github\.io/[^\s<>()\[\]]*"
+    r"https?://(?:www\.)?gauravlahoti\.(?:dev|github\.io)/[^\s<>()\[\]]*"
     r"(?:\.pdf|/resume|/download|/file)[^\s<>()\[\]]*",
     re.IGNORECASE,
 )

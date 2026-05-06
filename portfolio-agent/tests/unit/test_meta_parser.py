@@ -144,7 +144,7 @@ def test_sentinel_constants_defined():
 
 
 def test_allowlist_contains_expected_hosts():
-    required = {"linkedin.com", "www.linkedin.com", "github.com", "topmate.io", "gauravlahoti.github.io"}
+    required = {"linkedin.com", "www.linkedin.com", "github.com", "topmate.io", "gauravlahoti.dev"}
     assert required <= _ALLOWED_CITE_HOSTS
 
 
