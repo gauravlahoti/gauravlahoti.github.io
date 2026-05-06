@@ -617,43 +617,17 @@ main { padding-top: 0; }
     align-items: stretch;
 }
 
-/* 3-col desktop: flatten the axis containers so headers and cards become
-   direct grid items of .capabilities-grid. Each grid row's height is then
-   the max of its tallest cell across the 3 columns, so card N in axis 1
-   visually aligns with card N in axes 2 and 3 even though their content
-   sizes differ.
-
-   We pin every item with both an explicit grid-column (by axis) and an
-   explicit grid-row (1 for headers, 2..7 for cards by nth-child index).
-   Auto-placement with `grid-auto-flow: dense` is unreliable when columns
-   carry different item counts — the sparse cursor leaves axis-2 and
-   axis-3 cards stranded in later rows, breaking the alignment we want.
-   Explicit positions sidestep that entirely. */
-@media (min-width: 1101px) {
-    /* Specificity bump: components.css declares `.cap-axis { display: flex }`
-       and `.cap-axis-cards { display: flex }` and loads AFTER this file in
-       index.html, so a plain `.cap-axis { display: contents }` here loses
-       the cascade. Prefixing with `.capabilities-grid` gives 0,2,0 which
-       beats the 0,1,0 in components.css regardless of load order. */
-    .capabilities-grid > .cap-axis { display: contents; }
-    .capabilities-grid .cap-axis-cards { display: contents; }
-    .capabilities-grid .cap-axis-head { grid-row: 1; }
-    .capabilities-grid .cap-axis[data-axis="ai-native"]   > .cap-axis-head,
-    .capabilities-grid .cap-axis[data-axis="ai-native"]   > .cap-axis-cards > .cap-card { grid-column: 1; }
-    .capabilities-grid .cap-axis[data-axis="cloud"]       > .cap-axis-head,
-    .capabilities-grid .cap-axis[data-axis="cloud"]       > .cap-axis-cards > .cap-card { grid-column: 2; }
-    .capabilities-grid .cap-axis[data-axis="business"]    > .cap-axis-head,
-    .capabilities-grid .cap-axis[data-axis="business"]    > .cap-axis-cards > .cap-card { grid-column: 3; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(1) { grid-row: 2; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(2) { grid-row: 3; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(3) { grid-row: 4; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(4) { grid-row: 5; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(5) { grid-row: 6; }
-    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(6) { grid-row: 7; }
-}
+/* Row alignment across the 3 axis columns is handled by JS in
+   equalizeCapabilityRows() — see assets/js/main.js. CSS `display: contents`
+   + `grid-template-rows` approaches were tried and proved unreliable:
+   components.css's `.cap-axis { display: flex }` kept winning the cascade
+   in practice, and even when we forced display:contents the row-track
+   sizing didn't fully equalize. JS measures each card's natural height
+   per axis-row and applies the row's max as min-height to every card in
+   that row, giving guaranteed alignment that survives content changes. */
 
 /* 2-col layout: AI-Native + Cloud share row 1, Business spans row 2.
-   Subgrid alignment doesn't apply here — too few cards per row to matter
+   Equalizer doesn't apply here either — too few cards per row to matter
    and Business spans both columns, so revert to per-axis flex columns. */
 @media (max-width: 1100px) {
     .capabilities-grid {
