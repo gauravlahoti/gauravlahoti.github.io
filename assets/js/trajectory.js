@@ -81,7 +81,7 @@ export function initTrajectory(root, profile) {
 
     if (gsap && ScrollTrigger && !reduceMotion && !isNarrow) {
         gsap.registerPlugin(ScrollTrigger);
-        const section = document.getElementById("graph");
+        const section = document.getElementById("career");
 
         // Rail draw — scrub through the section's scroll range.
         const drawTrigger = ScrollTrigger.create({

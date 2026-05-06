@@ -1,5 +1,5 @@
 // main.js — bootstrap. Reads profile.json, binds DOM, sets up Lenis,
-// orchestrates the hero reveal, lazy-loads hero-graph when #hero is in view.
+// orchestrates the hero reveal, lazy-loads hero-graph when #top is in view.
 
 const ROOT = document.documentElement;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "80";
+const ASSET_VERSION = "81";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -436,7 +436,7 @@ function renderCertTile(c, isDuplicate = false) {
 
 
 function initTrajectoryWhenVisible(profile) {
-    const root = document.querySelector("#graph [data-trajectory-root]");
+    const root = document.querySelector("#career [data-trajectory-root]");
     if (!root) return;
     const io = new IntersectionObserver(async (entries) => {
         for (const entry of entries) {
@@ -457,7 +457,7 @@ function initTrajectoryWhenVisible(profile) {
 }
 
 function initPostsListWhenVisible() {
-    const root = document.querySelector("#writing [data-posts-root]");
+    const root = document.querySelector("#perspectives [data-posts-root]");
     if (!root) return;
     const io = new IntersectionObserver(async (entries) => {
         for (const entry of entries) {
@@ -496,7 +496,7 @@ async function initPostsFlyoutEager() {
         group.addEventListener("focusout",  () => sync(false));
 
         // Touch (iPad, touch laptops, mobile-with-large-viewport): the link
-        // would otherwise navigate to #writing on the first tap, never
+        // would otherwise navigate to #perspectives on the first tap, never
         // revealing the flyout. Standard "first tap opens, second tap
         // navigates" pattern, with tap-outside to dismiss.
         if (matchMedia("(any-pointer: coarse)").matches) {
@@ -509,7 +509,7 @@ async function initPostsFlyoutEager() {
                     e.preventDefault();
                     setOpen(true);
                 }
-                // Else: link click goes through and navigates to #writing.
+                // Else: link click goes through and navigates to #perspectives.
             });
             document.addEventListener("click", (e) => {
                 if (!group.classList.contains("is-open")) return;
@@ -837,7 +837,7 @@ function initScrollStateClass() {
    resume from the same offset, so the visual identity is preserved. */
 function initOffscreenAnimationPause() {
     const targets = [
-        document.getElementById("hero"),
+        document.getElementById("top"),
         document.querySelector(".cert-rail"),
     ].filter(Boolean);
     if (!targets.length || !("IntersectionObserver" in window)) return;

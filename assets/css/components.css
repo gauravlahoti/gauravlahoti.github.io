@@ -235,14 +235,14 @@
     .hi-agent { display: none; }
 }
 
-/* Off-screen pause: when #hero leaves the viewport, freeze the looping
-   identity-line cursor blink and the three flying agent dots. The hero is
-   visually unchanged while visible; the only difference is that paint work
-   stops the moment it scrolls away. */
-#hero[data-paused="true"] .hi-noun-text::after,
-#hero[data-paused="true"] .hi-agent,
-#hero[data-paused="true"] .caret,
-#hero[data-paused="true"] .dot {
+/* Off-screen pause: when #top (the hero section) leaves the viewport,
+   freeze the looping identity-line cursor blink and the three flying
+   agent dots. The hero is visually unchanged while visible; the only
+   difference is that paint work stops the moment it scrolls away. */
+#top[data-paused="true"] .hi-noun-text::after,
+#top[data-paused="true"] .hi-agent,
+#top[data-paused="true"] .caret,
+#top[data-paused="true"] .dot {
     animation-play-state: paused;
 }
 

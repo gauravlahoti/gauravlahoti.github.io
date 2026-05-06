@@ -8,7 +8,7 @@
          GSAP's runtime style mutations and for the Google Sign-In iframe's
          inline styles; everything else is locked down. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self' https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://accounts.google.com https://www.googleapis.com https://portfolio-agent-lw4bt7nrba-uc.a.run.app; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-    <script src="assets/js/scroll-restore.js?v=80"></script>
+    <script src="assets/js/scroll-restore.js?v=81"></script>
     <title>Gaurav Lahoti — Senior Cloud & AI-Native Architect</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.dev/">
@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=80">
-    <link rel="stylesheet" href="assets/css/layout.css?v=80">
-    <link rel="stylesheet" href="assets/css/components.css?v=80">
+    <link rel="stylesheet" href="assets/css/base.css?v=81">
+    <link rel="stylesheet" href="assets/css/layout.css?v=81">
+    <link rel="stylesheet" href="assets/css/components.css?v=81">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
@@ -72,7 +72,7 @@
     <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
-    <a class="skip-link" href="#hero">Skip to content</a>
+    <a class="skip-link" href="#top">Skip to content</a>
 
     <!-- Brand-logo sprite. Hidden; referenced via <use href="#logo-..."> in the trajectory section. -->
     <svg width="0" height="0" style="position:absolute;width:0;height:0" aria-hidden="true">
@@ -94,17 +94,17 @@
 
     <header class="nav" role="banner">
         <div class="nav-inner">
-            <a class="nav-brand" href="#hero" data-bind="profile.name">Gaurav Lahoti</a>
+            <a class="nav-brand" href="#top" data-bind="profile.name">Gaurav Lahoti</a>
             <button class="nav-menu-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-trigger>
                 <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
                 <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
                 <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
             </button>
             <nav class="nav-links" aria-label="Primary">
-                <a href="#graph" data-cursor="magnet">Career</a>
-                <a href="#bento" data-cursor="magnet">About</a>
+                <a href="#career" data-cursor="magnet">Career</a>
+                <a href="#about" data-cursor="magnet">About</a>
                 <div class="nav-link-group" data-flyout-group>
-                    <a href="#writing" data-cursor="magnet" aria-haspopup="true" aria-expanded="false">Perspectives</a>
+                    <a href="#perspectives" data-cursor="magnet" aria-haspopup="true" aria-expanded="false">Perspectives</a>
                     <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent perspectives" hidden></div>
                 </div>
                 <a href="#" data-resume-trigger data-cursor="magnet">Resume</a>
@@ -152,9 +152,9 @@
                 </svg>
             </button>
             <nav class="nav-drawer-links" aria-label="Sections">
-                <a href="#graph">Career</a>
-                <a href="#bento">About</a>
-                <a href="#writing">Perspectives</a>
+                <a href="#career">Career</a>
+                <a href="#about">About</a>
+                <a href="#perspectives">Perspectives</a>
                 <a href="#" data-resume-trigger>Resume</a>
             </nav>
             <hr class="nav-drawer-divider" aria-hidden="true">
@@ -191,7 +191,7 @@
     </aside>
 
     <main>
-        <section id="hero" class="hero" aria-label="Introduction">
+        <section id="top" class="hero" aria-label="Introduction">
             <canvas id="hero-gl" class="hero-canvas" aria-hidden="true"></canvas>
             <div class="hero-fallback" aria-hidden="true">
                 <svg class="hero-fallback-mesh" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -297,7 +297,7 @@
             </div>
         </section>
 
-        <section id="graph" class="section section-trajectory" aria-label="Career trajectory">
+        <section id="career" class="section section-trajectory" aria-label="Career trajectory">
             <header class="trail-header">
                 <p class="trail-eyebrow">// trajectory &nbsp;::&nbsp; 2015 &rarr; now</p>
                 <h2 class="trail-title">
@@ -338,7 +338,7 @@
             </div>
         </section>
 
-        <section id="bento" class="section section-capabilities" aria-label="Capabilities">
+        <section id="about" class="section section-capabilities" aria-label="Capabilities">
             <header class="cap-header">
                 <p class="cap-eyebrow">// architect.capabilities()</p>
                 <h2 class="cap-title">Capabilities.</h2>
@@ -370,7 +370,7 @@
             </div>
         </section>
 
-        <section id="writing" class="section section-writing" aria-label="Perspectives">
+        <section id="perspectives" class="section section-writing" aria-label="Perspectives">
             <header class="posts-header">
                 <p class="posts-eyebrow">// perspectives</p>
                 <h2 class="posts-title">Perspectives.</h2>
@@ -424,6 +424,6 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=80"></script>
+    <script type="module" src="assets/js/main.js?v=81"></script>
 </body>
 </html>
