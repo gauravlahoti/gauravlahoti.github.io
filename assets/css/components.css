@@ -600,8 +600,8 @@
 .trail-title span:nth-child(3) { color: var(--accent); }
 
 /* Stats — a three-cell metric strip. Big tabular numerals on top, small
-   uppercase labels below, hairline dividers between cells, brand-era
-   accent on each numeral so the strip foreshadows the timeline below. */
+   uppercase labels below, hairline dividers between cells. Numerals share
+   the site's cyan accent for a monochromatic, professional read. */
 .trail-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -657,11 +657,6 @@
     letter-spacing: 0.14em;
     text-transform: uppercase;
 }
-
-/* Per-era colour on the numeral so the strip reads as a colour journey */
-.trail-stat[data-era="accenture"] .trail-stat-value { color: var(--era-accenture); }
-.trail-stat[data-era="ey"]        .trail-stat-value { color: var(--era-ey); }
-.trail-stat[data-era="deloitte"]  .trail-stat-value { color: var(--era-deloitte); }
 
 @media (max-width: 640px) {
     .trail-stats {
