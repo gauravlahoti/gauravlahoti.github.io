@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "90";
+const ASSET_VERSION = "91";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -52,7 +52,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initLenis();
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
-    initTokenBridgeWhenVisible();
+
     initTrajectoryWhenVisible(profile);
     initPostsListWhenVisible();
     initPostsFlyoutEager();
@@ -451,25 +451,7 @@ function renderCertTile(c, isDuplicate = false) {
 }
 
 
-/* ---------- spec 29: token bridge lazy load ---------- */
 
-function initTokenBridgeWhenVisible() {
-    const section = document.getElementById("token-bridge");
-    if (!section) return;
-    const io = new IntersectionObserver(async (entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
-            try {
-                const { initTokenBridge } = await import(v("./token-bridge.js"));
-                window.__tokenBridge = initTokenBridge(section);
-            } catch (err) {
-                console.warn("[token-bridge] failed to init", err);
-            }
-        }
-    }, { rootMargin: "300px" });
-    io.observe(section);
-}
 
 function initTrajectoryWhenVisible(profile) {
     const root = document.querySelector("#career [data-trajectory-root]");
