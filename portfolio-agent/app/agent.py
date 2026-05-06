@@ -53,6 +53,7 @@ root_agent = Agent(
         portfolio_tools.get_recent_posts,
         portfolio_tools.get_certifications,
         portfolio_tools.send_resume,
+        portfolio_tools.send_note_to_gaurav,
     ],
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,

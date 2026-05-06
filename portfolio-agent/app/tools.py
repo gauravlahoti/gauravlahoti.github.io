@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.app_utils.note_send import send_note_email
 from app.app_utils.resume_send import send_resume_email
 
 _CORPUS_DIR = Path(__file__).parent / "corpus"
@@ -207,6 +208,35 @@ async def send_resume(email: str) -> dict[str, Any]:
             send_failed     — transient error; suggest LinkedIn as fallback.
     """
     return await send_resume_email(email)
+
+
+async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
+    """Send a personal note from a site visitor to Gaurav Lahoti by email.
+
+    Call this tool ONLY when the visitor has BOTH composed a message AND
+    provided their own email address. Do NOT call it with only a message or
+    only an email — gather both before invoking.
+
+    Gaurav receives the email at his contact inbox. The visitor is CC'd so
+    they have a record. Reply-To is set to the visitor's address so Gaurav's
+    reply goes directly to them without any extra steps.
+
+    Args:
+        visitor_email: The visitor's own email address (for CC receipt and
+            Gaurav's reply-to).
+        message: The visitor's message to Gaurav. Must be at least 10
+            characters.
+
+    Returns:
+        A dict {ok: bool, code: str, message: str}. Always surface `message`
+        in the visible reply. Codes:
+            ok              — sent; confirm and optionally surface linkedin CTA.
+            invalid_email   — ask the visitor for a valid address.
+            empty_message   — ask for more content before retrying.
+            not_configured  — env not set (dev / misconfig); route to LinkedIn.
+            send_failed     — transient error; route to LinkedIn.
+    """
+    return await send_note_email(visitor_email, message)
 
 
 def get_certifications() -> list[dict]:

@@ -25,6 +25,10 @@
     {
       "label": "Email me his resume",
       "prefill": "Email me Gaurav's resume at "
+    },
+    {
+      "label": "Drop Gaurav a note",
+      "prefill": "I'd like to send Gaurav a note: "
     }
   ],
   "agentPrompts": [
