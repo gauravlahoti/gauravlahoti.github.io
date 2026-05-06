@@ -13,7 +13,7 @@ const FEATURES = Object.freeze({
     explainerDialog: true,
 });
 
-const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.github.io", "topmate.io",
+const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
                        "credly.com", "cp.certmetrics.com", "learn.microsoft.com"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
 

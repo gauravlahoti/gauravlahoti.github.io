@@ -14,7 +14,7 @@ database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 #                       Without it, POST /api/agent-log returns 503.
 
 [vars]
-ALLOWED_ORIGINS = "https://gauravlahoti.github.io,http://localhost:5173"
+ALLOWED_ORIGINS = "https://gauravlahoti.dev,https://www.gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173"
 GOOGLE_CLIENT_ID = "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
 
 # Monthly retention cleanup — deletes resume_downloads rows older than 12

@@ -67,6 +67,8 @@ go serverless, deploy `src/index.js` to Cloudflare and swap
 2. **Create credentials → OAuth client ID → Web application.**
 3. Name: `gaurav-portfolio-resume-gate`.
 4. **Authorized JavaScript origins:**
+   - `https://gauravlahoti.dev`
+   - `https://www.gauravlahoti.dev`
    - `https://gauravlahoti.github.io`
    - `http://localhost:5173`
 5. **Authorized redirect URIs:** none (GIS One Tap / button doesn't use them).

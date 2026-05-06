@@ -1,7 +1,7 @@
 # DESIGN_SPEC.md — portfolio-agent
 
 ## Overview
-A small ADK agent that answers questions about Gaurav Lahoti's career, capabilities, and projects, embedded as a chat widget on his portfolio site (https://gauravlahoti.github.io). The agent is deployed as a public, unauthenticated Cloud Run service (free tier; `min-instances=0`) and exposes an SSE streaming endpoint that the static site calls from the browser. Visitors see "agentic AI doing tool retrieval over Gaurav's actual portfolio data" — not a chat shell calling an LLM.
+A small ADK agent that answers questions about Gaurav Lahoti's career, capabilities, and projects, embedded as a chat widget on his portfolio site (https://gauravlahoti.dev). The agent is deployed as a public, unauthenticated Cloud Run service (free tier; `min-instances=0`) and exposes an SSE streaming endpoint that the static site calls from the browser. Visitors see "agentic AI doing tool retrieval over Gaurav's actual portfolio data" — not a chat shell calling an LLM.
 
 The retrieval surface is **agentic, not embedding-based**. The corpus is small (~3.5K tokens total: profile + graph + posts + a distilled resume.md), so we expose the corpus through five plain-Python tool functions and let the model decide which to call. No vector DB, no Vertex AI Search — both are paid; both are overkill at this corpus size.
 
@@ -34,8 +34,8 @@ All tools are plain Python functions in `app/tools.py` with type-hinted signatur
 - **Persona:** "an agent representing Gaurav, not Gaurav himself." Decline first-person impersonation. Tone: concise, technical, candid. No over-claiming.
 - **Scope:** answer only from the bundled corpus. If a question can't be answered from a tool, decline politely and point to LinkedIn.
 - **Hallucination ban:** never invent employers, project names, outcome numbers, certifications, or links not in the corpus.
-- **Link allowlist** (enforced by `after_model_callback`): `linkedin.com`, `github.com`, `gauravlahoti.github.io`, `topmate.io`. Any other URL in the model output is stripped.
-- **Resume URL guardrail:** the model frequently hallucinates `gauravlahoti.github.io/resume.pdf` (which doesn't exist). The instruction explicitly forbids emitting any deep path on the portfolio domain; `after_model_callback` strips any URL on `gauravlahoti.github.io` whose path looks like a download (`*.pdf`, `/resume*`, `/download*`, `/file*`) and replaces it with a navigation hint pointing visitors to the in-page Resume CTA.
+- **Link allowlist** (enforced by `after_model_callback`): `linkedin.com`, `github.com`, `gauravlahoti.dev`, `topmate.io`. Any other URL in the model output is stripped. The legacy `gauravlahoti.github.io` host is kept in the allowlist during the custom-domain cutover.
+- **Resume URL guardrail:** the model frequently hallucinates a `/resume.pdf` path on the portfolio domain (which doesn't exist). The instruction explicitly forbids emitting any deep path on the portfolio domain; `after_model_callback` strips any URL on `gauravlahoti.dev` (or the legacy `gauravlahoti.github.io`) whose path looks like a download (`*.pdf`, `/resume*`, `/download*`, `/file*`) and replaces it with a navigation hint pointing visitors to the in-page Resume CTA.
 - **Email redaction:** email is shared only when the latest user message matches contact-intent verbs (`/(contact|reach|email|get in touch|hire|engage)/i`). Otherwise replaced with a "find me on LinkedIn / Topmate" pointer.
 - **Prompt-injection short-circuit:** input matching `/ignore (previous|all) instructions|system:|<\|im_start\|>/i` returns a canned safe reply without calling the model.
 - **Length cap:** user messages > 1000 chars rejected with a friendly message.

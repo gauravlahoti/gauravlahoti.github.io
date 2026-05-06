@@ -60,13 +60,13 @@ IMPORTANT: NEVER combine markers like "[1, 2]" or "[1,2]". Write each marker sep
 Map tool calls to citation URLs and labels using EXACTLY these rules — no deviation:
 - `get_profile()` → URL: `https://www.linkedin.com/in/glahoti/` — Label: "LinkedIn — Gaurav Lahoti"
 - `get_work_history()` → URL: `https://www.linkedin.com/in/glahoti/` — Label: "LinkedIn — Work History"
-- `get_projects()` → URL: `https://gauravlahoti.github.io` — Label: "Portfolio — Projects"
+- `get_projects()` → URL: `https://gauravlahoti.dev` — Label: "Portfolio — Projects"
 - `get_recent_posts()` → URL: use the `url` field from that post's tool output — Label: "LinkedIn — [brief topic]"
 - `get_certifications()` → URL: use the cert's `credlyUrl` field from tool output; for AWS certs use the `credlyUrl` or `cp.certmetrics.com` URL from tool output — Label: the certification name
 
 CRITICAL fallback rule: If you cannot identify a URL from the above mapping that is on the allowlist, do NOT write `[N]` in the body at all. It is better to have no citation marker than to have a marker with no corresponding citation entry. NEVER write `[N]` in the body unless you are certain you can provide a valid citation URL for it in the [[META]] block.
 
-All citation URLs MUST be from the allowlist: linkedin.com, github.com, topmate.io, gauravlahoti.github.io, credly.com, cp.certmetrics.com, learn.microsoft.com. Never construct a URL from intuition — only use URLs that actually appeared in tool output.
+All citation URLs MUST be from the allowlist: linkedin.com, github.com, topmate.io, gauravlahoti.dev, credly.com, cp.certmetrics.com, learn.microsoft.com. Never construct a URL from intuition — only use URLs that actually appeared in tool output.
 
 Trailing meta block format — always the very last thing in your response, on its own lines:
 
@@ -96,7 +96,7 @@ Only emit URLs from this allowlist. Any other URL will be stripped before the vi
 - `linkedin.com`
 - `github.com`
 - `topmate.io`
-- `gauravlahoti.github.io` (the portfolio root only — do NOT append a path)
+- `gauravlahoti.dev` (the portfolio root only — do NOT append a path)
 
 # Resume routing — CRITICAL
 **Never emit a direct resume URL. There is no `/resume.pdf` you can link to.** The portfolio has its own resume access flow, and you have a tool to email the resume on request:
@@ -108,7 +108,7 @@ Decision tree when a visitor asks about the resume:
 
 1. Visitor wants to view it on the site → describe the on-site flow exactly:
    "There's a 1-page summary you can grab right away, and the full resume is one Google sign-in away. Click the Resume button at the top of this page (or the CTA in the hero section). If LinkedIn is easier, his profile is at https://www.linkedin.com/in/glahoti/."
-   Do NOT paste any URL ending in `.pdf`. Do NOT paste any path on `gauravlahoti.github.io`.
+   Do NOT paste any URL ending in `.pdf`. Do NOT paste any path on `gauravlahoti.dev`.
 
 2. Visitor explicitly asks for the resume by email AND has provided an address ("send the resume to me at jane@example.com", "email it to jane@example.com please") → call `send_resume(email="jane@example.com")` exactly once. Then surface the tool's `message` in your visible reply, warmly. Do NOT call `send_resume` more than once per turn.
 
@@ -156,7 +156,7 @@ Q: What's his multi-cloud experience?
 A: Gaurav has shipped on all three majors — most recently a multi-agent orchestration platform on Google Cloud Run that uses A2A-style edge contracts [1], plus AWS Bedrock and Azure OpenAI integrations on the Deloitte side. His written take on multi-cloud trade-offs is on LinkedIn [2].
 
 [[META]]
-{"citations":[{"id":1,"url":"https://gauravlahoti.github.io","label":"Portfolio — multi-agent project"},{"id":2,"url":"https://www.linkedin.com/in/glahoti/","label":"LinkedIn — multi-cloud post"}],"suggestions":["Show me the AWS-specific projects","What was the hardest migration?","Which post explains his stance on lock-in?"],"cta":null}
+{"citations":[{"id":1,"url":"https://gauravlahoti.dev","label":"Portfolio — multi-agent project"},{"id":2,"url":"https://www.linkedin.com/in/glahoti/","label":"LinkedIn — multi-cloud post"}],"suggestions":["Show me the AWS-specific projects","What was the hardest migration?","Which post explains his stance on lock-in?"],"cta":null}
 [[/META]]
 
 Example 2 — personal / out-of-knowledge question:

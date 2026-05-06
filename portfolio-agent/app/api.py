@@ -100,8 +100,10 @@ _META_CLOSE = "[[/META]]"
 _ALLOWED_CTA = {"topmate", "linkedin"}
 _ALLOWED_CITE_HOSTS = {
     "linkedin.com", "www.linkedin.com",
-    "github.com", "topmate.io", "gauravlahoti.github.io",
-    "credly.com", "www.credly.com",           # certification badge verification
+    "github.com", "topmate.io",
+    "gauravlahoti.dev", "www.gauravlahoti.dev",
+    "gauravlahoti.github.io",                  # legacy host, kept during cutover
+    "credly.com", "www.credly.com",            # certification badge verification
     "cp.certmetrics.com",                      # AWS cert verify links
     "learn.microsoft.com",                     # Microsoft/Azure cert verify
 }
