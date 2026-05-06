@@ -630,21 +630,26 @@ main { padding-top: 0; }
    axis-3 cards stranded in later rows, breaking the alignment we want.
    Explicit positions sidestep that entirely. */
 @media (min-width: 1101px) {
-    .cap-axis { display: contents; }
-    .cap-axis-cards { display: contents; }
-    .cap-axis-head { grid-row: 1; }
-    .cap-axis[data-axis="ai-native"]   > .cap-axis-head,
-    .cap-axis[data-axis="ai-native"]   > .cap-axis-cards > .cap-card { grid-column: 1; }
-    .cap-axis[data-axis="cloud"]       > .cap-axis-head,
-    .cap-axis[data-axis="cloud"]       > .cap-axis-cards > .cap-card { grid-column: 2; }
-    .cap-axis[data-axis="business"]    > .cap-axis-head,
-    .cap-axis[data-axis="business"]    > .cap-axis-cards > .cap-card { grid-column: 3; }
-    .cap-axis-cards > .cap-card:nth-child(1) { grid-row: 2; }
-    .cap-axis-cards > .cap-card:nth-child(2) { grid-row: 3; }
-    .cap-axis-cards > .cap-card:nth-child(3) { grid-row: 4; }
-    .cap-axis-cards > .cap-card:nth-child(4) { grid-row: 5; }
-    .cap-axis-cards > .cap-card:nth-child(5) { grid-row: 6; }
-    .cap-axis-cards > .cap-card:nth-child(6) { grid-row: 7; }
+    /* Specificity bump: components.css declares `.cap-axis { display: flex }`
+       and `.cap-axis-cards { display: flex }` and loads AFTER this file in
+       index.html, so a plain `.cap-axis { display: contents }` here loses
+       the cascade. Prefixing with `.capabilities-grid` gives 0,2,0 which
+       beats the 0,1,0 in components.css regardless of load order. */
+    .capabilities-grid > .cap-axis { display: contents; }
+    .capabilities-grid .cap-axis-cards { display: contents; }
+    .capabilities-grid .cap-axis-head { grid-row: 1; }
+    .capabilities-grid .cap-axis[data-axis="ai-native"]   > .cap-axis-head,
+    .capabilities-grid .cap-axis[data-axis="ai-native"]   > .cap-axis-cards > .cap-card { grid-column: 1; }
+    .capabilities-grid .cap-axis[data-axis="cloud"]       > .cap-axis-head,
+    .capabilities-grid .cap-axis[data-axis="cloud"]       > .cap-axis-cards > .cap-card { grid-column: 2; }
+    .capabilities-grid .cap-axis[data-axis="business"]    > .cap-axis-head,
+    .capabilities-grid .cap-axis[data-axis="business"]    > .cap-axis-cards > .cap-card { grid-column: 3; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(1) { grid-row: 2; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(2) { grid-row: 3; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(3) { grid-row: 4; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(4) { grid-row: 5; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(5) { grid-row: 6; }
+    .capabilities-grid .cap-axis-cards > .cap-card:nth-child(6) { grid-row: 7; }
 }
 
 /* 2-col layout: AI-Native + Cloud share row 1, Business spans row 2.
