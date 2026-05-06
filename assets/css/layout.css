@@ -621,11 +621,15 @@ main { padding-top: 0; }
    direct grid items of .capabilities-grid. Each grid row's height is then
    the max of its tallest cell across the 3 columns, so card N in axis 1
    visually aligns with card N in axes 2 and 3 even though their content
-   sizes differ. `grid-auto-flow: dense` lets the placement algorithm
-   backfill columns 2 and 3 into early rows regardless of document order
-   (otherwise axis-2's header would land below axis-1's last card). */
+   sizes differ.
+
+   We pin every item with both an explicit grid-column (by axis) and an
+   explicit grid-row (1 for headers, 2..7 for cards by nth-child index).
+   Auto-placement with `grid-auto-flow: dense` is unreliable when columns
+   carry different item counts — the sparse cursor leaves axis-2 and
+   axis-3 cards stranded in later rows, breaking the alignment we want.
+   Explicit positions sidestep that entirely. */
 @media (min-width: 1101px) {
-    .capabilities-grid { grid-auto-flow: dense; }
     .cap-axis { display: contents; }
     .cap-axis-cards { display: contents; }
     .cap-axis-head { grid-row: 1; }
@@ -635,6 +639,12 @@ main { padding-top: 0; }
     .cap-axis[data-axis="cloud"]       > .cap-axis-cards > .cap-card { grid-column: 2; }
     .cap-axis[data-axis="business"]    > .cap-axis-head,
     .cap-axis[data-axis="business"]    > .cap-axis-cards > .cap-card { grid-column: 3; }
+    .cap-axis-cards > .cap-card:nth-child(1) { grid-row: 2; }
+    .cap-axis-cards > .cap-card:nth-child(2) { grid-row: 3; }
+    .cap-axis-cards > .cap-card:nth-child(3) { grid-row: 4; }
+    .cap-axis-cards > .cap-card:nth-child(4) { grid-row: 5; }
+    .cap-axis-cards > .cap-card:nth-child(5) { grid-row: 6; }
+    .cap-axis-cards > .cap-card:nth-child(6) { grid-row: 7; }
 }
 
 /* 2-col layout: AI-Native + Cloud share row 1, Business spans row 2.
