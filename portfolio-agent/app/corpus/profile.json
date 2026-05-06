@@ -21,8 +21,13 @@
     "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
   },
+  "agentActions": [
+    {
+      "label": "Email me his resume",
+      "prefill": "Email me Gaurav's resume at "
+    }
+  ],
   "agentPrompts": [
-    "What's his multi-cloud experience?",
     "What is he writing about lately on LinkedIn?",
     "Which cloud certifications does he hold?",
     "What kinds of problems does he solve for clients?"
@@ -167,11 +172,11 @@
     }
   ],
   "agentExplainer": {
-    "title": "How this agent works",
+    "title": "Meet the agent",
     "body": [
-      "An agent built on Google's Agent Development Kit and Gemini 2.5 Flash, running on Cloud Run. The first reply may take a moment while it warms up.",
-      "It works off a versioned snapshot of my profile, projects, certifications, and recent writing, refreshed on every deploy. Each turn, it decides what to cite, what you might want to ask next, and when to point you toward a direct conversation with me. The follow-up chips and inline [1] markers show what it's confident about and where it's pulling from.",
-      "It knows its limits. It won't quote a salary, commit to my calendar, or make up opinions I haven't shared. For anything outside that fence, it'll point you to me directly."
+      "It's built on Google's **Agent Development Kit**, powered by the Gemini model, and lives on **Cloud Run**. When it needs to actually do something, like email you my resume, it reaches through a Resend **MCP** server, with **Model Context Protocol** handling the wiring between the agent and its tools. The first reply might lag a moment while it warms up. That's just the cold start.",
+      "**Grounded**, not guessing. Every response draws from a versioned snapshot of my profile, projects, certifications, and recent writing, rebuilt fresh on every deploy. Each turn, it decides what to cite, what you might want to ask next, and when the right move is to send you straight to me. Watch the follow-up chips and the inline [1] markers. They show what it's confident about and exactly where it's pulling from.",
+      "It knows where it ends. It won't quote a salary, book my calendar, or invent opinions I've never voiced. Step outside that fence and it'll point you to the real me."
     ]
   },
   "agentCopy": {
