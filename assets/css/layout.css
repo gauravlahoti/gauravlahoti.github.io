@@ -612,15 +612,38 @@ main { padding-top: 0; }
 .capabilities-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-6);
-    align-items: start;
+    column-gap: var(--space-6);
+    row-gap: var(--space-3);
+    align-items: stretch;
 }
 
-/* 2-column layout for mid-width: AI-Native + Cloud share row 1, Business
-   takes row 2 spanning the full width so it doesn't orphan in a half-row. */
+/* 3-col desktop: flatten the axis containers so headers and cards become
+   direct grid items of .capabilities-grid. Each grid row's height is then
+   the max of its tallest cell across the 3 columns, so card N in axis 1
+   visually aligns with card N in axes 2 and 3 even though their content
+   sizes differ. `grid-auto-flow: dense` lets the placement algorithm
+   backfill columns 2 and 3 into early rows regardless of document order
+   (otherwise axis-2's header would land below axis-1's last card). */
+@media (min-width: 1101px) {
+    .capabilities-grid { grid-auto-flow: dense; }
+    .cap-axis { display: contents; }
+    .cap-axis-cards { display: contents; }
+    .cap-axis-head { grid-row: 1; }
+    .cap-axis[data-axis="ai-native"]   > .cap-axis-head,
+    .cap-axis[data-axis="ai-native"]   > .cap-axis-cards > .cap-card { grid-column: 1; }
+    .cap-axis[data-axis="cloud"]       > .cap-axis-head,
+    .cap-axis[data-axis="cloud"]       > .cap-axis-cards > .cap-card { grid-column: 2; }
+    .cap-axis[data-axis="business"]    > .cap-axis-head,
+    .cap-axis[data-axis="business"]    > .cap-axis-cards > .cap-card { grid-column: 3; }
+}
+
+/* 2-col layout: AI-Native + Cloud share row 1, Business spans row 2.
+   Subgrid alignment doesn't apply here — too few cards per row to matter
+   and Business spans both columns, so revert to per-axis flex columns. */
 @media (max-width: 1100px) {
     .capabilities-grid {
         grid-template-columns: 1fr 1fr;
+        row-gap: var(--space-6);
     }
     .capabilities-grid > .cap-axis[data-axis="business"] {
         grid-column: 1 / -1;
@@ -630,7 +653,7 @@ main { padding-top: 0; }
 @media (max-width: 880px) {
     .capabilities-grid {
         grid-template-columns: 1fr;
-        gap: var(--space-8);
+        row-gap: var(--space-8);
     }
     .capabilities-grid > .cap-axis[data-axis="business"] {
         grid-column: auto;
