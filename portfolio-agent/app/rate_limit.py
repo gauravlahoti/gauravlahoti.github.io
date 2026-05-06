@@ -1,7 +1,7 @@
 """In-process per-IP-hash and per-session sliding-window rate limiter.
 
 Best-effort across Cloud Run instances: each instance keeps its own counters.
-At `min-instances=0, max-instances=3, concurrency=20` for portfolio traffic
+At `min-instances=0, max-instances=3, concurrency=80` for portfolio traffic
 this is acceptable — a determined attacker could fan across instances, but
 they'd still hit the model RPM quota first.
 
