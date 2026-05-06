@@ -54,6 +54,12 @@
           "rubricContent": {
             "textProperty": "Factual responses about Gaurav contain [N] superscript markers (e.g. [1], [2]) next to specific claims, AND end with a [[META]] block whose citations list maps each marker id to a URL on the allowlist (linkedin.com, github.com, topmate.io, gauravlahoti.dev). The response does NOT end with a 'Sources:' plain-text line. Every [N] marker has a matching citations[id] entry in the [[META]] block. Refusals and meta-questions ('are you human?') may have empty citations but must still include the [[META]] block. No citations are invented outside tool output. Target: 0.95 (citations correctness is binary — a citation either points to the right source or it does not)."
           }
+        },
+        {
+          "rubricId": "resume_fallback",
+          "rubricContent": {
+            "textProperty": "If the response confirms that the resume was emailed (phrases like 'sent it to', 'emailed it to', 'done — sent', 'the resume is on its way'), the same response ALSO includes a manual-download fallback pointing to https://gauravlahoti.dev (mentioning the Resume button at the top of the page or similar). The fallback exists because corporate mail servers sometimes silently bounce external email; the visitor needs an alternate path before they walk away. If the response is NOT about a successful resume email send (e.g. it's a factual question about Gaurav, a refusal, a request for the email address, or a rate-limit message), this rubric is automatically satisfied — score 1.0. Only score below 1.0 when a successful resume-send confirmation is missing the gauravlahoti.dev fallback URL."
+          }
         }
       ]
     }
