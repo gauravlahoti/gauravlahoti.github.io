@@ -574,12 +574,23 @@ function buildAgentDiagram() {
         return e;
     };
 
-    const svg = el("svg", { viewBox: "0 0 480 192", width: "100%", height: "192",
+    // On mobile (<540px) use a 300-unit viewBox so the diagram renders at
+    // ~98% natural size instead of ~65% from the 480-unit desktop viewBox.
+    const mobile = window.innerWidth < 540;
+    const VW = mobile ? 300 : 480;
+    const VH = mobile ? 220 : 192;
+
+    const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
     // [d, labelText, label-cx, label-cy, pulse-delay, bg-rect-width]
-    // Spoke boxes are at y=140; Agent bottom is y=112 → 28px gap for labels at y=126
-    const edges = [
+    const edges = mobile ? [
+        // Agent bottom=114, spoke tops=155 → 41px gap, labels at y=132
+        ["M 150 72 L 150 43",  "reasoning", 136,  58, 0,   56],
+        ["M 118 114 L 90 155", "grounding",  92, 132, 0.8, 58],
+        ["M 182 114 L 200 155","actions",   203, 132, 1.6, 44],
+    ] : [
+        // Agent bottom=112, spoke tops=140 → 28px gap, labels at y=126
         ["M 240 68 L 240 46",   "reasoning", 225, 60,  0,   56],
         ["M 192 112 L 156 140", "grounding", 172, 126, 0.8, 58],
         ["M 288 112 L 344 140", "actions",   316, 126, 1.6, 44],
@@ -589,7 +600,6 @@ function buildAgentDiagram() {
         const pulse = el("path", { class: "ad-pulse", d });
         if (!REDUCE_MOTION) pulse.style.animationDelay = `${delay}s`;
         svg.appendChild(pulse);
-        // Background pill behind label so it reads clearly over the edge line
         svg.appendChild(el("rect", {
             class: "ad-label-bg",
             x: String(lx - bgW / 2), y: String(ly - 9),
@@ -611,10 +621,17 @@ function buildAgentDiagram() {
         return g;
     };
 
-    svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",     "Google Gemini — reasoning and language generation", 240));
-    svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",            "ADK agent on Cloud Run — orchestrates all tool calls", 240));
-    svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts",  "Frozen JSON snapshot — grounding source for every reply", 82));
-    svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",      "MCP-compatible Resend server — fires email on agent request", 402));
+    if (mobile) {
+        svg.appendChild(node(null,            85,   5, 130, 38, "Gemini LLM",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 150));
+        svg.appendChild(node("ad-node--hub",  85,  72, 130, 42, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 150));
+        svg.appendChild(node(null,             2, 155, 130, 38, "Data Corpus", "profile · projects · posts", "Frozen JSON snapshot — grounding source for every reply", 67));
+        svg.appendChild(node(null,           168, 155, 130, 38, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 233));
+    } else {
+        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240));
+        svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",          "ADK agent on Cloud Run — orchestrates all tool calls", 240));
+        svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts","Frozen JSON snapshot — grounding source for every reply", 82));
+        svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",    "MCP-compatible Resend server — fires email on agent request", 402));
+    }
 
     return svg;
 }
