@@ -2460,6 +2460,7 @@ sup.agent-cite a:focus-visible {
 .agent-explainer-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
 @media (max-width: 540px) {
     .agent-explainer-dialog { width: 95vw; max-height: 88vh; }
+    .ad-node-sub { font-size: 7px; }
 }
 .agent-explainer-head {
     display: flex;

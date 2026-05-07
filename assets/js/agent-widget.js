@@ -625,7 +625,7 @@ function buildAgentDiagram() {
         // 250-unit viewBox: nodes centered at x=125; spoke nodes fill the width
         svg.appendChild(node(null,            60,   5, 130, 38, "Gemini LLM",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 125));
         svg.appendChild(node("ad-node--hub",  60,  72, 130, 42, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 125));
-        svg.appendChild(node(null,             0, 155, 120, 38, "Data Corpus", "profile · projects · posts", "Frozen JSON snapshot — grounding source for every reply", 60));
+        svg.appendChild(node(null,             0, 155, 120, 38, "Data Corpus", "profile · projects", "Frozen JSON snapshot — grounding source for every reply", 60));
         svg.appendChild(node(null,           130, 155, 120, 38, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 190));
     } else {
         svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240));
