@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "92";
+const ASSET_VERSION = "93";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -700,7 +700,7 @@ function scheduleHeroReveal() {
     splitChars(nameEl);
     splitWords(taglineEl);
 
-    if (reduceMotion || sessionStorage.getItem("heroRevealed") === "1") {
+    if (reduceMotion) {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
@@ -755,7 +755,6 @@ function scheduleHeroReveal() {
         repeat: 1,
     }, 2.4);
 
-    tl.eventCallback("onComplete", () => sessionStorage.setItem("heroRevealed", "1"));
 }
 
 function splitChars(el) {
