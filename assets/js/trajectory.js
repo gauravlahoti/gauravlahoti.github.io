@@ -79,7 +79,7 @@ export function initTrajectory(root, profile) {
 
     /* ---------- ScrollTrigger: rail draw + station activation + tile reveal ---------- */
 
-    if (gsap && ScrollTrigger && !reduceMotion && !isNarrow) {
+    if (gsap && ScrollTrigger && !reduceMotion) {
         gsap.registerPlugin(ScrollTrigger);
         const section = document.getElementById("career");
 
