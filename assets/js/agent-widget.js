@@ -67,20 +67,42 @@ export function initAgentWidget(root, profile) {
     let nudgeIo = null; // IntersectionObserver for scroll nudge
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
+    // Desktop: dom.tooltip anchored to the FAB.
+    // Mobile: tooltip element created here and appended to .mobile-bottombar.
     let _tooltipShowTimer = null;
     let _tooltipHideTimer = null;
+    const _isMobile = !matchMedia("(min-width: 768px)").matches;
+
+    let _mobileTooltip = null;
+    if (_isMobile) {
+        const bar = document.querySelector(".mobile-bottombar");
+        if (bar) {
+            _mobileTooltip = document.createElement("div");
+            _mobileTooltip.className = "mobile-agent-tooltip";
+            _mobileTooltip.setAttribute("role", "tooltip");
+            _mobileTooltip.textContent = "Curious about my architecture experience? Ask my agent.";
+            bar.appendChild(_mobileTooltip);
+        }
+    }
+
     function _cancelTooltip() {
         clearTimeout(_tooltipShowTimer);
         clearTimeout(_tooltipHideTimer);
         if (dom.tooltip) dom.tooltip.classList.remove("agent-fab-tooltip--visible");
+        if (_mobileTooltip) _mobileTooltip.classList.remove("mobile-agent-tooltip--visible");
     }
-    if (dom.tooltip && !REDUCE_MOTION && matchMedia("(min-width: 768px)").matches) {
-        _tooltipShowTimer = setTimeout(() => {
-            dom.tooltip.classList.add("agent-fab-tooltip--visible");
-            _tooltipHideTimer = setTimeout(() => {
-                dom.tooltip.classList.remove("agent-fab-tooltip--visible");
-            }, 10000);
-        }, 5000);
+
+    if (!REDUCE_MOTION) {
+        const _activeTooltip = _isMobile ? _mobileTooltip : dom.tooltip;
+        const _showClass = _isMobile ? "mobile-agent-tooltip--visible" : "agent-fab-tooltip--visible";
+        if (_activeTooltip) {
+            _tooltipShowTimer = setTimeout(() => {
+                _activeTooltip.classList.add(_showClass);
+                _tooltipHideTimer = setTimeout(() => {
+                    _activeTooltip.classList.remove(_showClass);
+                }, 10000);
+            }, 5000);
+        }
     }
 
     renderStarters();

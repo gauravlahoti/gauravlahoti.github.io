@@ -2672,6 +2672,7 @@ sup.agent-cite a:focus-visible {
         border-top: 1px solid var(--border);
         transform: translateY(0);
         transition: transform var(--dur-base) var(--ease-out);
+        overflow: visible;
     }
     .mobile-bottombar[data-hidden="true"] { transform: translateY(110%); }
     .mobile-bottombar-btn {
@@ -2706,6 +2707,53 @@ sup.agent-cite a:focus-visible {
         background: var(--accent);
         color: var(--bg);
         opacity: 0.92;
+    }
+    .mobile-bottombar-btn-primary:active { transform: scale(0.97); }
+    /* Breathing glow — same keyframe as desktop FAB */
+    .mobile-bottombar-btn-primary {
+        position: relative;
+        overflow: visible;
+        gap: var(--space-2);
+    }
+    .mobile-bottombar-btn-primary::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: 0 0 22px 7px var(--accent-glow);
+        opacity: 0;
+        pointer-events: none;
+        animation: agent-fab-breathe 6s ease-in-out infinite;
+    }
+    /* Glassmorphism tooltip centered above the bottom bar */
+    .mobile-agent-tooltip {
+        position: absolute;
+        bottom: calc(100% + 10px);
+        left: 50%;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: calc(100vw - 3rem);
+        padding: var(--space-2) var(--space-3);
+        background: rgba(10, 10, 10, 0.88);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 255, 209, 0.18);
+        border-radius: var(--radius-md);
+        color: var(--ink-muted);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        line-height: 1.55;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        z-index: 51;
+        white-space: normal;
+    }
+    .mobile-agent-tooltip--visible { opacity: 1; }
+    @media (prefers-reduced-motion: reduce) {
+        .mobile-bottombar-btn-primary::after { animation: none; }
+        .mobile-agent-tooltip { transition: none; }
     }
     @media (prefers-reduced-motion: reduce) {
         .mobile-bottombar { transition: none; }
