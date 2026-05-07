@@ -141,8 +141,8 @@ export function initTrajectory(root, profile) {
         const section = document.getElementById("career");
 
         const drawTrigger = ScrollTrigger.create({
-            trigger: section,
-            start: "top 80%",
+            trigger: root,
+            start: "top 85%",
             end: "bottom 20%",
             scrub: 0.6,
             onUpdate(self) {
