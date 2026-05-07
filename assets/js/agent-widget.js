@@ -74,7 +74,7 @@ export function initAgentWidget(root, profile) {
         clearTimeout(_tooltipHideTimer);
         if (dom.tooltip) dom.tooltip.classList.remove("agent-fab-tooltip--visible");
     }
-    if (dom.tooltip && !REDUCE_MOTION) {
+    if (dom.tooltip && !REDUCE_MOTION && matchMedia("(min-width: 768px)").matches) {
         _tooltipShowTimer = setTimeout(() => {
             dom.tooltip.classList.add("agent-fab-tooltip--visible");
             _tooltipHideTimer = setTimeout(() => {

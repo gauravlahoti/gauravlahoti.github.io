@@ -1973,14 +1973,9 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     white-space: normal;
 }
 .agent-fab-tooltip--visible { opacity: 1; }
-/* Mobile fallback: centered above FAB (FAB hidden on ≤767px in practice) */
+/* FAB is hidden on mobile; suppress tooltip entirely to avoid orphaned overlay. */
 @media (max-width: 767px) {
-    .agent-fab-tooltip {
-        right: 50%;
-        transform: translateX(50%);
-        bottom: calc(100% + 10px);
-        max-width: 180px;
-    }
+    .agent-fab-tooltip { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-fab-tooltip { transition: none; }
