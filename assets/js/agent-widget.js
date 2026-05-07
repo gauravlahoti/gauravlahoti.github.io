@@ -566,6 +566,59 @@ function parseEmphasis(text) {
     return frag;
 }
 
+function buildAgentDiagram() {
+    const NS = "http://www.w3.org/2000/svg";
+    const el = (tag, attrs) => {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        return e;
+    };
+
+    const svg = el("svg", { viewBox: "0 0 480 192", width: "100%", height: "192",
+                             class: "ad-svg", "aria-hidden": "true" });
+
+    // [d, labelText, label-cx, label-cy, pulse-delay, bg-rect-width]
+    // Spoke boxes are at y=140; Agent bottom is y=112 → 28px gap for labels at y=126
+    const edges = [
+        ["M 240 68 L 240 46",   "reasoning", 225, 60,  0,   56],
+        ["M 192 112 L 156 140", "grounding", 172, 126, 0.8, 58],
+        ["M 288 112 L 344 140", "actions",   316, 126, 1.6, 44],
+    ];
+    edges.forEach(([d, labelText, lx, ly, delay, bgW]) => {
+        svg.appendChild(el("path", { class: "ad-edge", d }));
+        const pulse = el("path", { class: "ad-pulse", d });
+        if (!REDUCE_MOTION) pulse.style.animationDelay = `${delay}s`;
+        svg.appendChild(pulse);
+        // Background pill behind label so it reads clearly over the edge line
+        svg.appendChild(el("rect", {
+            class: "ad-label-bg",
+            x: String(lx - bgW / 2), y: String(ly - 9),
+            width: String(bgW), height: "13", rx: "3",
+        }));
+        const lbl = el("text", { class: "ad-edge-label", x: String(lx), y: String(ly) });
+        lbl.textContent = labelText;
+        svg.appendChild(lbl);
+    });
+
+    const node = (cls, rx, ry, rw, rh, name, sub, tip, cx) => {
+        const g = el("g", { class: cls ? `ad-node ${cls}` : "ad-node" });
+        const t = el("title", {}); t.textContent = tip; g.appendChild(t);
+        g.appendChild(el("rect", { x: String(rx), y: String(ry), width: String(rw), height: String(rh), rx: "6" }));
+        const nm = el("text", { class: "ad-node-name", x: String(cx), y: String(ry + Math.floor(rh * 0.42)), "text-anchor": "middle" });
+        nm.textContent = name; g.appendChild(nm);
+        const sb = el("text", { class: "ad-node-sub", x: String(cx), y: String(ry + Math.floor(rh * 0.75)), "text-anchor": "middle" });
+        sb.textContent = sub; g.appendChild(sb);
+        return g;
+    };
+
+    svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",     "Google Gemini — reasoning and language generation", 240));
+    svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",            "ADK agent on Cloud Run — orchestrates all tool calls", 240));
+    svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts",  "Frozen JSON snapshot — grounding source for every reply", 82));
+    svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",      "MCP-compatible Resend server — fires email on agent request", 402));
+
+    return svg;
+}
+
 function setupExplainerModal(dom, agentExplainer) {
     if (!FEATURES.explainerDialog) return;
     const trigger = dom.footerTrigger;
@@ -580,6 +633,7 @@ function setupExplainerModal(dom, agentExplainer) {
     if (titleEl && agentExplainer.title) titleEl.textContent = agentExplainer.title;
     if (bodyEl && Array.isArray(agentExplainer.body)) {
         bodyEl.replaceChildren();
+        bodyEl.appendChild(buildAgentDiagram());
         agentExplainer.body.forEach(para => {
             const p = document.createElement("p");
             p.appendChild(parseEmphasis(para));
