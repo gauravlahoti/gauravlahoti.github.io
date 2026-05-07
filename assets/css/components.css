@@ -942,7 +942,51 @@
     .section-trajectory { padding-top: var(--space-12); padding-bottom: var(--space-16); }
     .trail-grid { grid-template-columns: 1fr; gap: var(--space-6); }
     .trail-rail { display: none; }
-    .trail-companies { gap: var(--space-12); }
+    .trail-companies { gap: var(--space-12); padding-left: 40px; position: relative; }
+    /* Scroll-driven line — scaleY driven by --trail-progress set by JS ScrollTrigger */
+    .trail-companies::before {
+        content: '';
+        position: absolute;
+        left: 7px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--accent);
+        transform-origin: top center;
+        transform: scaleY(var(--trail-progress, 0));
+        opacity: 0.85;
+        pointer-events: none;
+    }
+    /* Era dot per company */
+    .trail-company { position: relative; }
+    .trail-company::before {
+        content: '';
+        position: absolute;
+        left: -38px;
+        top: 22px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--bg);
+        border: 2px solid var(--ink-subtle);
+        transition: background var(--dur-base) var(--ease-out),
+                    border-color var(--dur-base) var(--ease-out),
+                    box-shadow var(--dur-base) var(--ease-out);
+    }
+    .trail-company.is-dot-active::before {
+        background: var(--accent);
+        border-color: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+    }
+    .trail-company[data-era="ey"].is-dot-active::before {
+        background: var(--era-ey); border-color: var(--era-ey); box-shadow: 0 0 8px var(--era-ey);
+    }
+    .trail-company[data-era="deloitte"].is-dot-active::before {
+        background: var(--era-deloitte); border-color: var(--era-deloitte); box-shadow: 0 0 8px var(--era-deloitte);
+    }
+    .trail-company[data-era="accenture"].is-dot-active::before {
+        background: var(--era-accenture); border-color: var(--era-accenture); box-shadow: 0 0 8px var(--era-accenture);
+    }
     .company-header { gap: var(--space-3); }
     .company-logo { width: 44px; height: 44px; }
     .company-name { font-size: var(--text-lg); }

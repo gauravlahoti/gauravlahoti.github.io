@@ -135,6 +135,52 @@ export function initTrajectory(root, profile) {
         }
     }
 
+    // Mobile: CSS ::before line scrubbed by scroll + per-company dot activation
+    if (gsap && ScrollTrigger && !reduceMotion && isNarrow) {
+        gsap.registerPlugin(ScrollTrigger);
+        const section = document.getElementById("career");
+
+        const drawTrigger = ScrollTrigger.create({
+            trigger: section,
+            start: "top 80%",
+            end: "bottom 20%",
+            scrub: 0.6,
+            onUpdate(self) {
+                root.style.setProperty("--trail-progress", String(self.progress));
+            },
+        });
+        triggers.push(drawTrigger);
+
+        // Dot glow as each company scrolls into view
+        const dotObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) e.target.classList.add("is-dot-active");
+            });
+        }, { threshold: 0.2 });
+        companyEls.forEach(({ li }) => dotObserver.observe(li));
+
+        // Tile reveal
+        const revealTargets = [];
+        companyEls.forEach(({ li, header, roleEls }) => {
+            revealTargets.push(header, ...roleEls);
+            gsap.set([header, ...roleEls], { opacity: 0, y: 16 });
+        });
+        const batch = ScrollTrigger.batch(revealTargets, {
+            start: "top 85%",
+            once: true,
+            onEnter(els) {
+                gsap.to(els, { opacity: 1, y: 0, duration: 0.55, stagger: 0.05, ease: "power3.out" });
+            },
+        });
+        if (Array.isArray(batch)) triggers.push(...batch);
+
+        const refresh = () => { try { ScrollTrigger.refresh(); } catch (_) {} };
+        requestAnimationFrame(() => requestAnimationFrame(refresh));
+        if (document.readyState !== "complete") {
+            window.addEventListener("load", refresh, { once: true });
+        }
+    }
+
     /* ---------- responsive re-measure ---------- */
 
     if (typeof ResizeObserver === "function") {
