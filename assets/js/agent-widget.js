@@ -66,6 +66,23 @@ export function initAgentWidget(root, profile) {
     let panelEverOpened = false; // for scroll nudge — flipped on first open
     let nudgeIo = null; // IntersectionObserver for scroll nudge
 
+    // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
+    let _tooltipShowTimer = null;
+    let _tooltipHideTimer = null;
+    function _cancelTooltip() {
+        clearTimeout(_tooltipShowTimer);
+        clearTimeout(_tooltipHideTimer);
+        if (dom.tooltip) dom.tooltip.classList.remove("agent-fab-tooltip--visible");
+    }
+    if (dom.tooltip && !REDUCE_MOTION) {
+        _tooltipShowTimer = setTimeout(() => {
+            dom.tooltip.classList.add("agent-fab-tooltip--visible");
+            _tooltipHideTimer = setTimeout(() => {
+                dom.tooltip.classList.remove("agent-fab-tooltip--visible");
+            }, 10000);
+        }, 5000);
+    }
+
     renderStarters();
     setupExplainerModal(dom, agentExplainer);
     setupScrollNudge();
@@ -150,6 +167,7 @@ export function initAgentWidget(root, profile) {
     function openPanel() {
         isOpen = true;
         panelEverOpened = true;
+        _cancelTooltip();
         panel.classList.add("is-open");
         panel.setAttribute("aria-hidden", "false");
         fab.setAttribute("aria-expanded", "true");
@@ -680,19 +698,25 @@ function renderShell(root, agentExplainer) {
 
     const fab = document.createElement("button");
     fab.type = "button";
+    fab.role = "button";
     fab.className = "agent-fab" + (REDUCE_MOTION ? "" : " agent-fab-pulse");
-    fab.setAttribute("aria-label", "Ask my agent (experimental AI)");
+    fab.setAttribute("aria-label", "Ask my AI agent");
     fab.setAttribute("aria-expanded", "false");
-    fab.title = "Ask my agent (experimental AI)";
+    fab.title = "Ask my AI agent";
     fab.innerHTML = `
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
-            <circle cx="9" cy="11" r="0.9" fill="currentColor" stroke="none"/>
-            <circle cx="13" cy="11" r="0.9" fill="currentColor" stroke="none"/>
-            <circle cx="17" cy="11" r="0.9" fill="currentColor" stroke="none"/>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 9 9 12 4 15"/>
+            <line x1="12" y1="15" x2="20" y2="15"/>
         </svg>
         <span>Ask my agent</span>
     `;
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "agent-fab-tooltip";
+    tooltip.id = "agent-fab-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.textContent = "Curious about my architecture experience? Ask my agent.";
+    fab.setAttribute("aria-describedby", "agent-fab-tooltip");
 
     const panel = document.createElement("section");
     panel.className = "agent-panel";
@@ -811,13 +835,14 @@ function renderShell(root, agentExplainer) {
     `;
 
     root.appendChild(fab);
+    root.appendChild(tooltip);
     root.appendChild(panel);
     // Append dialog to body, not the widget host — the host is position:fixed
     // in the bottom-right corner, which breaks native showModal() centering.
     document.body.appendChild(explainerDialog);
 
     return {
-        fab, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
+        fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
         prompts, transcript, input, sendBtn, liveRegion,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,

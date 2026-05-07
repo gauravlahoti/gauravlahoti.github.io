@@ -1913,7 +1913,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-fab:hover,
 .agent-fab:focus-visible {
-    transform: translateY(-1px);
+    transform: scale(1.05);
     border-color: var(--accent);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 24px 0 var(--accent-glow);
     outline: none;
@@ -1924,8 +1924,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
    animated property is opacity. Animating opacity is GPU-composited and
    essentially free; animating box-shadow (the prior approach) forced a
    full repaint of the FAB's bounding box every frame — visible as scroll
-   jank on Windows where the FAB stays fixed in the viewport. Visual
-   result is identical to before. */
+   jank on Windows where the FAB stays fixed in the viewport. */
 .agent-fab-pulse {
     position: relative;
 }
@@ -1934,17 +1933,57 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    box-shadow: 0 0 24px 6px var(--accent-glow);
+    box-shadow: 0 0 28px 8px var(--accent-glow);
     opacity: 0;
     pointer-events: none;
-    animation: agent-fab-pulse-opacity 4.5s ease-in-out infinite;
+    animation: agent-fab-breathe 6s ease-in-out infinite;
 }
-@keyframes agent-fab-pulse-opacity {
-    0%, 70%, 100% { opacity: 0; }
-    35%           { opacity: 1; }
+@keyframes agent-fab-breathe {
+    0%, 100% { opacity: 0;    }
+    40%      { opacity: 0.9; }
+    60%      { opacity: 0.9; }
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-fab-pulse::after { animation: none; }
+}
+
+/* Glassmorphism tooltip — fades in after 5s, auto-hides after 10s more.
+   Desktop only (FAB is hidden on ≤767px; bottom-bar is the mobile CTA). */
+.agent-fab-tooltip {
+    position: absolute;
+    right: calc(100% + 12px);
+    bottom: 50%;
+    transform: translateY(50%);
+    width: max-content;
+    max-width: 220px;
+    padding: var(--space-2) var(--space-3);
+    background: rgba(10, 10, 10, 0.82);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 255, 209, 0.18);
+    border-radius: var(--radius-md);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.55;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    z-index: 1;
+    white-space: normal;
+}
+.agent-fab-tooltip--visible { opacity: 1; }
+/* Mobile fallback: centered above FAB (FAB hidden on ≤767px in practice) */
+@media (max-width: 767px) {
+    .agent-fab-tooltip {
+        right: 50%;
+        transform: translateX(50%);
+        bottom: calc(100% + 10px);
+        max-width: 180px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-fab-tooltip { transition: none; }
 }
 
 .agent-panel {
