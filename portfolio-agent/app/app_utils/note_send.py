@@ -88,7 +88,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
             "message": "The message is a bit short — could you add a little more so Gaurav has something to respond to?",
         }
 
-    sender  = _env("RESEND_FROM_ADDRESS")
+    sender  = _env("NOTE_FROM_ADDRESS") or _env("RESEND_FROM_ADDRESS")
     mcp_url = _env("RESEND_MCP_URL")
     to_addr = _env("GAURAV_CONTACT_EMAIL")
 
@@ -107,7 +107,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         "from":    sender,
         "to":      [to_addr],
         "cc":      [visitor_clean],
-        "replyTo": visitor_clean,   # Gaurav hits Reply → goes straight to visitor
+        "replyTo": [visitor_clean],  # Gaurav hits Reply → goes straight to visitor
         "subject": f"Note from {visitor_clean} via gauravlahoti.dev",
         "html":    _note_html(visitor_clean, msg),
         "text":    _note_text(visitor_clean, msg),
@@ -128,7 +128,9 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         "ok": True,
         "code": "ok",
         "message": (
-            f"Your note is on its way to Gaurav. "
-            f"You'll get a copy at {visitor_clean} too, so you have a record of it."
+            f"Your note is on its way to Gaurav, and a copy is heading to {visitor_clean} "
+            f"so you have a record. Corporate filters can sometimes hold things up, "
+            f"so while you wait you can also reach him directly on LinkedIn: "
+            f"https://www.linkedin.com/in/glahoti/"
         ),
     }

@@ -2672,6 +2672,7 @@ sup.agent-cite a:focus-visible {
         max-height: 92vh;
         max-height: min(92dvh, 920px);
     }
+    .agent-panel-expand { display: none; }
 
     /* Drag handle — visible only on mobile; rendered by agent-widget.js.
        Spec 26: pad the drag zone and head with safe-area-inset so the
