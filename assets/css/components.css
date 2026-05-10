@@ -2707,7 +2707,7 @@ sup.agent-cite a:focus-visible {
         background: var(--bg);
     }
     .mobile-skills .hero-hex-panel {
-        --hex-w: 75px;
+        --hex-w: 86px;
         display: flex;
         flex-direction: column;
         align-items: center;
