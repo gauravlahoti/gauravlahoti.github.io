@@ -2685,6 +2685,10 @@ sup.agent-cite a:focus-visible {
 /* Hidden by default on desktop. Each block below opts elements back in
    for ≤767px viewports only — desktop remains untouched. */
 
+/* Mobile-only skills honeycomb section — placed after the hero so it's
+   revealed on scroll, below the cert rail. Hidden on desktop. */
+.mobile-skills { display: none; }
+
 .hero-mobile-actions { display: none; }
 .mobile-bottombar { display: none; }
 .mobile-section-progress { display: none; }
@@ -2694,8 +2698,21 @@ sup.agent-cite a:focus-visible {
 @media (max-width: 767px) {
     .hero-cta-desktop { display: none; }
 
-    /* Scale honeycomb down on mobile so it fits the narrower viewport. */
-    .hero-hex-panel { --hex-w: 60px; }
+    /* Mobile skills honeycomb — full-width section below the hero. */
+    .mobile-skills {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: var(--space-12) var(--space-4) var(--space-16);
+        background: var(--bg);
+    }
+    .mobile-skills .hero-hex-panel {
+        --hex-w: 60px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: static;
+    }
 
     /* Spec 22.1: keep the original animated cert ticker on mobile — the
        static chip didn't add value. Lift the rail above the persistent
