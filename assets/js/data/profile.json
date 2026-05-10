@@ -192,5 +192,8 @@
       "label":  "Want a TL;DR of his career arc?",
       "prompt": "Give me a TL;DR of his career arc"
     }
+  },
+  "agentIntro": {
+    "text": "Powered by ADK and Gemini, grounded in Gaurav's projects, certifications and writing. Ask me anything about his work. I can also email you his resume or drop him a note."
   }
 }

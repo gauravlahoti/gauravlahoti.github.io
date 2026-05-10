@@ -205,11 +205,8 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         "subject": "Resume — Gaurav Lahoti",
         "html": _email_html(),
         "text": _email_text(),
-        # The resend-mcp tool wraps attachments differently from Resend's
-        # REST API — `url` here is renamed to `path` before forwarding.
-        # See node_modules/resend-mcp/dist/tools/emails.js (att.url → result.path).
         "attachments": [{
-            "filename": "Gaurav-Lahoti-Resume.pdf",
+            "filename": "Gaurav_Lahoti_Senior_Architect.pdf",
             "url": pdf_url,
         }],
     }

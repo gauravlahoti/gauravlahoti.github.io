@@ -2419,6 +2419,13 @@ sup.agent-cite a:focus-visible {
     outline: none;
 }
 
+/* Intro chips: uniform brightness — all options equally weighted in the opening row */
+.agent-message-intro .agent-suggestion-chip {
+    color: var(--ink);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+}
+
 /* CTA button — Topmate / LinkedIn off-ramp on personal/off-topic punts. */
 .agent-cta-action {
     display: inline-flex;
@@ -2533,7 +2540,7 @@ sup.agent-cite a:focus-visible {
     /* Keep tracking inherited; do not change line-height. */
 }
 /* ── Agent architecture diagram (ad-) ────────────────────────────────────── */
-.ad-svg { display: block; width: 100%; height: auto; margin-bottom: var(--space-4); overflow: visible; }
+.ad-svg { display: block; width: 100%; height: auto; margin-bottom: var(--space-4); overflow: visible; touch-action: manipulation; }
 .ad-edge { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-linecap: round; }
 .ad-pulse {
     fill: none;
@@ -2562,6 +2569,50 @@ sup.agent-cite a:focus-visible {
 .ad-node-sub  { font-family: var(--font-mono); font-size: 8px; fill: var(--ink-muted); pointer-events: none; }
 .ad-label-bg   { fill: var(--bg-card); }
 .ad-edge-label { font-family: var(--font-mono); font-size: 9px; font-weight: 600; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; }
+
+/* ── Diagram node tooltip ─────────────────────────────────────────────────── */
+.ad-node-tooltip {
+    position: fixed;
+    z-index: 200;
+    max-width: 196px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(12px);
+    padding: var(--space-2) var(--space-3);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-100%) translateY(-4px);
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+.ad-node-tooltip.is-visible {
+    opacity: 1;
+    transform: translateY(-100%) translateY(-10px);
+}
+.ad-node-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
+}
+.ad-node-tooltip ul { list-style: none; padding: 0; margin: 0; }
+.ad-node-tooltip li {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-muted);
+    line-height: 1.6;
+    padding-left: var(--space-2);
+    position: relative;
+}
+.ad-node-tooltip li::before { content: "›"; position: absolute; left: 0; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .ad-node-tooltip { transition: none; } }
 
 .agent-explainer-foot {
     margin-top: var(--space-4);

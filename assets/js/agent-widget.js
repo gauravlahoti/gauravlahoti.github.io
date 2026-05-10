@@ -51,6 +51,7 @@ export function initAgentWidget(root, profile) {
     const actions  = Array.isArray(profile && profile.agentActions) ? profile.agentActions : [];
     const agentCopy = (profile && profile.agentCopy) || {};
     const agentExplainer = (profile && profile.agentExplainer) || {};
+    const agentIntro = (profile && profile.agentIntro) || null;
 
     const dom = renderShell(root, agentExplainer);
     const fab = dom.fab;
@@ -64,6 +65,7 @@ export function initAgentWidget(root, profile) {
     let isMinimized = false;
     let isPending = false; // true while a response is streaming
     let panelEverOpened = false; // for scroll nudge — flipped on first open
+    let introRendered = false; // guards one-shot intro stream on first open
     let nudgeIo = null; // IntersectionObserver for scroll nudge
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
@@ -83,7 +85,11 @@ export function initAgentWidget(root, profile) {
         }, 5000);
     }
 
-    renderStarters();
+    if (agentIntro?.text) {
+        promptsEl.classList.add("is-hidden"); // hide immediately; intro streams on first open
+    } else {
+        renderStarters();
+    }
     setupExplainerModal(dom, agentExplainer);
     setupScrollNudge();
 
@@ -172,6 +178,13 @@ export function initAgentWidget(root, profile) {
         panel.setAttribute("aria-hidden", "false");
         fab.setAttribute("aria-expanded", "true");
         document.body.setAttribute("data-agent-panel-open", "true");
+        if (agentIntro?.text && !introRendered) {
+            introRendered = true;
+            // Delay until the panel slide animation completes (--dur-base = 320ms) so
+            // streaming starts on a fully-visible panel. REDUCE_MOTION skips animation,
+            // so no delay needed there.
+            setTimeout(() => requestAnimationFrame(renderIntroMessage), REDUCE_MOTION ? 0 : 340);
+        }
         if (!warmedThisSession && warmUrl) {
             warmedThisSession = true;
             fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
@@ -235,6 +248,55 @@ export function initAgentWidget(root, profile) {
                 sendCurrent();
             });
             promptsEl.appendChild(btn);
+        });
+    }
+
+    function renderIntroMessage() {
+        const li = document.createElement("li");
+        li.className = "agent-message agent-message-assistant agent-message-intro";
+        const p = document.createElement("p");
+        p.className = "agent-message-text";
+        li.appendChild(p);
+        transcript.appendChild(li);
+        scrollToEnd();
+
+        streamIntroText(p, agentIntro.text, () => {
+            // Combined chip row — action chips first, then question starters.
+            // Uses "agent-suggestions" so sendCurrent() auto-clears them on first send.
+            const row = document.createElement("div");
+            row.className = "agent-suggestions";
+
+            actions.forEach((a) => {
+                if (!a?.label || !a?.prefill) return;
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "agent-action-chip";
+                btn.textContent = a.label;
+                btn.addEventListener("click", () => {
+                    if (isPending) return;
+                    input.value = a.prefill + (a.prefill.endsWith(" ") ? "" : " ");
+                    input.focus();
+                    const len = input.value.length;
+                    try { input.setSelectionRange(len, len); } catch (_) {}
+                });
+                row.appendChild(btn);
+            });
+
+            starters.forEach((s) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "agent-suggestion-chip";
+                btn.textContent = s;
+                btn.addEventListener("click", () => {
+                    if (isPending) return;
+                    input.value = s;
+                    sendCurrent();
+                });
+                row.appendChild(btn);
+            });
+
+            if (row.children.length) li.appendChild(row);
+            scrollToEnd();
         });
     }
 
@@ -304,6 +366,12 @@ export function initAgentWidget(root, profile) {
         if (!text) return;
         if (text.length > 1000) {
             appendSystem("That message is a bit long for me — could you trim it under ~1000 characters?");
+            return;
+        }
+        const emailError = validateEmailInMessage(text);
+        if (emailError) {
+            appendSystem(emailError);
+            input.value = text;
             return;
         }
         // Remove suggestion chips from the previous assistant message
@@ -584,6 +652,64 @@ function parseEmphasis(text) {
     return frag;
 }
 
+function _setupDiagramTooltips(svg, dialog) {
+    const tip = document.createElement("div");
+    tip.className = "ad-node-tooltip";
+    tip.setAttribute("role", "tooltip");
+    const ul = document.createElement("ul");
+    tip.appendChild(ul);
+    document.body.appendChild(tip);
+
+    const TIP_W = 196;
+
+    function showTip(node) {
+        const items = node.getAttribute("data-ad-tip").split("\n");
+        ul.replaceChildren(...items.map(s => {
+            const li = document.createElement("li");
+            li.textContent = s;
+            return li;
+        }));
+        const rect = node.getBoundingClientRect();
+        let x = rect.left + rect.width / 2 - TIP_W / 2;
+        const y = rect.top;
+        x = Math.max(8, Math.min(x, window.innerWidth - TIP_W - 8));
+        tip.style.left = `${x}px`;
+        tip.style.top  = `${y}px`;
+        tip.classList.add("is-visible");
+    }
+
+    function hideTip() {
+        tip.classList.remove("is-visible");
+    }
+
+    svg.querySelectorAll(".ad-node[data-ad-tip]").forEach(node => {
+        node.addEventListener("mouseenter", () => showTip(node));
+        node.addEventListener("mouseleave", hideTip);
+
+        // Touch: click is more reliable than pointerdown on iOS Safari SVG
+        node.addEventListener("click", e => {
+            if (!matchMedia("(any-pointer: coarse)").matches) return;
+            if (tip.classList.contains("is-visible") && tip._node === node) {
+                hideTip();
+            } else {
+                tip._node = node;
+                showTip(node);
+            }
+        });
+    });
+
+    // Dismiss tooltip when tapping outside any node (touch only)
+    svg.addEventListener("click", e => {
+        if (!matchMedia("(any-pointer: coarse)").matches) return;
+        if (!e.target.closest(".ad-node[data-ad-tip]")) hideTip();
+    });
+
+    dialog.addEventListener("close", () => {
+        hideTip();
+        tip.remove();
+    });
+}
+
 function buildAgentDiagram() {
     const NS = "http://www.w3.org/2000/svg";
     const el = (tag, attrs) => {
@@ -628,7 +754,7 @@ function buildAgentDiagram() {
         svg.appendChild(lbl);
     });
 
-    const node = (cls, rx, ry, rw, rh, name, sub, tip, cx) => {
+    const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details) => {
         const g = el("g", { class: cls ? `ad-node ${cls}` : "ad-node" });
         const t = el("title", {}); t.textContent = tip; g.appendChild(t);
         g.appendChild(el("rect", { x: String(rx), y: String(ry), width: String(rw), height: String(rh), rx: "6" }));
@@ -636,20 +762,28 @@ function buildAgentDiagram() {
         nm.textContent = name; g.appendChild(nm);
         const sb = el("text", { class: "ad-node-sub", x: String(cx), y: String(ry + Math.floor(rh * 0.75)), "text-anchor": "middle" });
         sb.textContent = sub; g.appendChild(sb);
+        if (details?.length) g.setAttribute("data-ad-tip", details.join("\n"));
         return g;
+    };
+
+    const TIPS = {
+        llm:    ["Gemini Flash model", "reasoning + generation", "plans tool calls · synthesizes reply"],
+        agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
+        corpus: ["profile.json — bio, roles, certs", "graph.json — projects", "posts.json — LinkedIn", "rebuilt on every deploy"],
+        mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
     if (mobile) {
         // 250-unit viewBox: nodes centered at x=125; spoke nodes fill the width
-        svg.appendChild(node(null,            60,   5, 130, 38, "Gemini LLM",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 125));
-        svg.appendChild(node("ad-node--hub",  60,  72, 130, 42, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 125));
-        svg.appendChild(node(null,             0, 155, 120, 38, "Data Corpus", "profile · projects", "Frozen JSON snapshot — grounding source for every reply", 60));
-        svg.appendChild(node(null,           130, 155, 120, 38, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 190));
+        svg.appendChild(node(null,            60,   5, 130, 38, "Gemini LLM",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 125, TIPS.llm));
+        svg.appendChild(node("ad-node--hub",  60,  72, 130, 42, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 125, TIPS.agent));
+        svg.appendChild(node(null,             0, 155, 120, 38, "Data Corpus", "profile · projects", "Frozen JSON snapshot — grounding source for every reply", 60, TIPS.corpus));
+        svg.appendChild(node(null,           130, 155, 120, 38, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 190, TIPS.mcp));
     } else {
-        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240));
-        svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",          "ADK agent on Cloud Run — orchestrates all tool calls", 240));
-        svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts","Frozen JSON snapshot — grounding source for every reply", 82));
-        svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",    "MCP-compatible Resend server — fires email on agent request", 402));
+        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240, TIPS.llm));
+        svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",          "ADK agent on Cloud Run — orchestrates all tool calls", 240, TIPS.agent));
+        svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts","Frozen JSON snapshot — grounding source for every reply", 82, TIPS.corpus));
+        svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",    "MCP-compatible Resend server — fires email on agent request", 402, TIPS.mcp));
     }
 
     return svg;
@@ -670,6 +804,8 @@ function setupExplainerModal(dom, agentExplainer) {
     if (bodyEl && Array.isArray(agentExplainer.body)) {
         bodyEl.replaceChildren();
         bodyEl.appendChild(buildAgentDiagram());
+        const diagSvg = bodyEl.querySelector(".ad-svg");
+        if (diagSvg) _setupDiagramTooltips(diagSvg, dialog);
         agentExplainer.body.forEach(para => {
             const p = document.createElement("p");
             p.appendChild(parseEmphasis(para));
@@ -912,6 +1048,61 @@ function setupDragToDismiss(panel, dragZone, closePanel) {
     dragZone.addEventListener("pointermove", onPointerMove);
     dragZone.addEventListener("pointerup", onPointerUp);
     dragZone.addEventListener("pointercancel", onPointerCancel);
+}
+
+// --- intro streaming --------------------------------------------------------
+
+function streamIntroText(p, text, onDone) {
+    if (REDUCE_MOTION) {
+        p.textContent = text;
+        onDone();
+        return;
+    }
+    const caret = document.createElement("span");
+    caret.className = "agent-cursor";
+    caret.setAttribute("aria-hidden", "true");
+    p.appendChild(caret);
+
+    let i = 0;
+    const CHUNK = 3;
+    const DELAY = 18;
+
+    function tick() {
+        if (i >= text.length) {
+            caret.remove();
+            onDone();
+            return;
+        }
+        const end = Math.min(i + CHUNK, text.length);
+        p.insertBefore(document.createTextNode(text.slice(i, end)), caret);
+        i = end;
+        setTimeout(tick, DELAY);
+    }
+    tick();
+}
+
+// --- email validation -------------------------------------------------------
+
+const _OWNER_EMAIL     = "gaurav.lahoti25@gmail.com";
+const _EMAIL_TOKEN_RE  = /[^\s,;]+@[^\s,;]+/g;
+const _EMAIL_FULL_RE   = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+function validateEmailInMessage(text) {
+    if (!text.includes("@")) return null;
+    const tokens = text.match(_EMAIL_TOKEN_RE);
+    if (!tokens) {
+        return "That doesn't look like a valid email address. Please use the format you@domain.com.";
+    }
+    for (const raw of tokens) {
+        const token = raw.replace(/[.,;!?]+$/, "");
+        if (token.toLowerCase() === _OWNER_EMAIL) {
+            return "That is Gaurav's own email address. Please enter your email so he can reply to you.";
+        }
+        if (!_EMAIL_FULL_RE.test(token)) {
+            return `"${token}" does not look like a valid email address. Please use the format you@domain.com.`;
+        }
+    }
+    return null;
 }
 
 // --- loading stages ---------------------------------------------------------

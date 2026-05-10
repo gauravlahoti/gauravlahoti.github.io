@@ -83,8 +83,26 @@ gcloud run deploy resend-mcp-server \
   --source . \
   --project=gcp-experiments-490306 \
   --region=us-central1 \
-  --allow-unauthenticated
+  --allow-unauthenticated \
+  --cpu-throttling \
+  --cpu-boost \
+  --execution-environment gen2 \
+  --concurrency 20 \
+  --min-instances 0
 ```
+
+Or via make:
+
+```bash
+make deploy
+```
+
+**Flag notes:**
+- `--cpu-throttling` — request-based billing (required to unlock `--cpu-boost`)
+- `--cpu-boost` — extra CPU at startup for ~30% faster cold starts (free)
+- `--execution-environment gen2` — faster, newer Cloud Run runtime
+- `--concurrency 20` — conservative; one `resend-mcp` child process per instance
+- `--min-instances 0` — scale to zero when idle (free tier)
 
 ### 3. Get the service URL
 
