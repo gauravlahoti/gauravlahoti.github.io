@@ -107,12 +107,12 @@
     letter-spacing: -0.01em;
 }
 .hi-anchor {
-    font-size: clamp(var(--text-xl), 3.2vw, var(--text-2xl));
+    font-size: clamp(1.125rem, 2.2vw, 1.75rem);
     font-weight: 600;
     color: var(--ink);
 }
 .hi-amp {
-    font-size: clamp(var(--text-xl), 3.2vw, var(--text-2xl));
+    font-size: clamp(1.125rem, 2.2vw, 1.75rem);
     font-weight: 400;
     color: var(--accent);
     font-style: italic;
@@ -273,7 +273,7 @@
     left: 0;
     right: 0;
     bottom: var(--space-12);
-    height: 180px;
+    height: 144px;
     z-index: 4;
     /* Clip horizontally only — vertical visible so a hovered tile (lifted
        -12px + scaled 1.35×) isn't cropped at the top by the rail bounds.
@@ -319,9 +319,9 @@
 .cert-tile {
     position: relative;
     list-style: none;
-    flex: 0 0 130px;
-    width: 130px;
-    height: 130px;
+    flex: 0 0 104px;
+    width: 104px;
+    height: 104px;
     border-radius: var(--radius-lg);
     /* Darker teal frame than the global --border-strong (which is white at
        16% opacity and reads as faint gray on the dark hero). A muted dark
@@ -2672,6 +2672,16 @@ sup.agent-cite a:focus-visible {
 }
 
 /* ==================== Spec 22 — Mobile overhaul ==================== */
+/* Desktop hero CTA — hidden on mobile where the bottom-bar owns this action */
+.hero-cta-desktop {
+    margin-top: var(--space-2);
+    align-self: flex-start;
+}
+
+/* FAB and its tooltip replaced by the hero CTA button on desktop */
+.agent-fab { display: none; }
+.agent-fab-tooltip { display: none !important; }
+
 /* Hidden by default on desktop. Each block below opts elements back in
    for ≤767px viewports only — desktop remains untouched. */
 
@@ -2682,6 +2692,8 @@ sup.agent-cite a:focus-visible {
 .agent-panel-drag-zone { display: none; }
 
 @media (max-width: 767px) {
+    .hero-cta-desktop { display: none; }
+
     /* Spec 22.1: keep the original animated cert ticker on mobile — the
        static chip didn't add value. Lift the rail above the persistent
        bottom-bar so they don't collide. The 600px breakpoint already sets
@@ -2994,4 +3006,264 @@ sup.agent-cite a:focus-visible {
     }
 }
 
+/* ============================================================
+   Skills Honeycomb — 2-4-2 pointy-top, absolutely positioned
+   ------------------------------------------------------------
+   Pointy-top hexes tile cleanly in horizontal rows: same-row cells
+   share vertical flat edges (centers W apart), adjacent rows are
+   offset by W/2 horizontally and 0.75 H vertically.
+   Geometry constants (W = flat-to-flat width):
+     H (corner-to-corner)  = W * 2/√3 ≈ 1.1547 W
+     dx (same row)         = W
+     dy (adjacent row)     = H * 0.75    (≈ 0.866 W)
+     odd-row x offset      = W * 0.5     (= dx/2)
+   ============================================================ */
 
+/* Animated gradient positions for the aurora inner-glow (requires @property for smooth interpolation) */
+@property --hex-gx {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 30%;
+}
+@property --hex-gy {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 40%;
+}
+
+.hero-hex-panel { --hex-w: 83px; }
+
+.skills-hex-grid {
+    --hex-h: calc(var(--hex-w) * 0.866);
+    position: relative;
+    width: calc(var(--hex-w) * 2.5);
+    height: calc(var(--hex-h) * 4);
+    margin: 0 auto;
+}
+
+.skills-hex-connections {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: visible;
+    transition: opacity 200ms var(--ease-out);
+}
+.skills-hex-connections line {
+    stroke: color-mix(in srgb, var(--accent) 50%, transparent);
+    stroke-width: 1;
+    stroke-linecap: round;
+    fill: none;
+    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 55%, transparent));
+    transition: stroke-dashoffset 360ms var(--ease-out);
+}
+
+/* Cell wrapper — absolute (left/top set inline by JS) */
+.skills-hex-wrap {
+    position: absolute;
+    width: var(--hex-w);
+    height: var(--hex-h);
+    cursor: default;
+    opacity: 0;
+    transform: scale(0.85);
+    transform-origin: center;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 1;
+    transition:
+        left 500ms var(--ease-in-out),
+        top 500ms var(--ease-in-out),
+        opacity var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
+}
+.skills-hex-wrap.is-revealing {
+    animation: hex-bounce-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.skills-hex-wrap.is-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+@keyframes hex-bounce-in {
+    0%   { opacity: 0; transform: scale(0.85); }
+    60%  { opacity: 1; transform: scale(1.04); }
+    100% { opacity: 1; transform: scale(1.00); }
+}
+
+/* Particle canvas — fills wrapper, sits above the hex body */
+.skills-hex-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Hex body — flat-top clip-path */
+.skills-hex {
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background: var(--bg-card);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--hex-w) * 0.04);
+    opacity: 0;
+    z-index: 1;
+    transition:
+        opacity var(--dur-base) var(--ease-out),
+        filter var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
+    filter: drop-shadow(0 0 5px transparent);
+}
+
+.skills-hex.is-appearing {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px var(--accent));
+}
+.skills-hex-wrap.is-visible .skills-hex {
+    opacity: 1;
+}
+
+/* Aurora inner-glow: drifting radial gradient behind icon/label */
+.skills-hex::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(
+        ellipse 70% 60% at var(--hex-gx) var(--hex-gy),
+        color-mix(in srgb, var(--accent) 10%, transparent),
+        transparent 72%
+    );
+    opacity: 0;
+    transition: opacity 600ms var(--ease-out);
+    animation: hex-inner-aurora 8s var(--ease-in-out) infinite;
+    animation-play-state: paused;
+}
+.skills-hex-wrap.is-visible .skills-hex::before {
+    opacity: 1;
+    animation-play-state: running;
+}
+@keyframes hex-inner-aurora {
+    0%   { --hex-gx: 30%; --hex-gy: 35%; }
+    33%  { --hex-gx: 68%; --hex-gy: 28%; }
+    66%  { --hex-gx: 52%; --hex-gy: 72%; }
+    100% { --hex-gx: 30%; --hex-gy: 35%; }
+}
+
+/* Tier-staggered aurora speeds so no two cells drift in sync */
+.tier-primary   .skills-hex::before { animation-duration: 6s;  animation-delay:   0s; }
+.tier-secondary .skills-hex::before { animation-duration: 9s;  animation-delay:  -3s; }
+.tier-tertiary  .skills-hex::before { animation-duration: 11s; animation-delay:  -5s; }
+
+/* Suppress aurora on hover — particles take visual priority */
+.skills-hex-wrap:hover .skills-hex::before,
+.skills-hex-wrap:focus-visible .skills-hex::before {
+    opacity: 0;
+}
+
+/* Tier — Primary (ADK, GCP, MCP): largest, full color, idle pulse */
+.tier-primary .skills-hex {
+    transform: scale(1.12);
+}
+.tier-primary.is-visible .skills-hex {
+    filter:
+        drop-shadow(0 0 0.5px var(--accent))
+        drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 65%, transparent));
+    animation: hex-idle-pulse 3.5s var(--ease-in-out) infinite;
+}
+
+/* Tier — Secondary (Claude, A2A, AWS): medium size, full color, subtle glow */
+.tier-secondary .skills-hex {
+    transform: scale(1.0);
+}
+.tier-secondary.is-visible .skills-hex {
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 35%, transparent));
+}
+
+/* Tier — Tertiary (LangChain, LangGraph): same box size, muted until hovered */
+.tier-tertiary {
+    opacity: 0.55;
+    filter: saturate(0.7);
+    transition:
+        opacity 220ms var(--ease-out),
+        filter 220ms var(--ease-out);
+}
+.tier-tertiary.is-visible:hover,
+.tier-tertiary.is-visible:focus-within {
+    opacity: 1;
+    filter: saturate(1);
+}
+
+/* Hover: pause idle pulse, brighten */
+.skills-hex-wrap:hover .skills-hex,
+.skills-hex-wrap:focus-visible .skills-hex {
+    animation: none;
+    filter: drop-shadow(0 0 18px var(--accent));
+}
+
+.skills-hex.is-scattered .skills-hex-icon-wrap {
+    opacity: 0.15;
+}
+
+@keyframes hex-idle-pulse {
+    0%, 100% { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 45%, transparent)); }
+    50%      { filter: drop-shadow(0 0 13px color-mix(in srgb, var(--accent) 65%, transparent)); }
+}
+
+/* Icon wrapper — sized relative to hex width so it scales with --hex-w */
+.skills-hex-icon-wrap {
+    width: calc(var(--hex-w) * 0.52);
+    height: calc(var(--hex-w) * 0.42);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    transition: opacity var(--dur-base) var(--ease-out), filter var(--dur-base) var(--ease-out);
+}
+.skills-hex-icon-wrap svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.skills-hex-wrap:hover .skills-hex-icon-wrap {
+    filter: drop-shadow(0 0 8px currentColor) brightness(1.15);
+}
+
+/* Skill name label */
+.skills-hex-label {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+    text-align: center;
+    line-height: 1.1;
+    max-width: calc(var(--hex-w) * 0.5);
+    position: relative;
+    z-index: 1;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.skills-hex-wrap:hover .skills-hex-label {
+    color: var(--ink);
+}
+
+/* Reduced-motion: skip bounce, particles, mesh-draw, aurora */
+@media (prefers-reduced-motion: reduce) {
+    .skills-hex-wrap { opacity: 1; transform: none; }
+    .skills-hex-wrap.is-revealing { animation: none; }
+    .skills-hex-wrap.is-visible .skills-hex { animation: none; filter: none; opacity: 1; }
+    .tier-primary.is-visible .skills-hex { animation: none; filter: none; }
+    .skills-hex-canvas { display: none; }
+    .skills-hex-connections line { transition: none; }
+    .skills-hex::before { animation: none; opacity: 0; }
+}
+
+/* Mobile: hero panel itself is display:none below 901px (layout.css), so the
+   honeycomb never renders on phones. No mobile-specific sizing needed. */

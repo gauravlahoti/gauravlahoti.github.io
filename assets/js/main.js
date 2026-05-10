@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "107";
+const ASSET_VERSION = "138";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -54,6 +54,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initHeroGraphWhenVisible();
 
     initTrajectoryWhenVisible(profile);
+    initSkillsHexWhenVisible();
     initPostsListWhenVisible();
     initPostsFlyoutEager();
     initNavDrawer();
@@ -472,6 +473,14 @@ function initTrajectoryWhenVisible(profile) {
         }
     }, { rootMargin: "300px" });
     io.observe(root);
+}
+
+function initSkillsHexWhenVisible() {
+    const root = document.querySelector("#top [data-skills-root]");
+    if (!root) return;
+    import(v("./skills-hex.js"))
+        .then(({ initSkillsHex }) => initSkillsHex(root, { baseDelay: 1200 }))
+        .catch((err) => console.warn("[skills-hex] failed to init", err));
 }
 
 function initPostsListWhenVisible() {

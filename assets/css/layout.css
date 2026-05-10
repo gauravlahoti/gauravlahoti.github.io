@@ -517,6 +517,35 @@ main { padding-top: 0; }
     width: 100%;
 }
 
+/* Hero hex panel: hidden on mobile, absolutely positioned on desktop so it
+   doesn't disturb the centered text stack. */
+.hero-hex-panel { display: none; }
+
+@media (min-width: 901px) {
+    .hero-hex-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: absolute;
+        left: clamp(16px, 3vw, 56px);
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 4;
+        margin-top: -60px;
+    }
+
+    /* Left-align the stack so text is bracketed between the honeycomb and the
+       portrait — prevents text from bleeding into the portrait image. */
+    .hero-stack {
+        justify-self: start;
+        margin: 0;
+        max-width: none;
+        padding-top: clamp(40px, 7vh, 80px);
+        padding-left: clamp(260px, 22vw, 340px);
+        padding-right: calc(min(42vw, 520px) + var(--space-8));
+    }
+}
+
 @media (max-width: 900px) {
     .hero-stack { padding-bottom: 200px; }
 }
@@ -541,19 +570,25 @@ main { padding-top: 0; }
     .hero-stack { padding-bottom: 130px; }
 }
 
+.hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
 .hero-name {
     font-family: var(--font-sans);
     font-weight: 700;
-    font-size: clamp(2.75rem, 9vw, var(--text-4xl));
-    line-height: 1.02;
+    font-size: clamp(2rem, 5.5vw, 3.5rem);
+    line-height: 1.08;
     letter-spacing: -0.03em;
     color: var(--ink);
     text-shadow: 0 0 60px var(--accent-glow);
 }
 
 .hero-tagline {
-    font-size: clamp(var(--text-base), 2vw, var(--text-xl));
-    line-height: 1.45;
+    font-size: clamp(0.875rem, 1.5vw, 1.1rem);
+    line-height: 1.65;
     color: var(--ink);
     max-width: 720px;
 }
