@@ -2694,6 +2694,9 @@ sup.agent-cite a:focus-visible {
 @media (max-width: 767px) {
     .hero-cta-desktop { display: none; }
 
+    /* Scale honeycomb down on mobile so it fits the narrower viewport. */
+    .hero-hex-panel { --hex-w: 60px; }
+
     /* Spec 22.1: keep the original animated cert ticker on mobile — the
        static chip didn't add value. Lift the rail above the persistent
        bottom-bar so they don't collide. The 600px breakpoint already sets
