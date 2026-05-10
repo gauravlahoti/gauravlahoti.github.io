@@ -32,6 +32,21 @@ const INLINE_SVGS = {
     <path d="M60,47 L64,52 L58,55" stroke="#FF9900" stroke-width="4"
       stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   </svg>`,
+  // GCP: Google Cloud cloud mark — 4-color Google brand gradient on cloud silhouette
+  // Path scaled 2.5× from Simple Icons 24×24 source, centered in 80×80 canvas.
+  GCP: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="gcp-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#4285F4"/>
+        <stop offset="33%"  stop-color="#EA4335"/>
+        <stop offset="67%"  stop-color="#FBBC05"/>
+        <stop offset="100%" stop-color="#34A853"/>
+      </linearGradient>
+    </defs>
+    <path transform="translate(12,18) scale(2.5)"
+      d="M12.19 2.38a9.344 9.344 0 0 0-9.234 6.893C.9 9.809-.001 11.145 0 12.753c0 3.51 2.79 6.35 6.3 6.35H16.56c3.07 0 5.56-2.49 5.56-5.56a5.565 5.565 0 0 0-5.05-5.54 9.36 9.36 0 0 0-4.87-5.623Z"
+      fill="url(#gcp-grad)"/>
+  </svg>`,
   // ADK: multi-color Google brand — blue/green robot oval + yellow/red code symbols
   ADK: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true">
     <defs>
@@ -67,7 +82,7 @@ const SKILLS = [
   { name: 'LangGraph', tier: 'tertiary',  imgPath: 'assets/img/skills/langgraph.png', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
   { name: 'AWS',       tier: 'secondary', inlineSvg: 'AWS',                           color: '#FF9900' },
   { name: 'Claude',    tier: 'secondary', inlineSvg: 'Claude',                        color: '#E07B54' },
-  { name: 'GCP',       tier: 'primary',   imgPath: 'assets/img/skills/gcp.png',       color: '#4285F4', removeWhiteBg: true },
+  { name: 'GCP',       tier: 'primary',   inlineSvg: 'GCP',                          color: '#4285F4' },
   { name: 'ADK',       tier: 'primary',   inlineSvg: 'ADK',                           color: '#34A853' },
   { name: 'MCP',       tier: 'primary',   imgPath: 'assets/img/skills/mcp.png',       color: '#A78BFA', imgFilter: 'invert(1)', blendMode: 'screen' },
   { name: 'A2A',       tier: 'secondary', imgPath: 'assets/img/skills/a2a.png',       color: '#4285F4', imgFilter: 'invert(1)', blendMode: 'screen' },
