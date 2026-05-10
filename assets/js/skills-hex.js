@@ -32,26 +32,6 @@ const INLINE_SVGS = {
     <path d="M60,47 L64,52 L58,55" stroke="#FF9900" stroke-width="4"
       stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   </svg>`,
-  // GCP: official Google Cloud cloud mark — thick ring (outer cloud minus inner cloud)
-  // divided into 4 Google brand color sections. SVG mask punches a true transparent hole.
-  // Geometry: outer = two circles + rect; inner cutout = two smaller circles + rect.
-  // Colors: red (upper-left), blue (right), yellow (left arm), green (bottom strip).
-  GCP: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <defs>
-      <mask id="gcp-m">
-        <circle cx="28" cy="27" r="20" fill="white"/>
-        <circle cx="52" cy="30" r="14" fill="white"/>
-        <rect x="8" y="37" width="62" height="27" fill="white"/>
-        <circle cx="29" cy="43" r="10" fill="black"/>
-        <circle cx="46" cy="44" r="9"  fill="black"/>
-        <rect x="19" y="44" width="36" height="9" fill="black"/>
-      </mask>
-    </defs>
-    <rect x="8"  y="7"  width="33" height="57" fill="#FBBC05" mask="url(#gcp-m)"/>
-    <rect x="41" y="7"  width="29" height="57" fill="#4285F4" mask="url(#gcp-m)"/>
-    <rect x="8"  y="7"  width="33" height="33" fill="#EA4335" mask="url(#gcp-m)"/>
-    <rect x="19" y="52" width="40" height="13" fill="#34A853" mask="url(#gcp-m)"/>
-  </svg>`,
   // ADK: multi-color Google brand — blue/green robot oval + yellow/red code symbols
   ADK: `<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true">
     <defs>
@@ -87,7 +67,7 @@ const SKILLS = [
   { name: 'LangGraph', tier: 'tertiary',  imgPath: 'assets/img/skills/langgraph.png', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
   { name: 'AWS',       tier: 'secondary', inlineSvg: 'AWS',                           color: '#FF9900' },
   { name: 'Claude',    tier: 'secondary', inlineSvg: 'Claude',                        color: '#E07B54' },
-  { name: 'GCP',       tier: 'primary',   inlineSvg: 'GCP',                          color: '#4285F4' },
+  { name: 'GCP',       tier: 'primary',   imgPath: 'assets/img/skills/gcp.png',       color: '#4285F4' },
   { name: 'ADK',       tier: 'primary',   inlineSvg: 'ADK',                           color: '#34A853' },
   { name: 'MCP',       tier: 'primary',   imgPath: 'assets/img/skills/mcp.png',       color: '#A78BFA', imgFilter: 'invert(1)', blendMode: 'screen' },
   { name: 'A2A',       tier: 'secondary', imgPath: 'assets/img/skills/a2a.png',       color: '#4285F4', imgFilter: 'invert(1)', blendMode: 'screen' },
