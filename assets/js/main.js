@@ -647,7 +647,7 @@ function resolve(obj, path) {
 }
 
 function setTitle(profile) {
-    const title = `${profile.name} — ${profile.title}`;
+    const title = `${profile.name} | ${profile.title}`;
     if (document.title !== title) document.title = title;
 }
 
