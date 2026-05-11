@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "145";
+const ASSET_VERSION = "146";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -715,6 +715,8 @@ function scheduleHeroReveal() {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
+        document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
+            .forEach(el => (el.style.opacity = "1"));
         return;
     }
 
@@ -723,6 +725,8 @@ function scheduleHeroReveal() {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
+        document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
+            .forEach(el => (el.style.opacity = "1"));
         return;
     }
 
@@ -753,18 +757,19 @@ function scheduleHeroReveal() {
         );
     }
 
-    // 2.2s — CTAs ease up + glow pulse
-    tl.fromTo(".hero-ctas .btn",
-        { opacity: 0, y: 12 },
-        { opacity: 1, y: 0, duration: 0.5, stagger: 0.08 },
-        2.2
+    // 2.6s — "Chat with my agent" CTA eases up after hero text + skills hex
+    // both complete (skills hex finishes ~2.4s desktop, hero text ~2.2s).
+    tl.fromTo(".hero-cta-desktop, .hero-cta-mobile",
+        { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.55, stagger: 0.08, ease: "power3.out" },
+        2.6
     );
-    tl.to(".hero-ctas .btn-primary", {
+    tl.to(".hero-cta-desktop, .hero-cta-mobile", {
         boxShadow: "0 0 24px 4px var(--accent-glow)",
         duration: 0.4,
         yoyo: true,
         repeat: 1,
-    }, 2.4);
+    }, 2.8);
 
 }
 

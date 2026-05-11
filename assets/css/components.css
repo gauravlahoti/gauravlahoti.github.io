@@ -2678,6 +2678,18 @@ sup.agent-cite a:focus-visible {
     align-self: flex-start;
 }
 
+/* Hero CTAs start hidden — GSAP reveals them after hero text + skills hex
+   finish (see scheduleHeroReveal() in main.js). */
+.hero-cta-desktop,
+.hero-cta-mobile {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-cta-desktop,
+    .hero-cta-mobile { opacity: 1; }
+}
+
 /* FAB and its tooltip replaced by the hero CTA button on desktop */
 .agent-fab { display: none; }
 .agent-fab-tooltip { display: none !important; }

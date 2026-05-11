@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=145">
-    <link rel="stylesheet" href="assets/css/layout.css?v=145">
-    <link rel="stylesheet" href="assets/css/components.css?v=145">
+    <link rel="stylesheet" href="assets/css/base.css?v=146">
+    <link rel="stylesheet" href="assets/css/layout.css?v=146">
+    <link rel="stylesheet" href="assets/css/components.css?v=146">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
@@ -284,11 +284,28 @@
                     </p>
                     <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
 
-                    <button class="hero-cta-desktop btn btn-primary" type="button" data-agent-open>Chat with my agent <span aria-hidden="true">→</span></button>
+                    <button class="hero-cta-desktop btn btn-primary" type="button" data-agent-open>
+                        <svg class="hero-cta-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="8" width="16" height="12" rx="3"/>
+                            <circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+                            <circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+                            <line x1="12" y1="4" x2="12" y2="8"/>
+                            <circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none"/>
+                        </svg>
+                        <span>Chat with my agent</span>
+                        <span aria-hidden="true">→</span>
+                    </button>
 
                     <!-- Spec 22: mobile-only in-hero actions. Hidden on ≥768px. -->
                     <div class="hero-mobile-actions" aria-hidden="false">
                         <button class="hero-cta-mobile btn btn-primary" type="button" data-agent-open>
+                            <svg class="hero-cta-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="4" y="8" width="16" height="12" rx="3"/>
+                                <circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+                                <circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+                                <line x1="12" y1="4" x2="12" y2="8"/>
+                                <circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none"/>
+                            </svg>
                             <span>Chat with my agent</span>
                             <span class="hero-cta-mobile-arrow" aria-hidden="true">→</span>
                         </button>
@@ -435,6 +452,6 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=145"></script>
+    <script type="module" src="assets/js/main.js?v=146"></script>
 </body>
 </html>
