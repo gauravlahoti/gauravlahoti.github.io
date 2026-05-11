@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "146";
+const ASSET_VERSION = "148";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -711,12 +711,15 @@ function scheduleHeroReveal() {
     splitChars(nameEl);
     splitWords(taglineEl);
 
+    const bottomBar = document.querySelector("[data-mobile-bottombar]");
+
     if (reduceMotion) {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
         document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
             .forEach(el => (el.style.opacity = "1"));
+        if (bottomBar) bottomBar.removeAttribute("data-hidden");
         return;
     }
 
@@ -727,6 +730,7 @@ function scheduleHeroReveal() {
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
         document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
             .forEach(el => (el.style.opacity = "1"));
+        if (bottomBar) bottomBar.removeAttribute("data-hidden");
         return;
     }
 
@@ -771,6 +775,11 @@ function scheduleHeroReveal() {
         repeat: 1,
     }, 2.8);
 
+    // Mobile bottom-bar slides up from below at the same beat (CSS handles
+    // the translateY transition via [data-hidden] → no transform on bar).
+    if (bottomBar) {
+        tl.call(() => bottomBar.removeAttribute("data-hidden"), [], 2.6);
+    }
 }
 
 function splitChars(el) {
