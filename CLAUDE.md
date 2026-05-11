@@ -1,92 +1,96 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project
 
-## Project overview
+Static, single-page portfolio for Gaurav Lahoti (Cloud & AI Architect). Dark "AI terminal" aesthetic. No framework, no bundler, no build step — `git clone` → `python3 -m http.server 5173` → running site. Every feature ships through a spec in `.claude/specs/`.
 
-Static, single-page Cloud & AI architect portfolio for Gaurav Lahoti. Dark "AI terminal" aesthetic — landing hero is an "Agent Mesh" (3D node-edge graph with A2A-style edge pulses, chrome status panel, LLM-style token-streaming tagline). Built spec-driven — every feature ships through a spec in `.claude/specs/`. No framework, no bundler, no Node toolchain. Open `index.html` and it runs.
-
-## Running locally
+## Run locally
 
 ```bash
 python3 -m http.server 5173
-# then open http://localhost:5173
 ```
 
 ## Slash commands
 
-- `/run-site` — boot the static server
-- `/create-spec <step> <slug>` — scaffold a new spec + feature branch
-- `/implement-spec <step>` — read spec, plan, implement
-- `/add-project` — add a project node to `graph.json`
-- `/add-post <linkedin-url>` — fetch a LinkedIn post's title via OG meta, show it for approval, then prepend to `posts.json`
-- `/ship` — commit feature-branch work, open PR, squash-merge to main
-- `/publish` — commit, push, trigger Pages deploy
+| Command | Purpose |
+|---------|---------|
+| `/run-site` | Boot the static dev server |
+| `/create-spec <step> <slug>` | Scaffold a spec file + feature branch |
+| `/implement-spec <step>` | Read spec, plan, implement |
+| `/add-project` | Add a node to `graph.json` |
+| `/add-post <linkedin-url>` | Fetch post title, confirm, prepend to `posts.json` |
+| `/ship` | Commit branch → PR → squash-merge to main |
+| `/publish` | Commit + push → trigger Pages deploy |
 
 ## Architecture
 
-| Layer            | Location                                                | Notes                              |
-|------------------|---------------------------------------------------------|------------------------------------|
-| HTML             | `index.html`                                            | Single page; semantic anchors      |
-| CSS              | `assets/css/{base,layout,components}.css`               | base = variables + typography      |
-| JS modules       | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate}.js` | One module per surface       |
-| Content data     | `assets/js/data/*.json`                                 | See data files below               |
-| Static media     | `assets/img/`                                           | Resume PDF, OG image, favicon      |
-| Backend (gate)   | `backend/`                                              | Resume-download auth (see below)   |
+| Layer | Location | Notes |
+|-------|----------|-------|
+| HTML | `index.html` | Single page; semantic anchors |
+| CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
+| JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
+| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json` |
+| Static media | `assets/img/` | Resume PDF, OG image, favicon |
+| Backend | `backend/` | Resume-gate + agent audit log |
 
-Data files: `profile.json` (identity, bio, socials, full work history, certifications), `graph.json` (project metadata).
+## Resume-gate backend (`backend/`)
 
-## Resume-gate backend
+Gates the resume PDF behind Google Sign-In. Two runtimes share `schema.sql`:
 
-`backend/` is a separate sub-project that gates the resume PDF behind Google Sign-In. Two interchangeable runtimes share `schema.sql`:
+- **Local** (`backend/local-server.js`): `cd backend && npm install && npm start` → `:8787`, SQLite (`leads.db`)
+- **Production** (`backend/src/index.js` + `wrangler.toml`): Cloudflare Worker writing to D1
 
-- **Local Node** (`backend/local-server.js`) — `cd backend && npm install && npm start` → `http://localhost:8787`, writes `leads.db` (SQLite).
-- **Cloudflare Worker** (`backend/src/index.js`, `wrangler.toml`) — production target, writes to D1.
+`assets/js/resume-gate.js` calls the backend; the PDF fires only after JWT verification and lead row write.
 
-The static portfolio stays plain HTML/CSS/JS and ships to GitHub Pages independently. `assets/js/resume-gate.js` calls the backend; the PDF download fires only after the JWT verifies and the lead row is written. Specs 11 and 12 cover the gate and Google auth.
-
-**Agent audit log (Spec #23):** the same D1 database holds a second table, `agent_interactions`, with one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email` when the visitor has signed in). The Cloud Run agent writes to it via `POST /api/agent-log` (gated by `AGENT_LOG_TOKEN`, a shared secret set via `wrangler secret put` on the Worker and in Secret Manager on Cloud Run). Admin read: `GET /api/agent-log` with the same `Authorization: Bearer $ADMIN_TOKEN` as `/api/leads`. Rows auto-delete after 90 days via the existing monthly cron. Source: `portfolio-agent/app/app_utils/audit_log.py`.
+**Agent audit log:** D1 also holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Rows expire after 90 days via monthly cron. Source: `portfolio-agent/app/app_utils/audit_log.py`. Schema migration: `backend/migrations/003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta` columns.
 
 ## Agent chat widget (`portfolio-agent/`)
 
-Spec 21 adds a floating "Ask my agent" widget powered by a Google ADK Python agent deployed on Cloud Run (free tier, `min-instances=0`). The agent answers questions about Gaurav using five retrieval tools (`get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications`) over a frozen JSON snapshot bundled into the container. Frontend module: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback` and wired in `assets/js/main.js`. Sub-project: `portfolio-agent/` (scaffolded by `agents-cli scaffold create`; do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI reads them).
+Floating "Ask my agent" widget — Google ADK Python agent on Cloud Run (`min-instances=0`). Five retrieval tools: `get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications` over a frozen JSON corpus bundled at deploy time.
 
-- **Local dev** (from inside `portfolio-agent/`): `make dev` (FastAPI on `:8000`) or `agents-cli playground` (ADK web UI). For a one-shot smoke: `agents-cli run "your prompt"`.
-- **Eval gate** (must pass before deploy): `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json`.
-- **Deploy**: `agents-cli scaffold enhance . --deployment-target cloud_run --session-type in_memory` once, then `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0`. After deploy, paste the Cloud Run URL into `profile.json` `links.agentApi` / `links.agentWarm` and `index.html` CSP `connect-src`.
-- **Refresh corpus**: `make corpus` syncs `assets/js/data/*.json` → `portfolio-agent/app/corpus/`. The agent ships a frozen snapshot per deploy; redeploy to update.
+Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
 
-**Conversation upgrades (Spec #24):** every reply ends with a server-stripped `[[META]]…[[/META]]` JSON block carrying `citations`, `suggestions` (follow-up chips), and an optional `cta`. `_stream_agent` detects the sentinel, strips it from the delta stream, parses the block (last-wins via `rfind`), validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as `citations` / `suggestions` / `cta` SSE events before `done`. The widget renders inline `[N]` superscripts (after `done`, not during streaming), a chip row, and a Topmate / LinkedIn CTA button when applicable. Audit log gains `citations_count`, `suggestions_count`, and `cta` columns (Spec #23 schema extended via `backend/migrations/003-agent-meta.sql`). `[[META]]` / `[[/META]]` are stripped from user input in `before_model_callback` as a first-line injection defense. Copy for CTA buttons and scroll nudge lives in `profile.agentCopy`; transparency modal copy lives in `profile.agentExplainer`.
+**Critical:** do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns those.
+
+| Task | Command (from `portfolio-agent/`) |
+|------|----------------------------------|
+| Local dev (FastAPI) | `make dev` → `:8000` |
+| Interactive UI | `agents-cli playground` |
+| One-shot smoke test | `agents-cli run "your prompt"` |
+| Eval gate (required before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
+| Refresh corpus | `make corpus` — syncs `assets/js/data/*.json` → `app/corpus/` |
+| Deploy | `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` |
+
+After deploy: update `profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the Cloud Run URL.
+
+**`[[META]]` block:** every agent reply ends with `[[META]]…[[/META]]` carrying `citations`, `suggestions`, and optional `cta`. `_stream_agent` strips it from the stream, validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as SSE events (`citations`, `suggestions`, `cta`) before `done`. Widget renders `[N]` superscripts post-stream, a chip row, and a CTA button. `[[META]]`/`[[/META]]` are stripped from user input in `before_model_callback` as injection defense. CTA copy lives in `profile.agentCopy`; transparency modal copy in `profile.agentExplainer`.
 
 ## Conventions
 
-- **Content lives in JSON, not HTML.** All identity, career, and project data flows out of `assets/js/data/`. Markup stays template-only so updating the bio never touches code.
-- **CSS variables only — never hardcode hex.** All colours, spacing, type scale defined in `:root` in `base.css`.
-- **One JS module per visualization.** Each module lazy-loads when its section enters the viewport (IntersectionObserver) so the hero isn't blocked by Three.js.
-- **No npm, no bundler.** External deps load from CDN with `defer`. The repo is `git clone` → `python3 -m http.server` → working site.
-- **No build step ever.** If a feature needs one, push back and find a simpler version.
+- **Content in JSON, not HTML.** `assets/js/data/` is the source of truth for all identity and project data.
+- **CSS variables only — never hardcode hex.** All tokens defined in `:root` in `base.css`.
+- **One JS module per visualization.** Each lazy-loads on IntersectionObserver entry.
+- **No npm, no bundler, no build step.** CDN deps only (`defer`). If a feature needs a build step, find a simpler approach.
 
 ## Spec workflow
 
-Every feature follows the same loop:
+1. `/create-spec <step> <slug>` → `.claude/specs/<NN>-<slug>.md`
+2. `/implement-spec <step>` → plan + implement
+3. Verify against spec's "Definition of done"
 
-1. `/create-spec <step> <slug>` writes `.claude/specs/<NN>-<slug>.md`
-2. `/implement-spec <step>` reads the spec, plans, then implements
-3. Manual verification per spec's "Definition of done"
-
-Spec files are append-only history. Don't rewrite an old spec to match new code — write a new spec. Specs are zero-padded (`00-`, `01-`, …); `00` documents initial scaffolding, new features pick the next unused number.
-
-## Visualization rules
-
-- **Hero shader** runs ≤ 60fps on a 2020 MacBook Air. Degrade to a static gradient on `prefers-reduced-motion`.
-- **3D knowledge graph** has a 2D SVG fallback that triggers on small viewports (< 768px) or low-power mode.
+Specs are append-only. Never rewrite an old spec — write a new one. Zero-padded numbering (`00`, `01`, …).
 
 ## Performance budget
 
-- First Contentful Paint < 1.5s on 4G
-- Total JS < 400 KB gzipped (Three.js is the largest dep)
-- Lighthouse Performance ≥ 90 on desktop
+- FCP < 1.5s on 4G
+- Total JS < 400 KB gzipped
+- Lighthouse Performance ≥ 90 desktop
+
+## Visualization constraints
+
+- Hero graph ≤ 60fps; degrade to static gradient on `prefers-reduced-motion`
+- 3D knowledge graph has 2D SVG fallback for `< 768px` or low-power mode
 
 ## Deploy
 
-Deploys to GitHub Pages from `main`. `.nojekyll` at the repo root disables Jekyll processing so paths starting with `_` aren't dropped. Spec 09 covers Pages + custom domain setup.
+GitHub Pages from `main`. `.nojekyll` at repo root prevents Jekyll from dropping `_`-prefixed paths.
