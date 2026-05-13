@@ -275,6 +275,7 @@
     bottom: var(--space-12);
     height: 144px;
     z-index: 4;
+    opacity: 0;
     /* Clip horizontally only — vertical visible so a hovered tile (lifted
        -12px + scaled 1.35×) isn't cropped at the top by the rail bounds.
        `clip` is paint-only so it doesn't create a scroll container. */

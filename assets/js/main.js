@@ -720,6 +720,8 @@ function scheduleHeroReveal() {
         document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
+        const certRail = document.querySelector("[data-cert-rail]");
+        if (certRail) certRail.style.opacity = "1";
         return;
     }
 
@@ -731,6 +733,8 @@ function scheduleHeroReveal() {
         document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
+        const certRail = document.querySelector("[data-cert-rail]");
+        if (certRail) certRail.style.opacity = "1";
         return;
     }
 
@@ -780,6 +784,14 @@ function scheduleHeroReveal() {
     if (bottomBar) {
         tl.call(() => bottomBar.removeAttribute("data-hidden"), [], 2.6);
     }
+
+    // 3.15s — cert rail fades in as the final piece of the hero reveal,
+    // after the chatbot CTA and its glow effect have finished.
+    tl.fromTo("[data-cert-rail]",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.6, ease: "power2.out" },
+        3.15
+    );
 }
 
 function splitChars(el) {

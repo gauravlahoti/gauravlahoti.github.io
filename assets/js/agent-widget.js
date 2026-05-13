@@ -838,6 +838,7 @@ function renderShell(root, agentExplainer) {
     fab.className = "agent-fab" + (REDUCE_MOTION ? "" : " agent-fab-pulse");
     fab.setAttribute("aria-label", "Ask my AI agent");
     fab.setAttribute("aria-expanded", "false");
+    fab.setAttribute("data-cursor", "magnet");
     fab.title = "Ask my AI agent";
     fab.innerHTML = `
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
