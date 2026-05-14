@@ -9,7 +9,7 @@ const FEATURES = Object.freeze({
     suggestions:     true,
     cta:             true,
     typingCursor:    true,
-    scrollNudge:     true,
+    scrollNudge:     false,
     explainerDialog: true,
 });
 
@@ -872,7 +872,16 @@ function renderShell(root, agentExplainer) {
     const head = document.createElement("header");
     head.className = "agent-panel-head";
     head.innerHTML = `
-        <h3 id="agent-panel-title" class="agent-panel-title">Ask my agent</h3>
+        <h3 id="agent-panel-title" class="agent-panel-title">
+            <svg class="hero-cta-icon agent-panel-bot-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="7" width="18" height="13" rx="3"/>
+                <circle class="bot-eye-l" cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
+                <circle class="bot-eye-r" cx="15.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
+                <line x1="12" y1="3" x2="12" y2="7"/>
+                <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
+            </svg>
+            Ask my agent
+        </h3>
         <div class="agent-panel-head-actions">
             <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">

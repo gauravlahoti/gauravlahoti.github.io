@@ -62,6 +62,14 @@ export default {
             return handleResumeSendRecord(request, env);
         }
 
+        if (url.pathname === "/api/gcp-cost" && request.method === "GET") {
+            return handleGcpCost(request, env, corsHeaders);
+        }
+
+        if (url.pathname === "/api/gcp-cost-send" && request.method === "POST") {
+            return handleGcpCostSend(request, env, corsHeaders);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
@@ -414,6 +422,164 @@ async function handleResumeSendRecord(request, env) {
         return json({ ok: false, error: "Internal" }, 500, {});
     }
 }
+
+// ─── GCP Cost Raw Data ────────────────────────────────────────────────────────
+//
+// GET /api/gcp-cost — returns raw BQ billing rows for the last 14 days.
+// Analysis, anomaly detection, and email are handled by the Claude routine.
+// Auth: Authorization: Bearer COST_MONITOR_TOKEN
+//
+// Required secrets: COST_MONITOR_TOKEN, GCP_SA_KEY_JSON
+// Required vars:    GCP_BQ_TABLE, GCP_BQ_PROJECT, GCP_PROJECTS_FILTER (optional)
+
+async function handleGcpCost(request, env, corsHeaders) {
+    const token = env.COST_MONITOR_TOKEN;
+    if (!token) return json({ ok: false, error: "Cost monitor disabled (set COST_MONITOR_TOKEN)" }, 503, corsHeaders);
+    const auth = request.headers.get("Authorization") || "";
+    if (auth !== `Bearer ${token}`) return json({ ok: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const missing = ["GCP_SA_KEY_JSON", "GCP_BQ_TABLE", "GCP_BQ_PROJECT"].filter(k => !env[k]);
+    if (missing.length) return json({ ok: false, error: `Missing config: ${missing.join(", ")}` }, 503, corsHeaders);
+
+    let accessToken;
+    try {
+        accessToken = await gcpAccessToken(env.GCP_SA_KEY_JSON);
+    } catch (err) {
+        console.error("[gcp-cost] SA auth failed", err.message);
+        return json({ ok: false, error: "GCP auth failed: " + err.message }, 500, corsHeaders);
+    }
+
+    const projectFilter = (env.GCP_PROJECTS_FILTER || "").split(",").map(s => s.trim()).filter(Boolean);
+    const projectClause = projectFilter.length
+        ? `AND project.id IN (${projectFilter.map(p => `'${p.replace(/'/g, "")}'`).join(",")})`
+        : "";
+    const table = (env.GCP_BQ_TABLE || "").replace(/`/g, "");
+    const sql = `
+        SELECT
+          project.id AS project_id,
+          service.description AS service,
+          ROUND(SUM(CASE WHEN DATE(usage_start_time) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+                         THEN cost ELSE 0 END), 4) AS this_week,
+          ROUND(SUM(CASE WHEN DATE(usage_start_time) < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+                         THEN cost ELSE 0 END), 4) AS last_week
+        FROM \`${table}\`
+        WHERE DATE(usage_start_time) >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+          AND cost != 0
+          ${projectClause}
+        GROUP BY 1, 2
+        HAVING this_week > 0.01 OR last_week > 0.01
+        ORDER BY this_week DESC
+        LIMIT 100`;
+
+    let rows;
+    try {
+        rows = await bqQuery(accessToken, env.GCP_BQ_PROJECT, sql);
+    } catch (err) {
+        console.error("[gcp-cost] BQ query failed", err.message);
+        return json({ ok: false, error: "BQ query failed: " + err.message }, 500, corsHeaders);
+    }
+
+    return json({ ok: true, generated_at: new Date().toISOString(), rows }, 200, corsHeaders);
+}
+
+// base64url-encode a string or ArrayBuffer
+function b64url(data) {
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+    let s = "";
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+// Exchange a GCP service account JSON for a short-lived access token.
+async function gcpAccessToken(saKeyJson) {
+    const sa = JSON.parse(saKeyJson);
+    const pem = sa.private_key
+        .replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+        .replace(/[\r\n\s]/g, "");
+    const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey(
+        "pkcs8", der.buffer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+    );
+    const now = Math.floor(Date.now() / 1000);
+    const hdr = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+    const pay = b64url(JSON.stringify({
+        iss: sa.client_email, scope: "https://www.googleapis.com/auth/bigquery.readonly",
+        aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600
+    }));
+    const sig = b64url(await crypto.subtle.sign(
+        "RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${hdr}.${pay}`)
+    ));
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${hdr}.${pay}.${sig}`
+    });
+    if (!resp.ok) throw new Error(`token exchange HTTP ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+    const { access_token } = await resp.json();
+    return access_token;
+}
+
+// Run a synchronous BigQuery query and return rows as plain objects.
+async function bqQuery(accessToken, projectId, sql) {
+    const resp = await fetch(
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${projectId}/queries`,
+        {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: sql, useLegacySql: false, timeoutMs: 25000, maxResults: 100 })
+        }
+    );
+    if (!resp.ok) throw new Error(`BQ HTTP ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    const data = await resp.json();
+    if (!data.jobComplete) throw new Error("BQ did not complete in 25s");
+    if (data.errors?.length) throw new Error(JSON.stringify(data.errors[0]).slice(0, 200));
+    if (!data.rows) return [];
+    const fields = data.schema.fields.map(f => f.name);
+    const nums = new Set(data.schema.fields
+        .filter(f => ["FLOAT","NUMERIC","INTEGER","INT64","FLOAT64"].includes(f.type))
+        .map(f => f.name));
+    return data.rows.map(row =>
+        Object.fromEntries(row.f.map((cell, i) =>
+            [fields[i], nums.has(fields[i]) ? parseFloat(cell.v ?? 0) : (cell.v ?? "")]
+        ))
+    );
+}
+
+// POST /api/gcp-cost-send — Claude posts composed subject+html here; Worker sends
+// via Resend. Keeps the Resend API key out of the routine prompt entirely.
+// Auth: Authorization: Bearer COST_MONITOR_TOKEN
+async function handleGcpCostSend(request, env, corsHeaders) {
+    const token = env.COST_MONITOR_TOKEN;
+    if (!token) return json({ ok: false, error: "Cost monitor disabled" }, 503, corsHeaders);
+    const auth = request.headers.get("Authorization") || "";
+    if (auth !== `Bearer ${token}`) return json({ ok: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const missing = ["RESEND_API_KEY", "RESEND_FROM", "RESEND_TO"].filter(k => !env[k]);
+    if (missing.length) return json({ ok: false, error: `Missing config: ${missing.join(", ")}` }, 503, corsHeaders);
+
+    let body;
+    try { body = await request.json(); } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, corsHeaders);
+    }
+    const subject = typeof body?.subject === "string" ? body.subject.slice(0, 300) : "";
+    const html    = typeof body?.html    === "string" ? body.html.slice(0, 500000) : "";
+    if (!subject || !html) return json({ ok: false, error: "subject and html required" }, 400, corsHeaders);
+
+    const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: env.RESEND_FROM, to: [env.RESEND_TO], subject, html })
+    });
+    if (!resp.ok) {
+        const err = await resp.text();
+        console.error("[gcp-cost-send] Resend failed", resp.status, err.slice(0, 200));
+        return json({ ok: false, error: `Resend ${resp.status}` }, 500, corsHeaders);
+    }
+    const { id } = await resp.json();
+    return json({ ok: true, resend_id: id, sent_to: env.RESEND_TO }, 200, corsHeaders);
+}
+
+// ─── Agent log (admin read) ───────────────────────────────────────────────────
 
 // GET /api/agent-log — admin dump of recent agent interactions.
 // Reuses ADMIN_TOKEN from spec #11 (same secret, no new credential to manage).

@@ -8,14 +8,27 @@ database_name = "resume-leads"
 database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 
 # Secrets (set via `wrangler secret put <NAME>`; never committed here):
-#   ADMIN_TOKEN       — enables GET /api/leads and GET /api/agent-log
-#   AGENT_LOG_TOKEN   — shared HMAC between Cloud Run agent and this Worker;
-#                       must match AGENT_LOG_TOKEN on the Cloud Run service.
-#                       Without it, POST /api/agent-log returns 503.
+#   ADMIN_TOKEN          — enables GET /api/leads and GET /api/agent-log
+#   AGENT_LOG_TOKEN      — shared HMAC between Cloud Run agent and this Worker;
+#                          must match AGENT_LOG_TOKEN on the Cloud Run service.
+#                          Without it, POST /api/agent-log returns 503.
+#   COST_MONITOR_TOKEN   — enables GET /api/gcp-cost; embed this in the Claude
+#                          routine prompt (lower blast radius than ADMIN_TOKEN)
+#   GCP_SA_KEY_JSON      — full GCP service account JSON (one line); the SA needs
+#                          BigQuery Data Viewer + BigQuery Job User on the billing
+#                          export project
+#   RESEND_API_KEY       — Resend API key (from resend.com dashboard)
 
 [vars]
 ALLOWED_ORIGINS = "https://gauravlahoti.dev,https://www.gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173"
 GOOGLE_CLIENT_ID = "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com"
+
+# GCP cost monitor — replace placeholders with real values, then wrangler deploy
+GCP_BQ_TABLE    = "gcp-experiments-490306.billing_data.gcp_billing_export_v1_*"
+GCP_BQ_PROJECT  = "gcp-experiments-490306"
+GCP_PROJECTS_FILTER = ""   # comma-separated project IDs to filter; empty = all projects
+RESEND_FROM     = "alerts@gauravlahoti.dev"
+RESEND_TO       = "gaurav.lahoti25@gmail.com"
 
 # Monthly retention cleanup — deletes resume_downloads rows older than 12
 # months (handler in src/index.js scheduled()). Runs at 02:00 UTC on the
