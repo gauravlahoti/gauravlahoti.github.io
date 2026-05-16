@@ -36,6 +36,7 @@ audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit 
 deploy: ## Deploy to Cloud Run (cpu-boost + gen2 + concurrency=80 for fast cold starts).
 	agents-cli deploy -- \
 		--allow-unauthenticated \
+		--default-url \
 		--cpu-throttling \
 		--cpu-boost \
 		--execution-environment gen2 \
