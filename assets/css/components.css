@@ -2654,6 +2654,15 @@ sup.agent-cite a:focus-visible {
     outline: none;
 }
 
+/* Ambient presence stats appended to the footer trigger text. */
+.agent-stats-sep {
+    color: var(--text-muted);
+}
+.agent-stats-count {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
 /* Inline retry button — shown after mid-stream network failure. */
 .agent-retry-inline {
     display: inline-flex;
