@@ -38,6 +38,7 @@ export function initAgentWidget(root, profile) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
+    const statsUrl = links.agentStatsUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -92,6 +93,7 @@ export function initAgentWidget(root, profile) {
     }
     setupExplainerModal(dom, agentExplainer);
     setupScrollNudge();
+    fetchAndShowStats(statsUrl, dom.footerTrigger || dom.foot);
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
@@ -989,7 +991,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, sendBtn, liveRegion,
+        prompts, transcript, input, sendBtn, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
@@ -1147,6 +1149,34 @@ function startLoadingStages(assistantLi) {
             }
         },
     };
+}
+
+// --- ambient presence stats -------------------------------------------------
+
+async function fetchAndShowStats(url, footerEl) {
+    if (!url || !footerEl) return;
+    try {
+        const res = await fetch(url, { cache: "force-cache" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const n = data?.total_conversations;
+        if (typeof n !== "number" || n < 1) return;
+        // Append "· N conversations" to the existing footer trigger text.
+        const trigger = footerEl.classList.contains("agent-explainer-trigger")
+            ? footerEl
+            : footerEl.querySelector(".agent-explainer-trigger");
+        const target = trigger || footerEl;
+        const label = n >= 100 ? `${Math.floor(n / 10) * 10}+` : `${n}`;
+        const sep = document.createElement("span");
+        sep.className = "agent-stats-sep";
+        sep.setAttribute("aria-hidden", "true");
+        sep.textContent = " · ";
+        const count = document.createElement("span");
+        count.className = "agent-stats-count";
+        count.textContent = `${label} conversations`;
+        target.appendChild(sep);
+        target.appendChild(count);
+    } catch (_) { /* best-effort — stats are ambient, never critical */ }
 }
 
 // --- SSE streaming ----------------------------------------------------------

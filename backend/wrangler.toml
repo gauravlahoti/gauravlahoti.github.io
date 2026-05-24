@@ -18,6 +18,8 @@ database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 #                          BigQuery Data Viewer + BigQuery Job User on the billing
 #                          export project
 #   RESEND_API_KEY       — Resend API key (from resend.com dashboard)
+#   GEMINI_API_KEY       — Google AI Studio API key for ambient agent (gemini-3.5-flash);
+#                          if unset the daily cron is a no-op (safe to omit)
 
 [vars]
 ALLOWED_ORIGINS = "https://gauravlahoti.dev,https://www.gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173"
@@ -30,8 +32,8 @@ GCP_PROJECTS_FILTER = ""   # comma-separated project IDs to filter; empty = all 
 RESEND_FROM     = "alerts@gauravlahoti.dev"
 RESEND_TO       = "gaurav.lahoti25@gmail.com"
 
-# Monthly retention cleanup — deletes resume_downloads rows older than 12
-# months (handler in src/index.js scheduled()). Runs at 02:00 UTC on the
-# 1st of each month. Cron syntax: minute hour day-of-month month day-of-week.
+# Two scheduled crons:
+#   "0 2 1 * *" — monthly retention cleanup (1st of month, 02:00 UTC)
+#   "0 8 * * *" — daily ambient agent: visitor-intelligence digest + lead follow-up drafts (08:00 UTC)
 [triggers]
-crons = ["0 2 1 * *"]
+crons = ["0 2 1 * *", "0 8 * * *"]
