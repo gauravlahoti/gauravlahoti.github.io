@@ -79,6 +79,24 @@ async def test_pending_leads_parses_payload():
 
 
 @pytest.mark.asyncio
+async def test_pending_leads_capped_per_run():
+    # More leads than the per-run cap → only a bounded batch is drafted, so the
+    # drafting turn fits the model's output budget. Rest deferred to next run.
+    from app.app_utils.ambient_data import _MAX_LEADS_PER_RUN
+
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {
+        "leads": [{"id": i, "email": f"u{i}@b.com", "name": f"U{i}"} for i in range(20)]
+    }
+    client, _ = _mock_client(resp)
+    with patch.dict("os.environ", _ENV, clear=False):
+        with patch("httpx.AsyncClient", client):
+            out = await ambient_data.get_pending_leads()
+    assert len(out) == _MAX_LEADS_PER_RUN
+    assert _MAX_LEADS_PER_RUN <= 10  # stays well under the token budget
+
+
+@pytest.mark.asyncio
 async def test_mark_leads_done_posts_ids():
     resp = MagicMock(status_code=200)
     resp.json.return_value = {"ok": True, "marked": 2}

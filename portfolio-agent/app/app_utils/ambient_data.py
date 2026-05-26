@@ -75,11 +75,21 @@ async def get_recent_interactions(days: int = 3) -> list[dict[str, Any]]:
         return []
 
 
+# Cap leads drafted per run. Drafting many leads in one turn overruns the
+# model's output budget (MAX_TOKENS truncates send_lead_drafts mid-call), so the
+# batch is bounded; the remaining backlog is picked up on subsequent runs once
+# this batch is marked done. With a Mon+Thu cadence this drains quickly.
+_MAX_LEADS_PER_RUN = 5
+
+
 async def get_pending_leads() -> list[dict[str, Any]]:
     """Return resume downloaders who are awaiting a follow-up.
 
     These are visitors who downloaded the resume more than 24h ago and have not
     yet had a follow-up drafted. Use this to draft personalised outreach copy.
+
+    At most a handful of leads are returned per run (the rest are deferred to the
+    next run) so the drafting fits in one response — draft for ALL leads returned.
 
     Returns:
         A list of lead dicts, most-recent first. Each:
@@ -101,7 +111,7 @@ async def get_pending_leads() -> list[dict[str, Any]]:
         if r.status_code != 200:
             logger.warning("ambient leads failed: %s %s", r.status_code, r.text[:200])
             return []
-        return list(r.json().get("leads", []))
+        return list(r.json().get("leads", []))[:_MAX_LEADS_PER_RUN]
     except Exception as exc:
         logger.warning("ambient leads errored: %s", exc)
         return []
