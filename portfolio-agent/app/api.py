@@ -402,22 +402,32 @@ async def _run_ambient_cycle() -> dict[str, Any]:
 
     interactions_seen = 0
     leads_processed = 0
+    leads_seen = 0
     emails_sent = 0
     saw_mark_call = False
     drafts_sent_ok = False
+    call_trace: list[str] = []  # ordered tool calls the agent made
+    finish_reasons: list[str] = []
 
     async for event in _ambient_runner.run_async(
         user_id=session_id,
         session_id=session_id,
         new_message=kickoff,
     ):
+        fr_reason = getattr(event, "finish_reason", None) or getattr(
+            getattr(event, "candidate", None), "finish_reason", None
+        )
+        if fr_reason:
+            finish_reasons.append(str(fr_reason))
         content = getattr(event, "content", None)
         if content is None:
             continue
         for part in getattr(content, "parts", None) or []:
             fc = getattr(part, "function_call", None)
-            if fc is not None and getattr(fc, "name", None) == "mark_leads_done":
-                saw_mark_call = True
+            if fc is not None:
+                call_trace.append(str(getattr(fc, "name", None)))
+                if getattr(fc, "name", None) == "mark_leads_done":
+                    saw_mark_call = True
 
             fr = getattr(part, "function_response", None)
             if fr is None:
@@ -426,6 +436,8 @@ async def _run_ambient_cycle() -> dict[str, Any]:
             value = _fr_value(getattr(fr, "response", None))
             if name == "get_recent_interactions" and isinstance(value, list):
                 interactions_seen = len(value)
+            elif name == "get_pending_leads" and isinstance(value, list):
+                leads_seen = len(value)
             elif name == "mark_leads_done" and isinstance(value, dict):
                 leads_processed = int(value.get("marked", 0) or 0)
             elif name in ("send_digest_email", "send_lead_drafts"):
@@ -433,11 +445,21 @@ async def _run_ambient_cycle() -> dict[str, Any]:
                     emails_sent += 1
                     if name == "send_lead_drafts":
                         drafts_sent_ok = True
+                else:
+                    logger.warning("[ambient] %s returned not-ok: %s", name, value)
 
-    if drafts_sent_ok and not saw_mark_call:
+    truncated = any("MAX_TOKENS" in r for r in finish_reasons)
+    leads_dropped = leads_seen > 0 and not drafts_sent_ok
+    if truncated or leads_dropped or (drafts_sent_ok and not saw_mark_call):
+        # Loud only on anomaly: token truncation, leads fetched but never
+        # drafted/sent, or drafts sent without the required mark.
         logger.warning(
-            "[ambient] send_lead_drafts succeeded but mark_leads_done was never "
-            "called — leads may be re-drafted next run"
+            "[ambient] anomaly — calls=%s finish=%s leads_seen=%d emails=%d marked=%d",
+            call_trace or "<none>",
+            finish_reasons or "<none>",
+            leads_seen,
+            emails_sent,
+            leads_processed,
         )
 
     return {

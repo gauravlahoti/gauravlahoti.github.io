@@ -77,7 +77,10 @@ ambient_agent = Agent(
         mark_leads_done,
     ],
     generate_content_config=types.GenerateContentConfig(
-        max_output_tokens=2200,
+        # Drafting a batch of lead-outreach notes plus the digest needs headroom;
+        # at 2200 the lead-drafting turn truncated (MAX_TOKENS) before
+        # send_lead_drafts completed, so leads were never sent or marked.
+        max_output_tokens=4000,
         temperature=0.3,
         # Visitor questions legitimately cover enterprise security topics
         # (zero-trust, DLP, IAM) that can trip default filters; disable them so
