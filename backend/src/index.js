@@ -86,6 +86,14 @@ export default {
             return handleAmbientLeadsMark(request, env);
         }
 
+        if (url.pathname === "/api/ambient/stats" && request.method === "GET") {
+            return handleAmbientStats(request, env);
+        }
+
+        if (url.pathname === "/api/pageview" && request.method === "POST") {
+            return handlePageview(request, env, origin, allowed, corsHeaders);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
@@ -123,6 +131,16 @@ export default {
             console.log(`[retention] resume_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
         } catch (err) {
             console.error("[retention] resume_sends cleanup failed", err);
+        }
+
+        // page_views share the 365-day window so "all-time" stats stay meaningful.
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM page_views WHERE viewed_at < ?"
+            ).bind(cutoff).run();
+            console.log(`[retention] page_views: deleted ${meta?.changes ?? 0} rows older than 365d`);
+        } catch (err) {
+            console.error("[retention] page_views cleanup failed", err);
         }
     }
 };
@@ -166,6 +184,14 @@ function truncateIp(ip) {
     const parts = ip.split(".");
     if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
     return ""; // unrecognized format — drop entirely rather than store dirty data
+}
+
+// SHA-256 → hex. Used to derive a daily-rotating visitor hash from
+// ip + ua + UTC date so unique-visitor counts work without cookies and the
+// raw IP is never stored (same privacy posture as resume_sends).
+async function sha256hex(input) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function verifyGoogleIdToken(credential, expectedAud) {
@@ -721,6 +747,156 @@ async function handleAmbientLeadsMark(request, env) {
         console.error("[ambient] leads mark failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});
     }
+}
+
+// GET /api/ambient/stats?days=4 — pre-aggregated metrics for the weekly digest.
+// Combines page_views (real site traffic), agent_interactions (questions/errors),
+// and resume_downloads (downloads). Gated by X-Internal-Token like the other
+// /api/ambient reads. All counts are computed in SQL; no PII leaves D1.
+async function handleAmbientStats(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    const url = new URL(request.url);
+    let days = parseInt(url.searchParams.get("days") || "4", 10);
+    if (!Number.isFinite(days)) days = 4;
+    days = Math.max(1, Math.min(30, days));
+    const now = Math.floor(Date.now() / 1000);
+    const winSecs = days * 24 * 60 * 60;
+    const winStart = now - winSecs;          // window: [winStart, now]
+    const prevStart = now - 2 * winSecs;     // prev window: [prevStart, winStart]
+
+    // Helper: run a query, return the first row (or {}).
+    const one = async (sql, ...binds) => {
+        const { results } = await env.DB.prepare(sql).bind(...binds).all();
+        return (results && results[0]) || {};
+    };
+
+    try {
+        const allTime = await one(
+            `SELECT
+               (SELECT COUNT(*) FROM page_views)                          AS pageviews,
+               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views)      AS unique_visitors,
+               (SELECT COUNT(*) FROM resume_downloads)                    AS downloads,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions) AS conversations`
+        );
+
+        const win = await one(
+            `SELECT
+               (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1)                         AS pageviews,
+               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1)      AS unique_visitors,
+               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1)                AS downloads,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1) AS conversations,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1)                  AS agent_turns,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status != 'ok') AS agent_errors`,
+            winStart
+        );
+
+        const prev = await one(
+            `SELECT
+               (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                    AS pageviews,
+               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2) AS unique_visitors,
+               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1 AND downloaded_at <= ?2)       AS downloads`,
+            prevStart, winStart
+        );
+
+        const topQ = await env.DB.prepare(
+            `SELECT question, COUNT(*) AS count
+             FROM agent_interactions
+             WHERE logged_at > ? AND question != ''
+             GROUP BY question
+             ORDER BY count DESC, MAX(logged_at) DESC
+             LIMIT 10`
+        ).bind(winStart).all();
+
+        const geo = await env.DB.prepare(
+            `SELECT country, city, COUNT(*) AS count
+             FROM page_views
+             WHERE viewed_at > ? AND country IS NOT NULL AND country != ''
+             GROUP BY country, city
+             ORDER BY count DESC
+             LIMIT 8`
+        ).bind(winStart).all();
+
+        const errs = await env.DB.prepare(
+            `SELECT question, status, error_message, logged_at
+             FROM agent_interactions
+             WHERE logged_at > ? AND status != 'ok'
+             ORDER BY logged_at DESC
+             LIMIT 8`
+        ).bind(winStart).all();
+
+        return json({
+            ok: true,
+            window_days: days,
+            all_time: allTime,
+            window: win,
+            prev_window: prev,
+            top_questions: topQ.results || [],
+            geo: geo.results || [],
+            errors: errs.results || []
+        }, 200, {});
+    } catch (err) {
+        console.error("[ambient] stats query failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// ─── Pageview beacon (public) ─────────────────────────────────────────────────
+
+// Known crawler/bot user-agents to drop so analytics reflect real humans.
+const BOT_UA_RE = /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|embedly|quora|pinterest|vkshare|whatsapp|telegram|preview|monitor|lighthouse|headless|curl|wget|python-requests|axios|go-http/i;
+
+// POST /api/pageview — cookieless pageview beacon. Body: { path, referrer }.
+// Public (CORS-gated to the site origins, like /api/resume-download). Stores one
+// page_views row with geo from request.cf and a daily-rotating visitor_hash.
+// Always returns 204 — a beacon must never surface errors to the page.
+async function handlePageview(request, env, origin, allowed, corsHeaders) {
+    // Beacon is fire-and-forget; quietly ignore disallowed origins / bots.
+    if (!origin || !allowed.includes(origin)) {
+        return new Response(null, { status: 204, headers: corsHeaders });
+    }
+    const ua = request.headers.get("User-Agent") || "";
+    if (!ua || BOT_UA_RE.test(ua)) {
+        return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    let body = {};
+    try { body = await request.json(); } catch (_) { body = {}; }
+
+    const path = String(body?.path || "/").slice(0, 256);
+    let referrer = "";
+    try {
+        const ref = String(body?.referrer || "");
+        referrer = ref ? new URL(ref).hostname.slice(0, 128) : "";
+    } catch (_) { referrer = ""; }
+
+    const cf = request.cf || {};
+    const country = (cf.country || "").slice(0, 8) || null;
+    const region = (cf.region || "").slice(0, 64) || null;
+    const city = (cf.city || "").slice(0, 64) || null;
+
+    const ip = request.headers.get("CF-Connecting-IP") || "";
+    const utcDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+    let visitorHash = null;
+    try {
+        if (ip) visitorHash = (await sha256hex(`${ip}|${ua}|${utcDate}`)).slice(0, 16);
+    } catch (_) { visitorHash = null; }
+
+    const at = Math.floor(Date.now() / 1000);
+    try {
+        await env.DB.prepare(
+            `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(at, path, referrer || null, country, region, city, visitorHash).run();
+    } catch (err) {
+        console.error("[pageview] insert failed", err);
+    }
+    return new Response(null, { status: 204, headers: corsHeaders });
 }
 
 // ─── Agent log (admin read) ───────────────────────────────────────────────────

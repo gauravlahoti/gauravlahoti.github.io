@@ -440,13 +440,15 @@ async def _run_ambient_cycle() -> dict[str, Any]:
                 leads_seen = len(value)
             elif name == "mark_leads_done" and isinstance(value, dict):
                 leads_processed = int(value.get("marked", 0) or 0)
-            elif name in ("send_digest_email", "send_lead_drafts"):
+            elif name == "send_review_email":
                 if isinstance(value, dict) and value.get("ok"):
                     emails_sent += 1
-                    if name == "send_lead_drafts":
+                    # The single email carries the lead drafts; treat a
+                    # successful send as drafts-sent when leads were pending.
+                    if leads_seen > 0:
                         drafts_sent_ok = True
                 else:
-                    logger.warning("[ambient] %s returned not-ok: %s", name, value)
+                    logger.warning("[ambient] send_review_email returned not-ok: %s", value)
 
     truncated = any("MAX_TOKENS" in r for r in finish_reasons)
     leads_dropped = leads_seen > 0 and not drafts_sent_ok

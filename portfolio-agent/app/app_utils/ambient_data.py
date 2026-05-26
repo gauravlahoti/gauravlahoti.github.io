@@ -75,6 +75,47 @@ async def get_recent_interactions(days: int = 3) -> list[dict[str, Any]]:
         return []
 
 
+async def get_visitor_stats(days: int = 4) -> dict[str, Any]:
+    """Return pre-aggregated site + agent metrics for the weekly digest.
+
+    Combines real pageview analytics, agent conversations, and resume downloads.
+    Use this once to ground the digest in numbers; the email template renders the
+    dashboard from it (you do not need to restate these figures in your insights).
+
+    Args:
+        days: Size of the "this week" window, compared against the prior window
+            of the same length for percentage change. Defaults to 4.
+
+    Returns:
+        A dict (empty {} if the Worker is unreachable) with keys:
+          all_time:    {pageviews, unique_visitors, downloads, conversations}
+          window:      {pageviews, unique_visitors, downloads, conversations,
+                        agent_turns, agent_errors}
+          prev_window: {pageviews, unique_visitors, downloads}
+          top_questions: [{question, count}], geo: [{country, city, count}],
+          errors: [{question, status, error_message, logged_at}]
+    """
+    base = _base_url()
+    token = _token()
+    if not base or not token:
+        logger.info("ambient stats skipped: AGENT_LOG_URL/TOKEN unset")
+        return {}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
+            r = await client.get(
+                f"{base}/api/ambient/stats",
+                params={"days": days},
+                headers=_headers(token),
+            )
+        if r.status_code != 200:
+            logger.warning("ambient stats failed: %s %s", r.status_code, r.text[:200])
+            return {}
+        return dict(r.json())
+    except Exception as exc:
+        logger.warning("ambient stats errored: %s", exc)
+        return {}
+
+
 # Cap leads drafted per run. Drafting many leads in one turn overruns the
 # model's output budget (MAX_TOKENS truncates send_lead_drafts mid-call), so the
 # batch is bounded; the remaining backlog is picked up on subsequent runs once

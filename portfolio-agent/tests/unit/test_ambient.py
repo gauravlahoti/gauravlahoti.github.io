@@ -127,34 +127,79 @@ _SEND_ENV = {
     "RESEND_MCP_URL": "https://mcp.example/mcp",
 }
 
+_STATS = {
+    "window_days": 4,
+    "all_time": {"pageviews": 1280, "unique_visitors": 904, "downloads": 12, "conversations": 47},
+    "window": {"pageviews": 210, "unique_visitors": 150, "downloads": 3,
+               "conversations": 9, "agent_turns": 14, "agent_errors": 0},
+    "prev_window": {"pageviews": 180, "unique_visitors": 120, "downloads": 5},
+    "top_questions": [{"question": "What is he writing about on LinkedIn?", "count": 4}],
+    "geo": [{"country": "IN", "city": "Gurugram", "count": 8}],
+    "errors": [],
+}
+
 
 @pytest.mark.asyncio
-async def test_digest_email_goes_only_to_gaurav():
+async def test_visitor_stats_fetch():
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = _STATS
+    client, instance = _mock_client(resp)
+    with patch.dict("os.environ", _ENV, clear=False):
+        with patch("httpx.AsyncClient", client):
+            out = await ambient_data.get_visitor_stats(days=4)
+    assert out["all_time"]["pageviews"] == 1280
+    assert instance.get.call_args.args[0] == "http://localhost:8787/api/ambient/stats"
+    assert instance.get.call_args.kwargs["params"] == {"days": 4}
+
+
+def test_dashboard_renders_numbers_and_delta():
+    html = ambient_send._build_dashboard(_STATS)
+    assert "1,280" in html           # all-time total formatted
+    assert "▲ 25%" in html           # 150 vs 120 unique visitors
+    assert "Gurugram" in html        # geo row
+    assert "✓ No errors" in html     # empty errors → green note
+
+
+def test_dashboard_handles_empty_stats():
+    # First-run case: no data must not crash and must still render the shell.
+    html = ambient_send._build_dashboard({})
+    assert "Portfolio pulse" in html
+    assert "No questions asked" in html
+
+
+@pytest.mark.asyncio
+async def test_review_email_single_send_to_gaurav():
     with patch.dict("os.environ", _SEND_ENV, clear=False):
-        with patch(
-            "app.app_utils.ambient_send._send_via_mcp",
-            new=AsyncMock(return_value=(True, None)),
-        ) as mock_send:
-            out = await ambient_send.send_digest_email("<strong>Themes</strong>")
+        with patch("app.app_utils.ambient_send.get_visitor_stats",
+                   new=AsyncMock(return_value=_STATS)):
+            with patch("app.app_utils.ambient_send._send_via_mcp",
+                       new=AsyncMock(return_value=(True, None))) as mock_send:
+                out = await ambient_send.send_review_email(
+                    "<strong>Themes</strong>", "<h4>Lead</h4>"
+                )
     assert out["ok"] is True
+    mock_send.assert_called_once()                       # exactly ONE email
     args = mock_send.call_args.args[0]
-    assert args["to"] == ["gaurav@example.com"]  # hardcoded recipient
-    assert args["from"] == "agent@gauravlahoti.dev"
-    # Resend MCP rejects the send without a text part — regression guard.
+    assert args["to"] == ["gaurav@example.com"]          # hardcoded recipient
+    assert "-" not in args["subject"]                    # engaging subject, no dashes
+    assert args["subject"] == "Your weekly portfolio pulse is in"
+    assert "1,280" in args["html"]                       # dashboard numbers present
+    assert "Themes" in args["html"]                      # insights folded in
+    assert "Lead" in args["html"]                        # lead drafts folded in
+    # Resend MCP rejects the send without a text part — regression guard (#60).
     assert isinstance(args.get("text"), str) and args["text"].strip()
-    assert "Themes" in args["text"]
-    assert "<" not in args["text"]  # tags stripped from the text fallback
+    assert "<" not in args["text"]
 
 
 @pytest.mark.asyncio
-async def test_lead_drafts_not_configured_without_inbox():
+async def test_review_email_not_configured_without_inbox():
     env = {**_SEND_ENV, "GAURAV_CONTACT_EMAIL": ""}
     with patch.dict("os.environ", env, clear=False):
-        with patch(
-            "app.app_utils.ambient_send._send_via_mcp",
-            new=AsyncMock(return_value=(True, None)),
-        ) as mock_send:
-            out = await ambient_send.send_lead_drafts("<h4>Lead</h4>")
+        with patch("app.app_utils.ambient_send.get_visitor_stats",
+                   new=AsyncMock(return_value=_STATS)):
+            with patch("app.app_utils.ambient_send._send_via_mcp",
+                       new=AsyncMock(return_value=(True, None))) as mock_send:
+                out = await ambient_send.send_review_email("<strong>x</strong>", "")
     assert out["ok"] is False
     assert out["code"] == "not_configured"
     mock_send.assert_not_called()
