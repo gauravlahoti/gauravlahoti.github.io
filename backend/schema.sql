@@ -14,6 +14,11 @@ CREATE INDEX IF NOT EXISTS idx_rd_email ON resume_downloads(email);
 CREATE INDEX IF NOT EXISTS idx_rd_at    ON resume_downloads(downloaded_at);
 CREATE INDEX IF NOT EXISTS idx_rd_sub   ON resume_downloads(google_sub);
 
+-- Ambient agent (Spec #31): NULL until the agent has drafted a follow-up for
+-- this lead. Also shipped as migration 004-ambient-agent.sql for prod D1, kept
+-- here so the local SQLite server (local-server.js) picks it up on boot.
+ALTER TABLE resume_downloads ADD COLUMN followup_sent_at INTEGER;
+
 CREATE TABLE IF NOT EXISTS agent_interactions (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id      TEXT    NOT NULL,
@@ -51,8 +56,8 @@ ALTER TABLE agent_interactions ADD COLUMN region  TEXT;
 ALTER TABLE agent_interactions ADD COLUMN city    TEXT;
 
 -- Per-recipient rate-limit ledger for the agent's send_resume action.
--- Email hashed (sha256(email|UTC_DATE)[:16]) before storage; raw addresses
--- never persisted. Cleaned by the same retention cron as agent_interactions.
+-- Email hashed (sha256 of email + UTC date, first 16 chars) before storage, raw
+-- addresses never persisted. Cleaned by the same retention cron as agent_interactions.
 CREATE TABLE IF NOT EXISTS resume_sends (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   email_hash  TEXT    NOT NULL,

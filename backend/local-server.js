@@ -362,6 +362,74 @@ async function handleResumeSendRecord(req, res) {
     sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
 }
 
+// ---------- ambient agent D1 endpoints (Spec #31) ----------
+// The ambient agent runs on Cloud Run (ADK); these are the thin D1 reads/writes
+// it calls, gated by X-Internal-Token === AGENT_LOG_TOKEN. Mirror of the three
+// handlers in src/index.js so the flow can be exercised locally.
+const ambientInteractions = db.prepare(
+    `SELECT question, response, status, country, city, logged_at
+     FROM agent_interactions WHERE logged_at > ?
+     ORDER BY logged_at DESC LIMIT 100`
+);
+const ambientLeads = db.prepare(
+    `SELECT id, email, name, downloaded_at
+     FROM resume_downloads
+     WHERE followup_sent_at IS NULL AND downloaded_at < ?
+     ORDER BY downloaded_at DESC LIMIT 25`
+);
+
+function handleAmbientInteractions(req, res, url) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let days = parseInt(url.searchParams.get("days") || "3", 10);
+    if (!Number.isFinite(days)) days = 3;
+    days = Math.max(1, Math.min(30, days));
+    const cutoff = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
+    sendJson(res, 200, { ok: true, interactions: ambientInteractions.all(cutoff) }, {});
+}
+
+function handleAmbientLeads(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
+    sendJson(res, 200, { ok: true, leads: ambientLeads.all(cutoff) }, {});
+}
+
+async function handleAmbientLeadsMark(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const rawIds = Array.isArray(body?.ids) ? body.ids : null;
+    if (!rawIds) {
+        return sendJson(res, 400, { ok: false, error: "ids must be an array" }, {});
+    }
+    const ids = rawIds.filter(n => Number.isInteger(n) && n > 0).slice(0, 25);
+    if (!ids.length) {
+        return sendJson(res, 200, { ok: true, marked: 0 }, {});
+    }
+    const placeholders = ids.map(() => "?").join(",");
+    const sentAt = Math.floor(Date.now() / 1000);
+    const stmt = db.prepare(
+        `UPDATE resume_downloads SET followup_sent_at = ? WHERE id IN (${placeholders})`
+    );
+    const result = stmt.run(sentAt, ...ids);
+    sendJson(res, 200, { ok: true, marked: result.changes }, {});
+}
+
 // ---------- server ----------
 const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";
@@ -391,6 +459,15 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/resume-send-record" && req.method === "POST") {
         return handleResumeSendRecord(req, res);
+    }
+    if (url.pathname === "/api/ambient/interactions" && req.method === "GET") {
+        return handleAmbientInteractions(req, res, url);
+    }
+    if (url.pathname === "/api/ambient/leads" && req.method === "GET") {
+        return handleAmbientLeads(req, res);
+    }
+    if (url.pathname === "/api/ambient/leads/mark" && req.method === "POST") {
+        return handleAmbientLeadsMark(req, res);
     }
     if (url.pathname === "/health" && req.method === "GET") {
         return sendJson(res, 200, { ok: true, db: dbPath }, cors);

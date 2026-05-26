@@ -74,19 +74,28 @@ export default {
             return handleAgentStats(request, env, corsHeaders);
         }
 
+        if (url.pathname === "/api/ambient/interactions" && request.method === "GET") {
+            return handleAmbientInteractions(request, env);
+        }
+
+        if (url.pathname === "/api/ambient/leads" && request.method === "GET") {
+            return handleAmbientLeads(request, env);
+        }
+
+        if (url.pathname === "/api/ambient/leads/mark" && request.method === "POST") {
+            return handleAmbientLeadsMark(request, env);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
-    // Cron-triggered scheduled handler. Two crons:
+    // Cron-triggered scheduled handler. One cron:
     //   "0 2 1 * *" — monthly retention cleanup (1st of month, 02:00 UTC)
-    //   "0 8 * * *" — daily ambient agent (08:00 UTC every day)
+    // (The ambient agent now runs on Cloud Run, triggered by a Claude scheduler
+    //  via POST /api/ambient/run — see portfolio-agent. This Worker only serves
+    //  the thin D1 read/mark endpoints it calls.)
     async scheduled(event, env, ctx) {
-        if (event.cron === "0 8 * * *") {
-            await runAmbientAgent(env);
-            return;
-        }
-
-        // Monthly retention cleanup (default / "0 2 1 * *")
+        // Monthly retention cleanup ("0 2 1 * *")
         const cutoff = Math.floor(Date.now() / 1000) - RETENTION_SECONDS;
         try {
             const { meta } = await env.DB.prepare(
@@ -614,212 +623,103 @@ async function handleAgentStats(request, env, corsHeaders) {
     }
 }
 
-// ─── Ambient agent ────────────────────────────────────────────────────────────
-// Runs daily at 08:00 UTC via the "0 8 * * *" cron.
-// Two tasks share one Gemini 3.5 Flash model call each:
-//   1. Visitor Intelligence — summarises last 24h of agent_interactions, emails digest.
-//   2. Lead Digest — finds un-followed-up resume downloads, drafts outreach copy, emails digest.
-// Both are best-effort: a failure in one does not abort the other.
+// ─── Ambient agent — D1 data endpoints ──────────────────────────────────────
+// The ambient agent itself now runs on Cloud Run (ADK), triggered twice weekly
+// by a Claude scheduler. Reasoning and email live there. This Worker only
+// exposes the D1 reads/writes the agent needs — it is the only thing that can
+// reach D1. All three are gated by X-Internal-Token === env.AGENT_LOG_TOKEN
+// (the same shared secret used for /api/agent-log; server-to-server only,
+// never sent from a browser, so no CORS headers).
 
-async function runAmbientAgent(env) {
-    if (!env.GEMINI_API_KEY) {
-        console.log("[ambient] GEMINI_API_KEY not set — skipping");
-        return;
+// GET /api/ambient/interactions?days=3 — recent agent turns for the digest.
+async function handleAmbientInteractions(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
     }
-    await Promise.allSettled([
-        runVisitorIntelligence(env),
-        runLeadDigest(env),
-    ]);
-}
-
-async function runVisitorIntelligence(env) {
-    const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
-    let interactions;
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    const url = new URL(request.url);
+    let days = parseInt(url.searchParams.get("days") || "3", 10);
+    if (!Number.isFinite(days)) days = 3;
+    days = Math.max(1, Math.min(30, days));
+    const cutoff = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
     try {
         const { results } = await env.DB.prepare(
-            `SELECT question, response, status, country, city
+            `SELECT question, response, status, country, city, logged_at
              FROM agent_interactions WHERE logged_at > ?
-             ORDER BY logged_at DESC LIMIT 50`
+             ORDER BY logged_at DESC LIMIT 100`
         ).bind(cutoff).all();
-        interactions = results || [];
+        return json({ ok: true, interactions: results || [] }, 200, {});
     } catch (err) {
-        console.error("[ambient] visitor-intel DB query failed", err);
-        return;
-    }
-
-    if (!interactions.length) {
-        console.log("[ambient] visitor-intel: no interactions in last 24h — skipping");
-        return;
-    }
-
-    const interactionText = interactions.map((r, i) => {
-        const geo = [r.city, r.country].filter(Boolean).join(", ");
-        const geoNote = geo ? ` [${geo}]` : "";
-        const statusNote = r.status !== "ok" ? ` ⚠ ${r.status}` : "";
-        return `Q${i + 1}${geoNote}${statusNote}: ${String(r.question || "").slice(0, 300)}\nA${i + 1}: ${String(r.response || "").slice(0, 400)}`;
-    }).join("\n\n");
-
-    const prompt = `You are analyzing visitor interactions with Gaurav Lahoti's AI portfolio agent (gauravlahoti.dev). Gaurav is a Cloud & AI Architect at Deloitte.
-
-Here are the last 24 hours of conversations (${interactions.length} total):
-
-${interactionText}
-
-Write a concise HTML email digest for Gaurav with these sections:
-1. <strong>Top themes</strong> — the main topics visitors asked about (bullet list)
-2. <strong>Standout questions</strong> — 2–3 interesting or unusual questions worth his attention
-3. <strong>Gaps detected</strong> — any questions where the agent struggled, gave incomplete answers, or returned an error status
-4. <strong>One improvement</strong> — a single actionable suggestion to improve the corpus or agent responses
-
-Keep it brief and scannable. Use <ul><li> lists. Plain HTML only — no markdown, no code blocks. Max 400 words.`;
-
-    let summary;
-    try {
-        summary = await callGemini(env.GEMINI_API_KEY, prompt);
-    } catch (err) {
-        console.error("[ambient] visitor-intel Gemini call failed", err);
-        return;
-    }
-
-    try {
-        await sendResendEmail(env, {
-            subject: `Agent Digest: ${interactions.length} conversation${interactions.length > 1 ? "s" : ""} · ${new Date().toDateString()}`,
-            html: `<div style="font-family:sans-serif;max-width:600px;color:#111">${summary}</div>`
-        });
-        console.log(`[ambient] visitor-intel digest sent (${interactions.length} turns)`);
-    } catch (err) {
-        console.error("[ambient] visitor-intel email failed", err);
+        console.error("[ambient] interactions query failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
     }
 }
 
-async function runLeadDigest(env) {
-    // Only follow up on leads that downloaded >24h ago and haven't been digested yet.
+// GET /api/ambient/leads — resume downloaders awaiting a follow-up.
+// Only leads that downloaded >24h ago and haven't been marked done.
+async function handleAmbientLeads(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
     const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
-    let leads;
     try {
         const { results } = await env.DB.prepare(
             `SELECT id, email, name, downloaded_at
              FROM resume_downloads
              WHERE followup_sent_at IS NULL AND downloaded_at < ?
-             ORDER BY downloaded_at DESC LIMIT 10`
+             ORDER BY downloaded_at DESC LIMIT 25`
         ).bind(cutoff).all();
-        leads = results || [];
+        return json({ ok: true, leads: results || [] }, 200, {});
     } catch (err) {
-        console.error("[ambient] lead-digest DB query failed", err);
-        return;
+        console.error("[ambient] leads query failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
     }
+}
 
-    if (!leads.length) {
-        console.log("[ambient] lead-digest: no pending leads — skipping");
-        return;
+// POST /api/ambient/leads/mark — body { ids: number[] }. Stamps followup_sent_at
+// so a lead doesn't resurface on the next run. Called by the agent only after a
+// successful draft email.
+async function handleAmbientLeadsMark(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
     }
-
-    // Enrich each lead with any questions they asked the agent.
-    const enriched = await Promise.all(leads.map(async (lead) => {
-        try {
-            const { results } = await env.DB.prepare(
-                "SELECT question FROM agent_interactions WHERE email = ? ORDER BY logged_at DESC LIMIT 3"
-            ).bind(lead.email).all();
-            return { ...lead, questions: (results || []).map(r => r.question) };
-        } catch (_) {
-            return { ...lead, questions: [] };
-        }
-    }));
-
-    const leadText = enriched.map((l, i) => {
-        const name = String(l.name || "Unknown").slice(0, 100);
-        const qs = l.questions.length
-            ? `\n   Asked the agent: ${l.questions.map(q => `"${String(q).slice(0, 150)}"`).join("; ")}`
-            : "\n   (did not interact with the agent)";
-        return `${i + 1}. ${name} <${l.email}>${qs}`;
-    }).join("\n");
-
-    const prompt = `You are helping Gaurav Lahoti (Cloud & AI Architect at Deloitte, gauravlahoti.dev) follow up with people who downloaded his resume.
-
-New leads awaiting follow-up:
-${leadText}
-
-Write a short personalized outreach email draft for EACH lead. Gaurav will review and send these himself.
-Rules:
-- 2–3 sentences max per draft; warm but not pushy
-- Reference what they asked the agent if available, otherwise keep it general
-- Sign as "Gaurav"
-- Plain text inside each draft — no HTML inside the draft copy itself
-
-Format in HTML with <h4>Lead N: [Name] &lt;email&gt;</h4> followed by the draft in a <blockquote style="border-left:3px solid #ccc;padding-left:1rem;margin:0 0 1.5rem">. No extra commentary.`;
-
-    let drafts;
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
     try {
-        drafts = await callGemini(env.GEMINI_API_KEY, prompt);
-    } catch (err) {
-        console.error("[ambient] lead-digest Gemini call failed", err);
-        return;
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
     }
-
-    try {
-        await sendResendEmail(env, {
-            subject: `${leads.length} new lead${leads.length > 1 ? "s" : ""} · follow-up drafts ready`,
-            html: `<div style="font-family:sans-serif;max-width:600px;color:#111"><p style="color:#555">These leads downloaded your resume and haven't been followed up. AI-drafted outreach below — edit and send as you see fit.</p>${drafts}</div>`
-        });
-    } catch (err) {
-        console.error("[ambient] lead-digest email failed", err);
-        return;
+    const rawIds = Array.isArray(body?.ids) ? body.ids : null;
+    if (!rawIds) {
+        return json({ ok: false, error: "ids must be an array" }, 400, {});
     }
-
-    // Mark as digested so they don't appear in tomorrow's run.
+    const ids = rawIds
+        .filter(n => Number.isInteger(n) && n > 0)
+        .slice(0, 25);
+    if (!ids.length) {
+        return json({ ok: true, marked: 0 }, 200, {});
+    }
+    const placeholders = ids.map(() => "?").join(",");
     const sentAt = Math.floor(Date.now() / 1000);
-    for (const lead of leads) {
-        try {
-            await env.DB.prepare(
-                "UPDATE resume_downloads SET followup_sent_at = ? WHERE id = ?"
-            ).bind(sentAt, lead.id).run();
-        } catch (err) {
-            console.error("[ambient] followup_sent_at update failed for id", lead.id, err);
-        }
-    }
-    console.log(`[ambient] lead-digest sent for ${leads.length} lead(s)`);
-}
-
-async function callGemini(apiKey, prompt) {
-    const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { maxOutputTokens: 1500, temperature: 0.3 }
-            })
-        }
-    );
-    if (!resp.ok) {
-        throw new Error(`Gemini API HTTP ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-    }
-    const data = await resp.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("Gemini returned empty response");
-    return text;
-}
-
-async function sendResendEmail(env, { subject, html }) {
-    if (!env.RESEND_API_KEY || !env.RESEND_FROM || !env.RESEND_TO) {
-        throw new Error("Resend not fully configured (RESEND_API_KEY / RESEND_FROM / RESEND_TO)");
-    }
-    const resp = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            from: env.RESEND_FROM,
-            to: [env.RESEND_TO],
-            subject,
-            html
-        })
-    });
-    if (!resp.ok) {
-        throw new Error(`Resend HTTP ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+    try {
+        const { meta } = await env.DB.prepare(
+            `UPDATE resume_downloads SET followup_sent_at = ? WHERE id IN (${placeholders})`
+        ).bind(sentAt, ...ids).run();
+        return json({ ok: true, marked: meta?.changes ?? 0 }, 200, {});
+    } catch (err) {
+        console.error("[ambient] leads mark failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
     }
 }
 
