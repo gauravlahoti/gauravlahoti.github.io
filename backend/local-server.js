@@ -11,6 +11,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -430,6 +431,114 @@ async function handleAmbientLeadsMark(req, res) {
     sendJson(res, 200, { ok: true, marked: result.changes }, {});
 }
 
+// ---------- pageview beacon + stats (Spec #33) ----------
+const BOT_UA_RE = /bot|crawl|spider|slurp|preview|monitor|lighthouse|headless|curl|wget|python-requests|axios|go-http/i;
+
+const insertPageView = db.prepare(
+    `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+);
+
+// Aggregate helpers mirror handleAmbientStats in src/index.js. Each is a
+// single-value COUNT so the local SQLite path stays simple and readable.
+const pvCountSince   = db.prepare(`SELECT COUNT(*) AS n FROM page_views WHERE viewed_at > ?`);
+const pvCountBetween = db.prepare(`SELECT COUNT(*) AS n FROM page_views WHERE viewed_at > ? AND viewed_at <= ?`);
+const pvUniqSince    = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views WHERE viewed_at > ?`);
+const pvUniqBetween  = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views WHERE viewed_at > ? AND viewed_at <= ?`);
+const pvCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM page_views`);
+const pvUniqAll      = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views`);
+const dlCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads`);
+const dlCountSince   = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads WHERE downloaded_at > ?`);
+const dlCountBetween = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads WHERE downloaded_at > ? AND downloaded_at <= ?`);
+const convAll        = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions`);
+const convSince      = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ?`);
+const turnsSince     = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ?`);
+const errSince       = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ? AND status != 'ok'`);
+const topQStmt = db.prepare(
+    `SELECT question, COUNT(*) AS count FROM agent_interactions
+     WHERE logged_at > ? AND question != '' GROUP BY question
+     ORDER BY count DESC, MAX(logged_at) DESC LIMIT 10`
+);
+const geoStmt = db.prepare(
+    `SELECT country, city, COUNT(*) AS count FROM page_views
+     WHERE viewed_at > ? AND country IS NOT NULL AND country != ''
+     GROUP BY country, city ORDER BY count DESC LIMIT 8`
+);
+const errStmt = db.prepare(
+    `SELECT question, status, error_message, logged_at FROM agent_interactions
+     WHERE logged_at > ? AND status != 'ok' ORDER BY logged_at DESC LIMIT 8`
+);
+
+async function handlePageview(req, res, origin, cors) {
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+        res.writeHead(204, cors); return res.end();
+    }
+    const ua = req.headers["user-agent"] || "";
+    if (!ua || BOT_UA_RE.test(ua)) { res.writeHead(204, cors); return res.end(); }
+
+    let body = {};
+    try { body = await readJson(req, 4 * 1024); } catch (_) { body = {}; }
+    const path = String(body?.path || "/").slice(0, 256);
+    let referrer = "";
+    try {
+        const ref = String(body?.referrer || "");
+        referrer = ref ? new URL(ref).hostname.slice(0, 128) : "";
+    } catch (_) { referrer = ""; }
+
+    // No request.cf locally — geo is null; visitor_hash from remote address.
+    const ip = req.socket?.remoteAddress || "";
+    const utcDate = new Date().toISOString().slice(0, 10);
+    const visitorHash = ip
+        ? createHash("sha256").update(`${ip}|${ua}|${utcDate}`).digest("hex").slice(0, 16)
+        : null;
+    const at = Math.floor(Date.now() / 1000);
+    try {
+        insertPageView.run(at, path, referrer || null, null, null, null, visitorHash);
+    } catch (err) { console.error("[pageview] insert failed", err.message); }
+    res.writeHead(204, cors); res.end();
+}
+
+function handleAmbientStats(req, res, url) {
+    if (!AGENT_LOG_TOKEN) return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let days = parseInt(url.searchParams.get("days") || "4", 10);
+    if (!Number.isFinite(days)) days = 4;
+    days = Math.max(1, Math.min(30, days));
+    const now = Math.floor(Date.now() / 1000);
+    const winSecs = days * 24 * 60 * 60;
+    const winStart = now - winSecs;
+    const prevStart = now - 2 * winSecs;
+
+    sendJson(res, 200, {
+        ok: true,
+        window_days: days,
+        all_time: {
+            pageviews: pvCountAll.get().n,
+            unique_visitors: pvUniqAll.get().n,
+            downloads: dlCountAll.get().n,
+            conversations: convAll.get().n
+        },
+        window: {
+            pageviews: pvCountSince.get(winStart).n,
+            unique_visitors: pvUniqSince.get(winStart).n,
+            downloads: dlCountSince.get(winStart).n,
+            conversations: convSince.get(winStart).n,
+            agent_turns: turnsSince.get(winStart).n,
+            agent_errors: errSince.get(winStart).n
+        },
+        prev_window: {
+            pageviews: pvCountBetween.get(prevStart, winStart).n,
+            unique_visitors: pvUniqBetween.get(prevStart, winStart).n,
+            downloads: dlCountBetween.get(prevStart, winStart).n
+        },
+        top_questions: topQStmt.all(winStart),
+        geo: geoStmt.all(winStart),
+        errors: errStmt.all(winStart)
+    }, {});
+}
+
 // ---------- server ----------
 const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";
@@ -468,6 +577,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/ambient/leads/mark" && req.method === "POST") {
         return handleAmbientLeadsMark(req, res);
+    }
+    if (url.pathname === "/api/ambient/stats" && req.method === "GET") {
+        return handleAmbientStats(req, res, url);
+    }
+    if (url.pathname === "/api/pageview" && req.method === "POST") {
+        return handlePageview(req, res, origin, cors);
     }
     if (url.pathname === "/health" && req.method === "GET") {
         return sendJson(res, 200, { ok: true, db: dbPath }, cors);

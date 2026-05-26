@@ -65,3 +65,21 @@ CREATE TABLE IF NOT EXISTS resume_sends (
 );
 CREATE INDEX IF NOT EXISTS idx_rs_hash ON resume_sends(email_hash);
 CREATE INDEX IF NOT EXISTS idx_rs_at   ON resume_sends(sent_at);
+
+-- Self-hosted, cookieless pageview analytics (Spec #33). One row per page load
+-- via POST /api/pageview. Geo from Cloudflare request.cf, and visitor_hash
+-- rotates daily (sha256 of ip + ua + UTC date, first 16 chars) so the raw IP is
+-- never stored. Powers the weekly digest via GET /api/ambient/stats. Also
+-- shipped as migration 006-page-views.sql for prod D1.
+CREATE TABLE IF NOT EXISTS page_views (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  viewed_at     INTEGER NOT NULL,
+  path          TEXT,
+  referrer      TEXT,
+  country       TEXT,
+  region        TEXT,
+  city          TEXT,
+  visitor_hash  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pv_at   ON page_views(viewed_at);
+CREATE INDEX IF NOT EXISTS idx_pv_hash ON page_views(visitor_hash);

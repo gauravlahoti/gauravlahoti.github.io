@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "149";
+const ASSET_VERSION = "150";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -68,8 +68,25 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initResumeGateLazy(profile);
     initAgentWidgetWhenIdle(profile);
     initMobileEnhancements(profile);
+    initAnalyticsWhenIdle(profile);
     auditConsole();
 })();
+
+// Cookieless pageview beacon (Spec #33). Lazy-loaded on idle so it stays off
+// the FCP path; the beacon itself is a single fire-and-forget POST.
+function initAnalyticsWhenIdle(profile) {
+    if (!profile || !profile.links || !profile.links.pageviewApi) return;
+    const fire = () => {
+        import(v("./analytics.js"))
+            .then(({ initAnalytics }) => initAnalytics(profile))
+            .catch((err) => console.warn("[analytics] failed to load", err));
+    };
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(fire, { timeout: 3000 });
+    } else {
+        setTimeout(fire, 1500);
+    }
+}
 
 function initAgentWidgetWhenIdle(profile) {
     if (!profile || !profile.links || !profile.links.agentApi) return;
