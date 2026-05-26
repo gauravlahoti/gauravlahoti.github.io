@@ -94,26 +94,3 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.hatch.build.targets.wheel]
 packages = ["app","frontend"]
 
-[tool.agents-cli]
-# Generation metadata - enables CLI commands to understand project context
-# These fields allow any generated project to work as a remote template
-name = "portfolio-agent"
-description = "Simple ReAct agent"
-base_template = "adk"
-agent_directory = "app"
-
-# Generation context
-generated_at = "2026-05-02T12:57:34.579254+00:00"
-acli_version = "0.1.1"
-
-[tool.agents-cli.create_params]
-# Parameters used during project creation
-deployment_target = "cloud_run"
-session_type = "in_memory"
-cicd_runner = "skip"
-include_data_ingestion = false
-
-datastore = "none"
-
-agent_guidance_filename = "CLAUDE.md"
-

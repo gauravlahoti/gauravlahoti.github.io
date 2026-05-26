@@ -122,6 +122,10 @@ async def test_digest_email_goes_only_to_gaurav():
     args = mock_send.call_args.args[0]
     assert args["to"] == ["gaurav@example.com"]  # hardcoded recipient
     assert args["from"] == "agent@gauravlahoti.dev"
+    # Resend MCP rejects the send without a text part — regression guard.
+    assert isinstance(args.get("text"), str) and args["text"].strip()
+    assert "Themes" in args["text"]
+    assert "<" not in args["text"]  # tags stripped from the text fallback
 
 
 @pytest.mark.asyncio

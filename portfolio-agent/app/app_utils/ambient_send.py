@@ -11,12 +11,34 @@ never raises.
 """
 from __future__ import annotations
 
+import html as _htmllib
 import logging
+import re
 from typing import Any
 
 from app.app_utils.resume_send import _env, _send_via_mcp
 
 logger = logging.getLogger(__name__)
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\n{3,}")
+
+
+def _html_to_text(html: str) -> str:
+    """Derive a plain-text fallback from the model-authored HTML.
+
+    The Resend MCP `send-email` tool requires a `text` field; without it the
+    send is rejected (-32602 invalid_type on "text"). Block tags become
+    newlines, list items get a bullet, remaining tags are stripped, entities
+    unescaped.
+    """
+    text = re.sub(r"(?i)</(p|div|h[1-6]|ul|ol|blockquote|tr)>", "\n", html)
+    text = re.sub(r"(?i)<li[^>]*>", "\n- ", text)
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = _TAG_RE.sub("", text)
+    text = _htmllib.unescape(text)
+    text = _WS_RE.sub("\n\n", text)
+    return text.strip()
 
 
 def _wrap(html: str, intro: str = "") -> str:
@@ -44,6 +66,7 @@ async def _send_to_gaurav(subject: str, html: str) -> dict[str, Any]:
         "to": [to_addr],  # hardcoded recipient — never taken from model input
         "subject": subject,
         "html": html,
+        "text": _html_to_text(html),  # Resend MCP requires a text part
     }
     ok, _ = await _send_via_mcp(arguments)
     if not ok:
