@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "152";
+const ASSET_VERSION = "159";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -40,7 +40,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
 (async function bootstrap() {
     let profile;
     try {
-        profile = await fetch("assets/js/data/profile.json").then(r => r.json());
+        profile = await fetch("assets/js/data/profile.json", { cache: "no-cache" }).then(r => r.json());
     } catch (err) {
         console.warn("[portfolio] profile.json missing or invalid", err);
         return;
@@ -55,7 +55,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
     initTrajectoryWhenVisible(profile);
     initSkillsHexWhenVisible();
-    initPostsListWhenVisible();
+    initPostsListWhenVisible(profile);
     initPostsFlyoutEager();
     initNavDrawer();
     initCapabilities(profile);
@@ -502,16 +502,17 @@ function initSkillsHexWhenVisible() {
         .catch((err) => console.warn("[skills-hex] failed to init", err));
 }
 
-function initPostsListWhenVisible() {
+function initPostsListWhenVisible(profile) {
     const root = document.querySelector("#perspectives [data-posts-root]");
     if (!root) return;
+    const metricsApi = profile?.links?.metricsApi;
     const io = new IntersectionObserver(async (entries) => {
         for (const entry of entries) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             try {
                 const { initPostsList } = await import(v("./posts-list.js"));
-                const inst = await initPostsList(root);
+                const inst = await initPostsList(root, { metricsApi });
                 window.__postsList = inst;
             } catch (err) {
                 console.warn("[posts] failed to init", err);

@@ -83,3 +83,16 @@ CREATE TABLE IF NOT EXISTS page_views (
 );
 CREATE INDEX IF NOT EXISTS idx_pv_at   ON page_views(viewed_at);
 CREATE INDEX IF NOT EXISTS idx_pv_hash ON page_views(visitor_hash);
+
+-- Spec #34 — LinkedIn engagement metrics (reactions, comments, reposts).
+-- post_id is the stable numeric LinkedIn activity id from the post URL.
+-- Shipped as migration 007-post-metrics.sql for prod D1.
+CREATE TABLE IF NOT EXISTS post_metrics (
+  post_id    TEXT PRIMARY KEY,
+  urn_type   TEXT,
+  reactions  INTEGER,
+  comments   INTEGER,
+  reposts    INTEGER,
+  fetched_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pm_at ON post_metrics(fetched_at);

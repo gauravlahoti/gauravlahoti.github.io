@@ -35,6 +35,7 @@ from google.genai import types
 from app.agent import root_agent
 from app.ambient_agent import ambient_agent
 from app.app_utils.audit_log import log_interaction
+from app.app_utils.post_metrics import refresh_post_metrics
 from app.app_utils.geo_lookup import lookup_geo
 from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
 from app.rate_limit import limiter
@@ -500,6 +501,14 @@ def register_routes(app: FastAPI) -> None:
             return JSONResponse(
                 status_code=500, content={"ok": False, "error": repr(exc)[:300]}
             )
+        # Deterministic metrics refresh — runs after the LLM cycle in its own
+        # try/except so a scrape failure never breaks the visitor digest.
+        try:
+            metrics_result = await refresh_post_metrics()
+            result["posts_updated"] = metrics_result.get("posts_updated", 0)
+        except Exception:
+            logger.exception("post metrics refresh failed")
+            result["posts_updated"] = 0
         return JSONResponse(status_code=200, content=result)
 
     @app.get("/api/agent-chat/warm")

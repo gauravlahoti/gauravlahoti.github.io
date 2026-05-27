@@ -94,6 +94,14 @@ export default {
             return handlePageview(request, env, origin, allowed, corsHeaders);
         }
 
+        if (url.pathname === "/api/post-metrics" && request.method === "GET") {
+            return handlePostMetricsRead(request, env, corsHeaders);
+        }
+
+        if (url.pathname === "/api/post-metrics" && request.method === "POST") {
+            return handlePostMetricsWrite(request, env);
+        }
+
         return json({ ok: false, error: "Not found" }, 404, corsHeaders);
     },
 
@@ -646,6 +654,95 @@ async function handleAgentStats(request, env, corsHeaders) {
     } catch (err) {
         console.error("[agent-stats] D1 query failed", err);
         return json({ ok: false, error: "Internal" }, 500, corsHeaders);
+    }
+}
+
+// ─── LinkedIn post metrics (Spec #34) ───────────────────────────────────────
+
+// GET /api/post-metrics — public, CORS-gated, 1h CDN cache.
+// Returns { ok, metrics: { "<post_id>": { reactions, comments, reposts, fetchedAt } } }
+// keyed by the numeric activity id for O(1) frontend merge.
+async function handlePostMetricsRead(request, env, corsHeaders) {
+    try {
+        const { results } = await env.DB.prepare(
+            "SELECT post_id, reactions, comments, reposts, fetched_at FROM post_metrics"
+        ).all();
+        const metrics = {};
+        for (const row of (results || [])) {
+            metrics[row.post_id] = {
+                reactions: row.reactions,
+                comments:  row.comments,
+                reposts:   row.reposts,
+                fetchedAt: row.fetched_at,
+            };
+        }
+        return new Response(JSON.stringify({ ok: true, metrics }), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+                "Cache-Control": "public, max-age=3600",
+                ...corsHeaders,
+            },
+        });
+    } catch (err) {
+        console.error("[post-metrics] read failed", err);
+        return json({ ok: false, error: "Internal" }, 500, corsHeaders);
+    }
+}
+
+// POST /api/post-metrics — internal (Cloud Run → Worker). No CORS.
+// Body: { items: [{post_id, urn_type, reactions, comments, reposts}, ...] }
+// Upserts with COALESCE so a null (unparsed) field never wipes a prior good value.
+async function handlePostMetricsWrite(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const rawItems = Array.isArray(body?.items) ? body.items : null;
+    if (!rawItems) {
+        return json({ ok: false, error: "items must be an array" }, 400, {});
+    }
+    const items = rawItems
+        .filter(it => it && /^\d{10,25}$/.test(String(it.post_id || "")))
+        .slice(0, 100)
+        .map(it => ({
+            post_id:   String(it.post_id),
+            urn_type:  String(it.urn_type || "activity").slice(0, 20),
+            reactions: Number.isInteger(it.reactions) && it.reactions >= 0 ? it.reactions : null,
+            comments:  Number.isInteger(it.comments)  && it.comments  >= 0 ? it.comments  : null,
+            reposts:   Number.isInteger(it.reposts)   && it.reposts   >= 0 ? it.reposts   : null,
+        }));
+    if (!items.length) {
+        return json({ ok: true, written: 0 }, 200, {});
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const stmt = env.DB.prepare(
+        `INSERT INTO post_metrics (post_id, urn_type, reactions, comments, reposts, fetched_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(post_id) DO UPDATE SET
+           urn_type   = excluded.urn_type,
+           reactions  = COALESCE(excluded.reactions, post_metrics.reactions),
+           comments   = COALESCE(excluded.comments,  post_metrics.comments),
+           reposts    = COALESCE(excluded.reposts,   post_metrics.reposts),
+           fetched_at = excluded.fetched_at`
+    );
+    try {
+        await env.DB.batch(items.map(it =>
+            stmt.bind(it.post_id, it.urn_type, it.reactions, it.comments, it.reposts, now)
+        ));
+        return json({ ok: true, written: items.length }, 200, {});
+    } catch (err) {
+        console.error("[post-metrics] write failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
     }
 }
 

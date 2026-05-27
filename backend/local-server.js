@@ -93,7 +93,8 @@ function buildCors(origin) {
     const headers = {
         Vary: "Origin",
         "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Internal-Token",
+        "Access-Control-Allow-Private-Network": "true",
         "Access-Control-Max-Age": "86400"
     };
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
@@ -469,6 +470,21 @@ const errStmt = db.prepare(
      WHERE logged_at > ? AND status != 'ok' ORDER BY logged_at DESC LIMIT 8`
 );
 
+// Spec #34 — post_metrics prepared statements
+const getPostMetrics = db.prepare(
+    `SELECT post_id, reactions, comments, reposts, fetched_at FROM post_metrics`
+);
+const upsertPostMetric = db.prepare(
+    `INSERT INTO post_metrics (post_id, urn_type, reactions, comments, reposts, fetched_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(post_id) DO UPDATE SET
+       urn_type   = excluded.urn_type,
+       reactions  = COALESCE(excluded.reactions, post_metrics.reactions),
+       comments   = COALESCE(excluded.comments,  post_metrics.comments),
+       reposts    = COALESCE(excluded.reposts,   post_metrics.reposts),
+       fetched_at = excluded.fetched_at`
+);
+
 async function handlePageview(req, res, origin, cors) {
     if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
         res.writeHead(204, cors); return res.end();
@@ -539,6 +555,70 @@ function handleAmbientStats(req, res, url) {
     }, {});
 }
 
+// ---------- post metrics (Spec #34) ----------
+
+function handlePostMetricsRead(req, res, cors) {
+    const rows = getPostMetrics.all();
+    const metrics = {};
+    for (const row of rows) {
+        metrics[row.post_id] = {
+            reactions: row.reactions,
+            comments:  row.comments,
+            reposts:   row.reposts,
+            fetchedAt: row.fetched_at,
+        };
+    }
+    const payload = JSON.stringify({ ok: true, metrics });
+    res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=3600",
+        ...cors,
+    });
+    res.end(payload);
+}
+
+async function handlePostMetricsWrite(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 64 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const rawItems = Array.isArray(body?.items) ? body.items : null;
+    if (!rawItems) {
+        return sendJson(res, 400, { ok: false, error: "items must be an array" }, {});
+    }
+    const items = rawItems
+        .filter(it => it && /^\d{10,25}$/.test(String(it.post_id || "")))
+        .slice(0, 100)
+        .map(it => ({
+            post_id:   String(it.post_id),
+            urn_type:  String(it.urn_type || "activity").slice(0, 20),
+            reactions: Number.isInteger(it.reactions) && it.reactions >= 0 ? it.reactions : null,
+            comments:  Number.isInteger(it.comments)  && it.comments  >= 0 ? it.comments  : null,
+            reposts:   Number.isInteger(it.reposts)   && it.reposts   >= 0 ? it.reposts   : null,
+        }));
+    if (!items.length) {
+        return sendJson(res, 200, { ok: true, written: 0 }, {});
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const insertMany = db.transaction((rows) => {
+        for (const it of rows) {
+            upsertPostMetric.run(it.post_id, it.urn_type, it.reactions, it.comments, it.reposts, now);
+        }
+    });
+    try {
+        insertMany(items);
+        sendJson(res, 200, { ok: true, written: items.length }, {});
+    } catch (err) {
+        console.error("[post-metrics] write failed", err.message);
+        sendJson(res, 500, { ok: false, error: "Internal" }, {});
+    }
+}
+
 // ---------- server ----------
 const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || "";
@@ -583,6 +663,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/pageview" && req.method === "POST") {
         return handlePageview(req, res, origin, cors);
+    }
+    if (url.pathname === "/api/post-metrics" && req.method === "GET") {
+        return handlePostMetricsRead(req, res, cors);
+    }
+    if (url.pathname === "/api/post-metrics" && req.method === "POST") {
+        return handlePostMetricsWrite(req, res);
     }
     if (url.pathname === "/health" && req.method === "GET") {
         return sendJson(res, 200, { ok: true, db: dbPath }, cors);

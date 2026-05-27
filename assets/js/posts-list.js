@@ -1,6 +1,6 @@
 // posts-list.js — Writing section (LinkedIn posts feed) + nav flyout.
-// Exports: initPostsList(root)   → flat-link rows in #perspectives (all posts)
-//          initPostsFlyout(root) → top FLYOUT_LIMIT posts in nav dropdown
+// Exports: initPostsList(root, opts) → flat-link rows in #perspectives (all posts)
+//          initPostsFlyout(root)     → top FLYOUT_LIMIT posts in nav dropdown
 // Both surfaces sort by date descending so adding a newer post via
 // /add-post automatically rises to the top of the flyout — no need to
 // hand-order posts.json.
@@ -8,7 +8,11 @@
 
 const FLYOUT_LIMIT = 3;
 
+// Compact formatter for engagement counts: 1234 → "1.2K"
+const _compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
 let postsPromise = null;
+let metricsPromise = null;
 
 // Memoized fetch — both surfaces share one HTTP roundtrip.
 // `no-cache` makes the browser revalidate so re-running add-post.mjs shows
@@ -25,6 +29,32 @@ function getPosts() {
     return postsPromise;
 }
 
+// Fetch the metrics map (post_id → {reactions, comments, reposts, fetchedAt}).
+// Resolves to {} on any failure so posts always render even without metrics.
+function getMetrics(metricsApi) {
+    if (!metricsApi) return Promise.resolve({});
+    if (!metricsPromise) {
+        metricsPromise = fetch(metricsApi, { cache: "no-cache" })
+            .then(r => r.ok ? r.json() : { metrics: {} })
+            .then(data => (data && typeof data.metrics === "object" ? data.metrics : {}))
+            .catch(() => ({}));
+    }
+    return metricsPromise;
+}
+
+// Extract the stable numeric activity/share/ugcPost id from a LinkedIn post URL.
+// Returns the id string, or null if not found. Mirrors the Python _derive_urn regex.
+function deriveActivityId(url) {
+    if (typeof url !== "string") return null;
+    const clean = url.split("?")[0].split("#")[0];
+    const m = clean.match(/-(share|ugcPost|activity)-(\d{15,21})(?:-[A-Za-z0-9_]+)?\/?$/i)
+           || clean.match(/-(share|ugcPost|activity)-(\d{15,21})/i)
+           || clean.match(/urn:li:(?:share|ugcPost|activity):(\d{15,21})/i);
+    if (!m) return null;
+    // group 2 for the first two patterns, group 1 for the direct-urn fallback
+    return m[2] || m[1] || null;
+}
+
 // ISO `YYYY-MM-DD` strings sort lexicographically the same as
 // chronologically, so `localeCompare` with reversed args gives newest-first.
 // Entries without a date sort to the bottom.
@@ -39,12 +69,15 @@ function sortNewestFirst(posts) {
     });
 }
 
-export async function initPostsList(root) {
+export async function initPostsList(root, opts = {}) {
     if (!root) return { destroy() {} };
 
-    let posts;
+    let posts, metricsMap;
     try {
-        posts = await getPosts();
+        [posts, metricsMap] = await Promise.all([
+            getPosts(),
+            getMetrics(opts?.metricsApi),
+        ]);
     } catch (err) {
         console.warn("[posts] failed to load posts.json", err);
         return { destroy() {} };
@@ -52,6 +85,14 @@ export async function initPostsList(root) {
 
     if (!Array.isArray(posts) || posts.length === 0) {
         return { destroy() {} };
+    }
+
+    // Attach metrics to each post by stable activity id.
+    if (metricsMap && typeof metricsMap === "object") {
+        for (const post of posts) {
+            const id = deriveActivityId(post.url);
+            if (id && metricsMap[id]) post.metrics = metricsMap[id];
+        }
     }
 
     const frag = document.createDocumentFragment();
@@ -205,6 +246,38 @@ function buildFilterBar(root, rows) {
     root.before(bar);
 }
 
+// Returns a .post-row-metrics span with muted icon chips, or null if nothing to show.
+// Each present, positive metric gets an aria-labeled chip; glyph is decorative.
+function renderMetrics(metrics) {
+    if (!metrics || typeof metrics !== "object") return null;
+    const defs = [
+        { key: "reactions", glyph: "♥", label: "reactions" },
+        { key: "comments",  glyph: "💬", label: "comments"  },
+        { key: "reposts",   glyph: "↻", label: "reposts"   },
+    ];
+    const group = document.createElement("span");
+    group.className = "post-row-metrics";
+    let shown = 0;
+    for (const def of defs) {
+        const v = metrics[def.key];
+        if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) continue;
+        const chip = document.createElement("span");
+        chip.className = "post-row-metric";
+        chip.setAttribute("aria-label", `${v} ${def.label}`);
+        const icon = document.createElement("span");
+        icon.className = "post-row-metric-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = def.glyph;
+        const count = document.createElement("span");
+        count.className = "post-row-metric-count";
+        count.textContent = _compact.format(v);
+        chip.append(icon, count);
+        group.appendChild(chip);
+        shown++;
+    }
+    return shown ? group : null;
+}
+
 function renderPost(post) {
     if (!post || typeof post.url !== "string" || typeof post.firstLine !== "string") {
         return null;
@@ -229,13 +302,22 @@ function renderPost(post) {
     const foot = document.createElement("span");
     foot.className = "post-row-foot";
 
+    // Left cluster: date + metrics chips together, so space-between keeps tags on the right.
+    const leftCluster = document.createElement("span");
+    leftCluster.className = "post-row-foot-left";
+
     if (post.date) {
         const time = document.createElement("time");
         time.className = "post-row-date";
         time.dateTime = post.date;
         time.textContent = formatDate(post.date);
-        foot.appendChild(time);
+        leftCluster.appendChild(time);
     }
+
+    const metricsEl = renderMetrics(post.metrics);
+    if (metricsEl) leftCluster.appendChild(metricsEl);
+
+    foot.appendChild(leftCluster);
 
     const tags = Array.isArray(post.tags) ? post.tags : (post.tag ? [post.tag] : []);
     if (tags.length) {
