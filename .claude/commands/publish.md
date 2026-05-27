@@ -78,26 +78,17 @@ deliberate reason. Print the offending lines and ask via `AskUserQuestion`:
 "Placeholder text detected. Continue anyway?" Default option is "No, cancel
 publish."
 
-## Step 3 — Cache-bust sanity (warn only)
+## Step 3 — Cache-bust (always bump)
 
-Find files staged or modified under `assets/css/` or `assets/js/` (excluding
-`assets/js/data/`):
-```
-git diff --name-only HEAD origin/main -- 'assets/css/' 'assets/js/' ':!assets/js/data/'
-```
+**Always** bump the asset version on every publish, no exceptions and no prompts.
 
-If any matched AND `index.html`'s `?v=` query string did NOT change between
-`HEAD` and `origin/main` (`git diff origin/main HEAD -- index.html | grep -E '\?v='`),
-**warn**:
+1. Read `index.html` and find the current `?v=N` integer used on `<link>` and `<script>` tags.
+2. Compute `N+1`.
+3. Replace every `?v=N` occurrence in `index.html` with `?v=N+1` (use `sed` or Edit tool).
+4. Read `assets/js/main.js`, find `const ASSET_VERSION = "N"`, replace with `"N+1"`.
+5. Include both files in the commit at Step 5 alongside any other changed files.
 
-> Asset code changed but `?v=N` in `index.html` was not bumped. Visitors
-> with the previous CSS/JS cached will see stale code until they hard-refresh.
-> Bump every `?v=N` in `index.html` (and `ASSET_VERSION` in `assets/js/main.js`)
-> before continuing.
-
-Ask via `AskUserQuestion`: "Bump the asset version now, continue without
-bumping, or cancel?" If "bump now" — read `index.html` and `assets/js/main.js`,
-identify the current version, bump by 1, write back. Then continue.
+Do **not** ask the user — just bump and continue.
 
 ## Step 4 — Show what's shipping
 
