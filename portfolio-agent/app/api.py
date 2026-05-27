@@ -501,14 +501,27 @@ def register_routes(app: FastAPI) -> None:
             return JSONResponse(
                 status_code=500, content={"ok": False, "error": repr(exc)[:300]}
             )
-        # Deterministic metrics refresh — runs after the LLM cycle in its own
-        # try/except so a scrape failure never breaks the visitor digest.
+        return JSONResponse(status_code=200, content=result)
+
+    @app.post("/api/ambient/metrics")
+    async def ambient_metrics(request: Request) -> Any:
+        """Scrape LinkedIn engagement counts and write to D1. No LLM, no email."""
+        token = os.environ.get("AMBIENT_TRIGGER_TOKEN", "").strip()
+        if not token:
+            return JSONResponse(
+                status_code=503, content={"ok": False, "error": "Ambient trigger disabled"}
+            )
+        if request.headers.get("x-internal-token") != token:
+            return JSONResponse(
+                status_code=401, content={"ok": False, "error": "Unauthorized"}
+            )
         try:
-            metrics_result = await refresh_post_metrics()
-            result["posts_updated"] = metrics_result.get("posts_updated", 0)
-        except Exception:
-            logger.exception("post metrics refresh failed")
-            result["posts_updated"] = 0
+            result = await refresh_post_metrics()
+        except Exception as exc:
+            logger.exception("metrics refresh failed")
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": repr(exc)[:300]}
+            )
         return JSONResponse(status_code=200, content=result)
 
     @app.get("/api/agent-chat/warm")
