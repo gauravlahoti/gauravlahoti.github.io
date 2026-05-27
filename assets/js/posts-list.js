@@ -262,7 +262,7 @@ function renderMetrics(metrics) {
         const v = metrics[def.key];
         if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) continue;
         const chip = document.createElement("span");
-        chip.className = "post-row-metric";
+        chip.className = `post-row-metric post-row-metric--${def.key}`;
         chip.setAttribute("aria-label", `${v} ${def.label}`);
         const icon = document.createElement("span");
         icon.className = "post-row-metric-icon";
