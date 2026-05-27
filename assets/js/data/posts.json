@@ -7,6 +7,13 @@
     "tags": ["agenticai", "googleadk", "cloudrun", "gemini", "mcp", "ambientagents"]
   },
   {
+    "url": "https://www.linkedin.com/posts/glahoti_agenticpremiereleague-googlecloud-gemini-share-7464563736205402113-MxJj/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "80 made the Grand Finale. 15 finished on top. I was one of them.",
+    "excerpt": "3,000+ builders entered across 30 cities in India. 80 made it to the Grand Finale. 15 finished at the top. I'm one of them. Easily one of the sharpest rooms full of AI builders I've been in this year.\n\nThe Google Cloud Agentic Premier League Grand Finale took place at Google Ananta in Bengaluru. One time-boxed agentic challenge followed by a live pitch to Googlers.\n\nThe challenge focused on resolving logistical chaos and security gaps at crowded cricket stadiums. I built a real-time multi-agent command platform that dynamically routes fan flow and automates emergency responses using Antigravity 2.0 and Gemini 3.5 Flash.",
+    "date": "2026-05-25",
+    "tags": ["agenticpremiereleague", "googlecloud", "gemini", "antigravity", "buildwithai", "hackathon", "gdg", "ai"]
+  },
+  {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-anthropic-developercommunity-ugcPost-7459463340470489089-RvoX?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
     "firstLine": "I spent a weekend inside Google's PromptWars and the Claude community — here's what I saw.",
     "excerpt": "I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office — I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.",
