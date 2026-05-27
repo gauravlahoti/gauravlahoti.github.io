@@ -110,12 +110,28 @@ body.is-scrolling .nav {
     color: var(--ink-muted);
     transition:
         color var(--dur-fast) var(--ease-out),
-        background var(--dur-fast) var(--ease-out);
+        background var(--dur-fast) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out);
+}
+.nav-channel svg {
+    transition:
+        transform var(--dur-fast) var(--ease-out),
+        filter var(--dur-fast) var(--ease-out);
 }
 .nav-channel:hover, .nav-channel:focus-visible {
     color: var(--accent);
     background: var(--accent-soft);
+    transform: translateY(-2px);
     outline: none;
+}
+.nav-channel:hover svg, .nav-channel:focus-visible svg {
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+.nav-channel:active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .nav-channel:hover, .nav-channel:focus-visible { transform: none; }
+    .nav-channel:hover svg, .nav-channel:focus-visible svg { transform: none; filter: none; }
 }
 
 /* Hamburger trigger — visible only on mobile */

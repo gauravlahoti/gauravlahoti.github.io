@@ -1,5 +1,12 @@
 [
   {
+    "url": "https://www.linkedin.com/posts/glahoti_agenticai-googleadk-cloudrun-share-7465124323062808576-Anvt/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "I gave my website an employee. It works 2 days a week and never asks questions.",
+    "excerpt": "My website has an employee now. It works 2 days a week, never asks questions and only emails me when something actually matters.\n\nIt's an ambient agent. Most AI agents are reactive: they wait for a prompt, answer and go quiet. Ambient agents invert that, running on their own schedule or in response to events instead of waiting on a human. From there it's a design decision. I built mine to stay quiet and surface only what crosses a threshold worth my attention.\n\nMine wakes up every Monday and Thursday, looks at the week, and sends me one short email. Traffic trends, what visitors asked my site's ai agent, and where it fell short on answers. That's it. No dashboard to open. It doesn't just report, it reasons over the week and comes back with what's working and what's worth improving.",
+    "date": "2026-05-26",
+    "tags": ["agenticai", "googleadk", "cloudrun", "gemini", "mcp", "ambientagents"]
+  },
+  {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-anthropic-developercommunity-ugcPost-7459463340470489089-RvoX?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
     "firstLine": "I spent a weekend inside Google's PromptWars and the Claude community — here's what I saw.",
     "excerpt": "I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office — I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.",
