@@ -1,7 +1,7 @@
 # Convenience targets for the portfolio-agent sub-project.
 # `make help` prints this list.
 
-.PHONY: help corpus install dev playground smoke eval lint clean audit deploy
+.PHONY: help corpus install dev playground smoke eval lint clean audit deploy deploy-ambient
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -33,10 +33,10 @@ lint: ## Lint with ruff (auto-fix).
 audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit log).
 	uv run python -m app.app_utils.audit_log_smoke
 
-deploy: ## Deploy to Cloud Run (cpu-boost + gen2 + concurrency=80 for fast cold starts).
-	gcloud beta run deploy portfolio-agent \
+deploy: ## Deploy chat widget backend to Cloud Run (portfolio-chat-agent, us-central1).
+	gcloud beta run deploy portfolio-chat-agent \
 		--project gcp-experiments-490306 \
-		--region us-east1 \
+		--region us-central1 \
 		--source . \
 		--memory 4Gi \
 		--allow-unauthenticated \
@@ -45,7 +45,22 @@ deploy: ## Deploy to Cloud Run (cpu-boost + gen2 + concurrency=80 for fast cold 
 		--execution-environment gen2 \
 		--concurrency 80 \
 		--min-instances 0 \
-		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-agent-593919045544.us-east1.run.app \
+		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app \
+		--labels created-by=adk
+
+deploy-ambient: ## Deploy background digest agent to Cloud Run (portfolio-ambient-agent, us-central1).
+	gcloud beta run deploy portfolio-ambient-agent \
+		--project gcp-experiments-490306 \
+		--region us-central1 \
+		--source . \
+		--memory 4Gi \
+		--allow-unauthenticated \
+		--cpu-throttling \
+		--cpu-boost \
+		--execution-environment gen2 \
+		--concurrency 10 \
+		--min-instances 0 \
+		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-ambient-agent-lw4bt7nrba-uc.a.run.app \
 		--labels created-by=adk
 
 clean: ## Drop __pycache__ and .pytest_cache.

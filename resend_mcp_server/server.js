@@ -10,7 +10,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 // Caller authentication token. When set, every inbound request must carry
 // `Authorization: Bearer <MCP_CALLER_TOKEN>` or it gets a 401.
 // Set via Secret Manager: --update-secrets MCP_CALLER_TOKEN=resend-mcp-caller-token:latest
-const MCP_CALLER_TOKEN = process.env.MCP_CALLER_TOKEN || '';
+const MCP_CALLER_TOKEN = (process.env.MCP_CALLER_TOKEN || '').trim();
 
 console.log(`Starting Resend MCP proxy server...`);
 console.log(`External port: ${PORT}, Internal MCP port: ${MCP_PORT}`);
