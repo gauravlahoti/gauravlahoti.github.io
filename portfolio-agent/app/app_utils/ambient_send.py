@@ -113,10 +113,16 @@ def _stat_card(value: str, label: str, badge: str = "", width: str = "25%",
     )
 
 
-def _section_title(text: str) -> str:
+def _section_title(text: str, subtitle: str = "") -> str:
+    sub = (
+        f'<span style="font-size:13px;font-weight:400;color:{_MUTED};'
+        f'margin-left:8px">· {_esc(subtitle)}</span>'
+        if subtitle else ""
+    )
     return (
         f'<h3 style="font-size:15px;color:{_INK};margin:26px 0 10px;'
-        f'border-bottom:2px solid {_LINE};padding-bottom:6px">{_esc(text)}</h3>'
+        f'border-bottom:2px solid {_LINE};padding-bottom:6px">'
+        f'{_esc(text)}{sub}</h3>'
     )
 
 
@@ -209,6 +215,106 @@ def _token_row(tin: Any, tout: Any, tin_prev: Any = None, tout_prev: Any = None)
                    cost_badge, width="33%", accent="#94a3b8"),
     ])
 
+
+
+def _auto_observations(stats: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Rule-based observations the digest agent can lead with.
+
+    Returns a list of (kind, text, color) tuples where kind is one of:
+      up    — positive movement (green)
+      down  — negative movement (red)
+      flat  — stable (muted)
+      note  — neutral signal worth surfacing (blue)
+    Kept deterministic on purpose: the LLM owns nuance in the Insights block;
+    these are the obvious patterns a human would call out at a glance.
+    """
+    win  = stats.get("window") or {}
+    prev = stats.get("prev_window") or {}
+    geo  = stats.get("geo") or []
+    errs = stats.get("errors") or []
+
+    def _pct(c, p):
+        c, p = _int(c), _int(p)
+        if p == 0:
+            return None
+        return round((c - p) / p * 100)
+
+    out: list[tuple[str, str, str]] = []
+
+    convs = _int(win.get("conversations"))
+    visitors = _int(win.get("unique_visitors"))
+    pageviews = _int(win.get("pageviews"))
+    downloads = _int(win.get("downloads"))
+
+    # Conversation lift vs prior
+    conv_pct = _pct(win.get("conversations"), prev.get("conversations"))
+    if conv_pct is not None and abs(conv_pct) >= 20:
+        if conv_pct > 0:
+            out.append(("up", f"Conversations up {conv_pct}% vs the prior window — agent engagement is growing.", _GOOD))
+        else:
+            out.append(("down", f"Conversations down {abs(conv_pct)}% vs the prior window — worth a look.", _BAD))
+
+    # Engagement quality: conversations up while pageviews flat/down
+    pv_pct = _pct(win.get("pageviews"), prev.get("pageviews"))
+    if conv_pct is not None and pv_pct is not None and conv_pct >= 20 and pv_pct <= 10:
+        out.append(("note", "Conversation rate climbing without a pageview spike — quality engagement, not noise.", _ACCENT))
+
+    # Conversion gap: visitors but zero downloads
+    if visitors >= 5 and downloads == 0:
+        out.append(("note", f"{visitors} visitors, 0 resume downloads this window — top of funnel works, conversion doesn't.", _ACCENT))
+
+    # Healthy download conversion
+    if visitors > 0 and downloads >= 3:
+        rate = round(downloads / visitors * 100)
+        out.append(("up", f"{downloads} resume downloads from {visitors} visitors ({rate}% conversion).", _GOOD))
+
+    # Geographic concentration
+    if geo:
+        total_geo = sum(_int(g.get("count")) for g in geo)
+        if total_geo > 0:
+            top = geo[0]
+            top_count = _int(top.get("count"))
+            top_share = round(top_count / total_geo * 100)
+            top_label = ", ".join(p for p in (str(top.get("city") or "").strip(),
+                                              str(top.get("country") or "").strip()) if p)
+            if top_share >= 70 and total_geo >= 5:
+                out.append(("note", f"{top_share}% of traffic came from {top_label} — heavy geographic concentration.", _ACCENT))
+
+    # Error signal
+    if errs:
+        out.append(("down", f"{len(errs)} agent error{'s' if len(errs) != 1 else ''} this window — listed below.", _BAD))
+
+    # No activity at all
+    if pageviews == 0 and convs == 0:
+        out.append(("flat", "No site activity this window. Either the beacon is down or it was a quiet week.", _MUTED))
+
+    return out
+
+
+def _observations_block(items: list[tuple[str, str, str]]) -> str:
+    if not items:
+        return ""
+    icons = {"up": "▲", "down": "▼", "note": "◆", "flat": "—"}
+    rows = []
+    for kind, text, color in items:
+        icon = icons.get(kind, "•")
+        rows.append(
+            f'<tr>'
+            f'<td style="padding:8px 10px 8px 14px;vertical-align:top;width:18px;'
+            f'color:{color};font-weight:700;font-size:13px;line-height:1.5">{icon}</td>'
+            f'<td style="padding:8px 14px 8px 0;font-size:13px;color:{_INK};line-height:1.5">{_esc(text)}</td>'
+            f'</tr>'
+        )
+    return (
+        f'<div style="background:#fafbfc;border:1px solid {_LINE};border-radius:10px;'
+        f'margin:14px 0 4px;overflow:hidden">'
+        f'<div style="padding:10px 14px;background:#f1f5f9;font-size:11px;'
+        f'color:{_MUTED};text-transform:uppercase;letter-spacing:.6px;font-weight:600;'
+        f'border-bottom:1px solid {_LINE}">What Pulse noticed</div>'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+        + "".join(rows) +
+        f'</table></div>'
+    )
 
 
 def _build_dashboard(stats: dict[str, Any]) -> str:
@@ -350,26 +456,37 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
         f'</div>'
     )
 
+    obs = _auto_observations(stats)
+    observations_html = _observations_block(obs)
+
     return (
-        f'<div style="background:{_INK};border-radius:12px;padding:20px 22px;color:#fff;margin-bottom:6px">'
-        f'<div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">Portfolio pulse</div>'
-        f'<div style="font-size:22px;font-weight:700;margin-top:4px">Visitor intelligence digest</div>'
-        f'<div style="font-size:13px;color:#cbd5e1;margin-top:6px">'
-        f'This report: <strong style="color:#fff">{window_label}</strong>'
-        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
-        f'Prior period: {prev_label}'
+        f'<div style="background:{_INK};border-radius:12px;padding:22px 24px;color:#fff;margin-bottom:6px">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+        f'<td style="vertical-align:middle;width:46px;padding-right:14px">'
+        f'<div style="width:42px;height:42px;border-radius:50%;background:linear-gradient('
+        f'135deg,#6366f1 0%,#06b6d4 100%);text-align:center;line-height:42px;'
+        f'font-size:18px;font-weight:700;color:#fff">P</div>'
+        f'</td>'
+        f'<td style="vertical-align:middle">'
+        f'<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1.2px;font-weight:600">From Pulse · Portfolio analyst</div>'
+        f'<div style="font-size:22px;font-weight:700;margin-top:2px;line-height:1.2">Visitor intelligence digest</div>'
+        f'</td></tr></table>'
+        f'<div style="font-size:13px;color:#cbd5e1;margin-top:12px;line-height:1.5">'
+        f'<strong style="color:#fff">{window_label}</strong>'
+        f'&nbsp;&nbsp;vs prior&nbsp;&nbsp;{prev_label}'
         f'</div>'
         + model_bar +
         f"</div>"
-        + _section_title("All-time totals")
+        + observations_html
+        + _section_title("All-time totals", "since inception")
         + all_time
-        + _section_title(f"Since last report &nbsp;<span style='font-size:13px;font-weight:400;color:{_MUTED}'>{window_label}</span>")
+        + _section_title("Since last report", window_label)
         + this_week
-        + _section_title("Top questions")
+        + _section_title("Top questions", "what visitors asked the chat agent")
         + questions
-        + _section_title("Where visitors came from")
+        + _section_title("Where visitors came from", "from analytics geo data")
         + geo_html
-        + _section_title("Errors &amp; no-response")
+        + _section_title("Errors & no-response", "agent turns that need review")
         + errors_html
     )
 
@@ -428,16 +545,15 @@ async def send_review_email(insights_html: str, lead_drafts_html: str = "") -> d
     dashboard = _build_dashboard(stats)
 
     insights = (
-        _section_title("Insights") + (insights_html or
-        f'<p style="color:{_MUTED};font-size:13px">No notable themes this week.</p>')
+        _section_title("Agent take", "qualitative read on the week")
+        + (insights_html or
+           f'<p style="color:{_MUTED};font-size:13px">No notable themes this week.</p>')
     )
 
     drafts = ""
     if lead_drafts_html and lead_drafts_html.strip():
         drafts = (
-            _section_title("Lead follow-up drafts")
-            + f'<p style="color:{_MUTED};font-size:13px;margin-top:0">These visitors '
-            "downloaded your resume and haven't been followed up. Edit and send as you see fit.</p>"
+            _section_title("Lead follow-up drafts", "edit and send as you see fit")
             + lead_drafts_html
         )
 
