@@ -1,0 +1,59 @@
+{
+  "ok": true,
+  "metrics": {
+    "7465124323062808576": {
+      "reactions": 10,
+      "comments": 20,
+      "reposts": 6,
+      "fetchedAt": 1779876060
+    },
+    "7459463340470489089": {
+      "reactions": 64,
+      "comments": 4,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7464563736205402113": {
+      "reactions": 124,
+      "comments": 36,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7456920960491839488": {
+      "reactions": 14,
+      "comments": null,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7454222608767614976": {
+      "reactions": 15,
+      "comments": 4,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7453195946403987456": {
+      "reactions": 29,
+      "comments": 2,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7452201865829724160": {
+      "reactions": 22,
+      "comments": 3,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7441549845116583936": {
+      "reactions": 24,
+      "comments": null,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    },
+    "7439049642580992000": {
+      "reactions": 39,
+      "comments": 1,
+      "reposts": null,
+      "fetchedAt": 1779876060
+    }
+  }
+}

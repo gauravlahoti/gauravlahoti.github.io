@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <!-- Caption -->
+  <text x="40" y="52" class="caption">// atlas · google adk · cloud run · mcp · sse</text>
+
+  <!-- GCP outer boundary -->
+  <rect x="20" y="66" width="920" height="496" rx="16" fill="none" stroke="#4285F4" stroke-width="1" opacity="0.35"/>
+  <rect x="428" y="55" width="106" height="22" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/google-cloud.png" x="432" y="57" width="18" height="18"/>
+  <text x="454" y="70" class="caption">Google Cloud</text>
+
+  <!-- Browser — x=40 y=80 200×72 -->
+  <rect x="40" y="80" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="55" y="103" width="22" height="16" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <line x1="55" y1="108" x2="77" y2="108" stroke="#888888" stroke-width="1"/>
+  <text x="85" y="108" class="node-title">Browser</text>
+  <text x="85" y="124" class="node-sub">SSE client</text>
+
+  <!-- Cloud Run boundary (encloses ADK Agent) — center x=480 -->
+  <rect x="338" y="218" width="284" height="132" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="432" y="208" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="436" y="210" width="14" height="14"/>
+  <text x="453" y="222" class="caption">Cloud Run</text>
+
+  <!-- ADK Agent hub — x=380 y=244 200×72 -->
+  <rect x="380" y="244" width="200" height="72" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="390" y="268" width="24" height="24"/>
+  <text x="422" y="272" class="node-title">ADK Agent</text>
+  <image href="/diagram-icons/gemini.png" x="422" y="279" width="11" height="11"/>
+  <text x="434" y="288" class="node-sub">Gemini 3.5 Flash</text>
+  <text x="422" y="304" class="node-sub">orchestrator</text>
+
+  <!-- Corpus — x=60 y=452 200×80 -->
+  <rect x="60" y="452" width="200" height="80" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <ellipse cx="80" cy="472" rx="9" ry="4" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <rect x="71" y="472" width="18" height="10" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <ellipse cx="80" cy="482" rx="9" ry="4" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <text x="100" y="472" class="node-title">Corpus</text>
+  <text x="100" y="488" class="node-sub">profile · projects</text>
+  <text x="100" y="502" class="node-sub">posts · certs</text>
+  <text x="100" y="516" class="node-sub">versioned JSON</text>
+
+  <!-- Resend MCP Cloud Run boundary — center x=480 -->
+  <rect x="374" y="444" width="212" height="96" rx="10" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="432" y="434" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="436" y="436" width="14" height="14"/>
+  <text x="453" y="448" class="caption">Cloud Run</text>
+
+  <!-- Resend MCP — x=380 y=452 200×80 -->
+  <rect x="380" y="452" width="200" height="80" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="390" y="474" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <rect x="395" y="479" width="10" height="14" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <line x1="397" y1="479" x2="397" y2="474" stroke="#888888" stroke-width="1.5"/>
+  <line x1="403" y1="479" x2="403" y2="474" stroke="#888888" stroke-width="1.5"/>
+  <text x="426" y="476" class="node-title">Resend MCP</text>
+  <text x="426" y="492" class="node-sub">Node.js · Cloud Run</text>
+  <text x="426" y="508" class="node-sub">send-email tool</text>
+
+  <!-- ═══ EDGES ═══ -->
+
+  <!-- ① Browser → Agent (SSE in) -->
+  <line x1="240" y1="116" x2="380" y2="116" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="380" y1="116" x2="380" y2="211" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="268" y="98" width="48" height="14" rx="3" fill="#000000"/>
+  <text x="292" y="109" class="edge-label" text-anchor="middle">SSE</text>
+
+  <!-- ④ Response streams back (agent → browser) -->
+  <line x1="580" y1="280" x2="660" y2="280" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="660" y1="280" x2="660" y2="116" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="660" y1="116" x2="227" y2="116" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="668" y="264" width="84" height="14" rx="3" fill="#000000"/>
+  <text x="710" y="275" class="edge-label" text-anchor="middle">stream back</text>
+
+  <!-- ③ Agent → Corpus (retrieval) -->
+  <line x1="440" y1="316" x2="440" y2="390" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="440" y1="390" x2="160" y2="390" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="160" y1="390" x2="160" y2="445" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="276" y="374" width="72" height="14" rx="3" fill="#000000"/>
+  <text x="312" y="385" class="edge-label" text-anchor="middle">retrieval</text>
+
+  <!-- ⑤ Agent → Resend MCP Cloud Run boundary -->
+  <line x1="520" y1="316" x2="520" y2="437" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="526" y="398" width="60" height="14" rx="3" fill="#000000"/>
+  <text x="556" y="409" class="edge-label" text-anchor="middle">MCP call</text>
+
+  <!-- ═══ STEP CIRCLES ═══ -->
+
+  <!-- ① vertical (380,116)→(380,211) midpoint (380,163) -->
+  <circle cx="380" cy="163" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="380" y="168" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="1">1</text>
+
+  <!-- ② on hub top border -->
+  <circle cx="480" cy="240" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="480" y="245" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="2">2</text>
+
+  <!-- ③ vertical (440,316)→(440,390) midpoint (440,353) -->
+  <circle cx="440" cy="353" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="440" y="358" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="3">3</text>
+
+  <!-- ④ vertical (660,280)→(660,116) midpoint (660,196) -->
+  <circle cx="660" cy="196" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="660" y="201" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="4">4</text>
+
+  <!-- ⑤ vertical (520,316)→(520,437) midpoint (520,376) — above label -->
+  <circle cx="520" cy="410" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5"/>
+  <text x="520" y="415" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="5">5</text>
+
+  <!-- ═══ Animation flow data ═══ -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="240,116 380,116 380,211" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-step-reveal="2" data-delay="0.9"/>
+    <g data-traveler-path="440,316 440,390 160,390 160,445" data-color="#00FFD1" data-step="3" data-delay="1.2"/>
+    <g data-traveler-path="580,280 660,280 660,116 227,116" data-color="#00FFD1" data-step="4" data-delay="1.9"/>
+    <g data-traveler-path="520,316 520,437" data-color="#00FFD1" data-step="5" data-delay="2.6"/>
+  </g>
+</svg>

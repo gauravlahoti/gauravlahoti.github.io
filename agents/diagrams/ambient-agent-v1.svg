@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <!-- Caption -->
+  <text x="40" y="52" class="caption">// pulse · background · scheduled · no human in loop</text>
+
+  <!-- GCP outer boundary -->
+  <rect x="20" y="66" width="920" height="472" rx="16" fill="none" stroke="#4285F4" stroke-width="1" opacity="0.35"/>
+  <rect x="428" y="55" width="106" height="22" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/google-cloud.png" x="432" y="57" width="18" height="18"/>
+  <text x="454" y="70" class="caption">Google Cloud</text>
+
+  <!-- Cloud Scheduler — x=40 y=80 200×72 -->
+  <rect x="40" y="80" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/cloud-scheduler.svg" x="50" y="102" width="28" height="28"/>
+  <text x="86" y="108" class="node-title">Cloud Scheduler</text>
+  <text x="86" y="124" class="node-sub">Mon + Thu · 08:00 IST</text>
+  <text x="86" y="140" class="node-sub">POST /api/ambient/run</text>
+
+  <!-- Digest Email — x=720 y=80 200×72 -->
+  <rect x="720" y="80" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="730" y="102" width="28" height="28" rx="7" fill="#EA4335"/>
+  <rect x="734" y="107" width="20" height="14" rx="1" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <path d="M734,108 L744,116 L754,108" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <text x="766" y="108" class="node-title">Digest Email</text>
+  <text x="766" y="124" class="node-sub">Gaurav's inbox</text>
+  <text x="766" y="140" class="node-sub">weekly digest</text>
+
+  <!-- Cloud Run boundary (encloses hub) — center x=480 -->
+  <rect x="358" y="226" width="244" height="124" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="432" y="216" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="436" y="218" width="14" height="14"/>
+  <text x="453" y="230" class="caption">Cloud Run</text>
+
+  <!-- Ambient Agent hub — x=380 y=250 200×80 -->
+  <rect x="380" y="250" width="200" height="80" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="390" y="278" width="24" height="24"/>
+  <text x="422" y="280" class="node-title">Ambient Agent</text>
+  <image href="/diagram-icons/gemini.png" x="422" y="287" width="11" height="11"/>
+  <text x="436" y="296" class="node-sub">Gemini 3.5 Flash</text>
+  <text x="422" y="310" class="node-sub">ADK Python</text>
+
+  <!-- Cloudflare D1 — x=180 y=452 200×72 (center x=280) -->
+  <rect x="180" y="452" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="190" y="474" width="28" height="28" rx="7" fill="#F48120"/>
+  <ellipse cx="204" cy="482" rx="8" ry="3.5" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <rect x="196" y="482" width="16" height="8" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <ellipse cx="204" cy="490" rx="8" ry="3.5" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <text x="226" y="476" class="node-title">Cloudflare D1</text>
+  <text x="226" y="492" class="node-sub">interactions</text>
+  <text x="226" y="506" class="node-sub">page views · 90-day TTL</text>
+
+  <!-- Resend MCP Cloud Run boundary — x=576 y=444 228×88 (center x=690) -->
+  <rect x="576" y="444" width="228" height="88" rx="10" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="642" y="434" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="646" y="436" width="14" height="14"/>
+  <text x="663" y="448" class="caption">Cloud Run</text>
+
+  <!-- Resend MCP — x=590 y=452 200×72 (center x=690) -->
+  <rect x="590" y="452" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="600" y="474" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <rect x="605" y="479" width="10" height="14" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <line x1="607" y1="479" x2="607" y2="474" stroke="#888888" stroke-width="1.5"/>
+  <line x1="613" y1="479" x2="613" y2="474" stroke="#888888" stroke-width="1.5"/>
+  <text x="636" y="480" class="node-title">Resend MCP</text>
+  <text x="636" y="496" class="node-sub">Remote MCP</text>
+
+  <!-- ═══ EDGES ═══ -->
+
+  <!-- ① Cloud Scheduler → Cloud Run boundary top -->
+  <line x1="240" y1="116" x2="380" y2="116" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="380" y1="116" x2="380" y2="219" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="266" y="92" width="88" height="14" rx="3" fill="#000"/>
+  <text x="310" y="103" class="edge-label" text-anchor="middle">HTTP trigger</text>
+
+  <!-- ② Agent → D1 (D1 center x=280) -->
+  <line x1="448" y1="330" x2="448" y2="376" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="448" y1="376" x2="280" y2="376" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="280" y1="376" x2="280" y2="445" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="322" y="352" width="110" height="14" rx="3" fill="#000"/>
+  <text x="377" y="363" class="edge-label" text-anchor="middle">fetch interactions</text>
+
+  <!-- ③ Agent → Resend MCP Cloud Run boundary (center x=690) -->
+  <line x1="524" y1="330" x2="524" y2="392" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="524" y1="392" x2="690" y2="392" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="690" y1="392" x2="690" y2="437" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="579" y="368" width="56" height="14" rx="3" fill="#000"/>
+  <text x="607" y="379" class="edge-label" text-anchor="middle">MCP call</text>
+
+  <!-- ④ Resend MCP right(780,488) → route(820) → Digest Email bottom(820,159) -->
+  <line x1="790" y1="488" x2="820" y2="488" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="820" y1="488" x2="820" y2="159" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="826" y="316" width="84" height="14" rx="3" fill="#000"/>
+  <text x="868" y="327" class="edge-label" text-anchor="middle">digest email</text>
+
+  <!-- ═══ STEP CIRCLES ═══ -->
+
+  <!-- ① vertical (380,116)→(380,219) midpoint (380,167) -->
+  <circle cx="380" cy="167" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="380" y="172" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="1">1</text>
+
+  <!-- ② horizontal (448,376)→(280,376), circle after label -->
+  <circle cx="430" cy="376" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="430" y="381" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="2">2</text>
+
+  <!-- ③ vertical (690,392)→(690,437) midpoint (690,414) -->
+  <circle cx="690" cy="414" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="690" y="419" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="3">3</text>
+
+  <!-- ④ vertical (820,488)→(820,159) midpoint (820,323) -->
+  <circle cx="820" cy="323" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="820" y="328" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="4">4</text>
+
+  <!-- ═══ Animation flow data ═══ -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="240,116 380,116 380,219" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-traveler-path="448,330 448,376 280,376 280,445" data-color="#00FFD1" data-step="2" data-delay="0.7"/>
+    <g data-traveler-path="524,330 524,392 690,392 690,437" data-color="#00FFD1" data-step="3" data-delay="1.4"/>
+    <g data-traveler-path="790,488 820,488 820,159" data-color="#00FFD1" data-step="4" data-delay="2.1"/>
+  </g>
+</svg>

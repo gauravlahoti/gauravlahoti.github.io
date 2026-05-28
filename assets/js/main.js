@@ -69,6 +69,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initAgentWidgetWhenIdle(profile);
     initMobileEnhancements(profile);
     initAnalyticsWhenIdle(profile);
+    initPageLinks();
     auditConsole();
 })();
 
@@ -713,6 +714,24 @@ function initLenis() {
         if (!target) return;
         e.preventDefault();
         scrollToTarget(target);
+    });
+}
+
+/* ---------- page-link transition ---------- */
+
+function initPageLinks() {
+    document.addEventListener("click", async (e) => {
+        const a = e.target.closest("[data-page-link]");
+        if (!a) return;
+        const href = a.getAttribute("href");
+        if (!href) return;
+        e.preventDefault();
+        try {
+            const { runPageTransition } = await import(v("./page-transition.js"));
+            runPageTransition(href);
+        } catch (_) {
+            window.location.href = href;
+        }
     });
 }
 
