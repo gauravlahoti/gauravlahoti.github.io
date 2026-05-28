@@ -16,6 +16,7 @@ from __future__ import annotations
 import html as _htmllib
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.app_utils.ambient_data import get_visitor_stats
@@ -72,21 +73,27 @@ def _int(n: Any) -> int:
 
 _GEO_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#64748b"]
 
+# Gemini 2.5 Flash pricing (USD per 1M tokens, non-thinking)
+_PRICE_IN  = 0.15   # per 1M input tokens
+_PRICE_OUT = 0.60   # per 1M output tokens
+
+# Model names (keep in sync with agent.py / ambient_agent.py)
+_MODEL_CHAT    = "gemini-2.5-flash"
+_MODEL_AMBIENT = "gemini-2.5-flash"
+
 
 def _delta_badge(curr: Any, prev: Any) -> str:
     """▲/▼ badge vs prior window. Always returns a span so card height stays consistent."""
     c, p = _int(curr), _int(prev)
     if p == 0:
-        # invisible placeholder keeps the badge row the same height as cards that have one
-        text = "· first" if c else "&nbsp;"
-        color = _MUTED if c else "transparent"
-        return f'<span style="color:{color};font-size:12px">{text}</span>'
+        # No prior data — invisible placeholder preserves card height, no confusing label
+        return f'<span style="color:transparent;font-size:12px">&nbsp;</span>'
     pct = round((c - p) / p * 100)
     if pct > 0:
         return f'<span style="color:{_GOOD};font-size:12px;font-weight:600">▲ {pct}%</span>'
     if pct < 0:
         return f'<span style="color:{_BAD};font-size:12px;font-weight:600">▼ {abs(pct)}%</span>'
-    return f'<span style="color:{_MUTED};font-size:12px">no change</span>'
+    return f'<span style="color:{_MUTED};font-size:12px">— no change</span>'
 
 
 def _stat_card(value: str, label: str, badge: str = "", width: str = "25%",
@@ -165,6 +172,44 @@ def _fmt_k(n: Any) -> str:
     return str(v)
 
 
+def _fmt_cost(tokens_in: Any, tokens_out: Any) -> str:
+    cost = (_int(tokens_in) * _PRICE_IN + _int(tokens_out) * _PRICE_OUT) / 1_000_000
+    if cost == 0:
+        return "$0.00"
+    if cost < 0.001:
+        return f"${cost:.5f}"
+    if cost < 0.01:
+        return f"${cost:.4f}"
+    if cost < 1:
+        return f"${cost:.3f}"
+    return f"${cost:.2f}"
+
+
+def _fmt_date(dt: datetime) -> str:
+    return dt.strftime("%d %b").lstrip("0")  # "26 May", "4 Jun"
+
+
+def _token_row(tin: Any, tout: Any, tin_prev: Any = None, tout_prev: Any = None) -> str:
+    """Compact 3-card row: tokens in, tokens out, estimated cost — embedded under stat rows."""
+    cost_badge = ""
+    if tin_prev is not None and tout_prev is not None:
+        prev_cost_raw = (_int(tin_prev) * _PRICE_IN + _int(tout_prev) * _PRICE_OUT) / 1_000_000
+        curr_cost_raw = (_int(tin) * _PRICE_IN + _int(tout) * _PRICE_OUT) / 1_000_000
+        prev_micro = int(prev_cost_raw * 1_000_000)
+        curr_micro = int(curr_cost_raw * 1_000_000)
+        cost_badge = _delta_badge(curr_micro, prev_micro)
+    return _cards_row([
+        _stat_card(_fmt_k(tin),  "Tokens in",
+                   _delta_badge(tin, tin_prev) if tin_prev is not None else "",
+                   width="33%", accent="#94a3b8"),
+        _stat_card(_fmt_k(tout), "Tokens out",
+                   _delta_badge(tout, tout_prev) if tout_prev is not None else "",
+                   width="34%", accent="#94a3b8"),
+        _stat_card(_fmt_cost(tin, tout), "Est. cost (USD)",
+                   cost_badge, width="33%", accent="#94a3b8"),
+    ])
+
+
 
 def _build_dashboard(stats: dict[str, Any]) -> str:
     """Render the deterministic metrics dashboard from a get_visitor_stats dict."""
@@ -174,16 +219,23 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
     win = stats.get("window") or {}
     prev = stats.get("prev_window") or {}
 
-    # ── All-time strip ────────────────────────────────────────────────────────
-    all_time = _cards_row([
-        _stat_card(_fmt_int(at.get("pageviews")),      "Pageviews",     width="20%", accent="#6366f1"),
-        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors",     width="20%", accent="#06b6d4", hero=True),
-        _stat_card(_fmt_int(at.get("downloads")),       "Downloads",    width="20%", accent="#10b981"),
-        _stat_card(_fmt_int(at.get("conversations")),   "Conversations",width="20%", accent="#f59e0b", hero=True),
-        _stat_card(_fmt_int(at.get("unique_locations")),"Locations",    width="20%", accent="#8b5cf6"),
-    ])
+    # ── Date ranges for headings ──────────────────────────────────────────────
+    now_utc = datetime.now(timezone.utc)
+    win_start  = now_utc - timedelta(days=days)
+    prev_start = now_utc - timedelta(days=2 * days)
+    window_label = f"{_fmt_date(win_start)} – {_fmt_date(now_utc)}"
+    prev_label   = f"{_fmt_date(prev_start)} – {_fmt_date(win_start)}"
 
-    # ── This-week strip with deltas ───────────────────────────────────────────
+    # ── All-time strip + embedded token row ───────────────────────────────────
+    all_time = _cards_row([
+        _stat_card(_fmt_int(at.get("pageviews")),       "Pageviews",      width="20%", accent="#6366f1"),
+        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors",       width="20%", accent="#06b6d4", hero=True),
+        _stat_card(_fmt_int(at.get("downloads")),       "Downloads",      width="20%", accent="#10b981"),
+        _stat_card(_fmt_int(at.get("conversations")),   "Conversations",  width="20%", accent="#f59e0b", hero=True),
+        _stat_card(_fmt_int(at.get("unique_locations")), "Locations",     width="20%", accent="#8b5cf6"),
+    ]) + _token_row(at.get("tokens_in"), at.get("tokens_out"))
+
+    # ── This-window strip + embedded token row with deltas ────────────────────
     this_week = _cards_row([
         _stat_card(_fmt_int(win.get("unique_visitors")), "Visitors",
                    _delta_badge(win.get("unique_visitors"), prev.get("unique_visitors")),
@@ -200,23 +252,10 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
         _stat_card(_fmt_int(win.get("unique_locations")), "Locations",
                    _delta_badge(win.get("unique_locations"), prev.get("unique_locations")),
                    width="20%", accent="#8b5cf6"),
-    ])
-
-    # ── Token usage ───────────────────────────────────────────────────────────
-    win_tokens = _int(win.get("tokens_in", 0)) + _int(win.get("tokens_out", 0))
-    prev_tokens = _int(prev.get("tokens_in", 0)) + _int(prev.get("tokens_out", 0))
-    at_tokens = _int(at.get("tokens_in", 0)) + _int(at.get("tokens_out", 0))
-    tokens_row = _cards_row([
-        _stat_card(_fmt_k(win.get("tokens_in")),  "Tokens in (window)",
-                   _delta_badge(win.get("tokens_in"), prev.get("tokens_in")),
-                   width="33%", accent="#6366f1"),
-        _stat_card(_fmt_k(win.get("tokens_out")), "Tokens out (window)",
-                   _delta_badge(win.get("tokens_out"), prev.get("tokens_out")),
-                   width="34%", accent="#f59e0b"),
-        _stat_card(_fmt_k(at_tokens),             "Total tokens (all-time)",
-                   _delta_badge(win_tokens, prev_tokens),
-                   width="33%", accent="#8b5cf6"),
-    ])
+    ]) + _token_row(
+        win.get("tokens_in"), win.get("tokens_out"),
+        prev.get("tokens_in"), prev.get("tokens_out"),
+    )
 
     # ── Top questions (capped at 5 to keep email compact) ─────────────────────
     tq = (stats.get("top_questions") or [])[:5]
@@ -301,18 +340,31 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
             f'✓ No errors this window.</p>'
         )
 
+    model_bar = (
+        f'<div style="margin-top:10px;font-size:12px;color:#94a3b8">'
+        f'Chat: <span style="color:#c7d2fe;font-weight:600">{_MODEL_CHAT}</span>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+        f'Digest: <span style="color:#c7d2fe;font-weight:600">{_MODEL_AMBIENT}</span>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+        f'Cost: ${_PRICE_IN}/1M in · ${_PRICE_OUT}/1M out'
+        f'</div>'
+    )
+
     return (
         f'<div style="background:{_INK};border-radius:12px;padding:20px 22px;color:#fff;margin-bottom:6px">'
         f'<div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">Portfolio pulse</div>'
         f'<div style="font-size:22px;font-weight:700;margin-top:4px">Visitor intelligence digest</div>'
-        f'<div style="font-size:13px;color:#cbd5e1;margin-top:4px">Last {days} days vs the prior {days}</div>'
+        f'<div style="font-size:13px;color:#cbd5e1;margin-top:6px">'
+        f'This report: <strong style="color:#fff">{window_label}</strong>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+        f'Prior period: {prev_label}'
+        f'</div>'
+        + model_bar +
         f"</div>"
         + _section_title("All-time totals")
         + all_time
-        + _section_title(f"This window — last {days} days")
+        + _section_title(f"Since last report &nbsp;<span style='font-size:13px;font-weight:400;color:{_MUTED}'>{window_label}</span>")
         + this_week
-        + _section_title("Agent token usage")
-        + tokens_row
         + _section_title("Top questions")
         + questions
         + _section_title("Where visitors came from")
