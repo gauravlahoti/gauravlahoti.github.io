@@ -881,7 +881,9 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM resume_downloads)                    AS downloads,
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions) AS conversations,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
-                FROM page_views WHERE country IS NOT NULL AND country != '') AS unique_locations`
+                FROM page_views WHERE country IS NOT NULL AND country != '') AS unique_locations,
+               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions) AS tokens_in,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions) AS tokens_out`
         );
 
         const win = await one(
@@ -893,7 +895,9 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1)                  AS agent_turns,
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status != 'ok') AS agent_errors,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
-                FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations`,
+                FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations,
+               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1) AS tokens_in,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1) AS tokens_out`,
             winStart
         );
 
@@ -904,7 +908,9 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1 AND downloaded_at <= ?2)       AS downloads,
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
-                FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations`,
+                FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations,
+               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_in,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_out`,
             prevStart, winStart
         );
 

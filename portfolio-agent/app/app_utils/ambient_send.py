@@ -70,28 +70,38 @@ def _int(n: Any) -> int:
         return 0
 
 
+_GEO_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#64748b"]
+
+
 def _delta_badge(curr: Any, prev: Any) -> str:
-    """A small ▲/▼ percentage badge vs the prior window (or '' when n/a)."""
+    """▲/▼ badge vs prior window. Always returns a span so card height stays consistent."""
     c, p = _int(curr), _int(prev)
     if p == 0:
-        return f' <span style="color:{_MUTED};font-size:12px">· new</span>' if c else ""
+        # invisible placeholder keeps the badge row the same height as cards that have one
+        text = "· first" if c else "&nbsp;"
+        color = _MUTED if c else "transparent"
+        return f'<span style="color:{color};font-size:12px">{text}</span>'
     pct = round((c - p) / p * 100)
     if pct > 0:
-        return f' <span style="color:{_GOOD};font-size:12px;font-weight:600">▲ {pct}%</span>'
+        return f'<span style="color:{_GOOD};font-size:12px;font-weight:600">▲ {pct}%</span>'
     if pct < 0:
-        return f' <span style="color:{_BAD};font-size:12px;font-weight:600">▼ {abs(pct)}%</span>'
-    return f' <span style="color:{_MUTED};font-size:12px">no change</span>'
+        return f'<span style="color:{_BAD};font-size:12px;font-weight:600">▼ {abs(pct)}%</span>'
+    return f'<span style="color:{_MUTED};font-size:12px">no change</span>'
 
 
-def _stat_card(value: str, label: str, badge: str = "", width: str = "25%", accent: str = "") -> str:
+def _stat_card(value: str, label: str, badge: str = "", width: str = "25%",
+               accent: str = "", hero: bool = False) -> str:
     border = f"border-top:3px solid {accent};" if accent else ""
+    num_size = "30px" if hero else "24px"
+    bg = _SOFT
     return (
         f'<td width="{width}" style="padding:6px">'
-        f'<div style="background:{_SOFT};border-radius:10px;padding:14px 8px;text-align:center;{border}">'
-        f'<div style="font-size:24px;font-weight:700;color:{_INK};line-height:1.1">{value}</div>'
+        f'<div style="background:{bg};border-radius:10px;padding:14px 8px 12px;'
+        f'text-align:center;{border}">'
+        f'<div style="font-size:{num_size};font-weight:700;color:{_INK};line-height:1.1">{value}</div>'
         f'<div style="font-size:11px;color:{_MUTED};margin-top:5px;text-transform:uppercase;'
         f'letter-spacing:.4px">{label}</div>'
-        f'<div style="margin-top:4px">{badge}</div>'
+        f'<div style="min-height:18px;margin-top:4px">{badge}</div>'
         f"</div></td>"
     )
 
@@ -106,7 +116,7 @@ def _section_title(text: str) -> str:
 def _bar(pct: float, color: str = _ACCENT) -> str:
     w = max(2, min(100, round(pct)))
     return (
-        f'<div style="background:{_SOFT};border-radius:4px;height:8px;width:100%">'
+        f'<div style="background:{_LINE};border-radius:4px;height:8px;width:100%">'
         f'<div style="background:{color};height:8px;border-radius:4px;width:{w}%"></div>'
         f"</div>"
     )
@@ -119,41 +129,40 @@ def _cards_row(cards: list[str]) -> str:
     )
 
 
-_DONUT_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#64748b"]
-
-
-def _svg_donut(items: list[tuple[str, int]], size: int = 110) -> str:
-    """Inline SVG donut chart. items = [(label, count), ...]. Works in Gmail/Apple Mail."""
-    import math
-    if not items:
-        return ""
+def _stacked_bar(items: list[tuple[str, int]]) -> str:
+    """Horizontal stacked percentage bar — pure table HTML, works in all email clients."""
     total = sum(c for _, c in items) or 1
-    R, cx, cy = 38, size // 2, size // 2
-    circ = 2 * math.pi * R
-    circles = []
-    offset = 0.0
-    # Background ring
-    circles.append(
-        f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{_LINE}" stroke-width="14"/>'
-    )
+    cells = []
     for i, (_, count) in enumerate(items):
-        dash = (count / total) * circ
-        gap = circ - dash
-        color = _DONUT_COLORS[i % len(_DONUT_COLORS)]
-        circles.append(
-            f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{color}" '
-            f'stroke-width="14" stroke-dasharray="{dash:.2f} {gap:.2f}" '
-            f'stroke-dashoffset="-{offset:.2f}"/>'
+        pct = round(count / total * 100)
+        if pct < 1:
+            continue
+        color = _GEO_COLORS[i % len(_GEO_COLORS)]
+        radius = ""
+        if i == 0:
+            radius = "border-radius:6px 0 0 6px;"
+        if i == len(items) - 1:
+            radius += "border-radius:0 6px 6px 0;"
+        cells.append(
+            f'<td width="{pct}%" style="background:{color};height:14px;{radius}"></td>'
         )
-        offset += dash
-    # Rotate so first segment starts at top
     return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" '
-        f'xmlns="http://www.w3.org/2000/svg">'
-        f'<g transform="rotate(-90 {cx} {cy})">'
-        + "".join(circles) +
-        f'</g></svg>'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border-collapse:collapse;border-radius:6px;overflow:hidden">'
+        f'<tr>{"".join(cells)}</tr></table>'
     )
+
+
+def _fmt_k(n: Any) -> str:
+    """Format large numbers as 1.2K, 45K, etc."""
+    v = _int(n)
+    if v >= 1_000_000:
+        return f"{v/1_000_000:.1f}M"
+    if v >= 10_000:
+        return f"{v//1000}K"
+    if v >= 1_000:
+        return f"{v/1000:.1f}K"
+    return str(v)
 
 
 
@@ -165,20 +174,20 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
     win = stats.get("window") or {}
     prev = stats.get("prev_window") or {}
 
-    # All-time strip ("since inception") — two rows of stat cards.
+    # ── All-time strip ────────────────────────────────────────────────────────
     all_time = _cards_row([
-        _stat_card(_fmt_int(at.get("pageviews")), "Pageviews", width="20%", accent="#6366f1"),
-        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors", width="20%", accent="#06b6d4"),
-        _stat_card(_fmt_int(at.get("downloads")), "Downloads", width="20%", accent="#10b981"),
-        _stat_card(_fmt_int(at.get("conversations")), "Conversations", width="20%", accent="#f59e0b"),
-        _stat_card(_fmt_int(at.get("unique_locations")), "Locations", width="20%", accent="#8b5cf6"),
+        _stat_card(_fmt_int(at.get("pageviews")),      "Pageviews",     width="20%", accent="#6366f1"),
+        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors",     width="20%", accent="#06b6d4", hero=True),
+        _stat_card(_fmt_int(at.get("downloads")),       "Downloads",    width="20%", accent="#10b981"),
+        _stat_card(_fmt_int(at.get("conversations")),   "Conversations",width="20%", accent="#f59e0b", hero=True),
+        _stat_card(_fmt_int(at.get("unique_locations")),"Locations",    width="20%", accent="#8b5cf6"),
     ])
 
-    # This-week strip with deltas vs the prior window.
+    # ── This-week strip with deltas ───────────────────────────────────────────
     this_week = _cards_row([
         _stat_card(_fmt_int(win.get("unique_visitors")), "Visitors",
                    _delta_badge(win.get("unique_visitors"), prev.get("unique_visitors")),
-                   width="20%", accent="#06b6d4"),
+                   width="20%", accent="#06b6d4", hero=True),
         _stat_card(_fmt_int(win.get("pageviews")), "Pageviews",
                    _delta_badge(win.get("pageviews"), prev.get("pageviews")),
                    width="20%", accent="#6366f1"),
@@ -187,114 +196,128 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
                    width="20%", accent="#10b981"),
         _stat_card(_fmt_int(win.get("conversations")), "Conversations",
                    _delta_badge(win.get("conversations"), prev.get("conversations")),
-                   width="20%", accent="#f59e0b"),
+                   width="20%", accent="#f59e0b", hero=True),
         _stat_card(_fmt_int(win.get("unique_locations")), "Locations",
                    _delta_badge(win.get("unique_locations"), prev.get("unique_locations")),
                    width="20%", accent="#8b5cf6"),
     ])
 
-    # Top questions with frequency bars.
-    tq = stats.get("top_questions") or []
+    # ── Token usage ───────────────────────────────────────────────────────────
+    win_tokens = _int(win.get("tokens_in", 0)) + _int(win.get("tokens_out", 0))
+    prev_tokens = _int(prev.get("tokens_in", 0)) + _int(prev.get("tokens_out", 0))
+    at_tokens = _int(at.get("tokens_in", 0)) + _int(at.get("tokens_out", 0))
+    tokens_row = _cards_row([
+        _stat_card(_fmt_k(win.get("tokens_in")),  "Tokens in (window)",
+                   _delta_badge(win.get("tokens_in"), prev.get("tokens_in")),
+                   width="33%", accent="#6366f1"),
+        _stat_card(_fmt_k(win.get("tokens_out")), "Tokens out (window)",
+                   _delta_badge(win.get("tokens_out"), prev.get("tokens_out")),
+                   width="34%", accent="#f59e0b"),
+        _stat_card(_fmt_k(at_tokens),             "Total tokens (all-time)",
+                   _delta_badge(win_tokens, prev_tokens),
+                   width="33%", accent="#8b5cf6"),
+    ])
+
+    # ── Top questions (capped at 5 to keep email compact) ─────────────────────
+    tq = (stats.get("top_questions") or [])[:5]
     if tq:
         top = max(_int(q.get("count")) for q in tq) or 1
         rows = []
         for i, q in enumerate(tq, 1):
             c = _int(q.get("count"))
             rows.append(
-                f'<tr><td style="padding:7px 8px 7px 0;color:{_MUTED};font-size:13px;'
-                f'vertical-align:top;width:18px">{i}</td>'
-                f'<td style="padding:7px 0;font-size:13px;color:{_INK}">'
-                f'{_esc(str(q.get("question",""))[:120])}'
-                f'<div style="margin-top:5px">{_bar(c / top * 100)}</div></td>'
-                f'<td style="padding:7px 0 7px 12px;text-align:right;font-size:13px;'
-                f'font-weight:600;color:{_INK};vertical-align:top;width:34px">{c}</td></tr>'
+                f'<tr><td style="padding:6px 8px 6px 0;color:{_MUTED};font-size:12px;'
+                f'vertical-align:top;width:16px;font-weight:600">{i}</td>'
+                f'<td style="padding:6px 0;font-size:13px;color:{_INK}">'
+                f'{_esc(str(q.get("question",""))[:100])}'
+                f'<div style="margin-top:4px">{_bar(c / top * 100)}</div></td>'
+                f'<td style="padding:6px 0 6px 10px;text-align:right;font-size:13px;'
+                f'font-weight:700;color:{_ACCENT};vertical-align:top;width:28px">{c}</td></tr>'
             )
         questions = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
             + "".join(rows) + "</table>"
         )
     else:
-        questions = f'<p style="color:{_MUTED};font-size:13px">No questions asked in this window yet.</p>'
+        questions = f'<p style="color:{_MUTED};font-size:13px">No questions this window.</p>'
 
-    # Geo: donut chart + bar table side-by-side.
+    # ── Geo: stacked % bar + city breakdown ───────────────────────────────────
     geo = stats.get("geo") or []
     if geo:
-        gtop = max(_int(g.get("count")) for g in geo) or 1
-        geo_total = sum(_int(g.get("count")) for g in geo)
-        donut_items: list[tuple[str, int]] = []
-        grows = []
-        for i, g in enumerate(geo):
-            c = _int(g.get("count"))
-            city = str(g.get("city") or "").strip()
-            country = str(g.get("country") or "").strip()
-            label = ", ".join([p for p in (city, country) if p]) or "Unknown"
-            color = _DONUT_COLORS[i % len(_DONUT_COLORS)]
-            donut_items.append((label, c))
-            grows.append(
-                f'<tr><td style="padding:5px 10px 5px 0;font-size:12px;color:{_INK};'
-                f'white-space:nowrap;width:42%">'
-                f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'
+        geo_items = [(
+            ", ".join(p for p in (str(g.get("city") or "").strip(),
+                                  str(g.get("country") or "").strip()) if p) or "Unknown",
+            _int(g.get("count"))
+        ) for g in geo]
+        gtop = max(c for _, c in geo_items) or 1
+
+        stack = _stacked_bar(geo_items)
+
+        city_rows = []
+        for i, (label, c) in enumerate(geo_items):
+            color = _GEO_COLORS[i % len(_GEO_COLORS)]
+            city_rows.append(
+                f'<tr>'
+                f'<td style="padding:5px 8px 5px 0;font-size:12px;color:{_INK};width:36%">'
+                f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
                 f'background:{color};margin-right:5px;vertical-align:middle"></span>'
                 f'{_esc(label)}</td>'
-                f'<td style="padding:5px 0;width:42%">{_bar(c / gtop * 100, color)}</td>'
-                f'<td style="padding:5px 0 5px 8px;text-align:right;font-size:12px;'
-                f'font-weight:600;color:{_INK}">{c}</td></tr>'
+                f'<td style="padding:5px 4px;width:52%">{_bar(c / gtop * 100, color)}</td>'
+                f'<td style="padding:5px 0 5px 6px;text-align:right;font-size:12px;'
+                f'font-weight:700;color:{_INK};width:12%">{c}</td>'
+                f'</tr>'
             )
-        donut_svg = _svg_donut(donut_items)
-        bar_table = (
+        city_table = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
-            + "".join(grows) + "</table>"
+            + "".join(city_rows) + "</table>"
         )
-        geo_html = (
-            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
-            f'<tr><td width="120" style="vertical-align:top;padding-right:16px">'
-            f'{donut_svg}</td>'
-            f'<td style="vertical-align:top">{bar_table}</td></tr></table>'
-        )
+        geo_html = stack + '<div style="margin-top:10px">' + city_table + "</div>"
     else:
-        geo_html = f'<p style="color:{_MUTED};font-size:13px">No geo data captured yet (analytics starts collecting from launch).</p>'
+        geo_html = f'<p style="color:{_MUTED};font-size:13px">No geo data yet.</p>'
 
-    # Errors / no-response scenarios.
+    # ── Errors ────────────────────────────────────────────────────────────────
     errs = stats.get("errors") or []
     if errs:
         erows = [
-            '<tr style="background:#fef2f2">'
-            f'<td style="padding:8px;font-size:12px;color:{_INK};border:1px solid #fecaca">'
-            f'{_esc(str(e.get("question",""))[:90])}</td>'
-            f'<td style="padding:8px;font-size:12px;color:{_BAD};border:1px solid #fecaca;'
-            f'white-space:nowrap">{_esc(e.get("status",""))}</td></tr>'
+            f'<tr style="background:#fef2f2">'
+            f'<td style="padding:7px 8px;font-size:12px;color:{_INK};border:1px solid #fecaca">'
+            f'{_esc(str(e.get("question",""))[:80])}</td>'
+            f'<td style="padding:7px 8px;font-size:12px;color:{_BAD};border:1px solid #fecaca;'
+            f'white-space:nowrap;width:90px">{_esc(e.get("status",""))}</td></tr>'
             for e in errs
         ]
         errors_html = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             'style="border-collapse:collapse">'
-            f'<tr><th align="left" style="padding:8px;font-size:11px;color:{_MUTED};'
-            'text-transform:uppercase">Question</th>'
-            f'<th align="left" style="padding:8px;font-size:11px;color:{_MUTED};'
-            'text-transform:uppercase">Status</th></tr>'
+            f'<tr><th align="left" style="padding:7px 8px;font-size:11px;color:{_MUTED};'
+            'text-transform:uppercase;background:#f8fafc">Question</th>'
+            f'<th align="left" style="padding:7px 8px;font-size:11px;color:{_MUTED};'
+            'text-transform:uppercase;background:#f8fafc;width:90px">Status</th></tr>'
             + "".join(erows) + "</table>"
         )
     else:
         errors_html = (
-            f'<p style="color:{_GOOD};font-size:13px;font-weight:600">'
-            f'✓ No errors or empty responses this week.</p>'
+            f'<p style="color:{_GOOD};font-size:13px;font-weight:600;margin:4px 0">'
+            f'✓ No errors this window.</p>'
         )
 
     return (
         f'<div style="background:{_INK};border-radius:12px;padding:20px 22px;color:#fff;margin-bottom:6px">'
-        f'<div style="font-size:13px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">Portfolio pulse</div>'
-        f'<div style="font-size:20px;font-weight:700;margin-top:4px">Visitor intelligence digest</div>'
+        f'<div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">Portfolio pulse</div>'
+        f'<div style="font-size:22px;font-weight:700;margin-top:4px">Visitor intelligence digest</div>'
         f'<div style="font-size:13px;color:#cbd5e1;margin-top:4px">Last {days} days vs the prior {days}</div>'
         f"</div>"
         + _section_title("All-time totals")
         + all_time
-        + _section_title(f"This week (last {days} days)")
+        + _section_title(f"This window — last {days} days")
         + this_week
+        + _section_title("Agent token usage")
+        + tokens_row
         + _section_title("Top questions")
         + questions
         + _section_title("Where visitors came from")
         + geo_html
-        + _section_title("Errors & no-response")
+        + _section_title("Errors &amp; no-response")
         + errors_html
     )
 
