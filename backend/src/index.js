@@ -879,7 +879,9 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM page_views)                          AS pageviews,
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views)      AS unique_visitors,
                (SELECT COUNT(*) FROM resume_downloads)                    AS downloads,
-               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions) AS conversations`
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions) AS conversations,
+               (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
+                FROM page_views WHERE country IS NOT NULL AND country != '') AS unique_locations`
         );
 
         const win = await one(
@@ -889,7 +891,9 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1)                AS downloads,
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1) AS conversations,
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1)                  AS agent_turns,
-               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status != 'ok') AS agent_errors`,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status != 'ok') AS agent_errors,
+               (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
+                FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations`,
             winStart
         );
 
@@ -897,7 +901,10 @@ async function handleAmbientStats(request, env) {
             `SELECT
                (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                    AS pageviews,
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2) AS unique_visitors,
-               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1 AND downloaded_at <= ?2)       AS downloads`,
+               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1 AND downloaded_at <= ?2)       AS downloads,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
+               (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
+                FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations`,
             prevStart, winStart
         );
 

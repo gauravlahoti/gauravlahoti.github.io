@@ -34,13 +34,19 @@ audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit 
 	uv run python -m app.app_utils.audit_log_smoke
 
 deploy: ## Deploy to Cloud Run (cpu-boost + gen2 + concurrency=80 for fast cold starts).
-	agents-cli deploy -- \
+	gcloud beta run deploy portfolio-agent \
+		--project gcp-experiments-490306 \
+		--region us-east1 \
+		--source . \
+		--memory 4Gi \
 		--allow-unauthenticated \
 		--cpu-throttling \
 		--cpu-boost \
 		--execution-environment gen2 \
 		--concurrency 80 \
-		--min-instances 0
+		--min-instances 0 \
+		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-agent-593919045544.us-east1.run.app \
+		--labels created-by=adk
 
 clean: ## Drop __pycache__ and .pytest_cache.
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

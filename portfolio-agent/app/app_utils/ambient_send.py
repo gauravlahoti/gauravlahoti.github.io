@@ -83,10 +83,11 @@ def _delta_badge(curr: Any, prev: Any) -> str:
     return f' <span style="color:{_MUTED};font-size:12px">no change</span>'
 
 
-def _stat_card(value: str, label: str, badge: str = "") -> str:
+def _stat_card(value: str, label: str, badge: str = "", width: str = "25%", accent: str = "") -> str:
+    border = f"border-top:3px solid {accent};" if accent else ""
     return (
-        f'<td width="25%" style="padding:6px">'
-        f'<div style="background:{_SOFT};border-radius:10px;padding:14px 8px;text-align:center">'
+        f'<td width="{width}" style="padding:6px">'
+        f'<div style="background:{_SOFT};border-radius:10px;padding:14px 8px;text-align:center;{border}">'
         f'<div style="font-size:24px;font-weight:700;color:{_INK};line-height:1.1">{value}</div>'
         f'<div style="font-size:11px;color:{_MUTED};margin-top:5px;text-transform:uppercase;'
         f'letter-spacing:.4px">{label}</div>'
@@ -118,6 +119,44 @@ def _cards_row(cards: list[str]) -> str:
     )
 
 
+_DONUT_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#64748b"]
+
+
+def _svg_donut(items: list[tuple[str, int]], size: int = 110) -> str:
+    """Inline SVG donut chart. items = [(label, count), ...]. Works in Gmail/Apple Mail."""
+    import math
+    if not items:
+        return ""
+    total = sum(c for _, c in items) or 1
+    R, cx, cy = 38, size // 2, size // 2
+    circ = 2 * math.pi * R
+    circles = []
+    offset = 0.0
+    # Background ring
+    circles.append(
+        f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{_LINE}" stroke-width="14"/>'
+    )
+    for i, (_, count) in enumerate(items):
+        dash = (count / total) * circ
+        gap = circ - dash
+        color = _DONUT_COLORS[i % len(_DONUT_COLORS)]
+        circles.append(
+            f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{color}" '
+            f'stroke-width="14" stroke-dasharray="{dash:.2f} {gap:.2f}" '
+            f'stroke-dashoffset="-{offset:.2f}"/>'
+        )
+        offset += dash
+    # Rotate so first segment starts at top
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f'<g transform="rotate(-90 {cx} {cy})">'
+        + "".join(circles) +
+        f'</g></svg>'
+    )
+
+
+
 def _build_dashboard(stats: dict[str, Any]) -> str:
     """Render the deterministic metrics dashboard from a get_visitor_stats dict."""
     stats = stats or {}
@@ -126,23 +165,32 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
     win = stats.get("window") or {}
     prev = stats.get("prev_window") or {}
 
-    # All-time strip ("since inception").
+    # All-time strip ("since inception") — two rows of stat cards.
     all_time = _cards_row([
-        _stat_card(_fmt_int(at.get("pageviews")), "Pageviews"),
-        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors"),
-        _stat_card(_fmt_int(at.get("downloads")), "Downloads"),
-        _stat_card(_fmt_int(at.get("conversations")), "Conversations"),
+        _stat_card(_fmt_int(at.get("pageviews")), "Pageviews", width="20%", accent="#6366f1"),
+        _stat_card(_fmt_int(at.get("unique_visitors")), "Visitors", width="20%", accent="#06b6d4"),
+        _stat_card(_fmt_int(at.get("downloads")), "Downloads", width="20%", accent="#10b981"),
+        _stat_card(_fmt_int(at.get("conversations")), "Conversations", width="20%", accent="#f59e0b"),
+        _stat_card(_fmt_int(at.get("unique_locations")), "Locations", width="20%", accent="#8b5cf6"),
     ])
 
     # This-week strip with deltas vs the prior window.
     this_week = _cards_row([
         _stat_card(_fmt_int(win.get("unique_visitors")), "Visitors",
-                   _delta_badge(win.get("unique_visitors"), prev.get("unique_visitors"))),
+                   _delta_badge(win.get("unique_visitors"), prev.get("unique_visitors")),
+                   width="20%", accent="#06b6d4"),
         _stat_card(_fmt_int(win.get("pageviews")), "Pageviews",
-                   _delta_badge(win.get("pageviews"), prev.get("pageviews"))),
+                   _delta_badge(win.get("pageviews"), prev.get("pageviews")),
+                   width="20%", accent="#6366f1"),
         _stat_card(_fmt_int(win.get("downloads")), "Downloads",
-                   _delta_badge(win.get("downloads"), prev.get("downloads"))),
-        _stat_card(_fmt_int(win.get("conversations")), "Chats"),
+                   _delta_badge(win.get("downloads"), prev.get("downloads")),
+                   width="20%", accent="#10b981"),
+        _stat_card(_fmt_int(win.get("conversations")), "Conversations",
+                   _delta_badge(win.get("conversations"), prev.get("conversations")),
+                   width="20%", accent="#f59e0b"),
+        _stat_card(_fmt_int(win.get("unique_locations")), "Locations",
+                   _delta_badge(win.get("unique_locations"), prev.get("unique_locations")),
+                   width="20%", accent="#8b5cf6"),
     ])
 
     # Top questions with frequency bars.
@@ -168,26 +216,40 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
     else:
         questions = f'<p style="color:{_MUTED};font-size:13px">No questions asked in this window yet.</p>'
 
-    # Geo bars (country/city).
+    # Geo: donut chart + bar table side-by-side.
     geo = stats.get("geo") or []
     if geo:
         gtop = max(_int(g.get("count")) for g in geo) or 1
+        geo_total = sum(_int(g.get("count")) for g in geo)
+        donut_items: list[tuple[str, int]] = []
         grows = []
-        for g in geo:
+        for i, g in enumerate(geo):
             c = _int(g.get("count"))
             city = str(g.get("city") or "").strip()
             country = str(g.get("country") or "").strip()
             label = ", ".join([p for p in (city, country) if p]) or "Unknown"
+            color = _DONUT_COLORS[i % len(_DONUT_COLORS)]
+            donut_items.append((label, c))
             grows.append(
-                f'<tr><td style="padding:6px 12px 6px 0;font-size:13px;color:{_INK};'
-                f'white-space:nowrap;width:45%">{_esc(label)}</td>'
-                f'<td style="padding:6px 0;width:45%">{_bar(c / gtop * 100)}</td>'
-                f'<td style="padding:6px 0 6px 10px;text-align:right;font-size:13px;'
+                f'<tr><td style="padding:5px 10px 5px 0;font-size:12px;color:{_INK};'
+                f'white-space:nowrap;width:42%">'
+                f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'
+                f'background:{color};margin-right:5px;vertical-align:middle"></span>'
+                f'{_esc(label)}</td>'
+                f'<td style="padding:5px 0;width:42%">{_bar(c / gtop * 100, color)}</td>'
+                f'<td style="padding:5px 0 5px 8px;text-align:right;font-size:12px;'
                 f'font-weight:600;color:{_INK}">{c}</td></tr>'
             )
-        geo_html = (
+        donut_svg = _svg_donut(donut_items)
+        bar_table = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
             + "".join(grows) + "</table>"
+        )
+        geo_html = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            f'<tr><td width="120" style="vertical-align:top;padding-right:16px">'
+            f'{donut_svg}</td>'
+            f'<td style="vertical-align:top">{bar_table}</td></tr></table>'
         )
     else:
         geo_html = f'<p style="color:{_MUTED};font-size:13px">No geo data captured yet (analytics starts collecting from launch).</p>'
