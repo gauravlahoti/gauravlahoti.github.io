@@ -22,7 +22,12 @@ from google.genai import types
 
 from app import tools as portfolio_tools
 from app.guardrails import after_model_callback, before_model_callback
+from app import corpus_live
 from app.instruction import SYSTEM_INSTRUCTION
+
+# Warm the live-corpus cache so the first user request doesn't pay the network
+# hit. Failures fall back to the bundled snapshot in `app/corpus/`.
+corpus_live.prime()
 
 # Auth path is gated on whether GEMINI_API_KEY is set. In production on Cloud
 # Run, the key is wired in from Secret Manager via `--secrets` and we use the
@@ -42,7 +47,7 @@ else:
 root_agent = Agent(
     name="root_agent",
     model=Gemini(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,
@@ -58,10 +63,11 @@ root_agent = Agent(
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
-        # ~2300 words. Bumped from 1500 to 1800 (Spec #24) to keep the
-        # user-visible body whole on long answers — the trailing [[META]]
-        # block adds ~80–150 tokens to every reply.
-        max_output_tokens=1800,
+        # Cap covers thinking + visible reply. Bumped to 4096 once we started
+        # injecting the live corpus into system_instruction (every-turn
+        # grounding) — thinking tokens jumped from ~300 to ~1700, and the
+        # earlier 1800 cap was clipping replies to MAX_TOKENS mid-sentence.
+        max_output_tokens=4096,
         temperature=0.2,
         # Disable Gemini's built-in safety filters — the portfolio agent has
         # its own input/output guardrails (see guardrails.py: prompt-injection

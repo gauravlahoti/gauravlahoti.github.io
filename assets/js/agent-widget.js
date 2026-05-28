@@ -769,7 +769,7 @@ function buildAgentDiagram() {
     };
 
     const TIPS = {
-        llm:    ["Gemini Flash model", "reasoning + generation", "plans tool calls · synthesizes reply"],
+        llm:    ["Gemini 3.5 Flash", "reasoning + generation", "plans tool calls · synthesizes reply"],
         agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
         corpus: ["profile.json — bio, roles, certs", "graph.json — projects", "posts.json — LinkedIn", "rebuilt on every deploy"],
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
@@ -777,12 +777,12 @@ function buildAgentDiagram() {
 
     if (mobile) {
         // 250-unit viewBox: nodes centered at x=125; spoke nodes fill the width
-        svg.appendChild(node(null,            60,   5, 130, 38, "Gemini LLM",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 125, TIPS.llm));
+        svg.appendChild(node(null,            60,   5, 130, 38, "Gemini 3.5 Flash",  "reasoning · generation",    "Google Gemini — reasoning and language generation", 125, TIPS.llm));
         svg.appendChild(node("ad-node--hub",  60,  72, 130, 42, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 125, TIPS.agent));
         svg.appendChild(node(null,             0, 155, 120, 38, "Data Corpus", "profile · projects", "Frozen JSON snapshot — grounding source for every reply", 60, TIPS.corpus));
         svg.appendChild(node(null,           130, 155, 120, 38, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 190, TIPS.mcp));
     } else {
-        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini LLM",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240, TIPS.llm));
+        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini 3.5 Flash",   "reasoning · generation",    "Google Gemini — reasoning and language generation", 240, TIPS.llm));
         svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",        "ADK orchestrator",          "ADK agent on Cloud Run — orchestrates all tool calls", 240, TIPS.agent));
         svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus",  "profile · projects · posts","Frozen JSON snapshot — grounding source for every reply", 82, TIPS.corpus));
         svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",   "Resend · email actions",    "MCP-compatible Resend server — fires email on agent request", 402, TIPS.mcp));

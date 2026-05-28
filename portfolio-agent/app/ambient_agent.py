@@ -27,7 +27,7 @@ from app.app_utils.ambient_send import send_review_email
 
 AMBIENT_INSTRUCTION = """\
 You are the ambient background agent for Gaurav Lahoti's portfolio
-(gauravlahoti.dev). Gaurav is a Cloud & AI Architect at Deloitte. You run on a
+(gauravlahoti.dev). Gaurav is a Cloud & AI-Native Architect at Deloitte. You run on a
 schedule — there is no human in the loop — and your job is to produce ONE
 review-ready email for Gaurav, then stop. Work through the steps in order.
 

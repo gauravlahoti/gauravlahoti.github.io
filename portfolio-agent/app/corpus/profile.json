@@ -1,6 +1,6 @@
 {
   "name": "Gaurav Lahoti",
-  "title": "Senior Cloud & AI-Native Architect",
+  "title": "Cloud & AI-Native Architect",
   "company": "Deloitte",
   "location": "Gurugram, India",
   "tagline": "Spent a decade making enterprise systems talk to each other. Now I wire AI into that fabric, making it reason, adapt, and act. Curiosity drives the exploration; 10+ years of enterprise delivery keeps it grounded.",
@@ -18,8 +18,11 @@
     "resume": "assets/img/resume.pdf",
     "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
     "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
-    "agentApi": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
-    "agentWarm": "https://portfolio-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm"
+    "agentApi": "https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
+    "agentWarm": "https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
+    "agentStatsUrl": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats",
+    "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
+    "metricsApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/post-metrics"
   },
   "agentActions": [
     {
@@ -192,5 +195,8 @@
       "label":  "Want a TL;DR of his career arc?",
       "prompt": "Give me a TL;DR of his career arc"
     }
+  },
+  "agentIntro": {
+    "text": "Powered by ADK and Gemini, grounded in Gaurav's projects, certifications and writing. Ask me anything about his work. I can also email you his resume or drop him a note."
   }
 }

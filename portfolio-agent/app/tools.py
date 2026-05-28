@@ -2,33 +2,26 @@
 
 Each function here is registered as an ADK tool. Functions are plain Python —
 ADK derives the JSON schema from the type hints + docstring. Retrieval tools
-load their data once at module import from `app/corpus/` (a frozen snapshot
-bundled into the container at build time via `make corpus`).
+read live data via `app.corpus_live`, which fetches the canonical JSON from
+gauravlahoti.dev with a short TTL and falls back to the bundled snapshot in
+`app/corpus/` if the network is unavailable. This means edits to the site's
+`assets/js/data/*.json` are reflected by the agent without a redeploy.
 
-The retrieval tools make no outbound HTTP. The single action tool
-(`send_resume`) does — it talks to Resend's REST API and the resume-gate
-Worker for rate-limit bookkeeping.
+The retrieval tools make no outbound HTTP themselves beyond that data fetch.
+The action tool (`send_resume`) talks to Resend's REST API and the
+resume-gate Worker for rate-limit bookkeeping.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+from app import corpus_live
 from app.app_utils.note_send import send_note_email
 from app.app_utils.resume_send import send_resume_email
 
 _CORPUS_DIR = Path(__file__).parent / "corpus"
-
-
-def _load_json(name: str) -> dict | list:
-    return json.loads((_CORPUS_DIR / name).read_text(encoding="utf-8"))
-
-
-_PROFILE: dict = _load_json("profile.json")  # type: ignore[assignment]
-_GRAPH: dict = _load_json("graph.json")  # type: ignore[assignment]
-_POSTS: list = _load_json("posts.json")  # type: ignore[assignment]
 _RESUME_MD: str = (_CORPUS_DIR / "resume.md").read_text(encoding="utf-8")
 
 
@@ -45,21 +38,22 @@ def get_profile() -> dict:
         topmate, resume, resumeApi), capabilities (aiNative, cloud, business —
         each a list of capability groups with key/label/context/items).
     """
+    profile = corpus_live.get_profile()
     return {
-        "name": _PROFILE.get("name"),
-        "title": _PROFILE.get("title"),
-        "company": _PROFILE.get("company"),
-        "location": _PROFILE.get("location"),
-        "tagline": _PROFILE.get("tagline"),
-        "bio": _PROFILE.get("bio", []),
-        "careerStart": _PROFILE.get("careerStart"),
+        "name": profile.get("name"),
+        "title": profile.get("title"),
+        "company": profile.get("company"),
+        "location": profile.get("location"),
+        "tagline": profile.get("tagline"),
+        "bio": profile.get("bio", []),
+        "careerStart": profile.get("careerStart"),
         "links": {
-            "email": _PROFILE.get("links", {}).get("email"),
-            "linkedin": _PROFILE.get("links", {}).get("linkedin"),
-            "github": _PROFILE.get("links", {}).get("github"),
-            "topmate": _PROFILE.get("links", {}).get("topmate"),
+            "email": profile.get("links", {}).get("email"),
+            "linkedin": profile.get("links", {}).get("linkedin"),
+            "github": profile.get("links", {}).get("github"),
+            "topmate": profile.get("links", {}).get("topmate"),
         },
-        "capabilities": _PROFILE.get("capabilities", {}),
+        "capabilities": profile.get("capabilities", {}),
     }
 
 
@@ -76,8 +70,9 @@ def get_work_history(role_filter: str | None = None) -> list[dict]:
         A flat list of role dicts. Each: {company, title, start, end, duration,
         location, skills, workMode}. `end` is None for the current role.
     """
+    profile = corpus_live.get_profile()
     flat: list[dict] = []
-    for emp in _PROFILE.get("experience", []):
+    for emp in profile.get("experience", []):
         company = emp.get("company")
         work_mode = emp.get("workMode")
         for role in emp.get("roles", []):
@@ -119,8 +114,9 @@ def get_projects(domain: str | None = None) -> list[dict]:
         company (resolved from edges), domains (list of domain labels), skills
         (list of skill labels)}.
     """
-    nodes = {n["id"]: n for n in _GRAPH.get("nodes", [])}
-    edges = _GRAPH.get("edges", [])
+    graph = corpus_live.get_graph()
+    nodes = {n["id"]: n for n in graph.get("nodes", [])}
+    edges = graph.get("edges", [])
 
     project_company: dict[str, str] = {}
     project_domains: dict[str, list[str]] = {}
@@ -149,7 +145,7 @@ def get_projects(domain: str | None = None) -> list[dict]:
             "domains": project_domains.get(n["id"], []),
             "skills": project_skills.get(n["id"], []),
         }
-        for n in _GRAPH.get("nodes", [])
+        for n in graph.get("nodes", [])
         if n.get("type") == "project"
     ]
 
@@ -178,7 +174,8 @@ def get_recent_posts(limit: int = 5) -> list[dict]:
         A list of post dicts, most-recent first. Each: {url, firstLine,
         excerpt, date}.
     """
-    return list(_POSTS[: max(1, min(limit, len(_POSTS)))])
+    posts = corpus_live.get_posts()
+    return list(posts[: max(1, min(limit, len(posts)))])
 
 
 async def send_resume(email: str) -> dict[str, Any]:
@@ -253,5 +250,5 @@ def get_certifications() -> list[dict]:
             "category": c.get("category"),
             "credlyUrl": c.get("credlyUrl"),
         }
-        for c in _PROFILE.get("certifications", [])
+        for c in corpus_live.get_profile().get("certifications", [])
     ]

@@ -18,12 +18,17 @@ threats (off-topic, jailbreak attempts), regex is the honest choice.
 
 from __future__ import annotations
 
+import json
 import re
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+
+from app import corpus_live
+
+_CORPUS_MARKER = "[[LIVE_CORPUS_SNAPSHOT]]"
 
 # Email lives in profile.json under links.email; we hardcode the redaction
 # pattern here rather than importing the corpus loader to keep this module
@@ -115,11 +120,58 @@ def _short_circuit(text: str) -> LlmResponse:
     )
 
 
+def _build_corpus_block() -> str:
+    """Serialize the live corpus into a single instruction-friendly block.
+
+    Injected into `system_instruction` on every turn so the model has the full
+    ground truth (profile + projects + recent posts) in context without needing
+    to call retrieval tools first. Tools remain available for narrower lookups.
+    """
+    try:
+        profile = corpus_live.get_profile()
+        graph = corpus_live.get_graph()
+        posts = corpus_live.get_posts()
+    except Exception:  # noqa: BLE001 — guardrail must never break the request
+        return ""
+    payload = {
+        "profile": profile,
+        "graph": graph,
+        "posts": posts,
+    }
+    return (
+        f"\n\n# {_CORPUS_MARKER}\n"
+        "The following is the latest, authoritative data about Gaurav, fetched live "
+        "from gauravlahoti.dev. Treat it as ground truth for this turn. Prefer it over "
+        "any earlier snapshot. You may still call the retrieval tools for narrower "
+        "lookups, but the data here is already accurate.\n\n"
+        "```json\n"
+        f"{json.dumps(payload, ensure_ascii=False)}\n"
+        "```\n"
+    )
+
+
+def _inject_live_corpus(llm_request: LlmRequest) -> None:
+    """Append the live corpus snapshot to `system_instruction` if not already present."""
+    block = _build_corpus_block()
+    if not block:
+        return
+    config = getattr(llm_request, "config", None)
+    if config is None:
+        return
+    existing = getattr(config, "system_instruction", None) or ""
+    if isinstance(existing, str):
+        base = existing.split(f"# {_CORPUS_MARKER}", 1)[0].rstrip()
+        config.system_instruction = base + block
+    # Non-string system_instruction shapes (Content objects) are left alone —
+    # ADK normalizes to str in current versions; revisit if that changes.
+
+
 def before_model_callback(
     callback_context: CallbackContext,
     llm_request: LlmRequest,
 ) -> LlmResponse | None:
     """Run before each model call. Return an LlmResponse to short-circuit."""
+    _inject_live_corpus(llm_request)
     user_text = _latest_user_text(llm_request)
     # Strip meta-block sentinels so a hostile visitor can't smuggle a forged
     # [[META]] payload through the user message. Server-side rfind is the
