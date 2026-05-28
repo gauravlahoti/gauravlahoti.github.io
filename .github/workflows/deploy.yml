@@ -32,6 +32,8 @@ jobs:
             --exclude='.github' \
             --exclude='.claude' \
             --exclude='backend' \
+            --exclude='portfolio-agent' \
+            --exclude='resend_mcp_server' \
             --exclude='node_modules' \
             --exclude='scripts' \
             --exclude='_site' \

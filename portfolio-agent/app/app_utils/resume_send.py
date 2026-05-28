@@ -147,8 +147,10 @@ async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
     mcp_url = _env("RESEND_MCP_URL")
     if not mcp_url:
         return False, "RESEND_MCP_URL not configured"
+    caller_token = _env("MCP_CALLER_TOKEN")
+    mcp_headers = {"Authorization": f"Bearer {caller_token}"} if caller_token else {}
     try:
-        async with streamablehttp_client(mcp_url) as (read, write, _):
+        async with streamablehttp_client(mcp_url, headers=mcp_headers) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool("send-email", arguments)
