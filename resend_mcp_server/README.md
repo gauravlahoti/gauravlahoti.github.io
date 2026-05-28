@@ -8,11 +8,12 @@ This server exposes the Resend email API as an MCP endpoint that agents can conn
 
 ## Features
 
-- 📧 Send emails via Resend API
-- 🔗 Streamable HTTP transport for MCP
-- ☁️ Deployable on Cloud Run (with proxy wrapper to bypass host validation)
-- 🔄 Reusable by multiple agents
-- 🔐 API key passed via Authorization Bearer header (no secrets on server)
+- Send emails via Resend API
+- Streamable HTTP transport for MCP
+- Caller authentication gate (`MCP_CALLER_TOKEN`) — unauthenticated requests get 401
+- Server-side Resend API key injection — callers never carry Resend credentials
+- Deployable on Cloud Run (cpu-boost + gen2 for fast cold starts)
+- Reusable by multiple agents (chat agent, ambient agent)
 
 ---
 
@@ -21,23 +22,29 @@ This server exposes the Resend email API as an MCP endpoint that agents can conn
 ```
 Client (Agent)
     │
-    │ Authorization: Bearer <RESEND_API_KEY>
+    │ Authorization: Bearer <MCP_CALLER_TOKEN>
     ▼
 Cloud Run (server.js - proxy)
     │
-    │ Host: 127.0.0.1:3001
+    │  ✓ validates MCP_CALLER_TOKEN
+    │  ✓ swaps in RESEND_API_KEY before forwarding
+    │
+    │ Authorization: Bearer <RESEND_API_KEY>  (injected server-side)
     ▼
 Internal resend-mcp server (port 3001)
+    │
+    ▼
+Resend API
 ```
 
-The proxy wrapper rewrites the `Host` header to localhost, bypassing resend-mcp's host validation.
+The proxy does two things: (1) gates callers with `MCP_CALLER_TOKEN`, and (2) rewrites the `Authorization` header to the `RESEND_API_KEY` before forwarding to the internal process. Agents hold `MCP_CALLER_TOKEN` only — the Resend key never leaves the server.
 
 ---
 
 ## Prerequisites
 
-- [Resend](https://resend.com) account and API key
-- Google Cloud project with Cloud Run enabled
+- [Resend](https://resend.com) account and verified domain
+- Google Cloud project with Cloud Run and Secret Manager enabled
 - `gcloud` CLI installed and configured
 
 ---
@@ -56,7 +63,7 @@ npm install
 npm run dev
 ```
 
-Server will be available at `http://localhost:3000/mcp`
+Server will be available at `http://localhost:3000/mcp`. In local dev `MCP_CALLER_TOKEN` is unset, so the auth gate is disabled — all requests pass through.
 
 ### 3. Test with MCP Inspector
 
@@ -70,13 +77,32 @@ Server will be available at `http://localhost:3000/mcp`
 
 ## Deploy to Cloud Run
 
-### 1. Navigate to the server folder
+### 1. Create secrets in Secret Manager (one-time)
 
 ```bash
-cd /path/to/adk-samples/resend_mcp_server
+# Resend API key
+echo -n "re_xxxxxxxxxxxx" | gcloud secrets create resend-api-key \
+  --data-file=- --project=gcp-experiments-490306
+
+# Caller auth token (generate a random 32-byte hex string)
+echo -n "$(openssl rand -hex 32)" | gcloud secrets create resend-mcp-caller-token \
+  --data-file=- --project=gcp-experiments-490306
+
+# Grant Cloud Run's default SA access to both secrets
+SA="593919045544-compute@developer.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding resend-api-key \
+  --member="serviceAccount:$SA" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding resend-mcp-caller-token \
+  --member="serviceAccount:$SA" --role="roles/secretmanager.secretAccessor"
 ```
 
-### 2. Deploy (no env vars needed - API key is passed by client)
+### 2. Deploy
+
+```bash
+make deploy
+```
+
+This runs:
 
 ```bash
 gcloud run deploy resend-mcp-server \
@@ -88,58 +114,45 @@ gcloud run deploy resend-mcp-server \
   --cpu-boost \
   --execution-environment gen2 \
   --concurrency 20 \
-  --min-instances 0
-```
-
-Or via make:
-
-```bash
-make deploy
+  --min-instances 0 \
+  --update-secrets RESEND_API_KEY=resend-api-key:latest \
+  --update-secrets MCP_CALLER_TOKEN=resend-mcp-caller-token:latest
 ```
 
 **Flag notes:**
-- `--cpu-throttling` — request-based billing (required to unlock `--cpu-boost`)
-- `--cpu-boost` — extra CPU at startup for ~30% faster cold starts (free)
-- `--execution-environment gen2` — faster, newer Cloud Run runtime
+- `--allow-unauthenticated` — Cloud Run IAM is open; `MCP_CALLER_TOKEN` is the auth gate at the app level
+- `--cpu-throttling` + `--cpu-boost` — request-based billing with faster cold starts (free)
+- `--execution-environment gen2` — newer, faster Cloud Run runtime
 - `--concurrency 20` — conservative; one `resend-mcp` child process per instance
-- `--min-instances 0` — scale to zero when idle (free tier)
+- `--min-instances 0` — scale to zero when idle
 
 ### 3. Get the service URL
 
-After deployment, note the URL (e.g., `https://resend-mcp-server-xxxxx-uc.a.run.app`).
-
-The MCP endpoint will be at: `https://resend-mcp-server-xxxxx-uc.a.run.app/mcp`
+```
+https://resend-mcp-server-593919045544.us-central1.run.app/mcp
+```
 
 ---
 
 ## Using with Agents
 
-Add these to your agent's `.env` file:
+Add to your agent's `.env`:
 
 ```bash
-RESEND_MCP_URL=https://resend-mcp-server-xxxxx-uc.a.run.app/mcp
-RESEND_API_KEY=re_xxxxxxxxxxxx
-SENDER_EMAIL_ADDRESS=onboarding@resend.dev
+RESEND_MCP_URL=https://resend-mcp-server-593919045544.us-central1.run.app/mcp
+MCP_CALLER_TOKEN=<the value from resend-mcp-caller-token secret>
 ```
 
-Then connect via Streamable HTTP in your agent:
+The portfolio agent reads both and calls via `streamablehttp_client`:
 
 ```python
-from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+caller_token = os.environ.get("MCP_CALLER_TOKEN", "")
+mcp_headers = {"Authorization": f"Bearer {caller_token}"} if caller_token else {}
 
-resend_mcp_url = os.environ.get("RESEND_MCP_URL")
-resend_api_key = os.environ.get("RESEND_API_KEY")
-
-resend_toolset = McpToolset(
-    connection_params=StreamableHTTPConnectionParams(
-        url=resend_mcp_url,
-        headers={
-            "Authorization": f"Bearer {resend_api_key}"
-        }
-    ),
-    tool_filter=['send-email']
-)
+async with streamablehttp_client(mcp_url, headers=mcp_headers) as (read, write, _):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("send-email", arguments)
 ```
 
 ---
@@ -149,6 +162,25 @@ resend_toolset = McpToolset(
 | Tool | Description |
 |------|-------------|
 | `send-email` | Send an email via Resend |
+
+---
+
+## Secret Rotation
+
+To rotate `MCP_CALLER_TOKEN`:
+
+```bash
+# 1. Add a new version to Secret Manager
+echo -n "$(openssl rand -hex 32)" | gcloud secrets versions add resend-mcp-caller-token --data-file=-
+
+# 2. Redeploy the MCP server (picks up :latest)
+make deploy
+
+# 3. Update the portfolio-agent service
+gcloud run services update portfolio-agent \
+  --update-secrets MCP_CALLER_TOKEN=resend-mcp-caller-token:latest \
+  --region=us-central1 --project=gcp-experiments-490306
+```
 
 ---
 
@@ -163,9 +195,9 @@ gcloud run services delete resend-mcp-server \
 
 ---
 
-## Security Notes
+## Security
 
-- API key is passed via `Authorization: Bearer` header by the client (agent)
-- No secrets stored on the MCP server itself
-- On Resend's free tier with `onboarding@resend.dev`, emails can only be sent to your registered email
-- To send to any recipient, [verify a custom domain](https://resend.com/domains)
+- **Caller auth gate:** every inbound request must carry `Authorization: Bearer <MCP_CALLER_TOKEN>`. Requests without the correct token get `401 Unauthorized` before any proxying occurs.
+- **Secret isolation:** `RESEND_API_KEY` lives only on the Cloud Run service via Secret Manager. The portfolio agent holds `MCP_CALLER_TOKEN` only — it never sees the Resend key.
+- **No rate limiting:** Resend's own per-day send limits apply. Rotate `MCP_CALLER_TOKEN` immediately if it is ever exposed.
+- **Verified domain required:** Resend's free tier with `onboarding@resend.dev` only sends to your registered email. To send to arbitrary recipients, [verify a custom domain](https://resend.com/domains).
