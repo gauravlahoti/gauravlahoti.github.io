@@ -2380,6 +2380,10 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.02em;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
 }
 .agent-panel-foot a {
     color: var(--accent);
@@ -2724,13 +2728,12 @@ sup.agent-cite a:focus-visible {
     outline: none;
 }
 
-/* Ambient presence stats appended to the footer trigger text. */
-.agent-stats-sep {
-    color: var(--text-muted);
-}
+/* Ambient presence stats — right-aligned in the panel footer, sibling of
+   the underlined explainer trigger (not nested inside it). */
 .agent-stats-count {
-    color: var(--text-muted);
+    color: var(--ink-muted);
     font-size: 0.85em;
+    white-space: nowrap;
 }
 
 /* Inline retry button — shown after mid-stream network failure. */

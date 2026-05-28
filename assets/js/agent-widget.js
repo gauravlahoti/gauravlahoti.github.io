@@ -1161,21 +1161,18 @@ async function fetchAndShowStats(url, footerEl) {
         const data = await res.json();
         const n = data?.total_conversations;
         if (typeof n !== "number" || n < 1) return;
-        // Append "· N conversations" to the existing footer trigger text.
-        const trigger = footerEl.classList.contains("agent-explainer-trigger")
+        // Render the count as a sibling of the trigger so it sits outside
+        // the underlined explainer link — appending inside the trigger made
+        // it look like part of the link text.
+        const foot = footerEl.classList.contains("agent-panel-foot")
             ? footerEl
-            : footerEl.querySelector(".agent-explainer-trigger");
-        const target = trigger || footerEl;
+            : footerEl.closest(".agent-panel-foot");
+        if (!foot) return;
         const label = n >= 100 ? `${Math.floor(n / 10) * 10}+` : `${n}`;
-        const sep = document.createElement("span");
-        sep.className = "agent-stats-sep";
-        sep.setAttribute("aria-hidden", "true");
-        sep.textContent = " · ";
         const count = document.createElement("span");
         count.className = "agent-stats-count";
         count.textContent = `${label} conversations`;
-        target.appendChild(sep);
-        target.appendChild(count);
+        foot.appendChild(count);
     } catch (_) { /* best-effort — stats are ambient, never critical */ }
 }
 
