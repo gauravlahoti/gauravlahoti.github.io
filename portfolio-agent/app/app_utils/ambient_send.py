@@ -217,22 +217,16 @@ def _token_row(tin: Any, tout: Any, tin_prev: Any = None, tout_prev: Any = None)
 
 
 
-def _actionable_improvements(stats: dict[str, Any]) -> list[dict[str, Any]]:
-    """Rule-based, fully-formed recommendations grounded in this window's numbers.
+def _auto_observations(stats: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Rule-based observations the digest agent can lead with.
 
-    Each item is a dict with:
-      action     — short imperative ("Tighten the resume CTA above the fold")
-      rationale  — the numeric evidence that triggered it
-      impact     — what changes if you act on it
-      confidence — 0–100, calibrated to signal strength (sample size, gap size)
-      priority   — 'high' | 'med' | 'low' (drives sort order + colour)
-
-    Confidence calibration:
-      90+ — direct measurement (errors actually observed, beacon dead)
-      75–89 — strong proxy with healthy sample (downloads=0 with N≥10 visitors)
-      60–74 — moderate signal, small sample (concentration with N≥5)
-      <60  — directional, not actionable on its own
-    Items below 50 confidence are dropped.
+    Returns a list of (kind, text, color) tuples where kind is one of:
+      up    — positive movement (green)
+      down  — negative movement (red)
+      flat  — stable (muted)
+      note  — neutral signal worth surfacing (blue)
+    Kept deterministic on purpose: the LLM owns nuance in the Insights block;
+    these are the obvious patterns a human would call out at a glance.
     """
     win  = stats.get("window") or {}
     prev = stats.get("prev_window") or {}
@@ -245,212 +239,80 @@ def _actionable_improvements(stats: dict[str, Any]) -> list[dict[str, Any]]:
             return None
         return round((c - p) / p * 100)
 
-    out: list[dict[str, Any]] = []
-    visitors  = _int(win.get("unique_visitors"))
+    out: list[tuple[str, str, str]] = []
+
+    convs = _int(win.get("conversations"))
+    visitors = _int(win.get("unique_visitors"))
     pageviews = _int(win.get("pageviews"))
-    convs     = _int(win.get("conversations"))
     downloads = _int(win.get("downloads"))
 
-    # ── Engagement direction ─────────────────────────────────────────────────
+    # Conversation lift vs prior
     conv_pct = _pct(win.get("conversations"), prev.get("conversations"))
-    if conv_pct is not None and conv_pct <= -25 and _int(prev.get("conversations")) >= 4:
-        out.append({
-            "action":    "Investigate the conversation drop and patch what changed.",
-            "rationale": f"Conversations fell {abs(conv_pct)}% (prior {_int(prev.get('conversations'))} → now {convs}). The same content drove more chats last window.",
-            "impact":    "Catching a regression early protects the main engagement loop — the agent is the primary conversion path on this site.",
-            "confidence": 80,
-            "priority":  "high",
-        })
-    elif conv_pct is not None and conv_pct >= 25:
-        out.append({
-            "action":    "Replicate whatever drove this window's lift across the next cycle.",
-            "rationale": f"Conversations up {conv_pct}% ({_int(prev.get('conversations'))} → {convs}). Check what shipped or got shared in this window.",
-            "impact":    "A repeat of the same lift would put weekly conversations at ~{:.0f}.".format(convs * (1 + conv_pct/100)),
-            "confidence": 70,
-            "priority":  "med",
-        })
+    if conv_pct is not None and abs(conv_pct) >= 20:
+        if conv_pct > 0:
+            out.append(("up", f"Conversations up {conv_pct}% vs the prior window — agent engagement is growing.", _GOOD))
+        else:
+            out.append(("down", f"Conversations down {abs(conv_pct)}% vs the prior window — worth a look.", _BAD))
 
-    # ── Conversion gap: visitors who never download ──────────────────────────
-    if visitors >= 10 and downloads == 0:
-        out.append({
-            "action":    "Tighten the resume CTA — make it a single primary button above the fold.",
-            "rationale": f"{visitors} unique visitors, {pageviews} pageviews, 0 resume downloads this window. Discovery works; conversion doesn't.",
-            "impact":    "Even a 5% lift on {} visitors is ~1 download/window — meaningful given current baseline of 0.".format(visitors),
-            "confidence": 85,
-            "priority":  "high",
-        })
-    elif visitors >= 5 and downloads == 0:
-        out.append({
-            "action":    "Watch the resume-download funnel for one more cycle before changing it.",
-            "rationale": f"{visitors} visitors, 0 downloads — sample is too small ({visitors} < 10) to act on yet.",
-            "impact":    "Avoids over-fitting the CTA to a slow week.",
-            "confidence": 55,
-            "priority":  "low",
-        })
-
-    # ── Healthy conversion → talk about follow-up cadence ────────────────────
-    if visitors >= 5 and downloads >= 3:
-        rate = round(downloads / visitors * 100)
-        out.append({
-            "action":    "Send personalised follow-ups within 48h of download — automate the cadence.",
-            "rationale": f"{downloads} downloads from {visitors} visitors ({rate}% conversion) — the funnel is converting; the question is what happens next.",
-            "impact":    "Cold leads decay fast; a same-week note typically 2–3× reply rate vs a delayed one.",
-            "confidence": 75,
-            "priority":  "med",
-        })
-
-    # ── Engagement quality (conversions up, pageviews flat) ──────────────────
+    # Engagement quality: conversations up while pageviews flat/down
     pv_pct = _pct(win.get("pageviews"), prev.get("pageviews"))
-    if (conv_pct is not None and pv_pct is not None
-            and conv_pct >= 25 and pv_pct <= 10 and convs >= 4):
-        out.append({
-            "action":    "Promote the chat agent more prominently — it's converting better than the rest of the site.",
-            "rationale": f"Conversations +{conv_pct}% while pageviews +{pv_pct}% — agent engagement is outpacing top-of-funnel growth.",
-            "impact":    "Higher agent visibility → more visitors enter the most engaging surface on the site, not just bounce through it.",
-            "confidence": 65,
-            "priority":  "med",
-        })
+    if conv_pct is not None and pv_pct is not None and conv_pct >= 20 and pv_pct <= 10:
+        out.append(("note", "Conversation rate climbing without a pageview spike — quality engagement, not noise.", _ACCENT))
 
-    # ── Geographic concentration ─────────────────────────────────────────────
+    # Conversion gap: visitors but zero downloads
+    if visitors >= 5 and downloads == 0:
+        out.append(("note", f"{visitors} visitors, 0 resume downloads this window — top of funnel works, conversion doesn't.", _ACCENT))
+
+    # Healthy download conversion
+    if visitors > 0 and downloads >= 3:
+        rate = round(downloads / visitors * 100)
+        out.append(("up", f"{downloads} resume downloads from {visitors} visitors ({rate}% conversion).", _GOOD))
+
+    # Geographic concentration
     if geo:
         total_geo = sum(_int(g.get("count")) for g in geo)
-        if total_geo >= 8:
+        if total_geo > 0:
             top = geo[0]
             top_count = _int(top.get("count"))
             top_share = round(top_count / total_geo * 100)
             top_label = ", ".join(p for p in (str(top.get("city") or "").strip(),
                                               str(top.get("country") or "").strip()) if p)
-            if top_share >= 70:
-                out.append({
-                    "action":    f"Test one outreach channel outside {top_label} this cycle.",
-                    "rationale": f"{top_share}% of {total_geo} located visitors came from {top_label}. Distribution is geographically lopsided.",
-                    "impact":    "Diversifying the inbound mix reduces dependence on a single channel and surfaces signal from other markets.",
-                    "confidence": 60,
-                    "priority":  "low",
-                })
+            if top_share >= 70 and total_geo >= 5:
+                out.append(("note", f"{top_share}% of traffic came from {top_label} — heavy geographic concentration.", _ACCENT))
 
-    # ── Agent errors observed ────────────────────────────────────────────────
+    # Error signal
     if errs:
-        n = len(errs)
-        statuses = sorted({str(e.get("status","")) for e in errs if e.get("status")})
-        out.append({
-            "action":    "Review the listed error turns and add guardrails for the failure modes seen.",
-            "rationale": f"{n} agent error{'s' if n != 1 else ''} this window. Statuses: {', '.join(statuses) or 'unknown'}.",
-            "impact":    "Each unanswered question is a visitor walking away mid-conversation; fixing the failure modes lifts effective conversation count.",
-            "confidence": 95,
-            "priority":  "high",
-        })
+        out.append(("down", f"{len(errs)} agent error{'s' if len(errs) != 1 else ''} this window — listed below.", _BAD))
 
-    # ── Beacon health check ──────────────────────────────────────────────────
-    if pageviews == 0 and convs == 0 and _int(prev.get("pageviews")) > 0:
-        out.append({
-            "action":    "Verify the analytics beacon is firing — pageviews went from N to 0.",
-            "rationale": f"Prior window had {_int(prev.get('pageviews'))} pageviews; this window shows 0. More likely instrumentation than a quiet week.",
-            "impact":    "A silent beacon turns every future digest into noise — fix first before reading anything else.",
-            "confidence": 90,
-            "priority":  "high",
-        })
+    # No activity at all
+    if pageviews == 0 and convs == 0:
+        out.append(("flat", "No site activity this window. Either the beacon is down or it was a quiet week.", _MUTED))
 
-    # Drop low-confidence noise, then sort high → med → low, then by confidence
-    out = [o for o in out if o["confidence"] >= 50]
-    order = {"high": 0, "med": 1, "low": 2}
-    out.sort(key=lambda o: (order.get(o["priority"], 9), -o["confidence"]))
     return out
 
 
-def _confidence_bar(pct: int) -> str:
-    """Tiny inline bar visualising confidence; works in plain HTML email."""
-    w = max(4, min(100, int(pct)))
-    color = _GOOD if pct >= 80 else (_ACCENT if pct >= 65 else _MUTED)
-    return (
-        f'<table role="presentation" cellpadding="0" cellspacing="0" '
-        f'style="display:inline-block;vertical-align:middle">'
-        f'<tr><td style="width:60px;background:{_LINE};border-radius:3px;height:6px">'
-        f'<div style="background:{color};height:6px;border-radius:3px;width:{w}%"></div>'
-        f'</td></tr></table>'
-    )
-
-
-def _priority_chip(priority: str) -> str:
-    palette = {
-        "high": ("#fef2f2", "#b91c1c", "#fecaca", "HIGH"),
-        "med":  ("#fffbeb", "#92400e", "#fde68a", "MED"),
-        "low":  ("#f1f5f9", "#475569", "#cbd5e1", "LOW"),
-    }
-    bg, fg, border, label = palette.get(priority, palette["low"])
-    return (
-        f'<span style="display:inline-block;background:{bg};color:{fg};'
-        f'border:1px solid {border};border-radius:4px;padding:2px 7px;'
-        f'font-size:10px;font-weight:700;letter-spacing:.6px;'
-        f'text-transform:uppercase;vertical-align:middle">{label}</span>'
-    )
-
-
-def _improvements_block(items: list[dict[str, Any]]) -> str:
+def _observations_block(items: list[tuple[str, str, str]]) -> str:
     if not items:
         return ""
-
-    cards = []
-    for i, it in enumerate(items, 1):
-        action = _esc(it.get("action", ""))
-        rationale = _esc(it.get("rationale", ""))
-        impact = _esc(it.get("impact", ""))
-        confidence = _int(it.get("confidence", 0))
-        priority = it.get("priority", "low")
-
-        cards.append(
-            f'<tr><td style="padding:0 14px {"14px" if i < len(items) else "16px"} 14px">'
-            f'<div style="background:#fff;border:1px solid {_LINE};border-radius:8px;'
-            f'padding:14px 16px">'
-            # Header row: number + priority chip + confidence bar
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+    icons = {"up": "▲", "down": "▼", "note": "◆", "flat": "—"}
+    rows = []
+    for kind, text, color in items:
+        icon = icons.get(kind, "•")
+        rows.append(
             f'<tr>'
-            f'<td style="vertical-align:middle">'
-            f'<span style="font-size:11px;color:{_MUTED};font-weight:600;'
-            f'letter-spacing:.6px">#{i}</span>'
-            f'&nbsp;&nbsp;{_priority_chip(priority)}'
-            f'</td>'
-            f'<td align="right" style="vertical-align:middle;font-size:11px;color:{_MUTED}">'
-            f'Confidence&nbsp;<strong style="color:{_INK}">{confidence}%</strong>'
-            f'&nbsp;&nbsp;{_confidence_bar(confidence)}'
-            f'</td>'
-            f'</tr></table>'
-            # Action
-            f'<div style="font-size:14px;font-weight:700;color:{_INK};'
-            f'margin-top:10px;line-height:1.4">{action}</div>'
-            # Rationale + Impact rows
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin-top:10px">'
-            f'<tr>'
-            f'<td style="vertical-align:top;width:78px;padding:4px 8px 4px 0;'
-            f'font-size:10px;color:{_MUTED};font-weight:600;letter-spacing:.6px;'
-            f'text-transform:uppercase">Why</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:{_INK};line-height:1.5">{rationale}</td>'
+            f'<td style="padding:8px 10px 8px 14px;vertical-align:top;width:18px;'
+            f'color:{color};font-weight:700;font-size:13px;line-height:1.5">{icon}</td>'
+            f'<td style="padding:8px 14px 8px 0;font-size:13px;color:{_INK};line-height:1.5">{_esc(text)}</td>'
             f'</tr>'
-            f'<tr>'
-            f'<td style="vertical-align:top;width:78px;padding:4px 8px 4px 0;'
-            f'font-size:10px;color:{_MUTED};font-weight:600;letter-spacing:.6px;'
-            f'text-transform:uppercase">If you act</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:{_INK};line-height:1.5">{impact}</td>'
-            f'</tr>'
-            f'</table>'
-            f'</div></td></tr>'
         )
-
     return (
         f'<div style="background:#fafbfc;border:1px solid {_LINE};border-radius:10px;'
         f'margin:14px 0 4px;overflow:hidden">'
-        f'<div style="padding:11px 14px;background:#f1f5f9;'
-        f'border-bottom:1px solid {_LINE}">'
-        f'<div style="font-size:11px;color:{_MUTED};text-transform:uppercase;'
-        f'letter-spacing:.6px;font-weight:600">Actionable improvements</div>'
-        f'<div style="font-size:12px;color:{_MUTED};margin-top:2px">'
-        f'Ranked by priority &amp; confidence — each grounded in this window\'s numbers</div>'
-        f'</div>'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        f'style="background:#fafbfc">'
-        f'<tr><td style="height:10px"></td></tr>'
-        + "".join(cards) +
+        f'<div style="padding:10px 14px;background:#f1f5f9;font-size:11px;'
+        f'color:{_MUTED};text-transform:uppercase;letter-spacing:.6px;font-weight:600;'
+        f'border-bottom:1px solid {_LINE}">What Pulse noticed</div>'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+        + "".join(rows) +
         f'</table></div>'
     )
 
@@ -594,7 +456,8 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
         f'</div>'
     )
 
-    improvements_html = _improvements_block(_actionable_improvements(stats))
+    obs = _auto_observations(stats)
+    observations_html = _observations_block(obs)
 
     return (
         f'<div style="background:{_INK};border-radius:12px;padding:22px 24px;color:#fff;margin-bottom:6px">'
@@ -614,7 +477,7 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
         f'</div>'
         + model_bar +
         f"</div>"
-        + improvements_html
+        + observations_html
         + _section_title("All-time totals", "since inception")
         + all_time
         + _section_title("Since last report", window_label)
