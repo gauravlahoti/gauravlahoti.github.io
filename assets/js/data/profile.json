@@ -20,7 +20,6 @@
     "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
     "agentApi": "https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
-    "agentStatsUrl": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats",
     "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
     "metricsApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/post-metrics"
   },

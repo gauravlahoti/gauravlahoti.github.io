@@ -38,7 +38,6 @@ export function initAgentWidget(root, profile) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
-    const statsUrl = links.agentStatsUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -93,7 +92,6 @@ export function initAgentWidget(root, profile) {
     }
     setupExplainerModal(dom, agentExplainer);
     setupScrollNudge();
-    fetchAndShowStats(statsUrl, dom.footerTrigger || dom.foot);
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
@@ -1149,31 +1147,6 @@ function startLoadingStages(assistantLi) {
             }
         },
     };
-}
-
-// --- ambient presence stats -------------------------------------------------
-
-async function fetchAndShowStats(url, footerEl) {
-    if (!url || !footerEl) return;
-    try {
-        const res = await fetch(url, { cache: "force-cache" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const n = data?.total_conversations;
-        if (typeof n !== "number" || n < 1) return;
-        // Render the count as a sibling of the trigger so it sits outside
-        // the underlined explainer link — appending inside the trigger made
-        // it look like part of the link text.
-        const foot = footerEl.classList.contains("agent-panel-foot")
-            ? footerEl
-            : footerEl.closest(".agent-panel-foot");
-        if (!foot) return;
-        const label = n >= 100 ? `${Math.floor(n / 10) * 10}+` : `${n}`;
-        const count = document.createElement("span");
-        count.className = "agent-stats-count";
-        count.textContent = `${label} conversations`;
-        foot.appendChild(count);
-    } catch (_) { /* best-effort — stats are ambient, never critical */ }
 }
 
 // --- SSE streaming ----------------------------------------------------------
