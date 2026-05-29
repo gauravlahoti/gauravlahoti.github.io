@@ -29,12 +29,11 @@ python3 -m http.server 5173
 | Layer | Location | Notes |
 |-------|----------|-------|
 | HTML | `index.html` | Single page; semantic anchors |
-| Standalone pages | `agents/index.html`, `learn/index.html` | `/agents/` portfolio and `/learn/` gamified AI-learning game; share the nav but boot their own module |
+| Standalone pages | `agents/index.html` | `/agents/` portfolio; shares the nav but boots its own module |
 | CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
-| Learn game | `assets/js/learn-game.js` + `assets/js/learn/{state,characters,worldmap}.js` + `assets/css/learn.css` | `/learn/` interactive AI-learning adventure (Spec #35); content in `data/learn.json` |
-| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json`, `learn.json`, `post-metrics.json` (untracked — populated weekly by ambient agent) |
+| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json`, `post-metrics.json` (untracked — populated weekly by ambient agent) |
 | Static media | `assets/img/` | Resume PDF, OG image, favicon, badge PNGs |
 | Backend | `backend/` | Resume-gate + agent audit log + analytics |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
@@ -116,13 +115,14 @@ There are **two independent Cloud Run services**: the chat widget agent (`make d
 
 Specs are append-only. Never rewrite an old spec — write a new one. Zero-padded numbering (`00`, `01`, …).
 
-## Recent specs (31–35)
+## Recent specs (31–34)
 
 - **Spec 31** — Ambient agent on Cloud Run (background runs, visitor digest email)
 - **Spec 32** — Cloud Scheduler trigger for ambient agent (replaced Lambda)
 - **Spec 33** — Self-hosted analytics (`analytics.js` beacon → `page_views` D1 table → dashboard digest)
 - **Spec 34** — LinkedIn post metrics in Perspectives (engagement chips: hearts, comments, shares)
-- **Spec 35** — Gamified "Learn AI" adventure at `/learn/` (standalone page; LLM-vs-agent learning game; `data/learn.json`)
+
+> The "Learn AI" game (`/learn/`, specs 35–36) was removed from the site. Specs 35–36 retained as history.
 
 ## Performance budget
 
