@@ -34,9 +34,7 @@
 
   <!-- Digest Email — x=720 y=80 200×72 -->
   <rect x="720" y="80" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
-  <rect x="730" y="102" width="28" height="28" rx="7" fill="#EA4335"/>
-  <rect x="734" y="107" width="20" height="14" rx="1" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
-  <path d="M734,108 L744,116 L754,108" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <image href="/diagram-icons/gmail.jpg" x="730" y="102" width="28" height="28" style="border-radius:7px"/>
   <text x="766" y="108" class="node-title">Digest Email</text>
   <text x="766" y="124" class="node-sub">Gaurav's inbox</text>
   <text x="766" y="140" class="node-sub">weekly digest</text>
@@ -57,10 +55,7 @@
 
   <!-- Cloudflare D1 — x=180 y=452 200×72 (center x=280) -->
   <rect x="180" y="452" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
-  <rect x="190" y="474" width="28" height="28" rx="7" fill="#F48120"/>
-  <ellipse cx="204" cy="482" rx="8" ry="3.5" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
-  <rect x="196" y="482" width="16" height="8" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
-  <ellipse cx="204" cy="490" rx="8" ry="3.5" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+  <image href="/diagram-icons/cloudflare.png" x="190" y="474" width="28" height="28"/>
   <text x="226" y="476" class="node-title">Cloudflare D1</text>
   <text x="226" y="492" class="node-sub">interactions</text>
   <text x="226" y="506" class="node-sub">page views · 90-day TTL</text>

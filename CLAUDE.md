@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project
 
 Static, single-page portfolio for Gaurav Lahoti (Cloud & AI Architect). Dark "AI terminal" aesthetic. No framework, no bundler, no build step — `git clone` → `python3 -m http.server 5173` → running site. Every feature ships through a spec in `.claude/specs/`.
@@ -30,7 +32,7 @@ python3 -m http.server 5173
 | CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
-| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json`, `post-metrics.json` (untracked — LinkedIn engagement) |
+| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json`, `post-metrics.json` (untracked — populated weekly by ambient agent) |
 | Static media | `assets/img/` | Resume PDF, OG image, favicon, badge PNGs |
 | Backend | `backend/` | Resume-gate + agent audit log + analytics |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
@@ -60,6 +62,11 @@ Gates the resume PDF behind Google Sign-In. Two runtimes share `schema.sql`:
 
 Standalone Node.js MCP server deployed on Cloud Run. Exposes a `send-email` tool. API key passed via `Authorization: Bearer` (no server-side secrets). Portfolio agent connects via `RESEND_MCP_URL`. Reused by both the main agent and ambient agent for outbound email.
 
+| Task | Command (from `resend_mcp_server/`) |
+|------|--------------------------------------|
+| Local dev | `make dev` → `:3000` |
+| Deploy to Cloud Run | `make deploy` (injects secrets from Secret Manager) |
+
 ## Agent chat widget (`portfolio-agent/`)
 
 Floating "Ask my agent" widget — Google ADK Python agent on Cloud Run (`min-instances=0`). Five retrieval tools: `get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications` over a frozen JSON corpus bundled at deploy time.
@@ -73,18 +80,24 @@ Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
 | Local dev (FastAPI) | `make dev` → `:8000` |
 | Interactive UI | `agents-cli playground` |
 | One-shot smoke test | `agents-cli run "your prompt"` |
+| Lint | `make lint` |
 | Eval gate (required before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
 | Refresh corpus | `make corpus` — **must run before every deploy**; syncs `assets/js/data/*.json` → `app/corpus/` |
 | Audit log smoke test | `make audit` — sends a test fixture to the audit log endpoint |
-| Deploy | `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` |
+| Deploy chat agent | `make deploy` (updates Cloud Run service; update `links.agentApi` + `links.agentWarm` in `profile.json` and CSP after) |
+| Deploy ambient agent | `make deploy-ambient` (separate Cloud Run service; triggered by Cloud Scheduler) |
 
-After deploy: update `profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the Cloud Run URL.
+There are **two independent Cloud Run services**: the chat widget agent (`make deploy`) and the ambient digest agent (`make deploy-ambient`). After deploying the chat agent: update `profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL.
 
 **Ambient agent** (`app/ambient_agent.py`): background agent triggered via Cloud Scheduler (Spec #32). Fetches visitor stats from `GET /api/ambient/stats?days=4` (gated by `X-Internal-Token`), fetches LinkedIn post metrics, generates insights, drafts leads, and sends a single weekly dashboard email via Resend MCP. Endpoint: `POST /api/ambient/run` on Cloud Run.
 
 **Agent env vars** (see `portfolio-agent/.env.example`): `GEMINI_API_KEY`, `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `ALLOW_ORIGINS`, `RESEND_MCP_URL`, `MCP_CALLER_TOKEN`, `RESEND_FROM_ADDRESS`, `RESUME_PDF_URL`, `NOTE_FROM_ADDRESS`, `GAURAV_CONTACT_EMAIL`, `AMBIENT_TRIGGER_TOKEN`.
 
 **`[[META]]` block:** every agent reply ends with `[[META]]…[[/META]]` carrying `citations`, `suggestions`, and optional `cta`. `_stream_agent` strips it from the stream, validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as SSE events (`citations`, `suggestions`, `cta`) before `done`. Widget renders `[N]` superscripts post-stream, a chip row, and a CTA button. `[[META]]`/`[[/META]]` are stripped from user input in `before_model_callback` as injection defense. CTA copy lives in `profile.agentCopy`; transparency modal copy in `profile.agentExplainer`.
+
+## Standalone scripts (`scripts/`)
+
+`scripts/add-post.mjs` — Node script that fetches Open Graph metadata from a LinkedIn URL and prepends a post entry to `posts.json`. The `/add-post` slash command wraps this. Supports `--print` flag for preview without writing.
 
 ## Conventions
 
