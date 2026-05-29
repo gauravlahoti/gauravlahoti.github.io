@@ -545,7 +545,10 @@
     background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    overflow-y: auto;
+    /* scroll instead of auto + touch momentum — required for Android/iOS */
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     display: none;
     opacity: 0;
 }
@@ -1060,9 +1063,10 @@
     /* ── Panel body: surface quick info before the diagram ──────────── */
     .agent-panel-body { display: flex; flex-direction: column; }
 
+    /* title → diagram overview → traits → how it works → stack → links */
     .agent-panel-title-block                            { order: 1; }
-    .agent-panel-section:has(.agent-traits-table)       { order: 2; }
-    .agent-panel-section:has(.agent-panel-diagram-wrap) { order: 3; }
+    .agent-panel-section:has(.agent-panel-diagram-wrap) { order: 2; }
+    .agent-panel-section:has(.agent-traits-table)       { order: 3; }
     .agent-panel-section:has(.agent-steps)              { order: 4; }
     .agent-panel-section:has(.agent-tech-item)          { order: 5; }
     .agent-panel-links                                  { order: 6; }

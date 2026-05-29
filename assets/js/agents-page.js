@@ -136,7 +136,11 @@ async function fetchInlineSvg(url) {
         const svgEl = document.importNode(doc.documentElement, true);
         svgEl.removeAttribute("width");
         svgEl.removeAttribute("height");
-        svgEl.style.cssText = "width:100%;height:auto;display:block;";
+        // Derive aspect-ratio from viewBox so the SVG renders at correct
+        // height when width:100% and no explicit height attribute is set.
+        const vb = (svgEl.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+        const ar = vb.length === 4 && vb[2] > 0 && vb[3] > 0 ? `${vb[2]} / ${vb[3]}` : "16 / 10";
+        svgEl.style.cssText = `width:100%;height:auto;display:block;aspect-ratio:${ar};`;
         return svgEl;
     } catch {
         return null;
@@ -410,14 +414,7 @@ async function buildPanel(agent) {
 }
 
 function openPanel(overlay) {
-    // iOS-safe scroll lock: freeze the page at its current position.
-    // Setting overflow:hidden on body breaks scroll inside fixed overlays on iOS.
-    const scrollY = window.scrollY;
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    overlay._scrollY = scrollY;
-
+    document.body.style.overflow = "hidden";
     overlay.classList.add("is-open");
     activePanel = overlay;
 
@@ -445,12 +442,7 @@ function closePanel(overlay) {
     const done = () => {
         overlay.classList.remove("is-open");
         overlay.remove();
-        // Restore scroll position (iOS-safe unlock)
-        const scrollY = overlay._scrollY ?? 0;
-        document.body.style.position = "";
-        document.body.style.top = "";
-        document.body.style.width = "";
-        window.scrollTo(0, scrollY);
+        document.body.style.overflow = "";
         activePanel = null;
     };
     if (gsap && !REDUCE_MOTION) {
