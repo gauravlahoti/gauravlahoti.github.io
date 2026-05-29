@@ -400,10 +400,17 @@ async function buildPanel(agent) {
 
     inner.append(hdr, body);
 
-    overlay.appendChild(inner);
+    // Scroll root sits between the animated overlay and the content.
+    // This isolates GSAP's opacity/transform on the overlay from the scroll
+    // hit-testing, fixing the "scroll dead on Android" bug.
+    const scrollRoot = el("div", { class: "agent-panel-scroll" });
+    scrollRoot.appendChild(inner);
+    overlay.appendChild(scrollRoot);
     document.body.appendChild(overlay);
 
-    overlay.addEventListener("click", e => { if (e.target === overlay) closePanel(overlay); });
+    // Close when tapping the backdrop (overlay or the scroll root gutter)
+    const onBackdrop = e => { if (e.target === overlay || e.target === scrollRoot) closePanel(overlay); };
+    overlay.addEventListener("click", onBackdrop);
     const onKey = e => { if (e.key === "Escape") { closePanel(overlay); document.removeEventListener("keydown", onKey); } };
     document.addEventListener("keydown", onKey);
 
@@ -421,12 +428,19 @@ function openPanel(overlay) {
     const gsap = window.gsap;
     if (gsap && !REDUCE_MOTION) {
         gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power2.out" });
-        gsap.fromTo(overlay.querySelector(".agent-panel-inner"),
-            { y: 32, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.32, ease: "power3.out", delay: 0.08,
-              onComplete() {
-                  if (overlay._diagSvg) overlay._diagTl = animateDiagram(overlay._diagSvg);
-              },
+        const inner = overlay.querySelector(".agent-panel-inner");
+        const isMobile = matchMedia("(max-width: 767px)").matches;
+        // On mobile: fade only — no translateY. A transform on the inner
+        // creates a GPU compositing layer that blocks scroll hit-testing on
+        // Android Chrome when the parent is the scroll container.
+        gsap.fromTo(inner,
+            isMobile ? { opacity: 0 } : { y: 32, opacity: 0 },
+            {
+                ...(isMobile ? {} : { y: 0 }),
+                opacity: 1, duration: 0.32, ease: "power3.out", delay: 0.08,
+                onComplete() {
+                    if (overlay._diagSvg) overlay._diagTl = animateDiagram(overlay._diagSvg);
+                },
             }
         );
     } else if (overlay._diagSvg) {

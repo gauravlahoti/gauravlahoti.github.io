@@ -545,16 +545,23 @@
     background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    /* scroll instead of auto + touch momentum — required for Android/iOS */
-    overflow-y: scroll;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
     display: none;
     opacity: 0;
+    /* overflow lives on .agent-panel-scroll so GSAP's opacity animation
+       on this element never breaks Android Chrome scroll hit-testing */
 }
 
 .agent-panel-overlay.is-open {
     display: block;
+}
+
+/* Scroll root — plain div, no GSAP animations, owns the scroll context */
+.agent-panel-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .agent-panel-inner {
@@ -986,8 +993,12 @@
 
 @media (max-width: 767px) {
 
-    /* ── Agent card: hide diagram thumbnail ─────────────────────────── */
-    .agent-diagram-pane { display: none; }
+    /* ── Agent card: show diagram thumbnail at compact height ────────── */
+    .agent-diagram-pane {
+        flex: none;
+        height: 160px;
+        aspect-ratio: unset;
+    }
 
     /* ── Panel overlay: fix iOS scroll ──────────────────────────────── */
     /* body is frozen via position:fixed in JS; overlay scrolls freely  */
@@ -1021,25 +1032,22 @@
         right: 10px;
     }
 
-    /* ── Fullscreen diagram: full-bleed, pannable ────────────────────── */
-    /* Inline style is suppressed on mobile in JS so this CSS rules.    */
+    /* ── Fullscreen diagram: scale to fit viewport, pinch to zoom ─────── */
     .agent-diag-fs {
-        padding: 56px 0 24px;
-        align-items: flex-start;
-        justify-content: flex-start;
-        overflow: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
+        padding: 56px 16px 24px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
     }
 
-    /* Wide enough to make 11–15 px SVG labels readable (~8-9 px at 640px) */
     .agent-diag-fs svg {
-        min-width: 640px;
-        width: 640px !important;
+        width: calc(100vw - 32px) !important;
+        height: auto !important;
         max-width: none;
-        max-height: none;
-        touch-action: pan-x pan-y;
-        margin: 0 16px 32px;
+        max-height: calc(100vh - 96px);
+        min-width: unset;
+        touch-action: pinch-zoom;
+        margin: 0;
     }
 
     /* ── Traits table: allow wrapping on narrow screens ─────────────── */
