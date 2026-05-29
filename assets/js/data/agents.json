@@ -140,5 +140,48 @@
       { "label": "Human in loop",   "value": "None" }
     ],
     "links": []
+  },
+  {
+    "id": "error-lens",
+    "name": "ErrorLens",
+    "subtitle": "Self-learning GCP error resolution system",
+    "role": "Multi-Agent System",
+    "status": "LIVE",
+    "headline": "Diagnoses GCP errors and gets smarter with every confirmed fix.",
+    "description": "ErrorLens is a multi-agent orchestrator that triages GCP errors, runs parallel research across documentation and community sources, and stores confirmed resolutions in a vector knowledge bank. Mature deployments skip the research pipeline entirely for previously encountered issues via semantic similarity matching (≥0.85 threshold).",
+    "value": "Reduces mean-time-to-resolution for recurring GCP errors by accumulating institutional knowledge across every incident. The self-improving feedback loop means the system delivers faster, higher-confidence answers over time.",
+    "stack": ["Google ADK", "Gemini 2.5", "A2A Protocol", "AlloyDB + pgvector", "MCP Toolbox", "Cloud Run", "Vertex AI Embeddings"],
+    "diagramSvg": "agents/diagrams/error-lens-v2.svg?v=12",
+    "diagramAlt": "ErrorLens multi-agent architecture: orchestrator routes errors to quick-scan or full research pipeline, with A2A KB agent backed by AlloyDB vector store",
+    "steps": [
+      { "n": 1, "label": "Error intake", "detail": "Developer submits a GCP error. The orchestrator determines if a known fix exists in the knowledge bank." },
+      { "n": 2, "label": "Quick scan", "detail": "Sequential signal extraction + KB vector search (≥0.85 similarity). Returns immediately if a match is found." },
+      { "n": 3, "label": "Sage pipeline", "detail": "For novel errors: deep_search runs GCP docs and community agents in parallel, then aggregates with composite confidence scoring." },
+      { "n": 4, "label": "Parallel research", "detail": "GCP Knowledge Agent and Community Search Agent run concurrently, searching official docs and Stack Overflow / GitHub Issues." },
+      { "n": 5, "label": "External research", "detail": "GCP Knowledge Agent calls a managed MCP server for official GCP docs; Community Search Agent uses Google Search for SO, Reddit and GitHub issues — both run in parallel. On KB HIT, quick_scan bypasses sage_pipeline via a direct hot-path into the KB Toolbox." },
+      { "n": 6, "label": "A2A KB record", "detail": "Confirmed fixes are dispatched to error-kb-agent via A2A Protocol, triggering embedding regeneration to include the resolution." },
+      { "n": 7, "label": "MCP tool execution", "detail": "error-kb-agent calls error-kb-toolbox (MCP Toolbox for Databases) to read/write cases, perform vector searches, and deposit fixes." },
+      { "n": 8, "label": "AlloyDB pgvector", "detail": "768-dimensional embeddings from Vertex AI text-embedding-005 power semantic similarity search across the growing case library." },
+      { "n": 9, "label": "PDF export", "detail": "The orchestrator generates a structured PDF diagnostic report delivered back to the developer." }
+    ],
+    "techDecisions": [
+      { "tech": "A2A Protocol", "why": "Enables error-kb-agent to be independently deployed and versioned on Cloud Run while remaining callable from the main orchestrator over HTTP." },
+      { "tech": "AlloyDB + pgvector", "why": "PostgreSQL-compatible vector store with native pgvector extension and Vertex AI integration for high-quality 768-dim embeddings — no separate vector DB needed." },
+      { "tech": "MCP Toolbox for Databases", "why": "Decouples SQL/vector logic from agent code; exposes database operations as typed MCP tools consumable by any ADK agent." },
+      { "tech": "Parallel research agents", "why": "GCP docs and community sources are searched concurrently via ParallelAgent, cutting research latency roughly in half." }
+    ],
+    "traits": [
+      { "label": "Model",          "value": "Gemini 2.5 Flash / Pro" },
+      { "label": "Framework",      "value": "Google ADK + A2A" },
+      { "label": "Runtime",        "value": "Cloud Run (3 services)" },
+      { "label": "Orchestration",  "value": "Multi-Agent · Sequential + Parallel" },
+      { "label": "Vector store",   "value": "AlloyDB + pgvector (768-dim)" },
+      { "label": "Tool protocol",  "value": "MCP Toolbox for Databases" },
+      { "label": "KB similarity",  "value": "Cosine ≥ 0.85 (hot path)" },
+      { "label": "Inter-agent",    "value": "A2A Protocol" }
+    ],
+    "links": [
+      { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
+    ]
   }
 ]

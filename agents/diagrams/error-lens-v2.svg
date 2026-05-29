@@ -1,0 +1,259 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 920" width="1040" height="920" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="30" class="caption">// error-lens · Google ADK · Gemini 2.5 · A2A Protocol · AlloyDB + pgvector · MCP Toolbox · Cloud Run</text>
+
+  <!-- GCP outer boundary -->
+  <rect x="20" y="44" width="1000" height="856" rx="16" fill="none" stroke="#4285F4" stroke-width="1" opacity="0.35"/>
+  <rect x="440" y="36" width="160" height="20" fill="#000000"/>
+  <image href="/diagram-icons/google-cloud.png" x="446" y="38" width="16" height="16"/>
+  <text x="520" y="51" class="caption" text-anchor="middle">Google Cloud</text>
+
+  <!-- ════════ ROW 1 — Developer ════════ -->
+  <rect x="430" y="70" width="180" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="520" y="98" class="node-title" text-anchor="middle">Developer</text>
+  <text x="520" y="117" class="node-sub" text-anchor="middle">GCP error input</text>
+
+  <!-- ════════ ROW 2 — Hub (Cloud Run) + Gemini ════════ -->
+
+  <!-- Hub Cloud Run boundary (label CENTERED on top edge) -->
+  <rect x="340" y="186" width="360" height="130" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="465" y="178" width="110" height="20" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="476" y="180" width="14" height="14"/>
+  <text x="495" y="193" class="caption">Cloud Run</text>
+
+  <!-- HUB -->
+  <rect x="358" y="202" width="324" height="98" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="370" y="218" width="26" height="26"/>
+  <text x="402" y="236" class="node-title">error-lens-mas</text>
+  <text x="402" y="256" class="node-sub">ADK Orchestrator · Gemini 2.5</text>
+  <text x="402" y="272" class="node-sub">Root agent · routes by KB hit</text>
+
+  <!-- Gemini -->
+  <rect x="760" y="210" width="248" height="82" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/gemini.png" x="772" y="224" width="20" height="20"/>
+  <text x="802" y="240" class="node-title">Gemini 2.5</text>
+  <text x="802" y="258" class="node-sub">Flash / Pro reasoning</text>
+  <text x="802" y="274" class="node-sub">Multi-tier models</text>
+
+  <!-- ════════ ROW 3 — PDF | quick_scan | sage_pipeline | KB Agent ════════ -->
+
+  <rect x="40" y="362" width="180" height="104" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="130" y="394" class="node-title" text-anchor="middle">PDF Report</text>
+  <text x="130" y="414" class="node-sub" text-anchor="middle">Diagnosis export</text>
+  <text x="130" y="430" class="node-sub" text-anchor="middle">Structured output</text>
+  <text x="130" y="446" class="node-sub" text-anchor="middle">via report_pdf_tool</text>
+
+  <rect x="270" y="354" width="180" height="116" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="360" y="382" class="node-title" text-anchor="middle">quick_scan</text>
+  <text x="360" y="402" class="node-sub" text-anchor="middle">— Fast Path —</text>
+  <text x="360" y="420" class="node-sub" text-anchor="middle">Signal extract</text>
+  <text x="360" y="436" class="node-sub" text-anchor="middle">+ KB vector search</text>
+  <text x="360" y="452" class="node-sub" text-anchor="middle">Sequential</text>
+
+  <rect x="470" y="354" width="180" height="116" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="560" y="382" class="node-title" text-anchor="middle">sage_pipeline</text>
+  <text x="560" y="402" class="node-sub" text-anchor="middle">— Full Research —</text>
+  <text x="560" y="420" class="node-sub" text-anchor="middle">Research + record</text>
+  <text x="560" y="436" class="node-sub" text-anchor="middle">+ confidence score</text>
+  <text x="560" y="452" class="node-sub" text-anchor="middle">Sequential</text>
+
+  <!-- KB Agent Cloud Run boundary (label CENTERED on top edge) -->
+  <rect x="760" y="342" width="260" height="148" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="835" y="334" width="110" height="20" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="846" y="336" width="14" height="14"/>
+  <text x="865" y="349" class="caption">Cloud Run</text>
+
+  <rect x="772" y="358" width="236" height="120" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="784" y="372" width="20" height="20"/>
+  <text x="812" y="390" class="node-title">error-kb-agent</text>
+  <text x="812" y="410" class="node-sub">A2A · KB Manager</text>
+  <text x="812" y="428" class="node-sub">Skill-driven workflows</text>
+  <text x="812" y="446" class="node-sub">search · log · resolve · list</text>
+  <text x="812" y="464" class="node-sub">before_tool_callback gate</text>
+
+  <!-- ════════ ROW 4 — Parallel Research | KB Toolbox (shifted DOWN 25px for arrow-4 breathing room) ════════ -->
+
+  <!-- Parallel Research boundary (NOT a Cloud Run boundary; label stays at top-LEFT) -->
+  <rect x="420" y="565" width="280" height="160" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="432" y="557" width="120" height="20" fill="#000000"/>
+  <text x="492" y="572" class="caption" text-anchor="middle">Parallel Research</text>
+
+  <rect x="434" y="585" width="124" height="124" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="496" y="625" class="node-sub" text-anchor="middle">GCP Knowledge</text>
+  <text x="496" y="641" class="node-sub" text-anchor="middle">Agent</text>
+  <text x="496" y="665" class="node-sub" text-anchor="middle">Official GCP</text>
+  <text x="496" y="681" class="node-sub" text-anchor="middle">docs grounding</text>
+
+  <rect x="574" y="585" width="124" height="124" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="636" y="625" class="node-sub" text-anchor="middle">Community</text>
+  <text x="636" y="641" class="node-sub" text-anchor="middle">Search Agent</text>
+  <text x="636" y="665" class="node-sub" text-anchor="middle">SO · Reddit</text>
+  <text x="636" y="681" class="node-sub" text-anchor="middle">GitHub Issues</text>
+
+  <!-- KB Toolbox Cloud Run boundary (label CENTERED on top edge) -->
+  <rect x="760" y="565" width="260" height="148" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="835" y="557" width="110" height="20" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="846" y="559" width="14" height="14"/>
+  <text x="865" y="572" class="caption">Cloud Run</text>
+
+  <rect x="772" y="581" width="236" height="120" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="890" y="611" class="node-title" text-anchor="middle">error-kb-toolbox</text>
+  <text x="890" y="631" class="node-sub" text-anchor="middle">MCP Toolbox for Databases</text>
+  <text x="890" y="649" class="node-sub" text-anchor="middle">6 SQL tools · pgvector</text>
+  <text x="890" y="667" class="node-sub" text-anchor="middle">Streamable HTTP</text>
+  <text x="890" y="685" class="node-sub" text-anchor="middle">REST endpoints</text>
+
+  <!-- ════════ ROW 5 — Developer Knowledge | Google Search | AlloyDB ════════ -->
+
+  <!-- Box A: Developer Knowledge (Managed MCP Server) — under GCP Knowledge Agent -->
+  <rect x="420" y="780" width="140" height="100" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/google-cloud.png" x="430" y="790" width="24" height="24"/>
+  <text x="490" y="833" class="node-title" text-anchor="middle" style="font-size:13px">Developer Knowledge</text>
+  <text x="490" y="853" class="node-sub" text-anchor="middle">Managed MCP Server</text>
+
+  <!-- Box B: Google Search (under Community Search Agent) -->
+  <rect x="568" y="780" width="140" height="100" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/google-search.png" x="578" y="790" width="24" height="24"/>
+  <text x="638" y="830" class="node-title" text-anchor="middle" style="font-size:13px">Google Search</text>
+  <text x="638" y="848" class="node-sub" text-anchor="middle">Community</text>
+  <text x="638" y="864" class="node-sub" text-anchor="middle">SO · Reddit · GH</text>
+
+  <!-- AlloyDB aligned with other row 5 boxes (y=780-880) -->
+  <rect x="760" y="780" width="260" height="100" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/AlloyDB.png?v=2" x="772" y="796" width="32" height="32"/>
+  <text x="816" y="813" class="node-title">AlloyDB</text>
+  <text x="816" y="831" class="node-sub">pgvector · 768-dim vectors</text>
+  <text x="816" y="847" class="node-sub">Vertex AI text-embedding-005</text>
+  <text x="816" y="863" class="node-sub">cosine similarity ≥ 0.85</text>
+
+  <!-- ═══════════ EDGES ═══════════ -->
+
+  <!-- 1. Developer → Hub (acc). Rerouted with a small bend to avoid passing through the CENTERED Cloud Run label at x=465-575. -->
+  <polyline points="520,134 520,168 620,168 620,202" fill="none" stroke="#00FFD1" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-acc)"/>
+
+  <!-- Hub → Gemini (std) — emerges from the Cloud Run boundary right edge (x=700) -->
+  <polyline points="700,251 753,251" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="702" y="226" width="60" height="16" rx="3" fill="#000000"/>
+  <text x="732" y="238" class="edge-label" text-anchor="middle">inference</text>
+
+  <!-- 9. Hub → PDF Report (std) — emerges from the Cloud Run boundary left edge (x=340) -->
+  <polyline points="340,251 240,251 240,414 223,414" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="254" y="226" width="84" height="16" rx="3" fill="#000000"/>
+  <text x="296" y="238" class="edge-label" text-anchor="middle">generate PDF</text>
+
+  <!-- 2. Hub → quick_scan (std) -->
+  <polyline points="360,300 360,354" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+
+  <!-- 3. Hub → sage_pipeline (std) -->
+  <polyline points="560,300 560,354" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+
+  <!-- 6. sage → error-kb-agent (acc, A2A horizontal). Enters from LEFT side, so the CENTERED top label is not affected. -->
+  <polyline points="650,412 753,412" fill="none" stroke="#00FFD1" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-acc)"/>
+  <!-- A2A label ABOVE the line so step 6 can sit at the line midpoint -->
+  <rect x="674" y="380" width="56" height="16" rx="3" fill="#000000"/>
+  <text x="702" y="392" class="edge-label" text-anchor="middle">A2A call</text>
+
+  <!-- 4. sage → Parallel Research (std). Longer 95px segment for step 4 breathing room. -->
+  <polyline points="560,470 560,565" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+
+  <!-- 5a. GCP Knowledge Agent → Developer Knowledge (std, vertical down) -->
+  <polyline points="496,709 496,773" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="502" y="728" width="42" height="16" rx="3" fill="#000000"/>
+  <text x="523" y="740" class="edge-label" text-anchor="middle">MCP</text>
+
+  <!-- 5b. Community Search Agent → Google Search (std, vertical down) -->
+  <polyline points="636,709 636,773" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="642" y="728" width="74" height="16" rx="3" fill="#000000"/>
+  <text x="679" y="740" class="edge-label" text-anchor="middle">web search</text>
+
+  <!-- HOT PATH: quick_scan (KB HIT) → error-kb-toolbox (bypasses sage_pipeline + all parallel research) -->
+  <!-- Leaves quick_scan BOTTOM-CENTER (x=360), descends to y=515 (clear of error-kb-agent boundary bottom at y=490), runs right, enters KB Toolbox from above -->
+  <polyline points="360,470 360,515 770,515 770,558" fill="none" stroke="#00FFD1" stroke-width="1.5" stroke-linejoin="miter" stroke-dasharray="6 4" marker-end="url(#arr-acc)"/>
+  <!-- Label positioned on the RIGHT half of the horizontal segment, clear of sage→Parallel arrow at x=560 and step 4 -->
+  <rect x="585" y="499" width="140" height="16" rx="3" fill="#000000"/>
+  <text x="655" y="511" class="edge-label" fill="#00FFD1" text-anchor="middle">Direct KB lookup</text>
+
+  <!-- 7. error-kb-agent → error-kb-toolbox (std). Rerouted to enter at x=970 to avoid the centered Cloud Run label at x=835-945. -->
+  <polyline points="970,478 970,558" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <!-- "MCP tools" label to LEFT of arrow, well clear of step circle -->
+  <rect x="884" y="498" width="62" height="16" rx="3" fill="#000000"/>
+  <text x="915" y="510" class="edge-label" text-anchor="middle">MCP tools</text>
+
+  <!-- 8. error-kb-toolbox → AlloyDB (std). Arrow ends 7px before AlloyDB top (y=780). -->
+  <polyline points="970,701 970,773" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="862" y="715" width="80" height="16" rx="3" fill="#000000"/>
+  <text x="902" y="727" class="edge-label" text-anchor="middle">pgvector SQL</text>
+
+  <!-- ═══════════ STEP CIRCLES ═══════════ -->
+
+  <!-- Step 1: on Dev→Hub initial vertical, above the bend and above the Cloud Run boundary -->
+  <circle cx="520" cy="150" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="520" y="154" class="step-num" fill="#00FFD1" text-anchor="middle">1</text>
+
+  <!-- Step 2: midpoint of Hub→quick_scan -->
+  <circle cx="360" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="360" y="330" class="step-num" fill="#00FFD1" text-anchor="middle">2</text>
+
+  <!-- Step 3: midpoint of Hub→sage -->
+  <circle cx="560" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="560" y="330" class="step-num" fill="#00FFD1" text-anchor="middle">3</text>
+
+  <!-- Step 4: midway between hot path (y=515) and Parallel Research boundary (y=565); circle 540±12 = 528-552 -->
+  <circle cx="560" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="560" y="544" class="step-num" fill="#00FFD1" text-anchor="middle">4</text>
+
+  <!-- Step 5a: on GCP Knowledge → Developer Knowledge arrow -->
+  <circle cx="496" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="496" y="759" class="step-num" fill="#00FFD1" text-anchor="middle">5a</text>
+
+  <!-- Step 5b: on Community Search → Google Search arrow -->
+  <circle cx="636" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="636" y="759" class="step-num" fill="#00FFD1" text-anchor="middle">5b</text>
+
+  <!-- Step 6: CENTERED on sage→KB-agent horizontal line (x=701.5 midpoint of 650→753) -->
+  <circle cx="702" cy="412" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="702" y="416" class="step-num" fill="#00FFD1" text-anchor="middle">6</text>
+
+  <!-- Step 7: on KB-agent→toolbox vertical at x=970, BELOW MCP tools label -->
+  <circle cx="970" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="970" y="544" class="step-num" fill="#00FFD1" text-anchor="middle">7</text>
+
+  <!-- Step 8: on toolbox→AlloyDB vertical at x=970, BELOW pgvector label -->
+  <circle cx="970" cy="748" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="970" y="752" class="step-num" fill="#00FFD1" text-anchor="middle">8</text>
+
+  <!-- Step 9: on vertical segment of Hub→PDF path -->
+  <circle cx="240" cy="332" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <text x="240" y="336" class="step-num" fill="#00FFD1" text-anchor="middle">9</text>
+
+  <!-- Animation flow data -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="520,134 520,168 620,168 620,202" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-traveler-path="360,300 360,354" data-color="#00FFD1" data-step="2" data-delay="0.7"/>
+    <g data-traveler-path="560,300 560,354" data-color="#00FFD1" data-step="3" data-delay="1.4"/>
+    <g data-traveler-path="560,470 560,565" data-color="#00FFD1" data-step="4" data-delay="2.1"/>
+    <g data-traveler-path="496,709 496,773" data-color="#00FFD1" data-step="5a" data-delay="2.8"/>
+    <g data-traveler-path="636,709 636,773" data-color="#00FFD1" data-step="5b" data-delay="2.8"/>
+    <g data-traveler-path="650,412 753,412" data-color="#00FFD1" data-step="6" data-delay="3.5"/>
+    <g data-traveler-path="970,478 970,558" data-color="#00FFD1" data-step="7" data-delay="4.2"/>
+    <g data-traveler-path="970,701 970,773" data-color="#00FFD1" data-step="8" data-delay="4.9"/>
+    <g data-traveler-path="360,470 360,515 770,515 770,558" data-color="#00FFD1" data-step="hot" data-delay="0.7"/>
+    <g data-traveler-path="358,251 240,251 240,414 223,414" data-color="#00FFD1" data-step="9" data-delay="5.6"/>
+  </g>
+</svg>
