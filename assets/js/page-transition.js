@@ -204,6 +204,12 @@ export function runPageTransition(toUrl) {
     tl.to({}, { duration: 0.10 });
 }
 
+// ─── BFCache cleanup ─────────────────────────────────────────────────────────
+// When the browser restores a page from its back/forward cache the overlay
+// left by runPageTransition() is still in the DOM, fully covering the screen.
+// Tear it down immediately so the user sees the actual page content.
+window.addEventListener("pageshow", e => { if (e.persisted) teardown(); });
+
 // ─── Inbound ─────────────────────────────────────────────────────────────────
 
 export function playEntranceWipe() {

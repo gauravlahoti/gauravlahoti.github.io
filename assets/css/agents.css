@@ -1009,12 +1009,9 @@
         overscroll-behavior: contain;
     }
 
-    /* ── Panel diagram: scale-to-fit, tap the expand button to detail ── */
-    /* Diagram fills the card width; text is small but topology is clear. */
-    /* The ⤢ expand button opens a pannable fullscreen view.            */
+    /* ── Panel diagram: scale-to-fit overview; ⤢ button opens fullscreen */
     .agent-panel-diagram-wrap {
         overflow: hidden;
-        cursor: zoom-in;
     }
 
     .agent-panel-diagram-wrap svg,
@@ -1022,8 +1019,9 @@
         width: 100% !important;
         height: auto !important;
         min-width: unset;
-        /* Don't intercept page-scroll gestures in the scaled thumbnail  */
-        touch-action: none;
+        /* pan-y: finger-scroll passes through the diagram to the panel.
+           Using none blocked the whole panel from scrolling on mobile.  */
+        touch-action: pan-y;
     }
 
     /* Larger tap target for the expand button on touch ─────────────── */
@@ -1034,19 +1032,20 @@
         right: 10px;
     }
 
-    /* ── Fullscreen diagram: pan in both axes at readable size ─────────── */
-    /* body.overflow is NOT locked, so overflow:auto here works on Android */
+    /* ── Fullscreen diagram: block scroll container (not flex) ──────────── */
+    /* flex + overflow:auto breaks scroll on Android Chrome; block does not. */
     .agent-diag-fs {
-        padding: 56px 0 32px;
-        align-items: flex-start;
-        justify-content: flex-start;
+        display: block;
+        padding: 0;
         overflow: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
+        touch-action: pan-x pan-y;
     }
 
-    /* 640 px → 11-px labels render at ~7 px; legible on high-DPI phones */
+    /* 640 px wide → labels ~7 px on high-DPI, legible; scroll left/right  */
     .agent-diag-fs svg {
+        display: block;
         min-width: 640px;
         width: 640px !important;
         height: auto !important;
@@ -1054,7 +1053,8 @@
         max-height: none;
         min-height: unset;
         touch-action: pan-x pan-y;
-        margin: 0 20px 32px;
+        /* top margin clears the fixed Exit button; sides give breathing room */
+        margin: 64px 24px 40px;
     }
 
     /* ── Traits table: allow wrapping on narrow screens ─────────────── */

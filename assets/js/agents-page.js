@@ -307,11 +307,6 @@ async function buildPanel(agent) {
             diagWrap.appendChild(svgEl);
             inlinedSvg = svgEl;
             expandBtn.addEventListener("click", e => { e.stopPropagation(); openDiagramFullscreen(svgEl); });
-            // Mobile: tap anywhere on the diagram to open fullscreen
-            diagWrap.addEventListener("click", e => {
-                if (e.target.closest(".agent-diag-expand")) return;
-                if (matchMedia("(max-width: 767px)").matches) openDiagramFullscreen(svgEl);
-            });
         } else {
             // Fallback img
             const img = el("img", {
