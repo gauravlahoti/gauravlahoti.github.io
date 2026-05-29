@@ -46,7 +46,7 @@ function buildCard(agent, onOpen) {
     const pane = el("div", { class: "agent-diagram-pane" });
     if (agent.diagramSvg) {
         const img = el("img", {
-            src: agent.diagramSvg + "?v=176",
+            src: agent.diagramSvg + "?v=177",
             alt: agent.diagramAlt || agent.name,
             loading: "lazy",
             decoding: "async",
@@ -126,12 +126,116 @@ function openDiagramFullscreen(svgEl) {
     }
 }
 
+// ─── Pinch-to-zoom (mobile) ────────────────────────────────────────────────────
+// In-place pinch zoom + drag pan on the panel diagram, so phone users zoom with
+// their fingers instead of opening a space-eating fullscreen view.
+//
+// The diagram wrap uses `touch-action: none` on mobile, so we own every gesture:
+//   · 2 fingers            → pinch zoom (anchored at the pinch midpoint)
+//   · 1 finger, zoomed in  → pan the diagram
+//   · 1 finger, at 1×      → forward the drag to the panel's scroll container
+//     (so the page still scrolls past the diagram — the scroll bug stays fixed)
+function enablePinchZoom(wrap, svg) {
+    const MIN = 1, MAX = 4;
+    // Resolved lazily at gesture time: at init the wrap isn't in the scroll
+    // tree yet (buildPanel attaches it later), so closest() would return null.
+    const getScroller = () => wrap.closest(".agent-panel-scroll");
+    // Own every gesture on the diagram (set here, not in CSS, so the <img>
+    // fallback — which has no zoom handler — keeps native pan-y scrolling).
+    wrap.style.touchAction = "none";
+    svg.style.touchAction = "none";
+    svg.style.willChange = "transform";
+    let scale = 1, tx = 0, ty = 0;
+    let startDist = 0, startScale = 1, startTx = 0, startTy = 0, midX = 0, midY = 0;
+    let lastX = 0, lastY = 0, mode = null;
+
+    const apply = () => {
+        svg.style.transformOrigin = "0 0";
+        svg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        wrap.classList.toggle("is-zoomed", scale > 1.01);
+    };
+    const clamp = () => {
+        const w = wrap.clientWidth, h = wrap.clientHeight;
+        tx = Math.max(w - w * scale, Math.min(0, tx));
+        ty = Math.max(h - h * scale, Math.min(0, ty));
+    };
+    const dist = (a, b) => Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+
+    wrap.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 2) {
+            const [a, b] = e.touches;
+            const r = wrap.getBoundingClientRect();
+            mode = "pinch";
+            startDist = dist(a, b);
+            startScale = scale;
+            startTx = tx; startTy = ty;
+            midX = (a.clientX + b.clientX) / 2 - r.left;
+            midY = (a.clientY + b.clientY) / 2 - r.top;
+            e.preventDefault();
+        } else if (e.touches.length === 1) {
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+            mode = scale > 1.01 ? "pan" : "scroll";
+        }
+    }, { passive: false });
+
+    wrap.addEventListener("touchmove", (e) => {
+        if (mode === "pinch" && e.touches.length === 2) {
+            const next = Math.max(MIN, Math.min(MAX, startScale * (dist(e.touches[0], e.touches[1]) / startDist)));
+            tx = midX - (midX - startTx) * (next / startScale);
+            ty = midY - (midY - startTy) * (next / startScale);
+            scale = next;
+            clamp(); apply();
+            e.preventDefault();
+        } else if (mode === "pan" && e.touches.length === 1) {
+            const t = e.touches[0];
+            tx += t.clientX - lastX; ty += t.clientY - lastY;
+            lastX = t.clientX; lastY = t.clientY;
+            clamp(); apply();
+            e.preventDefault();
+        } else if (mode === "scroll" && e.touches.length === 1) {
+            // Not zoomed: drive the panel scroll so the page still moves.
+            const sc = getScroller();
+            if (sc) {
+                const t = e.touches[0];
+                sc.scrollTop -= t.clientY - lastY;
+                lastX = t.clientX; lastY = t.clientY;
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
+
+    const end = (e) => {
+        if (e.touches.length === 0) {
+            if (scale <= 1.01) { scale = 1; tx = 0; ty = 0; apply(); }
+            mode = null;
+        } else if (e.touches.length === 1) {
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+            mode = scale > 1.01 ? "pan" : "scroll";
+        }
+    };
+    wrap.addEventListener("touchend", end);
+    wrap.addEventListener("touchcancel", end);
+
+    // Double-tap to reset zoom
+    let lastTap = 0;
+    wrap.addEventListener("touchend", (e) => {
+        if (e.touches.length > 0) return;
+        const now = Date.now();
+        if (now - lastTap < 300 && scale > 1.01) {
+            scale = 1; tx = 0; ty = 0; apply();
+        }
+        lastTap = now;
+    });
+}
+
 // ─── SVG inline fetch ─────────────────────────────────────────────────────────
 
 async function fetchInlineSvg(url) {
     try {
         const base = document.querySelector("base")?.href || (window.location.origin + "/");
-        const resp = await fetch(new URL(url + "?v=176", base));
+        const resp = await fetch(new URL(url + "?v=177", base));
         if (!resp.ok) return null;
         const text = await resp.text();
         const parser = new DOMParser();
@@ -294,12 +398,21 @@ async function buildPanel(agent) {
     diagSection.append(el("p", { class: "agent-panel-eyebrow" }, "// architecture"));
     let inlinedSvg = null;
     if (agent.diagramSvg) {
+        const isMobile = matchMedia("(max-width: 767px)").matches;
         const diagWrap = el("div", { class: "agent-panel-diagram-wrap" });
 
-        // Expand button (top-right of diagram)
+        // Desktop: expand-to-fullscreen button. Mobile: pinch-to-zoom in place
+        // (the button is hidden via CSS — fullscreen wastes the small screen).
         const expandBtn = el("button", { class: "agent-diag-expand", type: "button", "aria-label": "View fullscreen" });
         expandBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
         diagWrap.appendChild(expandBtn);
+
+        // Mobile zoom hint (fades out after first interaction)
+        if (isMobile) {
+            const hint = el("span", { class: "agent-diag-zoom-hint" }, "pinch to zoom · drag to pan");
+            diagWrap.appendChild(hint);
+            diagWrap.addEventListener("touchstart", () => hint.classList.add("is-hidden"), { once: true, passive: true });
+        }
 
         diagSection.appendChild(diagWrap);
         const svgEl = await fetchInlineSvg(agent.diagramSvg);
@@ -307,6 +420,7 @@ async function buildPanel(agent) {
             diagWrap.appendChild(svgEl);
             inlinedSvg = svgEl;
             expandBtn.addEventListener("click", e => { e.stopPropagation(); openDiagramFullscreen(svgEl); });
+            if (isMobile) enablePinchZoom(diagWrap, svgEl);
         } else {
             // Fallback img
             const img = el("img", {

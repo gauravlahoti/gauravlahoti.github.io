@@ -1020,7 +1020,7 @@
         overscroll-behavior: contain;
     }
 
-    /* ── Panel diagram: scale-to-fit overview; ⤢ button opens fullscreen */
+    /* ── Panel diagram: pinch-to-zoom in place (no fullscreen on mobile) ── */
     .agent-panel-diagram-wrap {
         overflow: hidden;
     }
@@ -1030,17 +1030,38 @@
         width: 100% !important;
         height: auto !important;
         min-width: unset;
-        /* pan-y: finger-scroll passes through the diagram to the panel.
-           Using none blocked the whole panel from scrolling on mobile.  */
+        /* Default pan-y keeps the <img> fallback scrolling; enablePinchZoom()
+           overrides the inline-SVG case to touch-action:none in JS. */
         touch-action: pan-y;
     }
 
-    /* Larger tap target for the expand button on touch ─────────────── */
-    .agent-diag-expand {
-        width: 40px;
-        height: 40px;
-        top: 10px;
-        right: 10px;
+    /* Fullscreen expand is hidden on mobile — pinch-zoom replaces it. */
+    .agent-diag-expand { display: none; }
+
+    /* Zoom hint pill — fades out on first touch */
+    .agent-diag-zoom-hint {
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        transform: translateX(-50%);
+        z-index: 2;
+        padding: 4px 10px;
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.04em;
+        color: var(--ink-muted);
+        background: rgba(0, 0, 0, 0.66);
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        pointer-events: none;
+        white-space: nowrap;
+        transition: opacity var(--dur-base) var(--ease-out);
+    }
+    .agent-diag-zoom-hint.is-hidden { opacity: 0; }
+
+    /* Subtle accent ring while actively zoomed in */
+    .agent-panel-diagram-wrap.is-zoomed {
+        border-color: var(--accent);
     }
 
     /* ── Fullscreen diagram: block scroll container (not flex) ──────────── */

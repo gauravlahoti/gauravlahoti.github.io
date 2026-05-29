@@ -203,44 +203,44 @@
   <!-- ═══════════ STEP CIRCLES ═══════════ -->
 
   <!-- Step 1: on Dev→Hub initial vertical, above the bend and above the Cloud Run boundary -->
-  <circle cx="520" cy="150" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="520" y="154" class="step-num" fill="#00FFD1" text-anchor="middle">1</text>
+  <circle cx="520" cy="150" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="520" y="154" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="1">1</text>
 
   <!-- Step 2: midpoint of Hub→quick_scan -->
-  <circle cx="360" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="360" y="330" class="step-num" fill="#00FFD1" text-anchor="middle">2</text>
+  <circle cx="360" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="360" y="330" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="2">2</text>
 
   <!-- Step 3: midpoint of Hub→sage -->
-  <circle cx="560" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="560" y="330" class="step-num" fill="#00FFD1" text-anchor="middle">3</text>
+  <circle cx="560" cy="326" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="560" y="330" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="3">3</text>
 
   <!-- Step 4: midway between hot path (y=515) and Parallel Research boundary (y=565); circle 540±12 = 528-552 -->
-  <circle cx="560" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="560" y="544" class="step-num" fill="#00FFD1" text-anchor="middle">4</text>
+  <circle cx="560" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="560" y="544" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="4">4</text>
 
   <!-- Step 5a: on GCP Knowledge → Developer Knowledge arrow -->
-  <circle cx="496" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="496" y="759" class="step-num" fill="#00FFD1" text-anchor="middle">5a</text>
+  <circle cx="496" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5a"/>
+  <text x="496" y="759" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="5a">5a</text>
 
   <!-- Step 5b: on Community Search → Google Search arrow -->
-  <circle cx="636" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="636" y="759" class="step-num" fill="#00FFD1" text-anchor="middle">5b</text>
+  <circle cx="636" cy="755" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5b"/>
+  <text x="636" y="759" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="5b">5b</text>
 
   <!-- Step 6: CENTERED on sage→KB-agent horizontal line (x=701.5 midpoint of 650→753) -->
-  <circle cx="702" cy="412" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="702" y="416" class="step-num" fill="#00FFD1" text-anchor="middle">6</text>
+  <circle cx="702" cy="412" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
+  <text x="702" y="416" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="6">6</text>
 
   <!-- Step 7: on KB-agent→toolbox vertical at x=970, BELOW MCP tools label -->
-  <circle cx="970" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="970" y="544" class="step-num" fill="#00FFD1" text-anchor="middle">7</text>
+  <circle cx="970" cy="540" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="7"/>
+  <text x="970" y="544" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="7">7</text>
 
   <!-- Step 8: on toolbox→AlloyDB vertical at x=970, BELOW pgvector label -->
-  <circle cx="970" cy="748" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="970" y="752" class="step-num" fill="#00FFD1" text-anchor="middle">8</text>
+  <circle cx="970" cy="748" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="8"/>
+  <text x="970" y="752" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="8">8</text>
 
   <!-- Step 9: on vertical segment of Hub→PDF path -->
-  <circle cx="240" cy="332" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <text x="240" y="336" class="step-num" fill="#00FFD1" text-anchor="middle">9</text>
+  <circle cx="240" cy="332" r="12" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="9"/>
+  <text x="240" y="336" class="step-num" fill="#00FFD1" text-anchor="middle" data-step-circle="9">9</text>
 
   <!-- Animation flow data -->
   <g class="anim-data" style="display:none">
