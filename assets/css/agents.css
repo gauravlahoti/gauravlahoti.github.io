@@ -572,12 +572,20 @@
     padding: 0 24px 48px;
 }
 
-/* Single-column body: diagram full-width, content below */
+/* Single-column body: diagram full-width, content below.
+   IMPORTANT: `.agent-panel-body` is ALSO a chat-widget class (components.css),
+   whose rule sets overflow-y:scroll + flex:1 1 auto. That bleeds onto this
+   deep-dive panel and creates a second, non-scrollable scroll container that
+   swallows touch-pan on mobile (the real "deep dive won't scroll" bug).
+   Explicitly reset so the ONLY scroll context is .agent-panel-scroll. */
 .agent-panel-body {
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding-bottom: 48px;
+    overflow: visible;
+    flex: initial;
+    min-height: 0;
+    padding: 0 0 48px;
 }
 
 @media (max-width: 767px) {
@@ -751,12 +759,22 @@
     padding: 40px 32px;
 }
 
-.agent-diag-fs svg {
+/* `> svg` targets ONLY the cloned diagram (direct child), never the close
+   button's icon svg (a grandchild) — that broad match blew the close icon
+   up to 640px (the "giant grey X" bug). */
+.agent-diag-fs > svg {
     width: auto;
     height: auto;
     max-width: calc(100vw - 64px);
     max-height: calc(100vh - 80px);
     display: block;
+}
+
+/* Defensive: pin the close-button icon regardless of any diagram svg rule */
+.agent-diag-fs-close svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
 }
 
 .agent-diag-fs-close {
@@ -788,14 +806,7 @@
     border-color: var(--accent);
     color: var(--accent);
 }
-
-@media (max-width: 767px) {
-    .agent-diag-fs { padding: 60px 16px 24px; }
-    .agent-diag-fs svg {
-        max-width: 100%;
-        max-height: calc(100vh - 100px);
-    }
-}
+/* Mobile fullscreen rules live in the consolidated < 768 px block below. */
 
 /* Numbered steps */
 .agent-steps {
@@ -1043,8 +1054,9 @@
         touch-action: pan-x pan-y;
     }
 
-    /* 640 px wide → labels ~7 px on high-DPI, legible; scroll left/right  */
-    .agent-diag-fs svg {
+    /* `> svg` = diagram only (never the close-button icon). 640 px wide →
+       labels legible on high-DPI; pan left/right and up/down to read.       */
+    .agent-diag-fs > svg {
         display: block;
         min-width: 640px;
         width: 640px !important;
