@@ -7,13 +7,13 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
     <base href="/">
     <script src="assets/js/scroll-restore.js?v=163"></script>
-    <title>Agents Portfolio | Gaurav Lahoti</title>
-    <meta name="description" content="Production agents built by Gaurav Lahoti — Google ADK, Gemini, Cloud Run, MCP, and more.">
-    <link rel="canonical" href="https://gauravlahoti.dev/agents/">
-    <meta property="og:title" content="Agents Portfolio | Gaurav Lahoti">
-    <meta property="og:description" content="Production agents built by Gaurav Lahoti — Google ADK, Gemini, Cloud Run, MCP, and more.">
+    <title>Learn AI — Interactive Game | Gaurav Lahoti</title>
+    <meta name="description" content="A fun, interactive game that teaches anyone — tech or not — what an LLM is, what an AI agent is, how they differ, and when to use each.">
+    <link rel="canonical" href="https://gauravlahoti.dev/learn/">
+    <meta property="og:title" content="Learn AI — Interactive Game | Gaurav Lahoti">
+    <meta property="og:description" content="Pick a hero, choose your style, and play your way to crystal-clear answers about LLMs and AI agents.">
     <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
-    <meta property="og:url" content="https://gauravlahoti.dev/agents/">
+    <meta property="og:url" content="https://gauravlahoti.dev/learn/">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
@@ -26,14 +26,14 @@
     <link rel="stylesheet" href="assets/css/base.css?v=163">
     <link rel="stylesheet" href="assets/css/layout.css?v=163">
     <link rel="stylesheet" href="assets/css/components.css?v=163">
-    <link rel="stylesheet" href="assets/css/agents.css?v=179">
+    <link rel="stylesheet" href="assets/css/learn.css?v=1">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
             crossorigin="anonymous" defer></script>
 </head>
-<body class="agents-page">
-    <a class="skip-link" href="#agents-main">Skip to content</a>
+<body class="learn-page">
+    <a class="skip-link" href="#learn-main">Skip to content</a>
 
     <!-- Shared header — mirrors index.html structure -->
     <header class="nav" role="banner">
@@ -48,9 +48,9 @@
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
                 <a href="/#perspectives">Perspectives</a>
-                <a href="/agents/" class="nav-link-active" data-page-link aria-current="page">Agents Portfolio</a>
-                <a href="/learn/" data-page-link>Learn AI</a>
-                <a href="/#" data-resume-trigger-agents>Resume</a>
+                <a href="/agents/" data-page-link>Agents Portfolio</a>
+                <a href="/learn/" class="nav-link-active" data-page-link aria-current="page">Learn AI</a>
+                <a href="/#" data-resume-trigger-learn>Resume</a>
             </nav>
             <div class="nav-actions">
                 <ul class="nav-channels" aria-label="Channels">
@@ -95,9 +95,9 @@
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
                 <a href="/#perspectives">Perspectives</a>
-                <a href="/agents/" data-page-link aria-current="page">Agents Portfolio</a>
-                <a href="/learn/" data-page-link>Learn AI</a>
-                <a href="/#" data-resume-trigger-agents>Resume</a>
+                <a href="/agents/" data-page-link>Agents Portfolio</a>
+                <a href="/learn/" data-page-link aria-current="page">Learn AI</a>
+                <a href="/#" data-resume-trigger-learn>Resume</a>
             </nav>
             <hr class="nav-drawer-divider" aria-hidden="true">
             <ul class="nav-drawer-channels" aria-label="Channels">
@@ -129,58 +129,26 @@
         </div>
     </aside>
 
-    <main id="agents-main">
-        <section class="agents-section" aria-label="Agents Portfolio">
-            <header class="agents-header">
-                <p class="agents-eyebrow">// agents portfolio</p>
-                <h1 class="agents-title">Agents in production.</h1>
-                <p class="agents-sub">Real agents, built, deployed, and running. Each one ships a different part of the autonomous stack: conversational retrieval, scheduled background tasks, MCP tool servers.</p>
-            </header>
-
-            <div data-agents-root></div>
+    <main id="learn-main">
+        <section class="learn-stage-region" aria-label="AI Learning Adventure" aria-live="polite">
+            <div data-learn-root>
+                <noscript>
+                    <p style="font-family:var(--font-mono);color:var(--ink-muted)">This interactive game needs JavaScript enabled.</p>
+                </noscript>
+            </div>
         </section>
 
-        <footer class="agents-section agents-footer" role="contentinfo">
-            <p class="agents-footer-copy">© <span id="agents-year">2026</span> Gaurav Lahoti</p>
-            <a href="/" class="agents-footer-back" data-page-link>
+        <footer class="learn-footer" role="contentinfo">
+            <span class="learn-footer-copy">© <span id="learn-year">2026</span> Gaurav Lahoti</span>
+            <a href="/" class="learn-footer-back" data-page-link>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
                 Back to portfolio
             </a>
         </footer>
     </main>
 
-    <script>
-        // Minimal nav drawer for the agents page (no full main.js dependency)
-        document.addEventListener("DOMContentLoaded", function() {
-            document.getElementById("agents-year").textContent = new Date().getFullYear();
-
-            const trigger = document.querySelector("[data-nav-trigger]");
-            const drawer  = document.querySelector("[data-nav-drawer]");
-            const closes  = document.querySelectorAll("[data-nav-close]");
-            if (trigger && drawer) {
-                trigger.addEventListener("click", () => {
-                    const open = drawer.getAttribute("aria-hidden") === "false";
-                    drawer.setAttribute("aria-hidden", open ? "true" : "false");
-                    trigger.setAttribute("aria-expanded", open ? "false" : "true");
-                    document.body.style.overflow = open ? "" : "hidden";
-                });
-                closes.forEach(c => c.addEventListener("click", () => {
-                    drawer.setAttribute("aria-hidden", "true");
-                    trigger.setAttribute("aria-expanded", "false");
-                    document.body.style.overflow = "";
-                }));
-            }
-
-            // Resume link redirects to home with resume trigger
-            document.querySelectorAll("[data-resume-trigger-agents]").forEach(el => {
-                el.addEventListener("click", (e) => {
-                    e.preventDefault();
-                    window.location.href = "/#";
-                });
-            });
-        });
-    </script>
-
-    <script type="module" src="assets/js/agents-page.js?v=183"></script>
+    <!-- Nav drawer, footer year, and page transitions are wired in learn-game.js
+         (served from 'self') so no inline script is needed under the page CSP. -->
+    <script type="module" src="assets/js/learn-game.js?v=1"></script>
 </body>
 </html>

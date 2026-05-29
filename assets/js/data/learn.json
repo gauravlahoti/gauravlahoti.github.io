@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "version": 1,
+    "stageCount": 6,
+    "pointsFirstTry": 100,
+    "pointsRetry": 50,
+    "pointsReveal": 25
+  },
+  "characters": [
+    {
+      "id": "sparkfist",
+      "name": "Sparkfist",
+      "tagline": { "tech": "Spiky-haired energy warrior. Powers up with every concept mastered.", "nontech": "A hero who gets stronger every time you learn something new." },
+      "accentVar": "--accent"
+    },
+    {
+      "id": "hopper",
+      "name": "Hopper",
+      "tagline": { "tech": "Red-capped jumper. Leaps from stage to stage across the map.", "nontech": "A bouncy adventurer who hops across the world collecting knowledge." },
+      "accentVar": "--era-deloitte"
+    }
+  ],
+  "modes": [
+    { "id": "tech", "label": "Tech", "blurb": "Precise framing for builders and the curious-technical." },
+    { "id": "nontech", "label": "Plain", "blurb": "Everyday analogies, zero jargon." }
+  ],
+  "stages": [
+    {
+      "id": "llm-basics",
+      "node": { "label": "Spark Plains", "x": 90, "y": 300 },
+      "type": "quiz",
+      "title": { "tech": "What is an LLM?", "nontech": "What is this \"AI\" thing?" },
+      "prompt": {
+        "tech": "A Large Language Model (LLM) is best described as…",
+        "nontech": "An AI chatbot like ChatGPT mostly works by…"
+      },
+      "options": [
+        { "id": "a", "text": { "tech": "A statistical model that predicts the next token from patterns it learned during training.", "nontech": "Guessing the next words — like a super-powered autocomplete." }, "correct": true },
+        { "id": "b", "text": { "tech": "A hand-written database of rules an engineer typed out.", "nontech": "Looking up answers in a fixed list someone wrote by hand." }, "correct": false },
+        { "id": "c", "text": { "tech": "A live search engine querying the open web in real time.", "nontech": "Secretly searching Google for you every time." }, "correct": false }
+      ],
+      "feedback": {
+        "correct": { "tech": "Right — an LLM generates likely tokens from learned weights. No live lookup, no actions on its own.", "nontech": "Yes! It predicts words. On its own it doesn't \"know\" facts or \"do\" things — it just writes the next likely words." },
+        "wrong": { "tech": "Not quite — an LLM generates from learned weights; it doesn't query a database or the web by itself.", "nontech": "Close, but it's really just predicting words from everything it read while training." }
+      },
+      "recap": { "tech": "LLM = a next-token predictor trained on huge text.", "nontech": "An LLM is a word-prediction engine — powerful autocomplete." }
+    },
+    {
+      "id": "llm-limits",
+      "node": { "label": "Logic Lake", "x": 300, "y": 170 },
+      "type": "reveal",
+      "title": { "tech": "Know the limits", "nontech": "What an LLM can't do alone" },
+      "prompt": {
+        "tech": "Flip each card. Myth on front — the reality is on the back.",
+        "nontech": "Tap each card to flip it and see the truth."
+      },
+      "cards": [
+        { "id": "c1", "front": { "tech": "\"An LLM always tells the truth.\"", "nontech": "\"AI always gives correct answers.\"" }, "back": { "tech": "It can sound confident yet be wrong — it predicts plausible text, not verified facts (\"hallucination\").", "nontech": "It can sound sure and still be wrong. It guesses words that *sound* right." } },
+        { "id": "c2", "front": { "tech": "\"An LLM remembers everything you said.\"", "nontech": "\"AI remembers our past chats forever.\"" }, "back": { "tech": "By default it only sees what's in the current context window — no long-term memory unless you add one.", "nontech": "By itself it forgets once the chat ends, unless something is built to help it remember." } },
+        { "id": "c3", "front": { "tech": "\"An LLM can take actions for me.\"", "nontech": "\"AI can book my flight by itself.\"" }, "back": { "tech": "A raw LLM only outputs text. It needs tools wired up before it can *do* anything in the world.", "nontech": "On its own it can only talk. To actually *do* things it needs extra tools connected to it." } }
+      ],
+      "feedback": {
+        "correct": { "tech": "Exactly — these three limits are why we wrap LLMs with tools, memory, and checks.", "nontech": "Got it — an LLM is smart with words, but it needs help to be right, remember, and act." },
+        "wrong": { "tech": "Flip all the cards to continue.", "nontech": "Flip all the cards to continue." }
+      },
+      "recap": { "tech": "Raw LLMs can hallucinate, lack memory, and can't act.", "nontech": "An LLM can be wrong, forgets, and can't do things by itself." }
+    },
+    {
+      "id": "agent-anatomy",
+      "node": { "label": "Tool Forge", "x": 540, "y": 290 },
+      "type": "buildPuzzle",
+      "title": { "tech": "Assemble an agent", "nontech": "Build your robot helper" },
+      "prompt": {
+        "tech": "Drag each part into the agent frame. An agent = LLM + Goal + Tools + Memory, wired in a loop.",
+        "nontech": "Give your helper everything it needs: a brain, a job, some tools, and a notepad to remember."
+      },
+      "slots": [
+        { "id": "brain", "label": { "tech": "Reasoning core", "nontech": "Brain" } },
+        { "id": "goal", "label": { "tech": "Objective", "nontech": "Job to do" } },
+        { "id": "tools", "label": { "tech": "Tools / APIs", "nontech": "Tools" } },
+        { "id": "memory", "label": { "tech": "Memory", "nontech": "Notepad" } }
+      ],
+      "pieces": [
+        { "id": "brain", "slot": "brain", "label": { "tech": "LLM (the thinker)", "nontech": "A brain that decides" } },
+        { "id": "goal", "slot": "goal", "label": { "tech": "A goal to pursue", "nontech": "A task to finish" } },
+        { "id": "tools", "slot": "tools", "label": { "tech": "Tools it can call", "nontech": "Things it can use" } },
+        { "id": "memory", "slot": "memory", "label": { "tech": "Memory to track state", "nontech": "Notes to remember" } }
+      ],
+      "feedback": {
+        "correct": { "tech": "That's an agent: an LLM that can plan toward a goal, call tools, and keep state.", "nontech": "You built it! A helper with a brain, a job, tools, and a memory can actually get things done." },
+        "wrong": { "tech": "Not quite — each part has its matching slot. Try again.", "nontech": "Almost — each piece has its own spot. Give it another go." }
+      },
+      "recap": { "tech": "Agent = LLM + goal + tools + memory in a loop.", "nontech": "An agent is an LLM given a job, tools, and a memory." }
+    },
+    {
+      "id": "agent-loop",
+      "node": { "label": "Memory Mesa", "x": 760, "y": 160 },
+      "type": "sortOrder",
+      "title": { "tech": "The agent loop", "nontech": "How a helper gets work done" },
+      "prompt": {
+        "tech": "Put the agent's loop in order. It repeats these until the goal is met.",
+        "nontech": "Drag these into the right order — the helper repeats them until the job is done."
+      },
+      "steps": [
+        { "id": "s1", "label": { "tech": "Plan the next step", "nontech": "Decide what to do next" } },
+        { "id": "s2", "label": { "tech": "Act — call a tool", "nontech": "Do it (use a tool)" } },
+        { "id": "s3", "label": { "tech": "Observe the result", "nontech": "Look at what happened" } },
+        { "id": "s4", "label": { "tech": "Repeat until goal met", "nontech": "Repeat until the job's done" } }
+      ],
+      "feedback": {
+        "correct": { "tech": "That's the loop: plan → act → observe → repeat. It's what makes an agent autonomous.", "nontech": "Perfect — decide, do, check, repeat. That cycle is what lets it work on its own." },
+        "wrong": { "tech": "Not the right order — think plan, then act, then observe. Try again.", "nontech": "Not quite the right order — decide first, then do, then check. Try again." }
+      },
+      "recap": { "tech": "Agents run a plan→act→observe loop until done.", "nontech": "A helper decides, does, checks, and repeats." }
+    },
+    {
+      "id": "llm-vs-agent",
+      "node": { "label": "Crossroads", "x": 540, "y": 400 },
+      "type": "sortBuckets",
+      "title": { "tech": "LLM vs Agent", "nontech": "Just talks vs actually does" },
+      "prompt": {
+        "tech": "Drop each capability under the right system.",
+        "nontech": "Which one just talks, and which one actually does things for you?"
+      },
+      "buckets": [
+        { "id": "llm", "label": { "tech": "LLM", "nontech": "Just talks" } },
+        { "id": "agent", "label": { "tech": "Agent", "nontech": "Actually does" } }
+      ],
+      "items": [
+        { "id": "i1", "bucket": "llm", "label": { "tech": "Generates text from a prompt", "nontech": "Writes you a poem" } },
+        { "id": "i2", "bucket": "agent", "label": { "tech": "Calls APIs and takes actions", "nontech": "Books your flight" } },
+        { "id": "i3", "bucket": "llm", "label": { "tech": "Answers in a single turn", "nontech": "Answers a question right away" } },
+        { "id": "i4", "bucket": "agent", "label": { "tech": "Runs multi-step toward a goal", "nontech": "Works through a to-do list for you" } },
+        { "id": "i5", "bucket": "agent", "label": { "tech": "Uses tools + memory", "nontech": "Uses apps and remembers progress" } }
+      ],
+      "feedback": {
+        "correct": { "tech": "Spot on — the LLM is the brain; the agent is the brain plus hands, tools, and a loop.", "nontech": "Exactly — an LLM talks; an agent uses that talking to actually get things done." },
+        "wrong": { "tech": "A couple are misplaced — remember: agents act, LLMs generate. Try again.", "nontech": "A couple are in the wrong column — \"does things\" vs \"just talks.\" Try again." }
+      },
+      "recap": { "tech": "LLM generates; an agent acts using an LLM + tools + loop.", "nontech": "LLM = talks. Agent = uses talking to actually do things." }
+    },
+    {
+      "id": "use-cases",
+      "node": { "label": "Use-Case Summit", "x": 770, "y": 420 },
+      "type": "sortBuckets",
+      "title": { "tech": "Pick the right tool", "nontech": "Which one for the job?" },
+      "prompt": {
+        "tech": "Match each real-world task to whether a plain LLM or a full agent fits best.",
+        "nontech": "Sort each job: does it just need writing, or does something need to get done?"
+      },
+      "buckets": [
+        { "id": "llm", "label": { "tech": "Best with an LLM", "nontech": "Just needs writing" } },
+        { "id": "agent", "label": { "tech": "Best with an Agent", "nontech": "Needs things done" } }
+      ],
+      "items": [
+        { "id": "u1", "bucket": "llm", "label": { "tech": "Draft a marketing email", "nontech": "Write a marketing email" } },
+        { "id": "u2", "bucket": "llm", "label": { "tech": "Summarize a document", "nontech": "Summarize a long document" } },
+        { "id": "u3", "bucket": "agent", "label": { "tech": "Triage + reply to support tickets", "nontech": "Handle support tickets end-to-end" } },
+        { "id": "u4", "bucket": "agent", "label": { "tech": "Research a topic across the web + compile", "nontech": "Research online and build a report" } },
+        { "id": "u5", "bucket": "agent", "label": { "tech": "Book travel and update the calendar", "nontech": "Book a trip and add it to your calendar" } },
+        { "id": "u6", "bucket": "llm", "label": { "tech": "Rewrite text in a friendlier tone", "nontech": "Make a message sound friendlier" } }
+      ],
+      "feedback": {
+        "correct": { "tech": "Nice — one-shot text → LLM; multi-step work that touches tools/systems → agent.", "nontech": "Great — if it's just writing, an LLM is plenty. If something must actually happen, you want an agent." },
+        "wrong": { "tech": "A couple are misplaced — if a task needs tools or many steps, it's agent territory. Try again.", "nontech": "A couple are in the wrong column — \"just writing\" vs \"get it done.\" Try again." }
+      },
+      "recap": { "tech": "One-shot text → LLM; multi-step, tool-using work → agent.", "nontech": "Writing? Use an LLM. Getting things done? Use an agent." }
+    }
+  ]
+}
