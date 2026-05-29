@@ -86,7 +86,13 @@ function openDiagramFullscreen(svgEl) {
     // Clone without in-flight traveler dots
     const clone = svgEl.cloneNode(true);
     clone.querySelectorAll(".anim-dot").forEach(e => e.remove());
-    clone.style.cssText = "width:auto;height:auto;max-width:calc(100vw - 64px);max-height:calc(100vh - 80px);display:block;";
+    // On mobile let the CSS media query control size (640 px pannable).
+    // On desktop constrain to viewport so it fits without scrolling.
+    if (matchMedia("(max-width: 767px)").matches) {
+        clone.style.cssText = "display:block;";
+    } else {
+        clone.style.cssText = "width:auto;height:auto;max-width:calc(100vw - 64px);max-height:calc(100vh - 80px);display:block;";
+    }
 
     fs.append(clone, closeBtn);
     document.body.appendChild(fs);
@@ -294,6 +300,11 @@ async function buildPanel(agent) {
             diagWrap.appendChild(svgEl);
             inlinedSvg = svgEl;
             expandBtn.addEventListener("click", e => { e.stopPropagation(); openDiagramFullscreen(svgEl); });
+            // Mobile: tap anywhere on the diagram to open fullscreen
+            diagWrap.addEventListener("click", e => {
+                if (e.target.closest(".agent-diag-expand")) return;
+                if (matchMedia("(max-width: 767px)").matches) openDiagramFullscreen(svgEl);
+            });
         } else {
             // Fallback img
             const img = el("img", {
@@ -399,7 +410,14 @@ async function buildPanel(agent) {
 }
 
 function openPanel(overlay) {
-    document.body.style.overflow = "hidden";
+    // iOS-safe scroll lock: freeze the page at its current position.
+    // Setting overflow:hidden on body breaks scroll inside fixed overlays on iOS.
+    const scrollY = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    overlay._scrollY = scrollY;
+
     overlay.classList.add("is-open");
     activePanel = overlay;
 
@@ -427,7 +445,12 @@ function closePanel(overlay) {
     const done = () => {
         overlay.classList.remove("is-open");
         overlay.remove();
-        document.body.style.overflow = "";
+        // Restore scroll position (iOS-safe unlock)
+        const scrollY = overlay._scrollY ?? 0;
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.width = "";
+        window.scrollTo(0, scrollY);
         activePanel = null;
     };
     if (gsap && !REDUCE_MOTION) {

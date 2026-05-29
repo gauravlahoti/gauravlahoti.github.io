@@ -34,7 +34,7 @@
 
   <!-- Digest Email — x=720 y=80 200×72 -->
   <rect x="720" y="80" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
-  <image href="/diagram-icons/gmail.jpg" x="730" y="102" width="28" height="28" style="border-radius:7px"/>
+  <image href="/diagram-icons/gmail.png" x="730" y="102" width="28" height="28"/>
   <text x="766" y="108" class="node-title">Digest Email</text>
   <text x="766" y="124" class="node-sub">Gaurav's inbox</text>
   <text x="766" y="140" class="node-sub">weekly digest</text>

@@ -983,58 +983,63 @@
 
 @media (max-width: 767px) {
 
-    /* ── Agent card: hide diagram thumbnail (too small to be useful) ── */
+    /* ── Agent card: hide diagram thumbnail ─────────────────────────── */
     .agent-diagram-pane { display: none; }
 
-    /* ── Panel: in-diagram scrollable pane ──────────────────────────── */
-    /* Allow horizontal panning so the SVG stays readable */
-    .agent-panel-diagram-wrap {
-        overflow-x: auto;
-        overflow-y: hidden;
+    /* ── Panel overlay: fix iOS scroll ──────────────────────────────── */
+    /* body is frozen via position:fixed in JS; overlay scrolls freely  */
+    .agent-panel-overlay {
         -webkit-overflow-scrolling: touch;
-        border-radius: 8px;
-        /* Remove fixed overflow:hidden that clips the SVG */
-        overflow: auto;
+        overscroll-behavior: contain;
     }
 
-    /* Force SVG to a minimum readable width; user can pan right */
-    .agent-panel-diagram-wrap svg {
-        min-width: 680px;
-        width: 680px !important;
+    /* ── Panel diagram: scale-to-fit, tap the expand button to detail ── */
+    /* Diagram fills the card width; text is small but topology is clear. */
+    /* The ⤢ expand button opens a pannable fullscreen view.            */
+    .agent-panel-diagram-wrap {
+        overflow: hidden;
+        cursor: zoom-in;
+    }
+
+    .agent-panel-diagram-wrap svg,
+    .agent-panel-diagram-wrap img {
+        width: 100% !important;
         height: auto !important;
-        touch-action: pan-x pan-y;
+        min-width: unset;
+        /* Don't intercept page-scroll gestures in the scaled thumbnail  */
+        touch-action: none;
     }
 
-    /* Scroll hint — subtle gradient on right edge */
-    .agent-panel-diagram-wrap::after {
-        content: "";
-        position: absolute;
-        top: 0; right: 0;
-        width: 32px; height: 100%;
-        background: linear-gradient(to right, transparent, rgba(0,0,0,0.6));
-        pointer-events: none;
-        border-radius: 0 8px 8px 0;
+    /* Larger tap target for the expand button on touch ─────────────── */
+    .agent-diag-expand {
+        width: 40px;
+        height: 40px;
+        top: 10px;
+        right: 10px;
     }
 
-    /* ── Fullscreen diagram: scrollable pane, readable SVG size ─────── */
+    /* ── Fullscreen diagram: full-bleed, pannable ────────────────────── */
+    /* Inline style is suppressed on mobile in JS so this CSS rules.    */
     .agent-diag-fs {
         padding: 56px 0 24px;
         align-items: flex-start;
         justify-content: flex-start;
         overflow: auto;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
+    /* Wide enough to make 11–15 px SVG labels readable (~8-9 px at 640px) */
     .agent-diag-fs svg {
-        min-width: 800px;
-        width: 800px !important;
+        min-width: 640px;
+        width: 640px !important;
         max-width: none;
         max-height: none;
         touch-action: pan-x pan-y;
-        margin: 0 16px 16px;
+        margin: 0 16px 32px;
     }
 
-    /* ── Traits table: allow value wrapping on narrow screens ─────────  */
+    /* ── Traits table: allow wrapping on narrow screens ─────────────── */
     .agent-trait-row {
         height: auto;
         min-height: 40px;
@@ -1044,10 +1049,7 @@
         gap: var(--space-2);
     }
 
-    .agent-trait-key {
-        /* Key stays on its own line if value is long */
-        flex: 0 0 100%;
-    }
+    .agent-trait-key { flex: 0 0 100%; }
 
     .agent-trait-val {
         text-align: left;
@@ -1055,34 +1057,16 @@
         flex: 0 0 100%;
     }
 
-    /* ── Panel body: reorder so quick info (traits/stack) appears first */
-    /* Use CSS order to surface traits above the tall diagram on mobile   */
-    .agent-panel-body {
-        display: flex;
-        flex-direction: column;
-    }
+    /* ── Panel body: surface quick info before the diagram ──────────── */
+    .agent-panel-body { display: flex; flex-direction: column; }
 
-    /* Title always first */
-    .agent-panel-title-block { order: 1; }
-
-    /* Traits "at a glance" — surface immediately after title */
-    .agent-panel-section:has(.agent-traits-table)  { order: 2; }
-
-    /* Architecture diagram — below quick info on mobile */
+    .agent-panel-title-block                            { order: 1; }
+    .agent-panel-section:has(.agent-traits-table)       { order: 2; }
     .agent-panel-section:has(.agent-panel-diagram-wrap) { order: 3; }
+    .agent-panel-section:has(.agent-steps)              { order: 4; }
+    .agent-panel-section:has(.agent-tech-item)          { order: 5; }
+    .agent-panel-links                                  { order: 6; }
 
-    /* How it works */
-    .agent-panel-section:has(.agent-steps) { order: 4; }
-
-    /* Why this stack */
-    .agent-panel-section:has(.agent-tech-item) { order: 5; }
-
-    /* Links last */
-    .agent-panel-links { order: 6; }
-
-    /* ── Step detail text: slightly smaller to fit width ──────────────  */
     .agent-step-detail { font-size: 0.875rem; }
-
-    /* ── Tech why text: slightly smaller ─────────────────────────────── */
-    .agent-tech-why { font-size: 0.875rem; }
+    .agent-tech-why    { font-size: 0.875rem; }
 }
