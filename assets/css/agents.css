@@ -562,6 +562,8 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    /* Explicitly allow vertical pan so browser never suppresses it */
+    touch-action: pan-y;
 }
 
 .agent-panel-inner {
@@ -1032,22 +1034,27 @@
         right: 10px;
     }
 
-    /* ── Fullscreen diagram: scale to fit viewport, pinch to zoom ─────── */
+    /* ── Fullscreen diagram: pan in both axes at readable size ─────────── */
+    /* body.overflow is NOT locked, so overflow:auto here works on Android */
     .agent-diag-fs {
-        padding: 56px 16px 24px;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
+        padding: 56px 0 32px;
+        align-items: flex-start;
+        justify-content: flex-start;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
+    /* 640 px → 11-px labels render at ~7 px; legible on high-DPI phones */
     .agent-diag-fs svg {
-        width: calc(100vw - 32px) !important;
+        min-width: 640px;
+        width: 640px !important;
         height: auto !important;
         max-width: none;
-        max-height: calc(100vh - 96px);
-        min-width: unset;
-        touch-action: pinch-zoom;
-        margin: 0;
+        max-height: none;
+        min-height: unset;
+        touch-action: pan-x pan-y;
+        margin: 0 20px 32px;
     }
 
     /* ── Traits table: allow wrapping on narrow screens ─────────────── */

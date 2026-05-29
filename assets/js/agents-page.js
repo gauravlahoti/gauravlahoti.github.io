@@ -86,12 +86,15 @@ function openDiagramFullscreen(svgEl) {
     // Clone without in-flight traveler dots
     const clone = svgEl.cloneNode(true);
     clone.querySelectorAll(".anim-dot").forEach(e => e.remove());
-    // On mobile let the CSS media query control size (640 px pannable).
-    // On desktop constrain to viewport so it fits without scrolling.
+    // Preserve the aspect-ratio derived from viewBox (set in fetchInlineSvg).
+    // cssText replacement wipes inline styles, so read it from the clone first.
+    const ar = clone.style.aspectRatio || svgEl.style.aspectRatio || "";
     if (matchMedia("(max-width: 767px)").matches) {
-        clone.style.cssText = "display:block;";
+        // Let CSS control width (640 px) and height (auto); keep aspect-ratio
+        // so the SVG renders at correct height rather than collapsing to 0.
+        clone.style.cssText = `display:block;${ar ? `aspect-ratio:${ar};` : ""}`;
     } else {
-        clone.style.cssText = "width:auto;height:auto;max-width:calc(100vw - 64px);max-height:calc(100vh - 80px);display:block;";
+        clone.style.cssText = `width:auto;height:auto;max-width:calc(100vw - 64px);max-height:calc(100vh - 80px);display:block;${ar ? `aspect-ratio:${ar};` : ""}`;
     }
 
     fs.append(clone, closeBtn);
@@ -421,7 +424,9 @@ async function buildPanel(agent) {
 }
 
 function openPanel(overlay) {
-    document.body.style.overflow = "hidden";
+    // Do NOT touch body.overflow — on Android Chrome, body overflow:hidden
+    // kills touch-scroll in ALL position:fixed children (panel + fullscreen).
+    // overscroll-behavior:contain on .agent-panel-scroll prevents chaining.
     overlay.classList.add("is-open");
     activePanel = overlay;
 
@@ -456,7 +461,6 @@ function closePanel(overlay) {
     const done = () => {
         overlay.classList.remove("is-open");
         overlay.remove();
-        document.body.style.overflow = "";
         activePanel = null;
     };
     if (gsap && !REDUCE_MOTION) {
