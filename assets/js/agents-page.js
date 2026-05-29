@@ -579,6 +579,156 @@ function closePanel(overlay) {
     }
 }
 
+// ─── Search bar ───────────────────────────────────────────────────────────────
+
+function buildSearchBar(agents, cards) {
+    const types    = [...new Set(agents.map(a => a.searchMeta?.type).filter(Boolean))];
+    const models   = [...new Set(agents.map(a => a.searchMeta?.model).filter(Boolean))];
+    const patterns = [...new Set(agents.flatMap(a => a.searchMeta?.patterns || []))];
+
+    const bar = el("div", { class: "agent-search-bar", role: "search" });
+
+    // Input row
+    const inputWrap = el("div", { class: "agent-search-input-wrap" });
+    const prompt    = el("span", { class: "agent-search-prompt", "aria-hidden": "true" });
+    prompt.innerHTML = "&gt;_";
+    const input = el("input", {
+        class: "agent-search-field",
+        type: "search",
+        placeholder: "filter agents…",
+        autocomplete: "off",
+        spellcheck: "false",
+        "aria-label": "Search agents by name, model, or pattern",
+    });
+    const clearBtn = el("button", {
+        class: "agent-search-clear",
+        type: "button",
+        "aria-label": "Clear search and filters",
+    });
+    clearBtn.hidden = true;
+    clearBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+    const countBadge = el("span", { class: "agent-search-count", "aria-live": "polite" });
+    countBadge.textContent = `${agents.length} agents`;
+    inputWrap.append(prompt, input, clearBtn, countBadge);
+
+    // Filter groups
+    const filterRow = el("div", { class: "agent-filter-row" });
+    function makeGroup(cat, label, values) {
+        const group = el("div", { class: "agent-filter-group" });
+        const lbl   = el("span", { class: "agent-filter-label" }, label);
+        const pills = el("div", { class: "agent-filter-pills" });
+        values.forEach(val => {
+            const pill = el("button", {
+                class: "agent-filter-pill",
+                type: "button",
+                "data-cat": cat,
+                "data-val": val,
+                "aria-pressed": "false",
+            }, val);
+            pills.appendChild(pill);
+        });
+        group.append(lbl, pills);
+        return group;
+    }
+    if (types.length)    filterRow.appendChild(makeGroup("type",    "// type",    types));
+    if (models.length)   filterRow.appendChild(makeGroup("model",   "// model",   models));
+    if (patterns.length) filterRow.appendChild(makeGroup("pattern", "// pattern", patterns));
+
+    // Empty state (rendered inside grid via caller)
+    const emptyState = el("div", { class: "agents-empty" });
+    emptyState.hidden = true;
+    emptyState.innerHTML = `<span class="agents-empty-prompt" aria-hidden="true">&gt;_ </span>no agents match — try a different filter`;
+
+    bar.append(inputWrap, filterRow);
+
+    // ── State & filter logic ──────────────────────────────────────
+    const active = { type: new Set(), model: new Set(), pattern: new Set() };
+    let query = "";
+
+    function matches(agent) {
+        const meta = agent.searchMeta || {};
+        if (query) {
+            const q = query.toLowerCase();
+            const hay = [
+                agent.name, agent.subtitle, agent.role, agent.headline,
+                agent.description, ...(agent.stack || []),
+                meta.type, meta.model, ...(meta.patterns || []),
+            ].join(" ").toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        if (active.type.size    && !active.type.has(meta.type))                                     return false;
+        if (active.model.size   && !active.model.has(meta.model))                                   return false;
+        if (active.pattern.size && !(meta.patterns || []).some(p => active.pattern.has(p)))          return false;
+        return true;
+    }
+
+    function setVisible(card, show) {
+        if (show) {
+            card.style.display = "";
+            requestAnimationFrame(() => card.classList.remove("is-filtered-out"));
+        } else {
+            card.classList.add("is-filtered-out");
+            setTimeout(() => { if (card.classList.contains("is-filtered-out")) card.style.display = "none"; }, 280);
+        }
+    }
+
+    function applyFilters() {
+        let count = 0;
+        agents.forEach((agent, i) => {
+            const ok = matches(agent);
+            setVisible(cards[i], ok);
+            if (ok) count++;
+        });
+        const hasFilter = query || Object.values(active).some(s => s.size);
+        clearBtn.hidden = !hasFilter;
+        countBadge.textContent = hasFilter ? `${count} of ${agents.length}` : `${agents.length} agents`;
+        emptyState.hidden = count > 0;
+    }
+
+    input.addEventListener("input", () => { query = input.value.trim(); applyFilters(); });
+
+    filterRow.addEventListener("click", e => {
+        const pill = e.target.closest(".agent-filter-pill");
+        if (!pill) return;
+        const cat = pill.dataset.cat;
+        const val = pill.dataset.val;
+        const set = active[cat];
+        if (set.has(val)) {
+            set.delete(val);
+            pill.setAttribute("aria-pressed", "false");
+            pill.classList.remove("is-active");
+        } else {
+            set.add(val);
+            pill.setAttribute("aria-pressed", "true");
+            pill.classList.add("is-active");
+        }
+        applyFilters();
+    });
+
+    clearBtn.addEventListener("click", () => {
+        input.value = "";
+        query = "";
+        Object.values(active).forEach(s => s.clear());
+        filterRow.querySelectorAll(".agent-filter-pill.is-active").forEach(p => {
+            p.classList.remove("is-active");
+            p.setAttribute("aria-pressed", "false");
+        });
+        applyFilters();
+        input.focus();
+    });
+
+    // "/" shortcut to focus search when not already in an input
+    document.addEventListener("keydown", e => {
+        if (e.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
+            e.preventDefault();
+            input.focus();
+            input.select();
+        }
+    });
+
+    return { bar, emptyState };
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 function runEntranceAnimation(grid) {
@@ -587,7 +737,7 @@ function runEntranceAnimation(grid) {
     if (!gsap || REDUCE_MOTION) return;
     gsap.fromTo(grid.querySelectorAll(".agent-card"),
         { opacity: 0, y: 28 },
-        { opacity: 1, y: 0, duration: 0.45, ease: "power3.out", stagger: 0.1, delay: 0.1 }
+        { opacity: 1, y: 0, duration: 0.45, ease: "power3.out", stagger: 0.1, delay: 0.1, clearProps: "opacity,transform" }
     );
 }
 
@@ -607,15 +757,20 @@ async function init() {
         return;
     }
 
-    const grid = el("div", { class: "agents-grid" });
+    const grid  = el("div", { class: "agents-grid" });
+    const cards = [];
 
     agents.forEach(agent => {
         const card = buildCard(agent, async (a) => {
             const panel = await buildPanel(a);
             openPanel(panel);
         });
+        cards.push(card);
         grid.appendChild(card);
     });
+
+    const { bar, emptyState } = buildSearchBar(agents, cards);
+    root.appendChild(bar);
 
     const teaser = el("div", { class: "agents-teaser" });
     teaser.innerHTML = `
@@ -624,6 +779,7 @@ async function init() {
         </div>
         <span class="agents-teaser-text">// more agents in flight — different stacks, added as Gaurav ships them</span>`;
     grid.appendChild(teaser);
+    grid.appendChild(emptyState);
 
     root.appendChild(grid);
 

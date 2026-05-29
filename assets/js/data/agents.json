@@ -68,6 +68,11 @@
       { "label": "Cold start",     "value": "~6 s" },
       { "label": "Pattern",        "value": "RAG · MCP · Streaming" }
     ],
+    "searchMeta": {
+      "type": "Chat",
+      "model": "Gemini 3.5 Flash",
+      "patterns": ["RAG", "MCP", "Streaming"]
+    },
     "links": [
       { "label": "Try it live",         "href": "/#top" },
       { "label": "View source (ADK)",   "href": "https://github.com/gauravlahoti/portfolio/tree/main/portfolio-agent" }
@@ -139,6 +144,11 @@
       { "label": "Run cost",        "value": "~$0.001 / run" },
       { "label": "Human in loop",   "value": "None" }
     ],
+    "searchMeta": {
+      "type": "Ambient",
+      "model": "Gemini 3.5 Flash",
+      "patterns": ["Scheduled", "Background", "MCP"]
+    },
     "links": []
   },
   {
@@ -180,6 +190,11 @@
       { "label": "KB similarity",  "value": "Cosine ≥ 0.85 (hot path)" },
       { "label": "Inter-agent",    "value": "A2A Protocol" }
     ],
+    "searchMeta": {
+      "type": "Multi-Agent",
+      "model": "Gemini 2.5",
+      "patterns": ["A2A", "Parallel", "RAG", "MCP", "Vector Search"]
+    },
     "links": [
       { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
     ]

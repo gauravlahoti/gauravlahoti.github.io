@@ -67,6 +67,184 @@
     max-width: 640px;
 }
 
+/* ─── Search bar ──────────────────────────────────────────────────── */
+
+.agent-search-bar {
+    margin-bottom: var(--space-10);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* Input row */
+.agent-search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev);
+    padding: 0 var(--space-4);
+    transition: border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.agent-search-input-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-soft), 0 0 12px var(--accent-glow);
+}
+
+.agent-search-prompt {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+    user-select: none;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+    animation: search-prompt-blink 1.4s step-end infinite;
+}
+
+@keyframes search-prompt-blink {
+    0%, 100% { opacity: 1; }
+    48%, 56%  { opacity: 0.15; }
+}
+
+.agent-search-field {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    padding: var(--space-3) 0;
+    caret-color: var(--accent);
+    /* remove native clear button */
+}
+.agent-search-field::-webkit-search-cancel-button { display: none; }
+.agent-search-field::placeholder {
+    color: var(--ink-subtle);
+}
+
+.agent-search-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 3px;
+    transition: color var(--dur-fast);
+    flex-shrink: 0;
+}
+.agent-search-clear:hover { color: var(--ink); }
+
+.agent-search-count {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-subtle);
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--border);
+    transition: color var(--dur-fast);
+}
+
+/* Filter row */
+.agent-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-6);
+}
+
+.agent-filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.agent-filter-label {
+    font-family: var(--font-mono);
+    font-size: 0.67rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-subtle);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.agent-filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.agent-filter-pill {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out);
+}
+
+.agent-filter-pill:hover {
+    color: var(--ink);
+    border-color: var(--border-strong);
+}
+
+.agent-filter-pill.is-active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* Card filter animation */
+.agent-card.is-filtered-out {
+    opacity: 0;
+    transform: scale(0.94);
+    pointer-events: none;
+}
+
+/* Empty state */
+.agents-empty {
+    grid-column: 1 / -1;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    padding: var(--space-16) 0 var(--space-12);
+    text-align: center;
+}
+
+.agents-empty-prompt {
+    color: var(--accent);
+    opacity: 0.6;
+}
+
+@media (max-width: 767px) {
+    .agent-search-bar {
+        margin-bottom: var(--space-8);
+    }
+    .agent-filter-row {
+        gap: var(--space-2) var(--space-4);
+    }
+    .agent-filter-group {
+        gap: var(--space-1);
+    }
+    .agent-filter-label {
+        width: 100%;
+    }
+}
+
 /* ─── Card grid ────────────────────────────────────────────────────── */
 
 .agents-grid {
@@ -102,7 +280,8 @@
     transition:
         border-color var(--dur-fast) var(--ease-out),
         box-shadow var(--dur-base) var(--ease-out),
-        transform var(--dur-fast) var(--ease-out);
+        transform 0.25s var(--ease-out),
+        opacity 0.25s var(--ease-out);
     -webkit-tap-highlight-color: transparent;
     text-decoration: none;
     color: inherit;
