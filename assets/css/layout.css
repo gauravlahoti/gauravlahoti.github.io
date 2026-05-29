@@ -531,11 +531,40 @@ main { padding-top: 0; }
     width: 100%;
 }
 
-/* Hero hex panel: hidden on mobile, absolutely positioned on desktop so it
-   doesn't disturb the centered text stack. */
+/* Hero hex panel: hidden by default; only shown at wide viewports where
+   there is enough room for the panel + text + portrait side-by-side.
+   Below 1440px the portrait already claims ~520px on the right; adding
+   260px+ of left indent for the honeycomb leaves the text column under
+   460px, which causes the hero-name (56px Inter 700) to overflow or wrap.
+   Windows users at 110% browser zoom land at ~1396px — right in that
+   broken range — so we hide the panel until 1440px. */
 .hero-hex-panel { display: none; }
 
 @media (min-width: 901px) {
+    /* Left-align the stack so the portrait on the right doesn't overlap the
+       text. No hex-panel left indent at this range — it stays hidden. */
+    .hero-stack {
+        justify-self: start;
+        margin: 0;
+        max-width: none;
+        padding-top: clamp(40px, 7vh, 80px);
+        padding-left: clamp(var(--space-8), 5vw, var(--space-16));
+        padding-right: calc(min(42vw, 520px) + var(--space-8));
+    }
+}
+
+/* At 901-1100px the portrait uses min(36vw,380px) (see portrait rule above)
+   but the inherited padding-right still uses min(42vw,520px), wasting up to
+   82px. Match the two so the text column stays as wide as possible. */
+@media (max-width: 1100px) and (min-width: 901px) {
+    .hero-stack {
+        padding-right: calc(min(36vw, 380px) + var(--space-6));
+    }
+}
+
+/* At ≥1440px there is enough room for the honeycomb. Show it and add the
+   left indent that brackets the text between the panel and the portrait. */
+@media (min-width: 1440px) {
     .hero-hex-panel {
         display: flex;
         flex-direction: column;
@@ -547,14 +576,7 @@ main { padding-top: 0; }
         z-index: 4;
         margin-top: -60px;
     }
-
-    /* Left-align the stack so text is bracketed between the honeycomb and the
-       portrait — prevents text from bleeding into the portrait image. */
     .hero-stack {
-        justify-self: start;
-        margin: 0;
-        max-width: none;
-        padding-top: clamp(40px, 7vh, 80px);
         padding-left: clamp(260px, 22vw, 340px);
         padding-right: calc(min(42vw, 520px) + var(--space-8));
     }
