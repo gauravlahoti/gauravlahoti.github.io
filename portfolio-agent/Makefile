@@ -25,7 +25,7 @@ smoke: ## One-shot smoke test against the local agent.
 	agents-cli run "What has Gaurav shipped in production with multi-agent systems?"
 
 eval: ## Run the eval suite.
-	agents-cli eval run --evalset tests/eval/evalsets/portfolio_evalset.json
+	agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json
 
 lint: ## Lint with ruff (auto-fix).
 	agents-cli lint --fix
@@ -46,6 +46,7 @@ deploy: ## Deploy chat widget backend to Cloud Run (portfolio-chat-agent, us-cen
 		--concurrency 80 \
 		--min-instances 0 \
 		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app \
+		--update-secrets GEMINI_API_KEY=gemini-api-key:latest \
 		--labels created-by=adk
 
 deploy-ambient: ## Deploy background digest agent to Cloud Run (portfolio-ambient-agent, us-central1).
@@ -61,6 +62,7 @@ deploy-ambient: ## Deploy background digest agent to Cloud Run (portfolio-ambien
 		--concurrency 10 \
 		--min-instances 0 \
 		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-ambient-agent-lw4bt7nrba-uc.a.run.app \
+		--update-secrets GEMINI_API_KEY=gemini-api-key:latest \
 		--labels created-by=adk
 
 clean: ## Drop __pycache__ and .pytest_cache.
