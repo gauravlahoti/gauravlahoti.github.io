@@ -19,7 +19,7 @@ let metricsPromise = null;
 // up immediately on reload (Python's http.server doesn't set Cache-Control).
 function getPosts() {
     if (!postsPromise) {
-        postsPromise = fetch("assets/js/data/posts.json", { cache: "no-cache" })
+        postsPromise = fetch("content/posts.json", { cache: "no-cache" })
             .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.json();

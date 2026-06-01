@@ -50,7 +50,7 @@ Run all in parallel and collect results.
 
 ### 2.1 — All data JSON files parse
 
-For each file in `assets/js/data/*.json`:
+For each file in `content/*.json`:
 ```
 python3 -c "import json,sys; json.load(open(sys.argv[1]))" <file>
 ```
@@ -58,7 +58,7 @@ Any non-zero exit → refuse, naming the file + parse error.
 
 ### 2.2 — JS modules pass syntax check
 
-For each `assets/js/*.js`, `assets/js/data/*.js` (none expected, defensive),
+For each `assets/js/*.js`, `content/*.js` (none expected, defensive),
 and `scripts/*.mjs`:
 ```
 node --check <file>
@@ -67,7 +67,7 @@ Any failure → refuse, naming the file + line number from stderr.
 
 ### 2.3 — No obvious placeholder content shipped
 
-Grep `assets/js/data/posts.json` for substrings the helper script never
+Grep `content/posts.json` for substrings the helper script never
 writes but the seeded placeholders did:
 - `Sample post — replace via`
 - `accordion expand/collapse demo`

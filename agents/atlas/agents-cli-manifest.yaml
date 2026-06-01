@@ -1,0 +1,13 @@
+name: atlas
+description: Atlas — portfolio chat-widget agent
+base_template: adk
+agent_directory: app
+generated_at: '2026-05-02T12:57:34.579254+00:00'
+acli_version: 0.2.0
+create_params:
+  deployment_target: cloud_run
+  session_type: in_memory
+  cicd_runner: skip
+  include_data_ingestion: false
+  datastore: none
+  agent_guidance_filename: CLAUDE.md

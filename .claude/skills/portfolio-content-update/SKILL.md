@@ -6,7 +6,7 @@ description: Use when the user wants to update bio, add/remove a role, swap the 
 # Portfolio content update
 
 The portfolio site is content-driven by JSON files under
-`assets/js/data/`. Updating the user's information should never
+`content/`. Updating the user's information should never
 require touching HTML, CSS, or JS code. This skill is the
 checklist for doing that cleanly.
 
@@ -14,13 +14,13 @@ checklist for doing that cleanly.
 
 | What                          | File                             | Notes                              |
 |-------------------------------|----------------------------------|------------------------------------|
-| Name, title, tagline, bio     | `assets/js/data/profile.json`    | Top-level fields                   |
-| Topmate / LinkedIn / GitHub   | `assets/js/data/profile.json`    | `links` object                     |
-| Email                         | `assets/js/data/profile.json`    | `links.email`                      |
-| Stats (years, projects)       | `assets/js/data/profile.json`    | `stats` object                     |
-| Skills list (bento card)      | `assets/js/data/profile.json`    | `skills` array                     |
-| Education / certifications    | `assets/js/data/profile.json`    | arrays                             |
-| Career graph (companies, projects, skills, edges) | `assets/js/data/graph.json` | nodes + edges                      |
+| Name, title, tagline, bio     | `content/profile.json`    | Top-level fields                   |
+| Topmate / LinkedIn / GitHub   | `content/profile.json`    | `links` object                     |
+| Email                         | `content/profile.json`    | `links.email`                      |
+| Stats (years, projects)       | `content/profile.json`    | `stats` object                     |
+| Skills list (bento card)      | `content/profile.json`    | `skills` array                     |
+| Education / certifications    | `content/profile.json`    | arrays                             |
+| Career graph (companies, projects, skills, edges) | `content/graph.json` | nodes + edges                      |
 | Cert badges (images)          | `assets/img/badges/<slug>.png`   | one per certification              |
 | Resume PDF                    | `assets/img/resume.pdf`          | replace file in place              |
 | OG image                      | `assets/img/og-image.png`        | 1200×630 PNG                       |
@@ -30,7 +30,7 @@ checklist for doing that cleanly.
 
 ### Updating bio / links
 
-1. Open `assets/js/data/profile.json`.
+1. Open `content/profile.json`.
 2. Edit the relevant field.
 3. Validate the JSON parses (`python3 -m json.tool < profile.json`).
 4. Refresh the local site to confirm.

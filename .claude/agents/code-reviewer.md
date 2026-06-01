@@ -17,7 +17,7 @@ You are reviewing code for a static, single-page Cloud & AI architect portfolio 
 - **No framework, no bundler, no Node toolchain** on the frontend. Open `index.html` and it runs.
 - **External deps load from CDN with `defer`.** No npm, no build step ever on the static side.
 - **CSS variables only — never hardcode hex.** All colours, spacing, and type scale are defined in `:root` in `base.css`.
-- **Content lives in JSON, not HTML.** All identity, career, and project data flows from `assets/js/data/`. Markup stays template-only.
+- **Content lives in JSON, not HTML.** All identity, career, and project data flows from `content/`. Markup stays template-only.
 - **One JS module per visualization.** Each module lazy-loads via IntersectionObserver. The hero must not be blocked by Three.js or other heavy deps.
 - **Performance budget**: FCP < 1.5s on 4G, total JS < 400 KB gzipped, Lighthouse Performance ≥ 90 on desktop.
 - **Hero shader**: ≤ 60fps on a 2020 MacBook Air; degrade to a static gradient on `prefers-reduced-motion`.
@@ -32,7 +32,7 @@ You are reviewing code for a static, single-page Cloud & AI architect portfolio 
 - Does the code do what it's supposed to do?
 - Are there logic errors, off-by-one issues, incorrect conditionals, or missed edge cases?
 - Are async operations handled correctly (promises, error boundaries)?
-- Are JSON data structures valid and consistent with the existing schema in `assets/js/data/`?
+- Are JSON data structures valid and consistent with the existing schema in `content/`?
 - Does the code handle viewport sizes, browser compatibility, and reduced-motion preferences?
 - For backend code: does JWT verification happen before any data is written or returned?
 

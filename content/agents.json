@@ -1,0 +1,202 @@
+[
+  {
+    "id": "chat",
+    "name": "Atlas",
+    "subtitle": "Portfolio Intelligence Agent",
+    "role": "Conversational AI",
+    "status": "LIVE",
+    "headline": "The AI behind the chat widget on this portfolio.",
+    "description": "Corpus answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, grounded in a versioned snapshot of his profile, work history, projects, certifications, and recent writing, rebuilt on every deploy.",
+    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
+    "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "MCP", "SSE"],
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg",
+    "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → Corpus tools + Resend MCP Server",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Visitor sends a question via SSE",
+        "detail": "The browser opens a Server-Sent Events stream to Cloud Run. Questions are rate-limited per IP and stripped of injection attempts before reaching the ADK runner."
+      },
+      {
+        "n": 2,
+        "label": "ADK Agent decides which tools to call",
+        "detail": "Gemini 3.5 Flash selects from five retrieval tools: get_profile, get_work_history, get_projects, get_recent_posts, get_certifications, calling them in sequence or parallel as needed."
+      },
+      {
+        "n": 3,
+        "label": "Corpus is queried, no live API calls",
+        "detail": "Tools run against a frozen JSON corpus bundled at deploy time. Deterministic, fast, and zero external latency. No hallucinations from stale web data."
+      },
+      {
+        "n": 4,
+        "label": "Response streams back with citations",
+        "detail": "Tokens stream through SSE as generated. A [[META]] block carries citation URLs and follow-up chip suggestions. The widget validates and renders them as UI."
+      },
+      {
+        "n": 5,
+        "label": "Email actions go via Resend MCP",
+        "detail": "Resume sends and contact notes route through the Resend MCP Server. The agent holds no credentials; it just calls the tool."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Google ADK",
+        "why": "Structured Python framework for tools, evals, and Cloud Run deployment. An eval gate runs before every deploy, catching regressions before production."
+      },
+      {
+        "tech": "Gemini 3.5 Flash",
+        "why": "Sub-2s warm p50 keeps the widget feeling alive. Flash costs ~10x less per token than Pro, critical for an always-on, free-tier deployment."
+      },
+      {
+        "tech": "Cloud Run (min-instances=0)",
+        "why": "Zero idle cost. Cold-starts in ~6s. A /warm endpoint, pinged when the page loads, hides the cold-start behind the hero section read time."
+      },
+      {
+        "tech": "Model Context Protocol (MCP)",
+        "why": "Decouples email from the agent binary. The Resend MCP Server is a separate Cloud Run service, reused by the Ambient Agent, making it a shared capability."
+      },
+      {
+        "tech": "Server-Sent Events (SSE)",
+        "why": "Simpler than WebSockets for one-way streaming: no upgrade handshake, works through CDN, natively supported by the browser fetch API."
+      }
+    ],
+    "traits": [
+      { "label": "Model",          "value": "Gemini 3.5 Flash" },
+      { "label": "Framework",      "value": "Google ADK 1.15+" },
+      { "label": "Runtime",        "value": "Cloud Run (gen2)" },
+      { "label": "Latency p50",    "value": "~1.2 s warm" },
+      { "label": "Cold start",     "value": "~6 s" },
+      { "label": "Pattern",        "value": "RAG · MCP · Streaming" }
+    ],
+    "searchMeta": {
+      "type": "Chat",
+      "model": "Gemini 3.5 Flash",
+      "patterns": ["RAG", "MCP", "Streaming"]
+    },
+    "links": [
+      { "label": "Try it live",         "href": "/#top" },
+      { "label": "View source (ADK)",   "href": "https://github.com/gauravlahoti/portfolio/tree/main/portfolio-agent" }
+    ]
+  },
+  {
+    "id": "ambient",
+    "name": "Pulse",
+    "subtitle": "Ambient Agent",
+    "role": "Ambient Agent",
+    "status": "LIVE",
+    "headline": "The autonomous agent running silently behind this portfolio.",
+    "description": "Beacon is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
+    "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
+    "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
+    "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
+    "diagramAlt": "Cloud Scheduler → Ambient Agent (ADK/Gemini) → Cloudflare D1 (stats) + Resend MCP (email)",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Cloud Scheduler fires the trigger",
+        "detail": "An authenticated POST hits /api/ambient/run on Cloud Run every Monday and Thursday at 08:00 IST. The bearer token is validated before handing off to the ADK runner."
+      },
+      {
+        "n": 2,
+        "label": "Agent fetches visitor interaction stats",
+        "detail": "get_recent_interactions calls the Cloudflare Worker, which reads agent_interactions and page_views from D1. The agent receives the last 4 days of chat turns and page views."
+      },
+      {
+        "n": 3,
+        "label": "Insights generated, leads qualified",
+        "detail": "Gemini 3.5 Flash reasons over the interaction data: top questions, resume downloads, hiring-intent signals. Leads above the threshold get a draft outreach note."
+      },
+      {
+        "n": 4,
+        "label": "Digest email sent to Gaurav via MCP",
+        "detail": "The agent calls the Resend MCP Server with a weekly summary: engagement stats, top questions, notable visitors. Always sent, regardless of lead count."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Google Cloud Scheduler",
+        "why": "Managed cron, zero infrastructure. Integrates with Cloud Run via OIDC natively. Mon/Thu cadence gives a 3–4 day window of interaction data per run."
+      },
+      {
+        "tech": "Google ADK (InMemoryRunner)",
+        "why": "Runs as a standalone Agent with no session state; starts fresh each run, completes cleanly. Same ADK version as the chat agent; single Cloud Run service."
+      },
+      {
+        "tech": "Cloudflare D1",
+        "why": "Interaction data already lives in D1 via the Cloudflare Worker analytics backend. Reusing it avoids a second database; 90-day row expiry keeps the table lean."
+      },
+      {
+        "tech": "Shared Resend MCP Server",
+        "why": "Same MCP server used by Corpus handles email here. One credential to rotate, one audit log; sharing was trivial because both agents just call the same endpoint."
+      },
+      {
+        "tech": "Single Cloud Run service (shared with Corpus)",
+        "why": "Beacon runs on the same service as Corpus to avoid a second cold-start cost. Request-based concurrency means both can run without competing."
+      }
+    ],
+    "traits": [
+      { "label": "Model",           "value": "Gemini 3.5 Flash" },
+      { "label": "Framework",       "value": "Google ADK 1.15+" },
+      { "label": "Runtime",         "value": "Cloud Run (gen2)" },
+      { "label": "Trigger",         "value": "Cloud Scheduler (Mon + Thu)" },
+      { "label": "Data source",     "value": "Cloudflare D1" },
+      { "label": "Run duration",    "value": "< 30 s" },
+      { "label": "Run cost",        "value": "~$0.001 / run" },
+      { "label": "Human in loop",   "value": "None" }
+    ],
+    "searchMeta": {
+      "type": "Ambient",
+      "model": "Gemini 3.5 Flash",
+      "patterns": ["Scheduled", "Background", "MCP"]
+    },
+    "links": []
+  },
+  {
+    "id": "error-lens",
+    "name": "ErrorLens",
+    "subtitle": "Self-learning GCP error resolution system",
+    "role": "Multi-Agent System",
+    "status": "LIVE",
+    "headline": "Diagnoses GCP errors and gets smarter with every confirmed fix.",
+    "description": "ErrorLens is a multi-agent orchestrator that triages GCP errors, runs parallel research across documentation and community sources, and stores confirmed resolutions in a vector knowledge bank. Mature deployments skip the research pipeline entirely for previously encountered issues via semantic similarity matching (≥0.85 threshold).",
+    "value": "Reduces mean-time-to-resolution for recurring GCP errors by accumulating institutional knowledge across every incident. The self-improving feedback loop means the system delivers faster, higher-confidence answers over time.",
+    "stack": ["Google ADK", "Gemini 2.5", "A2A Protocol", "AlloyDB + pgvector", "MCP Toolbox", "Cloud Run", "Vertex AI Embeddings"],
+    "diagramSvg": "agent-portfolio/diagrams/error-lens-v2.svg?v=13",
+    "diagramAlt": "ErrorLens multi-agent architecture: orchestrator routes errors to quick-scan or full research pipeline, with A2A KB agent backed by AlloyDB vector store",
+    "steps": [
+      { "n": 1, "label": "Error intake", "detail": "Developer submits a GCP error. The orchestrator determines if a known fix exists in the knowledge bank." },
+      { "n": 2, "label": "Quick scan", "detail": "Sequential signal extraction + KB vector search (≥0.85 similarity). Returns immediately if a match is found." },
+      { "n": 3, "label": "Sage pipeline", "detail": "For novel errors: deep_search runs GCP docs and community agents in parallel, then aggregates with composite confidence scoring." },
+      { "n": 4, "label": "Parallel research", "detail": "GCP Knowledge Agent and Community Search Agent run concurrently, searching official docs and Stack Overflow / GitHub Issues." },
+      { "n": 5, "label": "External research", "detail": "GCP Knowledge Agent calls a managed MCP server for official GCP docs; Community Search Agent uses Google Search for SO, Reddit and GitHub issues — both run in parallel. On KB HIT, quick_scan bypasses sage_pipeline via a direct hot-path into the KB Toolbox." },
+      { "n": 6, "label": "A2A KB record", "detail": "Confirmed fixes are dispatched to error-kb-agent via A2A Protocol, triggering embedding regeneration to include the resolution." },
+      { "n": 7, "label": "MCP tool execution", "detail": "error-kb-agent calls error-kb-toolbox (MCP Toolbox for Databases) to read/write cases, perform vector searches, and deposit fixes." },
+      { "n": 8, "label": "AlloyDB pgvector", "detail": "768-dimensional embeddings from Vertex AI text-embedding-005 power semantic similarity search across the growing case library." },
+      { "n": 9, "label": "PDF export", "detail": "The orchestrator generates a structured PDF diagnostic report delivered back to the developer." }
+    ],
+    "techDecisions": [
+      { "tech": "A2A Protocol", "why": "Enables error-kb-agent to be independently deployed and versioned on Cloud Run while remaining callable from the main orchestrator over HTTP." },
+      { "tech": "AlloyDB + pgvector", "why": "PostgreSQL-compatible vector store with native pgvector extension and Vertex AI integration for high-quality 768-dim embeddings — no separate vector DB needed." },
+      { "tech": "MCP Toolbox for Databases", "why": "Decouples SQL/vector logic from agent code; exposes database operations as typed MCP tools consumable by any ADK agent." },
+      { "tech": "Parallel research agents", "why": "GCP docs and community sources are searched concurrently via ParallelAgent, cutting research latency roughly in half." }
+    ],
+    "traits": [
+      { "label": "Model",          "value": "Gemini 2.5 Flash / Pro" },
+      { "label": "Framework",      "value": "Google ADK + A2A" },
+      { "label": "Runtime",        "value": "Cloud Run (3 services)" },
+      { "label": "Orchestration",  "value": "Multi-Agent · Sequential + Parallel" },
+      { "label": "Vector store",   "value": "AlloyDB + pgvector (768-dim)" },
+      { "label": "Tool protocol",  "value": "MCP Toolbox for Databases" },
+      { "label": "KB similarity",  "value": "Cosine ≥ 0.85 (hot path)" },
+      { "label": "Inter-agent",    "value": "A2A Protocol" }
+    ],
+    "searchMeta": {
+      "type": "Multi-Agent",
+      "model": "Gemini 2.5",
+      "patterns": ["A2A", "Parallel", "RAG", "MCP", "Vector Search"]
+    },
+    "links": [
+      { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
+    ]
+  }
+]

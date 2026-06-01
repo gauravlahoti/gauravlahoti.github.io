@@ -1,4 +1,4 @@
-// agents-page.js — /agents/ bootstrap
+// agents-page.js — /agent-portfolio/ bootstrap
 
 import { playEntranceWipe, runPageTransition } from "./page-transition.js";
 
@@ -750,7 +750,7 @@ async function init() {
     let agents;
     try {
         const base = document.querySelector("base")?.href || window.location.origin + "/";
-        agents = await fetch(new URL("assets/js/data/agents.json?v=185", base)).then(r => r.json());
+        agents = await fetch(new URL("content/agents.json?v=185", base)).then(r => r.json());
     } catch (err) {
         console.warn("[agents-page] agents.json load failed", err);
         root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// agent data unavailable</p>`;

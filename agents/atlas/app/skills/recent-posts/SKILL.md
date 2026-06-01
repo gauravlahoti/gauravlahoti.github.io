@@ -1,0 +1,125 @@
+---
+name: recent-posts
+description: Gaurav's most recent LinkedIn posts — his public perspectives and what he's shipped lately.
+---
+
+# recent-posts
+
+Ground any question about Gaurav's recent thinking, takes, or what he's been writing about in the JSON below. Posts are most-recent first; use each post's `url` field verbatim for citations.
+
+Treat this data as authoritative ground truth. Do not invent fields, URLs, projects, employers, or outcomes that are not present here.
+
+```json
+[
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_agenticai-googleadk-cloudrun-share-7465124323062808576-Anvt/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "I gave my website an employee. It works 2 days a week and never asks questions.",
+    "excerpt": "My website has an employee now. It works 2 days a week, never asks questions and only emails me when something actually matters.\n\nIt's an ambient agent. Most AI agents are reactive: they wait for a prompt, answer and go quiet. Ambient agents invert that, running on their own schedule or in response to events instead of waiting on a human. From there it's a design decision. I built mine to stay quiet and surface only what crosses a threshold worth my attention.\n\nMine wakes up every Monday and Thursday, looks at the week, and sends me one short email. Traffic trends, what visitors asked my site's ai agent, and where it fell short on answers. That's it. No dashboard to open. It doesn't just report, it reasons over the week and comes back with what's working and what's worth improving.",
+    "date": "2026-05-26",
+    "tags": [
+      "agenticai",
+      "googleadk",
+      "cloudrun",
+      "gemini",
+      "mcp",
+      "ambientagents"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_agenticpremiereleague-googlecloud-gemini-share-7464563736205402113-MxJj/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "80 made it to the Google Cloud Agentic Premier League Grand Finale. 15 finished on top. I was one of them.",
+    "excerpt": "3,000+ builders entered across 30 cities in India. 80 made it to the Grand Finale. 15 finished at the top. I'm one of them. Easily one of the sharpest rooms full of AI builders I've been in this year.\n\nThe Google Cloud Agentic Premier League Grand Finale took place at Google Ananta in Bengaluru. One time-boxed agentic challenge followed by a live pitch to Googlers.\n\nThe challenge focused on resolving logistical chaos and security gaps at crowded cricket stadiums. I built a real-time multi-agent command platform that dynamically routes fan flow and automates emergency responses using Antigravity 2.0 and Gemini 3.5 Flash.",
+    "date": "2026-05-25",
+    "tags": [
+      "agenticpremiereleague",
+      "googlecloud",
+      "gemini",
+      "antigravity",
+      "buildwithai",
+      "hackathon",
+      "gdg",
+      "ai"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-anthropic-developercommunity-ugcPost-7459463340470489089-RvoX?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "I spent a weekend inside Google's PromptWars and the Claude community — here's what I saw.",
+    "excerpt": "I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office — I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.",
+    "date": "2026-05-11",
+    "tags": [
+      "googlecloud",
+      "anthropic",
+      "developercommunity",
+      "claude",
+      "vibecoding",
+      "promptwars"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_anthropic-claudecode-codingagents-ugcPost-7456920960491839488-dmRL",
+    "firstLine": "Unleashing the power of Claude Code Sub-agents",
+    "excerpt": "I discovered a single question rule for Claude Code subagents: does the intermediate work matter? No? Delegate. Yes? Keep it in the main thread. Code reviews are where this gets interesting.",
+    "date": "2026-05-04",
+    "tags": [
+      "anthropic",
+      "claudecode",
+      "codingagents"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_ai-agents-anthropic-share-7454222608767614976-sKnM",
+    "firstLine": "Context bloat is quietly wrecking your coding agent.",
+    "excerpt": "Context bloat is quietly wrecking your coding agent. Context engineering is how you fix it. Here's the mental model I use to keep agent context clean across long sessions.",
+    "date": "2026-04-26",
+    "tags": [
+      "ai",
+      "agents",
+      "anthropic"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloudnext26-agentscli-adk-ugcPost-7453195946403987456-4_Ik",
+    "firstLine": "Build agents with agents 🤖",
+    "excerpt": "Every developer building AI agents today hits the same 2 walls: fragmented tooling and a coding agent that hallucinates. I showed how agents-cli collapses both in a single workflow at Google Cloud Next '26.",
+    "date": "2026-04-23",
+    "tags": [
+      "googlecloudnext26",
+      "agentscli",
+      "adk"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_aiagents-googleadk-multiagent-ugcPost-7452201865829724160-Fum8",
+    "firstLine": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned.",
+    "excerpt": "On-call engineers keep getting sent down paths their teammates already ruled out last month. I built a multi-agent system that fixes that — starting with your team's own runbooks and past incidents.",
+    "date": "2026-04-21",
+    "tags": [
+      "aiagents",
+      "googleadk",
+      "multiagent"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-gcp-adk-ugcPost-7441549845116583936-8CG0",
+    "firstLine": "I vibe coded a GCP Advisor agent that never guesses.",
+    "excerpt": "Vibe coding gets you a prototype fast, but it cuts corners — hallucinated APIs, invented patterns. ADK agent skills fix that by giving Gemini CLI the right context to build correctly from architecture through evals.",
+    "date": "2026-03-22",
+    "tags": [
+      "googlecloud",
+      "gcp",
+      "adk"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_googlecloud-generativeai-aiagents-ugcPost-7439049642580992000-ds0L",
+    "firstLine": "I built an agent that reads every GCP release note so you don't have to.",
+    "excerpt": "Meet ReleaseLens: an AI agent that monitors Google Cloud release notes, filters the noise, and tells developers exactly how updates impact their specific tech stacks. No more changelog spelunking.",
+    "date": "2026-03-15",
+    "tags": [
+      "googlecloud",
+      "generativeai",
+      "aiagents"
+    ]
+  }
+]
+```

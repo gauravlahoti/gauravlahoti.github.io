@@ -48,7 +48,7 @@ Read these files before writing the spec:
 - `index.html` — current shell
 - `assets/css/base.css` — design tokens
 - `assets/js/main.js` — entry point
-- `assets/js/data/*.json` — content schemas
+- `content/*.json` — content schemas
 - All files in `.claude/specs/` — avoid duplicating existing specs
 
 ## Step 7 — Write the spec
@@ -82,7 +82,7 @@ CDN-loaded only. Pin versions. If none: "No new dependencies".
 
 ## Rules for implementation
 Always include:
-- All identity content lives in `assets/js/data/profile.json`.
+- All identity content lives in `content/profile.json`.
 - CSS variables only — never hardcode hex.
 - One JS module per visualization; lazy-load on viewport entry.
 - No npm, no bundler, no Node toolchain.

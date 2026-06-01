@@ -16,14 +16,14 @@ No build step. No local dependencies — Three.js, GSAP, and Lenis load from CDN
 | Layer | Location | Notes |
 |-------|----------|-------|
 | Frontend | `index.html` + `assets/` | Single-page; no framework |
-| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json` |
+| Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json` |
 | Backend Worker | `backend/` | Resume gate + agent audit log + analytics (Cloudflare Worker + D1) |
 | Portfolio agent | `portfolio-agent/` | Google ADK Python agent on Cloud Run |
 | Resend MCP server | `resend_mcp_server/` | Node.js MCP proxy for outbound email (Cloud Run) |
 
 ## Content
 
-Personal content lives in `assets/js/data/`:
+Personal content lives in `content/`:
 
 | File | Holds |
 |------|-------|

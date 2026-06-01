@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// add-post.mjs — append a LinkedIn post to assets/js/data/posts.json.
+// add-post.mjs — append a LinkedIn post to content/posts.json.
 // Usage: node scripts/add-post.mjs <linkedin-post-url>
 //
 // Fetches the post's OpenGraph meta with a crawler User-Agent, derives a
@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT  = pathResolve(SCRIPT_DIR, "..");
-const POSTS_PATH = pathResolve(REPO_ROOT, "assets/js/data/posts.json");
+const POSTS_PATH = pathResolve(REPO_ROOT, "content/posts.json");
 
 const URL_RE = /^https?:\/\/(?:www\.)?linkedin\.com\/(?:posts\/|feed\/update\/)/i;
 const CRAWLER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
@@ -93,9 +93,9 @@ async function main() {
     posts.unshift(entry);
     await atomicWriteJson(POSTS_PATH, posts);
 
-    console.log("✓ Added to assets/js/data/posts.json:");
+    console.log("✓ Added to content/posts.json:");
     console.log(JSON.stringify(entry, null, 2));
-    console.log("\n  Review with `git diff assets/js/data/posts.json`, then commit.");
+    console.log("\n  Review with `git diff content/posts.json`, then commit.");
 }
 
 function printUsage() {

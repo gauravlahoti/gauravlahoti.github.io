@@ -40,7 +40,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
 (async function bootstrap() {
     let profile;
     try {
-        profile = await fetch("assets/js/data/profile.json", { cache: "no-cache" }).then(r => r.json());
+        profile = await fetch("content/profile.json", { cache: "no-cache" }).then(r => r.json());
     } catch (err) {
         console.warn("[portfolio] profile.json missing or invalid", err);
         return;

@@ -27,7 +27,7 @@ npm start                 # listens on http://localhost:8787
 ```
 
 The server creates `backend/leads.db` automatically on first run from
-`schema.sql`. Your portfolio's `assets/js/data/profile.json` already
+`schema.sql`. Your portfolio's `content/profile.json` already
 points `links.resumeApi` at `http://localhost:8787/api/resume-download`.
 
 ### Querying locally
@@ -74,7 +74,7 @@ go serverless, deploy `src/index.js` to Cloudflare and swap
 5. **Authorized redirect URIs:** none (GIS One Tap / button doesn't use them).
 6. Copy the **Client ID** (looks like `1234-abcdef.apps.googleusercontent.com`).
 7. Paste it into:
-   - `assets/js/data/profile.json` → `links.googleClientId`
+   - `content/profile.json` → `links.googleClientId`
    - `backend/wrangler.toml` → `[vars] GOOGLE_CLIENT_ID`
 
 The Client ID is public — safe to commit. Do **not** copy the *Client
@@ -108,7 +108,7 @@ wrangler deploy
 ```
 
 Paste the deployed URL + path `/api/resume-download` into
-`assets/js/data/profile.json` under `links.resumeApi`.
+`content/profile.json` under `links.resumeApi`.
 
 ## Endpoints
 

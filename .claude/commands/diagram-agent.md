@@ -4,7 +4,7 @@ argument-hint: "<github-url-or-local-path> [agent-id]"
 allowed-tools: Read, Write, Edit, Bash, WebFetch, AskUserQuestion
 ---
 
-Generate an architecture diagram SVG for a given codebase, matching the exact design language used by the Agents Portfolio page at `/agents/`. The output SVG is saved to `agents/diagrams/<agent-id>-v1.svg` and is immediately usable as a `diagramSvg` value in `assets/js/data/agents.json`.
+Generate an architecture diagram SVG for a given codebase, matching the exact design language used by the Agents Portfolio page at `/agents/`. The output SVG is saved to `agents/diagrams/<agent-id>-v1.svg` and is immediately usable as a `diagramSvg` value in `content/agents.json`.
 
 User input: `$ARGUMENTS` — a GitHub URL (https://github.com/...) or an absolute local path, optionally followed by a short agent-id slug (e.g. `my-agent`). If agent-id is omitted, derive it from the repo/folder name.
 
@@ -257,7 +257,7 @@ Boundary label: <rect fill="#000000"/> + <image .cloud-run.svg 14×14/> + <text 
 ## Step 8 — Save and register
 
 1. Save to `agents/diagrams/<agent-id>-v1.svg`.
-2. Print the JSON snippet the user needs to add to `assets/js/data/agents.json`:
+2. Print the JSON snippet the user needs to add to `content/agents.json`:
 
 ```json
 {
