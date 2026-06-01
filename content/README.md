@@ -2,7 +2,7 @@
 
 Source of truth for all identity, career, and project content on the site.
 Plain JSON, edited directly — there is no build step. Markup (`index.html`,
-`agents/index.html`) stays template-only; copy lives here.
+`agent-portfolio/index.html`) stays template-only; copy lives here.
 
 These files are served as static assets, so they're fetchable in production at
 `https://gauravlahoti.dev/content/<file>.json`.
@@ -14,7 +14,7 @@ These files are served as static assets, so they're fetchable in production at
 | `profile.json` | Identity, links, bio, certifications, experience, models/capabilities, and all agent UI copy (`agentCopy`, `agentExplainer`, `agentIntro`, `agentActions`, `agentPrompts`). | `assets/js/main.js`, `agent-widget.js`, `resume-gate.js`; the chat agent corpus (live + bundled). | By hand / `portfolio-content-update` skill. |
 | `graph.json` | Career knowledge graph — 29 nodes / 52 edges (companies, projects, skills, domains). | Chat agent corpus **only** — not fetched by the frontend. | `/add-project` skill. |
 | `posts.json` | LinkedIn posts shown in the Perspectives section. | `assets/js/posts-list.js`; chat agent corpus; the ambient agent's `post_metrics.py`. | `/add-post` (`scripts/add-post.mjs`). |
-| `agents.json` | Cards + architecture diagrams for the `/agents/` page. | `assets/js/agents-page.js` only. | By hand. |
+| `agents.json` | Cards + architecture diagrams for the `/agent-portfolio/` page. | `assets/js/agents-page.js` only. | By hand. |
 
 ## Notes
 

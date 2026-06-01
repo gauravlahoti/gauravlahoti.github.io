@@ -1,5 +1,5 @@
-name: portfolio-agent
-description: Simple ReAct agent
+name: atlas
+description: Atlas — portfolio chat-widget agent
 base_template: adk
 agent_directory: app
 generated_at: '2026-05-02T12:57:34.579254+00:00'

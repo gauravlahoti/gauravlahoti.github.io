@@ -48,8 +48,8 @@ app: FastAPI = get_fast_api_app(
     session_service_uri=session_service_uri,
     otel_to_cloud=True,
 )
-app.title = "portfolio-agent"
-app.description = "API for interacting with the Agent portfolio-agent"
+app.title = "atlas"
+app.description = "Atlas — portfolio chat-widget agent"
 
 # Custom portfolio-chat routes (POST /api/agent-chat, GET /api/agent-chat/warm,
 # GET /healthz) wired alongside ADK's native /run_sse so the static site has

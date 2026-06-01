@@ -95,12 +95,14 @@
   <text x="492" y="572" class="caption" text-anchor="middle">Parallel Research</text>
 
   <rect x="434" y="585" width="124" height="124" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="486" y="590" width="20" height="20"/>
   <text x="496" y="625" class="node-sub" text-anchor="middle">GCP Knowledge</text>
   <text x="496" y="641" class="node-sub" text-anchor="middle">Agent</text>
   <text x="496" y="665" class="node-sub" text-anchor="middle">Official GCP</text>
   <text x="496" y="681" class="node-sub" text-anchor="middle">docs grounding</text>
 
   <rect x="574" y="585" width="124" height="124" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="626" y="590" width="20" height="20"/>
   <text x="636" y="625" class="node-sub" text-anchor="middle">Community</text>
   <text x="636" y="641" class="node-sub" text-anchor="middle">Search Agent</text>
   <text x="636" y="665" class="node-sub" text-anchor="middle">SO · Reddit</text>
@@ -124,8 +126,9 @@
   <!-- Box A: Developer Knowledge (Managed MCP Server) — under GCP Knowledge Agent -->
   <rect x="420" y="780" width="140" height="100" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
   <image href="/diagram-icons/google-cloud.png" x="430" y="790" width="24" height="24"/>
-  <text x="490" y="833" class="node-title" text-anchor="middle" style="font-size:13px">Developer Knowledge</text>
-  <text x="490" y="853" class="node-sub" text-anchor="middle">Managed MCP Server</text>
+  <text x="490" y="824" class="node-title" text-anchor="middle" style="font-size:13px">Developer</text>
+  <text x="490" y="842" class="node-title" text-anchor="middle" style="font-size:13px">Knowledge</text>
+  <text x="490" y="864" class="node-sub" text-anchor="middle">Managed MCP Server</text>
 
   <!-- Box B: Google Search (under Community Search Agent) -->
   <rect x="568" y="780" width="140" height="100" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>

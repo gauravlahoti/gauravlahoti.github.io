@@ -1,4 +1,4 @@
-// agents-page.js — /agents/ bootstrap
+// agents-page.js — /agent-portfolio/ bootstrap
 
 import { playEntranceWipe, runPageTransition } from "./page-transition.js";
 

@@ -29,7 +29,7 @@ python3 -m http.server 5173
 | Layer | Location | Notes |
 |-------|----------|-------|
 | HTML | `index.html` | Single page; semantic anchors |
-| Standalone pages | `agents/index.html` | `/agents/` portfolio; shares the nav but boots its own module |
+| Standalone pages | `agent-portfolio/index.html` | `/agent-portfolio/` portfolio; shares the nav but boots its own module |
 | CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |

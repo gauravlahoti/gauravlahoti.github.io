@@ -1,17 +1,17 @@
-# Convenience targets for the portfolio-agent sub-project.
+# Convenience targets for the Atlas chat-widget agent.
 # `make help` prints this list.
 
-.PHONY: help corpus install dev playground smoke eval lint clean audit deploy deploy-ambient
+.PHONY: help corpus install dev playground smoke eval lint clean audit deploy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 
 corpus: ## Sync the corpus snapshot from the static site (run before deploys).
-	cp ../content/profile.json app/corpus/profile.json
-	cp ../content/graph.json   app/corpus/graph.json
-	cp ../content/posts.json   app/corpus/posts.json
+	cp ../../content/profile.json app/corpus/profile.json
+	cp ../../content/graph.json   app/corpus/graph.json
+	cp ../../content/posts.json   app/corpus/posts.json
 	uv run python scripts/build_skills.py
-	@echo "Corpus + skills synced. Don't forget to redeploy: agents-cli deploy"
+	@echo "Corpus + skills synced. Don't forget to redeploy: make deploy"
 
 install: ## Install Python deps (uv sync).
 	uv sync
@@ -34,8 +34,8 @@ lint: ## Lint with ruff (auto-fix).
 audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit log).
 	uv run python -m app.app_utils.audit_log_smoke
 
-deploy: ## Deploy chat widget backend to Cloud Run (portfolio-chat-agent, us-central1).
-	gcloud beta run deploy portfolio-chat-agent \
+deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1).
+	gcloud beta run deploy atlas \
 		--project gcp-experiments-490306 \
 		--region us-central1 \
 		--source . \
@@ -46,24 +46,8 @@ deploy: ## Deploy chat widget backend to Cloud Run (portfolio-chat-agent, us-cen
 		--execution-environment gen2 \
 		--concurrency 80 \
 		--min-instances 0 \
-		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-chat-agent-lw4bt7nrba-uc.a.run.app \
-		--update-secrets GEMINI_API_KEY=gemini-api-key:latest \
-		--labels created-by=adk
-
-deploy-ambient: ## Deploy background digest agent to Cloud Run (portfolio-ambient-agent, us-central1).
-	gcloud beta run deploy portfolio-ambient-agent \
-		--project gcp-experiments-490306 \
-		--region us-central1 \
-		--source . \
-		--memory 4Gi \
-		--allow-unauthenticated \
-		--cpu-throttling \
-		--cpu-boost \
-		--execution-environment gen2 \
-		--concurrency 10 \
-		--min-instances 0 \
-		--update-env-vars AGENT_VERSION=0.1.0,APP_URL=https://portfolio-ambient-agent-lw4bt7nrba-uc.a.run.app \
-		--update-secrets GEMINI_API_KEY=gemini-api-key:latest \
+		--update-env-vars "^;^AGENT_VERSION=0.1.0;APP_URL=https://atlas-lw4bt7nrba-uc.a.run.app;ALLOW_ORIGINS=https://gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173;AGENT_LOG_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-log;RESEND_FROM_ADDRESS=resume@gauravlahoti.dev;RESUME_PDF_URL=https://gauravlahoti.dev/assets/img/resume.pdf;RESEND_MCP_URL=https://resend-mcp-server-593919045544.us-central1.run.app/mcp;NOTE_FROM_ADDRESS=agent@gauravlahoti.dev" \
+		--update-secrets GEMINI_API_KEY=gemini-api-key:latest,AGENT_LOG_TOKEN=agent-log-token:latest,GAURAV_CONTACT_EMAIL=gaurav-contact-email:latest,MCP_CALLER_TOKEN=resend-mcp-caller-token:latest \
 		--labels created-by=adk
 
 clean: ## Drop __pycache__ and .pytest_cache.

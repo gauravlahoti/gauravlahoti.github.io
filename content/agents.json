@@ -9,7 +9,7 @@
     "description": "Corpus answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, grounded in a versioned snapshot of his profile, work history, projects, certifications, and recent writing, rebuilt on every deploy.",
     "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
     "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "MCP", "SSE"],
-    "diagramSvg": "agents/diagrams/chat-agent-v1.svg",
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg",
     "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → Corpus tools + Resend MCP Server",
     "steps": [
       {
@@ -88,7 +88,7 @@
     "description": "Beacon is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
     "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
     "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
-    "diagramSvg": "agents/diagrams/ambient-agent-v1.svg",
+    "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
     "diagramAlt": "Cloud Scheduler → Ambient Agent (ADK/Gemini) → Cloudflare D1 (stats) + Resend MCP (email)",
     "steps": [
       {
@@ -161,7 +161,7 @@
     "description": "ErrorLens is a multi-agent orchestrator that triages GCP errors, runs parallel research across documentation and community sources, and stores confirmed resolutions in a vector knowledge bank. Mature deployments skip the research pipeline entirely for previously encountered issues via semantic similarity matching (≥0.85 threshold).",
     "value": "Reduces mean-time-to-resolution for recurring GCP errors by accumulating institutional knowledge across every incident. The self-improving feedback loop means the system delivers faster, higher-confidence answers over time.",
     "stack": ["Google ADK", "Gemini 2.5", "A2A Protocol", "AlloyDB + pgvector", "MCP Toolbox", "Cloud Run", "Vertex AI Embeddings"],
-    "diagramSvg": "agents/diagrams/error-lens-v2.svg?v=12",
+    "diagramSvg": "agent-portfolio/diagrams/error-lens-v2.svg?v=13",
     "diagramAlt": "ErrorLens multi-agent architecture: orchestrator routes errors to quick-scan or full research pipeline, with A2A KB agent backed by AlloyDB vector store",
     "steps": [
       { "n": 1, "label": "Error intake", "detail": "Developer submits a GCP error. The orchestrator determines if a known fix exists in the knowledge bank." },
