@@ -42,7 +42,7 @@ def _load_bundled(name: str) -> Any:
 
 
 def _fetch_live(name: str) -> Any:
-    url = f"{_BASE}/assets/js/data/{name}"
+    url = f"{_BASE}/content/{name}"
     resp = httpx.get(url, timeout=3.0)
     resp.raise_for_status()
     return resp.json()

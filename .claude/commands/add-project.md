@@ -14,7 +14,7 @@ Slug must be lowercase, kebab-case, a-z 0-9 -, max 40 chars.
 If invalid, ask the user to fix.
 
 ## Step 2 — Check for duplicates
-Read `assets/js/data/graph.json`. If a node with that `id`
+Read `content/graph.json`. If a node with that `id`
 already exists, ask whether to update it instead of adding.
 
 ## Step 3 — Gather missing fields

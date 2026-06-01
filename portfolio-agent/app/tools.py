@@ -5,7 +5,7 @@ ADK derives the JSON schema from the type hints + docstring. Retrieval tools
 read live data via `app.corpus_live`, which fetches the canonical JSON from
 gauravlahoti.dev with a short TTL and falls back to the bundled snapshot in
 `app/corpus/` if the network is unavailable. This means edits to the site's
-`assets/js/data/*.json` are reflected by the agent without a redeploy.
+`content/*.json` are reflected by the agent without a redeploy.
 
 The retrieval tools make no outbound HTTP themselves beyond that data fetch.
 The action tool (`send_resume`) talks to Resend's REST API and the

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 _TIMEOUT_S = 12.0
 _PACING_S = 1.5
 _EMBED_BASE = "https://www.linkedin.com/embed/feed/update/urn:li:"
-_SITE_POSTS_DEFAULT = "https://gauravlahoti.dev/assets/js/data/posts.json"
+_SITE_POSTS_DEFAULT = "https://gauravlahoti.dev/content/posts.json"
 _CORPUS_POSTS = Path(__file__).parent.parent / "corpus" / "posts.json"
 
 _BROWSER_UA = (

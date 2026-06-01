@@ -43,7 +43,7 @@ agents-cli playground          # interactive web UI
 | `agents-cli run "prompt"` | One-shot smoke test |
 | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` | Eval gate (required before deploy) |
 | `uv run pytest tests/unit tests/integration` | Unit + integration tests |
-| `make corpus` | Sync `assets/js/data/*.json` → `app/corpus/` (run before every deploy) |
+| `make corpus` | Sync `content/*.json` → `app/corpus/` (run before every deploy) |
 | `make audit` | Smoke-test the audit log endpoint |
 | `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` | Deploy to Cloud Run |
 
@@ -67,7 +67,7 @@ Copy `.env.example` → `.env` and fill in real values. Production values are mo
 
 ## Deploy Workflow
 
-1. `make corpus` — sync corpus from latest `assets/js/data/*.json`
+1. `make corpus` — sync corpus from latest `content/*.json`
 2. `agents-cli eval run` — eval gate must pass (iterate until it does)
 3. `uv run pytest tests/unit tests/integration` — tests must pass
 4. Deploy:

@@ -33,7 +33,7 @@ python3 -m http.server 5173
 | CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
-| Content data | `assets/js/data/*.json` | `profile.json`, `graph.json`, `posts.json`, `post-metrics.json` (untracked — populated weekly by ambient agent) |
+| Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. |
 | Static media | `assets/img/` | Resume PDF, OG image, favicon, badge PNGs |
 | Backend | `backend/` | Resume-gate + agent audit log + analytics |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
@@ -83,7 +83,7 @@ Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
 | One-shot smoke test | `agents-cli run "your prompt"` |
 | Lint | `make lint` |
 | Eval gate (required before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
-| Refresh corpus | `make corpus` — **must run before every deploy**; syncs `assets/js/data/*.json` → `app/corpus/` |
+| Refresh corpus | `make corpus` — **must run before every deploy**; syncs `content/*.json` → `app/corpus/` |
 | Audit log smoke test | `make audit` — sends a test fixture to the audit log endpoint |
 | Deploy chat agent | `make deploy` (updates Cloud Run service; update `links.agentApi` + `links.agentWarm` in `profile.json` and CSP after) |
 | Deploy ambient agent | `make deploy-ambient` (separate Cloud Run service; triggered by Cloud Scheduler) |
@@ -102,7 +102,7 @@ There are **two independent Cloud Run services**: the chat widget agent (`make d
 
 ## Conventions
 
-- **Content in JSON, not HTML.** `assets/js/data/` is the source of truth for all identity and project data.
+- **Content in JSON, not HTML.** `content/` is the source of truth for all identity and project data.
 - **CSS variables only — never hardcode hex.** All tokens defined in `:root` in `base.css`.
 - **One JS module per visualization.** Each lazy-loads on IntersectionObserver entry.
 - **No npm, no bundler, no build step.** CDN deps only (`defer`). If a feature needs a build step, find a simpler approach.

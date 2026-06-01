@@ -4,7 +4,7 @@ argument-hint: "LinkedIn post URL"
 allowed-tools: Read, Write, Edit, Bash(node:*), AskUserQuestion
 ---
 
-Add a LinkedIn post to `assets/js/data/posts.json` (the data file that
+Add a LinkedIn post to `content/posts.json` (the data file that
 drives the Perspectives section + nav flyout). Always show the parsed
 title to the user and wait for explicit approval before writing.
 
@@ -81,7 +81,7 @@ the updated entry. Loop until the user picks "Add as-is" or "Cancel".
 
 ## Step 6 — Write to posts.json (only on "Add as-is")
 
-1. Read `assets/js/data/posts.json`.
+1. Read `content/posts.json`.
 2. Parse JSON. If it's not an array, stop with an error.
 3. **Re-check dedupe**: if any existing entry has `entry.url`, stop —
    tell the user it was added between fetch and write.
@@ -93,11 +93,11 @@ the updated entry. Loop until the user picks "Add as-is" or "Cancel".
 Print:
 
 ```
-Added to assets/js/data/posts.json:
+Added to content/posts.json:
   • {firstLine}
   • {date}
 
-Review:  git diff assets/js/data/posts.json
+Review:  git diff content/posts.json
 Reload:  http://localhost:5173/  (hard-refresh; posts.json fetches with cache: "no-cache")
 ```
 

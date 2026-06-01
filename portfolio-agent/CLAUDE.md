@@ -12,7 +12,7 @@ Google ADK Python agent powering the portfolio chat widget. Answers questions ab
 | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` | Run eval gate |
 | `uv run pytest tests/unit tests/integration` | Unit + integration tests |
 | `agents-cli lint` | Code quality check |
-| `make corpus` | Sync `assets/js/data/*.json` → `app/corpus/` |
+| `make corpus` | Sync `content/*.json` → `app/corpus/` |
 | `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` | Deploy to Cloud Run |
 
 ## Workflow
