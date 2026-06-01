@@ -14,20 +14,18 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 
 from google.adk.agents import Agent
 from google.adk.apps import App
 from google.adk.models import Gemini
+from google.adk.skills import load_skill_from_dir
+from google.adk.tools.skill_toolset import SkillToolset
 from google.genai import types
 
 from app import tools as portfolio_tools
 from app.guardrails import after_model_callback, before_model_callback
-from app import corpus_live
 from app.instruction import SYSTEM_INSTRUCTION
-
-# Warm the live-corpus cache so the first user request doesn't pay the network
-# hit. Failures fall back to the bundled snapshot in `app/corpus/`.
-corpus_live.prime()
 
 # Auth path is gated on whether GEMINI_API_KEY is set. In production on Cloud
 # Run, the key is wired in from Secret Manager via `--secrets` and we use the
@@ -44,6 +42,27 @@ else:
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 
+# Corpus retrieval is served through ADK Skills (Spec 37): the bundled
+# `app/skills/<name>/SKILL.md` files are loaded at import. `SkillToolset`
+# auto-injects a lightweight skill menu (list_skills) into context and exposes
+# `load_skill` so the model pulls one domain's curated data on demand — instead
+# of the old per-turn full-corpus dump. Action tools (send_resume,
+# send_note_to_gaurav) ride along as additional_tools. Skills are static,
+# rebuilt at deploy via `make corpus` (scripts/build_skills.py).
+_SKILLS_DIR = Path(__file__).parent / "skills"
+_skills = [
+    load_skill_from_dir(p)
+    for p in sorted(_SKILLS_DIR.iterdir())
+    if p.is_dir()
+]
+skill_toolset = SkillToolset(
+    skills=_skills,
+    additional_tools=[
+        portfolio_tools.send_resume,
+        portfolio_tools.send_note_to_gaurav,
+    ],
+)
+
 root_agent = Agent(
     name="root_agent",
     model=Gemini(
@@ -51,15 +70,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,
-    tools=[
-        portfolio_tools.get_profile,
-        portfolio_tools.get_work_history,
-        portfolio_tools.get_projects,
-        portfolio_tools.get_recent_posts,
-        portfolio_tools.get_certifications,
-        portfolio_tools.send_resume,
-        portfolio_tools.send_note_to_gaurav,
-    ],
+    tools=[skill_toolset],
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
