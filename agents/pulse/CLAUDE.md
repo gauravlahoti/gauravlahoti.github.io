@@ -1,4 +1,4 @@
-# portfolio-agent
+# pulse (ambient digest agent)
 
 Google ADK Python agent powering the portfolio chat widget. Answers questions about Gaurav using five retrieval tools over a frozen JSON corpus. Deployed on Cloud Run (`min-instances=0`).
 

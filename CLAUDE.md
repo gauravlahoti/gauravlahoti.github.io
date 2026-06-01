@@ -47,7 +47,7 @@ Gates the resume PDF behind Google Sign-In. Two runtimes share `schema.sql`:
 
 `assets/js/resume-gate.js` calls the backend; the PDF fires only after JWT verification and lead row write.
 
-**Agent audit log:** D1 also holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Rows expire after 90 days via monthly cron. Source: `portfolio-agent/app/app_utils/audit_log.py`. Schema migration: `backend/migrations/003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta` columns.
+**Agent audit log:** D1 also holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Rows expire after 90 days via monthly cron. Source: `agents/atlas/app/app_utils/audit_log.py`. Schema migration: `backend/migrations/003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta` columns.
 
 **Backend migrations** (`backend/migrations/`): 7 files covering Google sign-in fields (001), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient), resume sends (005), page views (006), post metrics (007). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start.
 
@@ -68,31 +68,29 @@ Standalone Node.js MCP server deployed on Cloud Run. Exposes a `send-email` tool
 | Local dev | `make dev` → `:3000` |
 | Deploy to Cloud Run | `make deploy` (injects secrets from Secret Manager) |
 
-## Agent chat widget (`portfolio-agent/`)
+## Agents (`agents/`)
 
-Floating "Ask my agent" widget — Google ADK Python agent on Cloud Run (`min-instances=0`). Five retrieval tools: `get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications` over a frozen JSON corpus bundled at deploy time.
+Two **independent** Google ADK (agents-cli) projects, each deploying its own Cloud Run service (`min-instances=0`). Both keep `App(name="app")` + `agent_directory: app`; the Cloud Run service name comes from the `gcloud run deploy <name>` arg in each Makefile.
 
-Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
+- **`agents/atlas/`** — **Atlas**, the chat-widget agent (Cloud Run service `atlas`). Five retrieval tools (`get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications`) served via ADK Skills over a frozen JSON corpus bundled at deploy. Routes: `POST /api/agent-chat` (SSE), `GET /api/agent-chat/warm`. Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
+- **`agents/pulse/`** — **Pulse**, the ambient weekly-digest agent (Cloud Run service `pulse`). Routes: `POST /api/ambient/run` and `POST /api/ambient/metrics` (gated by `AMBIENT_TRIGGER_TOKEN` via the `x-internal-token` header), triggered by two Cloud Scheduler jobs (`portfolio-ambient-agent` Mon/Thu 08:00, `portfolio-ambient-metrics` every 2 days). Fetches visitor stats + LinkedIn post metrics, generates insights, drafts leads, and sends one dashboard email via Resend MCP.
 
-**Critical:** do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns those.
+Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated into each project (no shared package).
 
-| Task | Command (from `portfolio-agent/`) |
+**Critical:** do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns those. `pyproject.toml [project].name` stays `portfolio-agent` in both so `uv.lock --frozen` (and the Docker build) match; project identity is the `agents-cli-manifest.yaml` `name` (`atlas`/`pulse`).
+
+| Task | Command (from `agents/atlas/` or `agents/pulse/`) |
 |------|----------------------------------|
-| Local dev (FastAPI) | `make dev` → `:8000` |
-| Interactive UI | `agents-cli playground` |
+| Local dev (FastAPI) | `make dev` (atlas `:8000`, pulse `:8001`) |
 | One-shot smoke test | `agents-cli run "your prompt"` |
 | Lint | `make lint` |
-| Eval gate (required before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
-| Refresh corpus | `make corpus` — **must run before every deploy**; syncs `content/*.json` → `app/corpus/` |
-| Audit log smoke test | `make audit` — sends a test fixture to the audit log endpoint |
-| Deploy chat agent | `make deploy` (updates Cloud Run service; update `links.agentApi` + `links.agentWarm` in `profile.json` and CSP after) |
-| Deploy ambient agent | `make deploy-ambient` (separate Cloud Run service; triggered by Cloud Scheduler) |
+| Eval gate (atlas only, before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
+| Refresh corpus (atlas only) | `make corpus` — **before every atlas deploy**; syncs `../../content/*.json` → `app/corpus/` |
+| Deploy | `make deploy` (atlas → service `atlas`; pulse → service `pulse`). Sets the full env/secret set inline. |
 
-There are **two independent Cloud Run services**: the chat widget agent (`make deploy`) and the ambient digest agent (`make deploy-ambient`). After deploying the chat agent: update `profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL.
+After deploying **atlas**, update `content/profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL. After deploying **pulse**, repoint the two Cloud Scheduler jobs (`gcloud scheduler jobs update http … --uri=…`).
 
-**Ambient agent** (`app/ambient_agent.py`): background agent triggered via Cloud Scheduler (Spec #32). Fetches visitor stats from `GET /api/ambient/stats?days=4` (gated by `X-Internal-Token`), fetches LinkedIn post metrics, generates insights, drafts leads, and sends a single weekly dashboard email via Resend MCP. Endpoint: `POST /api/ambient/run` on Cloud Run.
-
-**Agent env vars** (see `portfolio-agent/.env.example`): `GEMINI_API_KEY`, `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `ALLOW_ORIGINS`, `RESEND_MCP_URL`, `MCP_CALLER_TOKEN`, `RESEND_FROM_ADDRESS`, `RESUME_PDF_URL`, `NOTE_FROM_ADDRESS`, `GAURAV_CONTACT_EMAIL`, `AMBIENT_TRIGGER_TOKEN`.
+**Agent env vars** (see each `.env.example`): `GEMINI_API_KEY`, `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `RESEND_MCP_URL`, `MCP_CALLER_TOKEN`, `RESEND_FROM_ADDRESS`, `NOTE_FROM_ADDRESS`, `GAURAV_CONTACT_EMAIL` (both); `ALLOW_ORIGINS`, `RESUME_PDF_URL`, `CORPUS_LIVE_*` (atlas); `AMBIENT_TRIGGER_TOKEN` (pulse). All secrets come from Secret Manager via `--update-secrets`.
 
 **`[[META]]` block:** every agent reply ends with `[[META]]…[[/META]]` carrying `citations`, `suggestions`, and optional `cta`. `_stream_agent` strips it from the stream, validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as SSE events (`citations`, `suggestions`, `cta`) before `done`. Widget renders `[N]` superscripts post-stream, a chip row, and a CTA button. `[[META]]`/`[[/META]]` are stripped from user input in `before_model_callback` as injection defense. CTA copy lives in `profile.agentCopy`; transparency modal copy in `profile.agentExplainer`.
 
@@ -137,4 +135,4 @@ Specs are append-only. Never rewrite an old spec — write a new one. Zero-padde
 
 ## Deploy
 
-GitHub Pages from `main`. `.nojekyll` at repo root prevents Jekyll from dropping `_`-prefixed paths. `.github/workflows/deploy.yml` auto-deploys on push to `main`; excludes `.claude`, `backend`, `portfolio-agent`, `resend_mcp_server`, `scripts`, `node_modules` from Pages output (rsync-based, no build step).
+GitHub Pages from `main`. `.nojekyll` at repo root prevents Jekyll from dropping `_`-prefixed paths. `.github/workflows/deploy.yml` auto-deploys on push to `main`; excludes `.claude`, `backend`, `agents`, `resend_mcp_server`, `scripts`, `node_modules` from Pages output (rsync-based, no build step).

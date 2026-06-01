@@ -1,4 +1,4 @@
-# portfolio-agent
+# atlas (chat-widget agent)
 
 Google ADK Python agent powering the portfolio chat widget. Answers questions about Gaurav using five retrieval tools over a frozen JSON corpus. Deployed on Cloud Run (`min-instances=0`).
 
