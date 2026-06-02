@@ -7,10 +7,8 @@ no [[META]] substring leaking to SSE delta output.
 Run with: uv run pytest tests/unit/test_meta_parser.py -v
 """
 
-import pytest
 
-from app.api import _parse_meta, _META_OPEN, _META_CLOSE, _ALLOWED_CITE_HOSTS
-
+from app.api import _ALLOWED_CITE_HOSTS, _META_CLOSE, _META_OPEN, _parse_meta
 
 # ---------------------------------------------------------------------------
 # _parse_meta unit tests

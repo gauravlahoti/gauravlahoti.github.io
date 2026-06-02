@@ -18,12 +18,12 @@ from pathlib import Path
 
 from google.adk.agents import Agent
 from google.adk.apps import App
-from google.adk.models import Gemini
 from google.adk.skills import load_skill_from_dir
 from google.adk.tools.skill_toolset import SkillToolset
 from google.genai import types
 
 from app import tools as portfolio_tools
+from app.fallback_model import FallbackGemini
 from app.guardrails import after_model_callback, before_model_callback
 from app.instruction import SYSTEM_INSTRUCTION
 
@@ -65,8 +65,13 @@ skill_toolset = SkillToolset(
 
 root_agent = Agent(
     name="root_agent",
-    model=Gemini(
+    # Free-tier model cascade: each model has its own daily free quota, so on a
+    # 429 RESOURCE_EXHAUSTED we fall back to the next instead of failing the
+    # visitor. Keeps the widget on the AI Studio free tier (no Vertex/paid).
+    # See app/fallback_model.py.
+    model=FallbackGemini(
         model="gemini-3.5-flash",
+        fallback_models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,

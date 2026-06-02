@@ -63,7 +63,7 @@ def _get(name: str) -> Any:
                 _cache[name] = data
                 _cache_ts[name] = now
                 return data
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.warning("live corpus fetch failed for %s: %s — using bundled", name, exc)
         # Fall through to bundled snapshot. Cache it briefly so we don't retry
         # the network on every call when the live fetch is failing.
@@ -90,5 +90,5 @@ def prime() -> None:
     for name in _FILES:
         try:
             _get(name)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass

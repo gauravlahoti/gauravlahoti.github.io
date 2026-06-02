@@ -1,7 +1,7 @@
 # Convenience targets for the Atlas chat-widget agent.
 # `make help` prints this list.
 
-.PHONY: help corpus install dev playground smoke eval lint clean audit deploy
+.PHONY: help corpus install dev playground smoke eval eval-quick lint clean audit deploy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
@@ -25,8 +25,25 @@ playground: ## Open the ADK web playground.
 smoke: ## One-shot smoke test against the local agent.
 	agents-cli run "What has Gaurav shipped in production with multi-agent systems?"
 
-eval: ## Run the eval suite.
-	agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json
+# Eval ALWAYS runs on the AI Studio free-tier key, never Vertex AI, so the
+# agent + rubric-judge calls incur ZERO model charges. We reuse the same key
+# prod uses (Secret Manager `gemini-api-key`), honoring an existing
+# GEMINI_API_KEY in your env first. Forcing GOOGLE_GENAI_USE_VERTEXAI=False
+# pins BOTH the agent (app/agent.py) and the judge (eval_config.json) to the
+# free tier. Without this, missing creds fall through to paid Vertex AI.
+_FREE_KEY = KEY="$${GEMINI_API_KEY:-$$(gcloud secrets versions access latest --secret=gemini-api-key --project gcp-experiments-490306 2>/dev/null)}"; \
+	test -n "$$KEY" || { echo "ERROR: no free-tier key — set GEMINI_API_KEY or grant access to secret 'gemini-api-key'"; exit 1; }; \
+	echo ">> Eval on AI Studio FREE TIER (Vertex disabled — no model charges)";
+
+eval: ## Run the FULL 16-case eval gate on the free-tier key (no Vertex/paid usage). Use before deploy.
+	@$(_FREE_KEY) \
+	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
+		agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json
+
+eval-quick: ## Cheap 2-case smoke eval on the free-tier key (routine checks; ~4 calls).
+	@$(_FREE_KEY) \
+	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
+		agents-cli eval run --evalset tests/eval/evalsets/basic.evalset.json
 
 lint: ## Lint with ruff (auto-fix).
 	agents-cli lint --fix

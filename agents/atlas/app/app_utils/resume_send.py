@@ -19,7 +19,7 @@ import hashlib
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -43,8 +43,8 @@ def _env(name: str) -> str:
 
 def hash_email(email: str) -> str:
     """sha256(email|UTC_DATE)[:16]. Daily-rotating salt, no manual rotation."""
-    salt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return hashlib.sha256(f"{email.lower()}|{salt}".encode("utf-8")).hexdigest()[:16]
+    salt = datetime.now(UTC).strftime("%Y-%m-%d")
+    return hashlib.sha256(f"{email.lower()}|{salt}".encode()).hexdigest()[:16]
 
 
 def is_valid_email(email: str) -> bool:
