@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 1000" width="920" height="1000" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .stage-title{ font-size: 13px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .phase      { font-size: 11px; fill: #555555; letter-spacing: 0.18em; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <!-- Caption -->
+  <text x="40" y="30" class="caption">// agentic-rag · cloud run · 8-stage pipeline · voyage-3 · chroma + bm25 · rrf · claude sonnet 4.5</text>
+
+  <!-- Browser (client) -->
+  <rect x="370" y="64" width="180" height="56" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="386" y="82" width="20" height="14" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <line x1="386" y1="87" x2="406" y2="87" stroke="#888888" stroke-width="1"/>
+  <text x="414" y="90" class="node-title">Browser</text>
+  <text x="414" y="106" class="node-sub">SSE client · 3D viz</text>
+
+  <!-- Cloud Run boundary (wraps the deployed RAG pipeline) -->
+  <rect x="300" y="156" width="320" height="760" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="308" y="147" width="100" height="18" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="312" y="149" width="14" height="14"/>
+  <text x="330" y="160" class="caption">Cloud Run</text>
+
+  <!-- Phase markers -->
+  <text x="316" y="305" class="phase" text-anchor="middle" transform="rotate(-90 316 305)">INGEST</text>
+  <text x="316" y="700" class="phase" text-anchor="middle" transform="rotate(-90 316 700)">QUERY</text>
+
+  <!-- ═══ 8-STAGE PIPELINE SPINE ═══ -->
+
+  <!-- Stage 1 — CHUNK -->
+  <rect x="340" y="180" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="211" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="370" y="215" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="1">1</text>
+  <text x="394" y="207" class="stage-title">CHUNK</text>
+  <text x="394" y="224" class="node-sub">recursive · 800 / 120</text>
+
+  <!-- Stage 2 — GENERATE EMBEDDING -->
+  <rect x="340" y="274" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="305" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="370" y="309" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="2">2</text>
+  <text x="394" y="301" class="stage-title">GENERATE EMBEDDING</text>
+  <text x="394" y="318" class="node-sub">meaning → vector</text>
+
+  <!-- Stage 3 — STORE IN VECTORDB -->
+  <rect x="340" y="368" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="399" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="370" y="403" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="3">3</text>
+  <text x="394" y="395" class="stage-title">STORE IN VECTORDB</text>
+  <text x="394" y="412" class="node-sub">PCA → 3D · cosine</text>
+
+  <!-- Stage 4 — EMBED QUERY -->
+  <rect x="340" y="462" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="493" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="370" y="497" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="4">4</text>
+  <text x="394" y="489" class="stage-title">EMBED QUERY</text>
+  <text x="394" y="506" class="node-sub">same model &amp; basis</text>
+
+  <!-- Stage 5 — RETRIEVE -->
+  <rect x="340" y="556" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="587" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5"/>
+  <text x="370" y="591" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="5">5</text>
+  <text x="394" y="583" class="stage-title">RETRIEVE</text>
+  <text x="394" y="600" class="node-sub">dense (cosine) + lexical</text>
+
+  <!-- Stage 6 — RRF FUSION -->
+  <rect x="340" y="650" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="681" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
+  <text x="370" y="685" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="6">6</text>
+  <text x="394" y="677" class="stage-title">RRF FUSION</text>
+  <text x="394" y="694" class="node-sub">reciprocal rank · k=60</text>
+
+  <!-- Stage 7 — AUGMENT -->
+  <rect x="340" y="744" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="775" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="7"/>
+  <text x="370" y="779" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="7">7</text>
+  <text x="394" y="771" class="stage-title">AUGMENT</text>
+  <text x="394" y="788" class="node-sub">numbered citable context</text>
+
+  <!-- Stage 8 — GROUNDED ANSWER -->
+  <rect x="340" y="838" width="240" height="62" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <circle cx="370" cy="869" r="13" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="8"/>
+  <text x="370" y="873" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="8">8</text>
+  <text x="394" y="865" class="stage-title">GROUNDED ANSWER</text>
+  <text x="394" y="882" class="node-sub">streamed · cited</text>
+
+  <!-- ═══ BACKING SERVICES (right) ═══ -->
+
+  <!-- Voyage AI -->
+  <rect x="680" y="292" width="200" height="58" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <circle cx="704" cy="321" r="11" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M699,326 L709,316" stroke="#888888" stroke-width="1.5"/>
+  <path d="M709,316 L704.5,316 M709,316 L709,320.5" stroke="#888888" stroke-width="1.5"/>
+  <text x="724" y="316" class="node-title">Voyage AI</text>
+  <text x="724" y="333" class="node-sub">voyage-3 · 1024-D</text>
+
+  <!-- ChromaDB -->
+  <rect x="680" y="438" width="200" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <ellipse cx="704" cy="462" rx="9" ry="4" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M695,462 L695,478 M713,462 L713,478" stroke="#888888" stroke-width="1.5"/>
+  <ellipse cx="704" cy="478" rx="9" ry="4" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <text x="724" y="462" class="node-title">ChromaDB</text>
+  <text x="724" y="479" class="node-sub">vector store · cosine</text>
+  <text x="724" y="495" class="node-sub">dense retrieval</text>
+
+  <!-- BM25 Index -->
+  <rect x="680" y="598" width="200" height="58" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="696" y="616" width="16" height="20" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <line x1="700" y1="622" x2="708" y2="622" stroke="#888888" stroke-width="1"/>
+  <line x1="700" y1="626" x2="708" y2="626" stroke="#888888" stroke-width="1"/>
+  <line x1="700" y1="630" x2="705" y2="630" stroke="#888888" stroke-width="1"/>
+  <text x="724" y="622" class="node-title">BM25 Index</text>
+  <text x="724" y="639" class="node-sub">lexical · rank-bm25</text>
+
+  <!-- Claude Sonnet 4.5 -->
+  <rect x="680" y="820" width="200" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <g stroke="#D97757" stroke-width="1.5">
+    <line x1="704" y1="843" x2="704" y2="861"/>
+    <line x1="695" y1="852" x2="713" y2="852"/>
+    <line x1="698" y1="846" x2="710" y2="858"/>
+    <line x1="710" y1="846" x2="698" y2="858"/>
+  </g>
+  <text x="724" y="846" class="node-title">Claude Sonnet 4.5</text>
+  <text x="724" y="863" class="node-sub">generation · tool-use</text>
+  <text x="724" y="879" class="node-sub">agentic loop</text>
+
+  <!-- ═══ EDGES ═══ -->
+
+  <!-- Browser → Stage 1 (ingest / query) -->
+  <line x1="460" y1="120" x2="460" y2="180" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="470" y="128" width="120" height="16" rx="3" fill="#000000"/>
+  <text x="530" y="140" class="edge-label" text-anchor="middle">ingest / query</text>
+
+  <!-- Spine: 1→2→3→4→5→6→7→8 -->
+  <line x1="460" y1="242" x2="460" y2="274" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="336" x2="460" y2="368" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="430" x2="460" y2="462" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="524" x2="460" y2="556" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="618" x2="460" y2="650" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="712" x2="460" y2="744" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="460" y1="806" x2="460" y2="838" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+
+  <!-- ingest→query phase hint on the 3→4 arrow -->
+  <rect x="470" y="438" width="96" height="15" rx="3" fill="#000000"/>
+  <text x="474" y="449" class="edge-label" fill="#555555">↳ user asks</text>
+
+  <!-- Stage 2 → Voyage (embed) -->
+  <polyline points="580,310 660,310 660,321 678,321" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="598" y="294" width="44" height="15" rx="3" fill="#000000"/>
+  <text x="620" y="305" class="edge-label" text-anchor="middle">embed</text>
+
+  <!-- Stage 3 → ChromaDB (store) -->
+  <polyline points="580,399 636,399 636,460 678,460" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="588" y="383" width="42" height="15" rx="3" fill="#000000"/>
+  <text x="609" y="394" class="edge-label" text-anchor="middle">store</text>
+
+  <!-- Stage 5 → ChromaDB (dense) -->
+  <polyline points="580,572 636,572 636,485 678,485" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="586" y="556" width="46" height="15" rx="3" fill="#000000"/>
+  <text x="609" y="567" class="edge-label" text-anchor="middle">dense</text>
+
+  <!-- Stage 5 → BM25 (lexical) -->
+  <polyline points="580,600 652,600 652,627 678,627" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="590" y="605" width="52" height="15" rx="3" fill="#000000"/>
+  <text x="616" y="616" class="edge-label" text-anchor="middle">lexical</text>
+
+  <!-- Stage 8 → Claude (generate) -->
+  <polyline points="580,852 678,852" fill="none" stroke="#2A2A2A" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-std)"/>
+  <rect x="598" y="836" width="64" height="15" rx="3" fill="#000000"/>
+  <text x="630" y="847" class="edge-label" text-anchor="middle">generate</text>
+
+  <!-- Agentic tool-use loop: Stage 8 (Claude) → Stage 5 (re-query) -->
+  <polyline points="340,855 285,855 285,572 338,572" fill="none" stroke="#00FFD1" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="miter" marker-end="url(#arr-acc)"/>
+  <rect x="150" y="702" width="130" height="16" rx="3" fill="#000000"/>
+  <text x="215" y="714" class="edge-label" fill="#00FFD1" text-anchor="middle">tool-use re-query</text>
+
+  <!-- Stage 8 → Browser (stream answer back) -->
+  <polyline points="460,900 460,945 130,945 130,92 368,92" fill="none" stroke="#00FFD1" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arr-acc)"/>
+  <rect x="283" y="929" width="132" height="16" rx="3" fill="#000000"/>
+  <text x="349" y="941" class="edge-label" text-anchor="middle">stream answer + 3D</text>
+
+  <!-- ═══ Animation flow data ═══ -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="460,120 460,180" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-traveler-path="460,242 460,274" data-color="#00FFD1" data-step="2" data-delay="0.7"/>
+    <g data-traveler-path="460,336 460,368" data-color="#00FFD1" data-step="3" data-delay="1.4"/>
+    <g data-traveler-path="460,430 460,462" data-color="#00FFD1" data-step="4" data-delay="2.1"/>
+    <g data-traveler-path="460,524 460,556" data-color="#00FFD1" data-step="5" data-delay="2.8"/>
+    <g data-traveler-path="460,618 460,650" data-color="#00FFD1" data-step="6" data-delay="3.5"/>
+    <g data-traveler-path="460,712 460,744" data-color="#00FFD1" data-step="7" data-delay="4.2"/>
+    <g data-traveler-path="460,806 460,838" data-color="#00FFD1" data-step="8" data-delay="4.9"/>
+    <g data-traveler-path="340,855 285,855 285,572 338,572" data-color="#00FFD1" data-step="loop" data-delay="5.6"/>
+    <g data-traveler-path="460,900 460,945 130,945 130,92 368,92" data-color="#00FFD1" data-step="return" data-delay="6.3"/>
+  </g>
+</svg>

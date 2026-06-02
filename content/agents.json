@@ -202,5 +202,102 @@
     "links": [
       { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
     ]
+  },
+  {
+    "id": "agentic-rag",
+    "name": "Agentic RAG",
+    "subtitle": "Retrieval-Augmented Generation Pipeline",
+    "role": "RAG Pipeline",
+    "status": "LIVE",
+    "headline": "An 8-stage agentic RAG pipeline, rendered as a 3D vector space you can step through.",
+    "description": "Agentic RAG runs the full Retrieval-Augmented Generation pipeline as a FastAPI service on Cloud Run and renders every stage as a 3D vector space. On ingest it chunks the document, embeds each chunk with Voyage AI, projects the 1024-D vectors to 3D with PCA, and stores them in ChromaDB. On query it embeds the question, runs dual retrieval — dense cosine search plus a BM25 lexical scan — fuses the rankings with Reciprocal Rank Fusion, augments the prompt with numbered context, and streams a grounded answer from Claude Sonnet 4.5.",
+    "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why the nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. What makes it agentic, not linear: Claude holds a hybrid_search tool and decides when to re-query — looping back into retrieval until it has enough grounded evidence to answer.",
+    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.5", "PCA", "SSE"],
+    "diagramSvg": "agent-portfolio/diagrams/agentic-rag-v1.svg?v=2",
+    "diagramAlt": "8-stage agentic RAG pipeline on Cloud Run: chunk → generate embedding (Voyage) → store in vector DB (ChromaDB) → embed query → retrieve (dense + BM25) → RRF fusion → augment → grounded answer (Claude), with an agentic tool-use loop from generation back to retrieval, streamed to the browser over SSE",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Chunk the document",
+        "detail": "On ingest, the document is split by a recursive character splitter (800 chars / 120 overlap) that prefers paragraph, line, and sentence boundaries so each chunk stays coherent. The 3D view shows the chunk boundaries laid over the source text."
+      },
+      {
+        "n": 2,
+        "label": "Generate embeddings",
+        "detail": "Each chunk is sent to Voyage AI voyage-3 and returned as a 1024-D vector — meaning becomes geometry. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
+      },
+      {
+        "n": 3,
+        "label": "Store in the vector DB",
+        "detail": "Vectors are written to a ChromaDB collection over cosine space, and the points populate the 3D vector space one at a time. A parallel BM25 index is built over the same chunks for lexical retrieval."
+      },
+      {
+        "n": 4,
+        "label": "Embed the query",
+        "detail": "On query, the question is embedded by the same model into the same PCA basis, so it lands in the same space as the chunks. The query point drops into the 3D scene alongside the corpus."
+      },
+      {
+        "n": 5,
+        "label": "Retrieve — dense + lexical",
+        "detail": "The query runs through both a dense cosine search over ChromaDB and a BM25 keyword scan, side by side. Cosine similarity to every chunk is surfaced as a live distance table over the 3D canvas, with connection lines to the nearest neighbours."
+      },
+      {
+        "n": 6,
+        "label": "Fuse with RRF",
+        "detail": "Reciprocal Rank Fusion (k=60) blends the semantic and lexical rankings into one final top-k set. Because RRF only cares about rank position, it merges the two scorers without needing them to share a scale — reconciling cases where keyword overlap and vector proximity disagree."
+      },
+      {
+        "n": 7,
+        "label": "Augment the prompt",
+        "detail": "The fused chunks are assembled into numbered, citable passages and injected into the LLM prompt as grounded context. The token estimate and chunk indices are shown so the cost and provenance of the context are explicit."
+      },
+      {
+        "n": 8,
+        "label": "Grounded answer (agentic loop)",
+        "detail": "Claude Sonnet 4.5 streams an answer grounded in the retrieved chunks, token by token, with inline citations. In agentic mode it holds a hybrid_search tool and decides when to re-query — looping back to retrieval (step 5) until it has enough evidence, turning a linear pipeline into a reasoning loop."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Cloud Run + FastAPI + SSE",
+        "why": "The pipeline ships as a single FastAPI service on Cloud Run (min-instances=0, zero idle cost). Server-Sent Events stream chunks, vectors, retrieval results, and answer tokens over one channel with no WebSocket handshake, so the 3D view updates live as each stage completes."
+      },
+      {
+        "tech": "Voyage AI voyage-3",
+        "why": "A dedicated retrieval embedding model — distinct from a reasoning LLM — produces 1024-D vectors tuned for semantic similarity. The UI accepts a user's own key (or an owner passphrase that falls back to server keys), and never stores it."
+      },
+      {
+        "tech": "ChromaDB + BM25 (hybrid)",
+        "why": "Dense vector search alone misses exact-keyword matches; BM25 alone misses paraphrase. Running both and fusing teaches why production RAG is almost always hybrid, not purely semantic."
+      },
+      {
+        "tech": "Reciprocal Rank Fusion (k=60)",
+        "why": "RRF blends rankings without needing the two scorers to share a scale — it only cares about rank position. Simple, robust, and the standard way to merge dense and sparse retrieval."
+      },
+      {
+        "tech": "PCA → 3D projection",
+        "why": "Projecting 1024-D embeddings to three principal components makes the vector space visible and orbit-able. The explained-variance labels on each axis keep the lossy reduction honest about what's being shown."
+      },
+      {
+        "tech": "Agentic tool-use loop",
+        "why": "Linear RAG retrieves once; agentic RAG lets Claude call hybrid_search on demand and re-query when the first pass is thin. The Agentic/Linear toggle makes the difference between a pipeline and an agent tangible."
+      }
+    ],
+    "traits": [
+      { "label": "Model",      "value": "Claude Sonnet 4.5" },
+      { "label": "Embeddings", "value": "Voyage voyage-3 · 1024-D" },
+      { "label": "Framework",  "value": "FastAPI · SSE" },
+      { "label": "Runtime",    "value": "Cloud Run" },
+      { "label": "Retrieval",  "value": "Dense + BM25 · RRF" },
+      { "label": "Pattern",    "value": "Agentic Hybrid RAG · Tool-use" }
+    ],
+    "searchMeta": {
+      "type": "RAG",
+      "model": "Claude Sonnet 4.5",
+      "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
+    },
+    "links": [
+      { "label": "View source", "href": "https://github.com/gauravlahoti/gauravlahoti.github.io/tree/main/agents/rag-lab" }
+    ]
   }
 ]
