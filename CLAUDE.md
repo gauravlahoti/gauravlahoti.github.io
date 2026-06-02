@@ -84,7 +84,7 @@ Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated in
 | Local dev (FastAPI) | `make dev` (atlas `:8000`, pulse `:8001`) |
 | One-shot smoke test | `agents-cli run "your prompt"` |
 | Lint | `make lint` |
-| Eval gate (atlas only, before deploy) | `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` |
+| Eval gate (atlas only, before deploy) | `make eval` — free-tier key only, never Vertex (no model charges); `make eval-quick` for a cheap 2-case check |
 | Refresh corpus (atlas only) | `make corpus` — **before every atlas deploy**; syncs `../../content/*.json` → `app/corpus/` |
 | Deploy | `make deploy` (atlas → service `atlas`; pulse → service `pulse`). Sets the full env/secret set inline. |
 

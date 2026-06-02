@@ -30,7 +30,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 SESSION_WINDOW_S = 24 * 60 * 60  # 24 hours
 SESSION_LIMIT = 4
@@ -47,8 +47,8 @@ class RateLimiter:
 
     @staticmethod
     def hash_ip(ip: str) -> str:
-        salt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        return hashlib.sha256(f"{ip}|{salt}".encode("utf-8")).hexdigest()[:16]
+        salt = datetime.now(UTC).strftime("%Y-%m-%d")
+        return hashlib.sha256(f"{ip}|{salt}".encode()).hexdigest()[:16]
 
     def check_and_record(
         self,
