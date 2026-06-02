@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic RAG Lab</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="app">
+
+  <!-- LEFT: Controls -->
+  <aside class="panel" id="panel-controls">
+    <div class="panel-header">
+      <span class="logo-title">Agentic RAG</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Document input -->
+      <div class="field-group">
+        <label>Document</label>
+        <textarea id="doc-text" placeholder="Paste text here…&#10;&#10;(or upload a PDF below)"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label>Upload PDF</label>
+        <input type="file" id="pdf-upload" accept=".pdf,.txt,.md"
+               style="font-size:11px;color:var(--ink-muted);background:transparent;border:none;padding:0;cursor:pointer"/>
+      </div>
+
+      <div class="field-group">
+        <label>Embedding Model</label>
+        <select id="embedding-model"></select>
+      </div>
+
+      <div class="field-group">
+        <label class="api-key-label">
+          Embedding API Key
+          <span class="key-provider-hint" id="embed-key-hint">Voyage / Anthropic</span>
+        </label>
+        <div class="api-key-wrap">
+          <input type="password" id="embed-api-key" class="api-key-input"
+                 placeholder="Paste key, or type owner passphrase" autocomplete="off" spellcheck="false" />
+          <button class="key-eye" id="embed-eye" title="Show / hide" tabindex="-1">👁</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Chunking Strategy</label>
+        <select id="chunk-strategy">
+          <option value="recursive">Recursive (separator-aware)</option>
+          <option value="sentence">Sentence-based</option>
+          <option value="paragraph">Paragraph-based</option>
+          <option value="fixed">Fixed-size window</option>
+        </select>
+      </div>
+
+      <div class="field-group" style="flex-direction:row;gap:8px">
+        <div style="flex:1">
+          <label>Chunk size</label>
+          <input type="text" id="chunk-size" value="800" />
+        </div>
+        <div style="flex:1">
+          <label>Overlap</label>
+          <input type="text" id="chunk-overlap" value="120" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-ingest">Ingest Document</button>
+      <button class="btn btn-secondary" id="btn-reset">Reset Session</button>
+
+      <div class="key-privacy-note">
+        🔒 API keys are <strong>never stored or logged</strong> — held in server memory only for the duration of the request, then discarded.
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- CENTER: Chunking + 3D Scene (tabbed) -->
+  <main class="panel" id="panel-scene">
+    <div class="panel-header">
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="chunks"><b>1</b> Chunk</button>
+        <button class="view-tab" data-view="embed"><b>2</b> Generate Embedding</button>
+        <button class="view-tab" data-view="store"><b>3</b> Store in VectorDB</button>
+        <button class="view-tab" data-view="query"><b>4</b> Embed Query</button>
+        <button class="view-tab" data-view="retrieve"><b>5</b> Retrieve</button>
+        <button class="view-tab" data-view="fuse"><b>6</b> RRF Fusion</button>
+        <button class="view-tab" data-view="augment"><b>7</b> Augment</button>
+        <button class="view-tab" data-view="answer"><b>8</b> Grounded Answer</button>
+      </div>
+      <span id="scene-label">waiting for ingest</span>
+    </div>
+
+    <!-- Stage banner — the prominent step-by-step narration (hidden until a run starts) -->
+    <div class="stage-banner" id="stage-banner" style="display:none">
+      <div class="stage-chip" id="stage-chip"></div>
+      <div class="stage-text">
+        <div class="stage-title" id="stage-title"></div>
+        <div class="stage-desc" id="stage-desc"></div>
+      </div>
+      <div class="stage-nav">
+        <button class="step-btn" id="step-prev" title="Previous step">◀ Prev</button>
+        <button class="step-btn" id="step-next" title="Next step">Next ▶</button>
+      </div>
+    </div>
+
+    <!-- Chunking view: document ↔ chunk cards -->
+    <div class="view-pane" id="view-chunks">
+      <div class="chunk-split">
+        <div class="chunk-doc-col">
+          <div class="col-label">Document — chunk boundaries</div>
+          <div class="chunk-doc" id="chunk-doc">
+            <span class="doc-placeholder">Paste a document and click Ingest to see it split into overlapping chunks.</span>
+          </div>
+        </div>
+        <div class="chunk-cards-col">
+          <div class="col-label">Chunks <span id="chunk-count"></span></div>
+          <div class="chunk-cards" id="chunk-cards"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Embed view: text → vector numbers -->
+    <div class="view-pane" id="view-embed" style="display:none">
+      <div class="embed-col">
+        <div class="col-label">Text → vector — <span id="embed-model-label">embedding model</span></div>
+        <div class="embed-list" id="embed-list">
+          <div class="doc-placeholder" style="padding:14px">Each chunk is sent to the embedding model and returned as a high-dimensional vector of numbers.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vector space view (used by Store + Query steps) -->
+    <div class="view-pane" id="view-vectors" style="display:none">
+      <div id="canvas-wrap">
+        <canvas id="rag-canvas"></canvas>
+        <div class="vec-readout" id="vec-readout"></div>
+        <div class="scene-legend" id="scene-legend">
+          <div class="legend-caption" id="legend-caption">PCA → 3D</div>
+          <div class="legend-row">
+            <span class="lg"><i style="background:#00FFD1"></i>chunk</span>
+            <span class="lg"><i style="background:#c7a6ff"></i>match</span>
+            <span class="lg"><i style="background:#ffd166"></i>query</span>
+          </div>
+          <div class="legend-counts"><b id="lg-points">0</b> pts · <b id="lg-matched">0</b> matched</div>
+        </div>
+        <div class="scene-hint" id="scene-hint"></div>
+        <div class="cos-table" id="cos-table"></div>
+        <div class="vec-detail" id="vec-detail">
+          <button class="vec-detail-close" id="vec-detail-close" title="Close">✕</button>
+          <div class="vd-title" id="vd-title">Chunk</div>
+          <div class="vd-coords" id="vd-coords"></div>
+          <div class="vd-vec" id="vd-vec"></div>
+          <div class="vd-text" id="vd-text"></div>
+        </div>
+      </div>
+
+      <!-- Query input — lives on the Query step itself -->
+      <div class="query-bar" id="query-bar">
+        <textarea id="query-text" placeholder="Ask a question about the ingested document…"></textarea>
+        <div class="query-bar-side">
+          <div class="query-bar-row">
+            <select id="llm-model" title="Generation model"></select>
+            <div class="toggle-group">
+              <button class="toggle-btn active" data-mode="agentic">Agentic</button>
+              <button class="toggle-btn" data-mode="linear">Linear</button>
+            </div>
+          </div>
+          <div class="api-key-wrap api-key-wrap--query">
+            <input type="password" id="llm-api-key" class="api-key-input"
+                   placeholder="LLM API key, or owner passphrase" autocomplete="off" spellcheck="false" />
+            <button class="key-eye" id="llm-eye" title="Show / hide" tabindex="-1">👁</button>
+          </div>
+          <button class="btn btn-primary" id="btn-query" disabled>Run Query</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retrieve view: semantic vs lexical, side by side -->
+    <div class="view-pane" id="view-retrieve" style="display:none">
+      <div class="retr-compare">
+        <div class="retr-col">
+          <h4 class="retr-h" data-c="dense">Semantic search <span>cosine similarity · embeddings</span></h4>
+          <div class="retr-list" id="dense-col"><div class="retr-wait">run a query…</div></div>
+        </div>
+        <div class="retr-col">
+          <h4 class="retr-h" data-c="sparse">Lexical search <span>BM25 · keyword overlap</span></h4>
+          <div class="retr-list" id="sparse-col"><div class="retr-wait">run a query…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fuse view: RRF -->
+    <div class="view-pane" id="view-fuse" style="display:none">
+      <div class="retr-col" style="width:100%">
+        <h4 class="retr-h" data-c="fused">Fused — Reciprocal Rank Fusion <span>blends semantic + lexical rankings, k=60</span></h4>
+        <div class="retr-list retr-fused" id="fused-col"><div class="retr-wait">run a query…</div></div>
+      </div>
+    </div>
+
+    <!-- Augment view: context passages injected into the LLM prompt -->
+    <div class="view-pane" id="view-augment" style="display:none">
+      <div class="retr-col" style="width:100%">
+        <h4 class="retr-h" data-c="augment">Prompt augmentation <span>numbered passages sent to the LLM as grounded context</span></h4>
+        <div class="augment-meta" id="augment-meta"></div>
+        <div class="retr-list augment-list" id="augment-list"><div class="retr-wait">run a query…</div></div>
+      </div>
+    </div>
+
+    <!-- Answer view: grounded generation -->
+    <div class="view-pane" id="view-answer" style="display:none">
+      <div class="retr-col" style="width:100%">
+        <div class="retr-thinking-block" id="retr-thinking-block" style="display:none">
+          <h4 class="retr-h" data-c="answer">Agent reasoning <span>tool-use loop</span></h4>
+          <div class="thinking-stream" id="thinking-col"></div>
+        </div>
+        <h4 class="retr-h" data-c="answer">Grounded answer <span>generated from the retrieved chunks</span></h4>
+        <div class="retr-answer" id="answer-col"><span class="retr-wait">run a query…</span></div>
+        <div class="answer-sources" id="answer-sources"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- BOTTOM: Log (drag the resize handle to change height) -->
+  <div id="panel-log">
+    <div id="log-resize-handle"></div>
+    <div class="panel-header"><span>▸</span> System Log</div>
+    <div id="log-scroll"></div>
+  </div>
+
+</div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
