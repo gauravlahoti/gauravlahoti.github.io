@@ -19,6 +19,7 @@ import {
   showAugment,
   resetAugment,
 } from "./retrievalView.js";
+import { gateEvent } from "./eventGate.js";
 
 const btnQuery    = document.getElementById("btn-query");
 const queryText   = document.getElementById("query-text");
@@ -109,9 +110,11 @@ function handleQueryEvent(msg) {
       log(`Query [${msg.mode}]: "${msg.query}"`, "accent");
       break;
 
-    case "agent_thinking":
-      appendThinking(msg.delta);
+    case "agent_thinking": {
+      const thinkDelta = msg.delta;
+      gateEvent("answer", () => appendThinking(thinkDelta));
       break;
+    }
 
     case "tool_call":
       log(`🔧 ${msg.name}(query="${msg.args?.query}")  iter=${msg.iteration}`);
@@ -123,44 +126,56 @@ function handleQueryEvent(msg) {
       setQueryEmbedRow(currentQuery, msg.vectorPreview, msg.dim);
       markStepDone("query");
       sceneLabel.textContent = "query embedded";
-      setStage("STEP 5/7", "Retrieving — semantic + lexical", "The query runs through BOTH a semantic (cosine) search and a lexical (BM25) keyword search, side by side.");
       _hint("Query embedded — measuring cosine similarity to every chunk");
       log(`Query embedded — point=[${msg.point.map((v) => v.toFixed(2)).join(", ")}], ${msg.dim}-D`);
+      // Banner update deferred — show only when user clicks Next into retrieve.
+      gateEvent("retrieve", () => setStage("STEP 5/7", "Retrieving — semantic + lexical", "The query runs through BOTH a semantic (cosine) search and a lexical (BM25) keyword search, side by side."));
       break;
 
     case "dense_results": {
-      _showRetrieve();
-      showDense(msg.results);
-      showCosTable(msg.results);
-      setActive("dense", "sparse");
-      const idx = msg.results.map((r) => r.chunkIndex);
-      highlight(idx, "dense");
-      drawLines(msg.results.slice(0, 5).map((r) => ({ index: r.chunkIndex, weight: r.score, value: r.score })));
-      _hint("Semantic neighbours — labels show cosine similarity (higher = closer)");
+      // Unlock retrieve tab immediately so Next pulses; render content when user arrives.
+      if (!retrievedShown) { retrievedShown = true; reach("retrieve"); }
+      const denseResults = msg.results;
+      gateEvent("retrieve", () => {
+        showDense(denseResults);
+        showCosTable(denseResults);
+        setActive("dense", "sparse");
+        const idx = denseResults.map((r) => r.chunkIndex);
+        highlight(idx, "dense");
+        drawLines(denseResults.slice(0, 5).map((r) => ({ index: r.chunkIndex, weight: r.score, value: r.score })));
+        _hint("Semantic neighbours — labels show cosine similarity (higher = closer)");
+      });
       break;
     }
 
-    case "sparse_results":
-      _showRetrieve();
-      showSparse(msg.results);
-      setActive("dense", "sparse");
-      markStepDone("retrieve");
-      log(`BM25: ${msg.results.slice(0, 3).map((r) => `c${r.chunkIndex}(${r.bm25Score?.toFixed(2)})`).join(", ")}`);
+    case "sparse_results": {
+      if (!retrievedShown) { retrievedShown = true; reach("retrieve"); }
+      const sparseResults = msg.results;
+      gateEvent("retrieve", () => {
+        showSparse(sparseResults);
+        setActive("dense", "sparse");
+        markStepDone("retrieve");
+        log(`BM25: ${sparseResults.slice(0, 3).map((r) => `c${r.chunkIndex}(${r.bm25Score?.toFixed(2)})`).join(", ")}`);
+      });
       break;
+    }
 
     case "fused_results": {
-      reach("fuse");
-      showFused(msg.results);
-      setActive("fused");
-      markStepDone("fuse");
-      const idx = msg.results.map((r) => r.chunkIndex);
-      highlight(idx, "fused");
-      setMatched(idx.length);
-      const max = Math.max(...msg.results.map((r) => r.rrfScore || 0), 1e-6);
-      drawLines(msg.results.map((r) => ({ index: r.chunkIndex, weight: (r.rrfScore || 0) / max, value: r.denseScore })));
-      setStage("STEP 6/7", "Fusing the results (RRF)", "Reciprocal Rank Fusion blends the semantic and lexical rankings into one final top-k set.");
-      _hint("");
-      log(`Fused top-${msg.results.length}: chunks [${idx.join(", ")}]`);
+      reach("fuse");  // Next pulses immediately; banner + content wait for user.
+      log(`Fused top-${msg.results.length}: chunks [${msg.results.map((r) => r.chunkIndex).join(", ")}]`);
+      const fusedResults = msg.results;
+      gateEvent("fuse", () => {
+        setStage("STEP 6/7", "Fusing the results (RRF)", "Reciprocal Rank Fusion blends the semantic and lexical rankings into one final top-k set.");
+        showFused(fusedResults);
+        setActive("fused");
+        markStepDone("fuse");
+        const idx = fusedResults.map((r) => r.chunkIndex);
+        highlight(idx, "fused");
+        setMatched(idx.length);
+        const max = Math.max(...fusedResults.map((r) => r.rrfScore || 0), 1e-6);
+        drawLines(fusedResults.map((r) => ({ index: r.chunkIndex, weight: (r.rrfScore || 0) / max, value: r.denseScore })));
+        _hint("");
+      });
       break;
     }
 
@@ -168,31 +183,42 @@ function handleQueryEvent(msg) {
       log(`Tool result: ${msg.count} chunks returned  iter=${msg.iteration}`);
       break;
 
-    case "augmentation":
-      setCitations(msg.citations);
-      showAugment(msg.citations, msg.tokenEstimate, currentQuery);
-      reach("augment");
-      markStepDone("augment");
-      setStage("STEP 7/8", "Augmenting the prompt", `The matched chunks (~${msg.tokenEstimate} tokens) are injected into the LLM prompt as numbered, citable context.`);
+    case "augmentation": {
+      reach("augment");  // Next pulses immediately; banner + content wait for user.
       log(`Context assembled — ~${msg.tokenEstimate} tokens, chunks [${msg.chunkIndices?.join(", ")}]`);
+      const augCitations = msg.citations, augTokens = msg.tokenEstimate, augQuery = currentQuery;
+      gateEvent("augment", () => {
+        setStage("STEP 7/8", "Augmenting the prompt", `The matched chunks (~${augTokens} tokens) are injected into the LLM prompt as numbered, citable context.`);
+        setCitations(augCitations);
+        showAugment(augCitations, augTokens, augQuery);
+        markStepDone("augment");
+      });
       break;
+    }
 
     case "llm_token":
       if (!answerStarted) {
         answerStarted = true;
-        reach("answer");
-        setActive("answer");
-        setStage("STEP 8/8", "Generating the answer", "The LLM writes an answer grounded in the retrieved chunks — streaming token by token.");
+        reach("answer");  // Next pulses immediately; banner + content wait for user.
+        gateEvent("answer", () => {
+          setStage("STEP 8/8", "Generating the answer", "The LLM writes an answer grounded in the retrieved chunks — streaming token by token.");
+          setActive("answer");
+        });
       }
-      appendAnswer(msg.delta);
+      // Buffer tokens — when user clicks Next, all buffered tokens flush at once.
+      gateEvent("answer", () => appendAnswer(msg.delta));
       break;
 
-    case "done":
-      markStepDone("answer");
-      setStage("DONE ✓", "Answer complete", `Grounded in the retrieved chunks · ${msg.usage?.input ?? "?"}in/${msg.usage?.output ?? "?"}out tokens · ${msg.latencyMs}ms.`, "done");
-      _hint("");
-      log(`Done — ${msg.usage?.input}in/${msg.usage?.output}out tok, ${msg.latencyMs}ms, ${msg.iterations} iter(s)`, "accent");
+    case "done": {
+      const doneUsage = msg.usage, doneMs = msg.latencyMs, doneIter = msg.iterations;
+      gateEvent("answer", () => {
+        markStepDone("answer");
+        setStage("DONE ✓", "Answer complete", `Grounded in the retrieved chunks · ${doneUsage?.input ?? "?"}in/${doneUsage?.output ?? "?"}out tokens · ${doneMs}ms.`, "done");
+        _hint("");
+        log(`Done — ${doneUsage?.input}in/${doneUsage?.output}out tok, ${doneMs}ms, ${doneIter} iter(s)`, "accent");
+      });
       break;
+    }
 
     case "error":
       log(`Error [${msg.stage}]: ${msg.message}`, "danger");

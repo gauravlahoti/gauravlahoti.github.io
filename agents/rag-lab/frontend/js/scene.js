@@ -254,7 +254,7 @@ export function buildAxes(ev = []) {
 
     const pct = a.v != null ? `  ${(a.v * 100).toFixed(0)}%` : "";
     const label = _makeLabel(a.name + pct, "#" + a.col.toString(16).padStart(6, "0"));
-    label.scale.set(0.62, 0.31, 1);
+    label.scale.set(0.38, 0.19, 1);
     label.position.copy(end).add(a.dir.clone().multiplyScalar(0.2));
     axesGroup.add(label);
   }
@@ -305,6 +305,35 @@ export function drawLines(targets) {
 function _clearLineLabels() {
   for (const ll of lineLabels) group.remove(ll.sprite);
   lineLabels = [];
+}
+
+/**
+ * Remove all connection lines and reset every corpus point back to its
+ * default colour/scale. Called when navigating Prev past the Retrieve step.
+ */
+export function clearQueryLinks() {
+  if (lineSegs) { group.remove(lineSegs); lineSegs = null; }
+  _clearLineLabels();
+  _lineTargets = [];
+  for (const p of corpusPoints) {
+    if (!p) continue;
+    p.sphere.material.color.setHex(ACCENT);
+    p.targetScale = 1;
+  }
+}
+
+/**
+ * Remove the query marker (sphere, ring, label) and clear any links.
+ * Called when navigating Prev past the Query step.
+ */
+export function clearQueryPoint() {
+  clearQueryLinks();
+  if (queryMarker) {
+    group.remove(queryMarker.mesh);
+    if (queryMarker.ring)  group.remove(queryMarker.ring);
+    if (queryMarker.label) group.remove(queryMarker.label);
+    queryMarker = null;
+  }
 }
 
 export function frameAll() {

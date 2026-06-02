@@ -5,6 +5,35 @@ import { initViewTabs } from "./viewState.js";
 import { initPointDetail, showDetail } from "./pointDetail.js";
 import { log } from "./log.js";
 
+// ── 3D / content column drag-to-resize ───────────────
+function initSceneColResize() {
+  const handle   = document.getElementById("scene-col-handle");
+  const panel    = document.getElementById("panel-scene");
+  if (!handle || !panel) return;
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    handle.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev) => {
+      const rect   = panel.getBoundingClientRect();
+      const leftPx = Math.max(180, Math.min(ev.clientX - rect.left, rect.width - 180));
+      panel.style.gridTemplateColumns = `${leftPx}px 5px 1fr`;
+    };
+    const onUp = () => {
+      handle.classList.remove("dragging");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
+
 // ── Log panel drag-to-resize ──────────────────────────
 function initLogResize() {
   const handle  = document.getElementById("log-resize-handle");
@@ -68,6 +97,7 @@ async function boot() {
   setPointClickHandler(showDetail);   // click a 3D point → show its vector details
   initIngestController();
   initQueryController();
+  initSceneColResize();
   initLogResize();
 
   log("Agentic RAG ready — paste a document and click Ingest.", "accent");

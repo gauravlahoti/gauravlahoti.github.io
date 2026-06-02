@@ -11,6 +11,7 @@ import { resetRetrieval } from "./retrievalView.js";
 import { abortQuery } from "./queryController.js";
 import { resetCosTable } from "./cosTable.js";
 import { setChunkData, resetDetail } from "./pointDetail.js";
+import { gateEvent } from "./eventGate.js";
 
 let ingestAbort = null;
 
@@ -120,56 +121,70 @@ function handleIngestEvent(msg, fullText) {
       if (msg.index === msg.total - 1) {
         markStepDone("chunks");
         reach("embed");
-        setStage("STEP 2/7", "Embedding the chunks", "Each chunk is sent to the embedding model and returned as a vector of numbers — meaning becomes geometry.");
+        // Banner update deferred — show only when user clicks Next into the embed step.
+        gateEvent("embed", () => setStage("STEP 2/7", "Embedding the chunks", "Each chunk is sent to the embedding model and returned as a vector of numbers — meaning becomes geometry."));
       }
       break;
 
     case "embedding_generated": {
       const txt = collectedChunks[msg.index]?.text || "";
-      addEmbedRow(msg.index, txt, msg.vectorPreview, msg.dim);
+      // Store chunk metadata immediately (needed for point-click detail panel).
       setChunkData(msg.index, { text: txt, preview: msg.vectorPreview, dim: msg.dim });
-      sceneLabel.textContent = `embedding ${msg.index + 1}/${msg.total}`;
-      if (msg.index === msg.total - 1) markStepDone("embed");
+      // Visual embed row — shown only when user advances to the Embed step.
+      const embedIdx = msg.index, embedTotal = msg.total, embedVec = msg.vectorPreview, embedDim = msg.dim;
+      gateEvent("embed", () => {
+        addEmbedRow(embedIdx, txt, embedVec, embedDim);
+        sceneLabel.textContent = `embedding ${embedIdx + 1}/${embedTotal}`;
+        if (embedIdx === embedTotal - 1) markStepDone("embed");
+      });
       break;
     }
 
     case "projection_ready":
       log(`PCA ready — variance ${msg.explainedVariance.map((v) => (v * 100).toFixed(1) + "%").join(", ")}`, "accent");
-      reach("store");             // reveal the empty, labelled PCA space first
-      buildAxes(msg.explainedVariance);
-      resizeScene();
-      setStage("STEP 3/7", "Projecting to 3D (PCA)", `1024-D vectors reduced to 3 axes — PC1/PC2/PC3 capture ${msg.explainedVariance.map((v) => (v * 100).toFixed(0) + "%").join("/")} of the variance.`);
-      sceneLabel.textContent = "projecting…";
+      reach("store");  // Next button pulses; banner + scene content wait for user.
+      gateEvent("store", () => {
+        setStage("STEP 3/7", "Projecting to 3D (PCA)", `1024-D vectors reduced to 3 axes — PC1/PC2/PC3 capture ${msg.explainedVariance.map((v) => (v * 100).toFixed(0) + "%").join("/")} of the variance.`);
+        sceneLabel.textContent = "projecting…";
+        buildAxes(msg.explainedVariance);
+        resizeScene();
+      });
       break;
 
     case "store_started":
-      setStage("STEP 3/7", "Storing in the vector DB", `Writing ${msg.count} vectors into the Chroma "${msg.collection}" collection (${msg.space} space)…`);
       log(`Storing ${msg.count} vectors in Chroma "${msg.collection}" (${msg.space})…`, "accent");
-      sceneLabel.textContent = "storing in vector DB…";
+      gateEvent("store", () => {
+        setStage("STEP 3/7", "Storing in the vector DB", `Writing ${msg.count} vectors into the Chroma "${msg.collection}" collection (${msg.space} space)…`);
+        sceneLabel.textContent = "storing in vector DB…";
+      });
       break;
 
     case "vector_stored": {
-      addPoint(msg.point[0], msg.point[1], msg.point[2], msg.index);
-      addReadout(`C${msg.index}`, msg.point);
+      // 3D position stored immediately (needed for detail panel); visuals gated.
       setChunkData(msg.index, { point: msg.point });
-      setPoints(msg.index + 1);
-      frameAll();
-      sceneLabel.textContent = `stored ${msg.index + 1}/${msg.total}`;
-      if (msg.index === msg.total - 1) {
-        markStepDone("store");
-        sceneLabel.textContent = `${msg.total} vectors`;
-        setStage("STORED ✓", "Vectors stored in Chroma", `${msg.total} vectors are now searchable in the Agentic RAG vector store.`, "done");
-        log(`Stored ${msg.total} vectors in Chroma (agentic-rag collection)`, "accent");
-      }
+      const stIdx = msg.index, stTotal = msg.total, stPt = msg.point;
+      gateEvent("store", () => {
+        addPoint(stPt[0], stPt[1], stPt[2], stIdx);
+        addReadout(`C${stIdx}`, stPt);
+        setPoints(stIdx + 1);
+        frameAll();
+        sceneLabel.textContent = `stored ${stIdx + 1}/${stTotal}`;
+        if (stIdx === stTotal - 1) {
+          markStepDone("store");
+          sceneLabel.textContent = `${stTotal} vectors`;
+          setStage("STORED ✓", "Vectors stored in Chroma", `${stTotal} vectors are now searchable in the Agentic RAG vector store.`, "done");
+          log(`Stored ${stTotal} vectors in Chroma (agentic-rag collection)`, "accent");
+        }
+      });
       break;
     }
 
     case "ingest_done":
-      // → Query step. Prompt the user.
+      // Enable query immediately so the button is ready; banner waits for user to advance.
       reach("query");
       setQueryEnabled(true);
-      setStage("STEP 4/7", "Ask a question", "Type your question below and hit Run Query — it'll be embedded and matched against the stored vectors.");
       log(`Ready — ${msg.count} chunks stored. Ask a question to query the vector space.`, "accent");
+      gateEvent("query", () => setStage("STEP 4/7", "Ask a question", "Type your question below and hit Run Query — it'll be embedded and matched against the stored vectors."));
       break;
 
     case "error":
