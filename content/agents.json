@@ -6,11 +6,11 @@
     "role": "Conversational AI",
     "status": "LIVE",
     "headline": "The AI behind the chat widget on this portfolio.",
-    "description": "Corpus answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, grounded in a versioned snapshot of his profile, work history, projects, certifications, and recent writing, rebuilt on every deploy.",
+    "description": "Atlas answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, grounded in a versioned snapshot of his profile, work history, projects, certifications, and recent writing — served on demand through ADK Skills and rebuilt on every deploy. Inference runs on a tiered Gemini cascade that keeps the widget answering even when a model's free-tier quota is spent.",
     "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
-    "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "MCP", "SSE"],
-    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg",
-    "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → Corpus tools + Resend MCP Server",
+    "stack": ["Google ADK", "ADK Skills", "Gemini 3.5 → 2.5 Flash", "Cloud Run", "MCP", "SSE"],
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg?v=2",
+    "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → ADK Skills (corpus) + Resend MCP Server",
     "steps": [
       {
         "n": 1,
@@ -19,13 +19,13 @@
       },
       {
         "n": 2,
-        "label": "ADK Agent decides which tools to call",
-        "detail": "Gemini 3.5 Flash selects from five retrieval tools: get_profile, get_work_history, get_projects, get_recent_posts, get_certifications, calling them in sequence or parallel as needed."
+        "label": "ADK Agent loads the skill it needs",
+        "detail": "Gemini sees a lightweight skill menu and calls load_skill to pull one curated domain — profile, work history, projects, posts, or certifications — on demand, instead of stuffing the whole corpus into every prompt. Inference is tiered: gemini-3.5-flash first, cascading to 2.5-flash then 2.5-flash-lite if a model's free-tier quota is exhausted."
       },
       {
         "n": 3,
-        "label": "Corpus is queried, no live API calls",
-        "detail": "Tools run against a frozen JSON corpus bundled at deploy time. Deterministic, fast, and zero external latency. No hallucinations from stale web data."
+        "label": "Skill returns curated corpus data",
+        "detail": "Each skill is built from a frozen JSON corpus bundled at deploy time. Deterministic, fast, and zero external latency. No hallucinations from stale web data."
       },
       {
         "n": 4,
@@ -44,8 +44,12 @@
         "why": "Structured Python framework for tools, evals, and Cloud Run deployment. An eval gate runs before every deploy, catching regressions before production."
       },
       {
-        "tech": "Gemini 3.5 Flash",
-        "why": "Sub-2s warm p50 keeps the widget feeling alive. Flash costs ~10x less per token than Pro, critical for an always-on, free-tier deployment."
+        "tech": "Tiered Gemini (3.5 → 2.5 Flash → Flash-Lite)",
+        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. Each model carries its own daily free-tier quota, so a 429 transparently cascades to the next model — the widget keeps answering at zero cost instead of erroring when one quota is spent."
+      },
+      {
+        "tech": "ADK Skills",
+        "why": "The corpus is exposed as on-demand skills, not a per-turn full-corpus dump. The model loads only the domain it needs, cutting prompt tokens and keeping grounding tight as the corpus grows."
       },
       {
         "tech": "Cloud Run (min-instances=0)",
@@ -61,21 +65,21 @@
       }
     ],
     "traits": [
-      { "label": "Model",          "value": "Gemini 3.5 Flash" },
-      { "label": "Framework",      "value": "Google ADK 1.15+" },
+      { "label": "Model",          "value": "Gemini 3.5 → 2.5 Flash (tiered)" },
+      { "label": "Framework",      "value": "Google ADK 1.32+" },
       { "label": "Runtime",        "value": "Cloud Run (gen2)" },
       { "label": "Latency p50",    "value": "~1.2 s warm" },
-      { "label": "Cold start",     "value": "~6 s" },
-      { "label": "Pattern",        "value": "RAG · MCP · Streaming" }
+      { "label": "Grounding",      "value": "ADK Skills · frozen corpus" },
+      { "label": "Pattern",        "value": "Skills · MCP · Streaming" }
     ],
     "searchMeta": {
       "type": "Chat",
-      "model": "Gemini 3.5 Flash",
-      "patterns": ["RAG", "MCP", "Streaming"]
+      "model": "Gemini 3.5 → 2.5 Flash (tiered)",
+      "patterns": ["RAG", "Skills", "MCP", "Streaming"]
     },
     "links": [
       { "label": "Try it live",         "href": "/#top" },
-      { "label": "View source (ADK)",   "href": "https://github.com/gauravlahoti/portfolio/tree/main/portfolio-agent" }
+      { "label": "View source (ADK)",   "href": "https://github.com/gauravlahoti/gauravlahoti.github.io/tree/main/agents/atlas" }
     ]
   },
   {
