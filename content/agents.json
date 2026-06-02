@@ -210,9 +210,9 @@
     "role": "RAG Pipeline",
     "status": "LIVE",
     "headline": "An 8-stage agentic RAG pipeline, rendered as a 3D vector space you can step through.",
-    "description": "Agentic RAG runs the full Retrieval-Augmented Generation pipeline as a FastAPI service on Cloud Run and renders every stage as a 3D vector space. On ingest it chunks the document, embeds each chunk with Voyage AI, projects the 1024-D vectors to 3D with PCA, and stores them in ChromaDB. On query it embeds the question, runs dual retrieval — dense cosine search plus a BM25 lexical scan — fuses the rankings with Reciprocal Rank Fusion, augments the prompt with numbered context, and streams a grounded answer from Claude Sonnet 4.5.",
+    "description": "Agentic RAG runs the full Retrieval-Augmented Generation pipeline as a FastAPI service on Cloud Run and renders every stage as a 3D vector space. On ingest it chunks the document, embeds each chunk with Voyage AI, projects the 1024-D vectors to 3D with PCA, and stores them in ChromaDB. On query it embeds the question, runs dual retrieval — dense cosine search plus a BM25 lexical scan — fuses the rankings with Reciprocal Rank Fusion, augments the prompt with numbered context, and streams a grounded answer from Claude Sonnet 4.6.",
     "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why the nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. What makes it agentic, not linear: Claude holds a hybrid_search tool and decides when to re-query — looping back into retrieval until it has enough grounded evidence to answer.",
-    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.5", "PCA", "SSE"],
+    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "Gemini Embedding 2", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.6", "PCA", "SSE"],
     "diagramSvg": "agent-portfolio/diagrams/agentic-rag-v1.svg?v=2",
     "diagramAlt": "8-stage agentic RAG pipeline on Cloud Run: chunk → generate embedding (Voyage) → store in vector DB (ChromaDB) → embed query → retrieve (dense + BM25) → RRF fusion → augment → grounded answer (Claude), with an agentic tool-use loop from generation back to retrieval, streamed to the browser over SSE",
     "steps": [
@@ -254,7 +254,7 @@
       {
         "n": 8,
         "label": "Grounded answer (agentic loop)",
-        "detail": "Claude Sonnet 4.5 streams an answer grounded in the retrieved chunks, token by token, with inline citations. In agentic mode it holds a hybrid_search tool and decides when to re-query — looping back to retrieval (step 5) until it has enough evidence, turning a linear pipeline into a reasoning loop."
+        "detail": "Claude Sonnet 4.6 streams an answer grounded in the retrieved chunks, token by token, with inline citations. In agentic mode it holds a hybrid_search tool and decides when to re-query — looping back to retrieval (step 5) until it has enough evidence, turning a linear pipeline into a reasoning loop."
       }
     ],
     "techDecisions": [
@@ -284,7 +284,7 @@
       }
     ],
     "traits": [
-      { "label": "Model",      "value": "Claude Sonnet 4.5" },
+      { "label": "Model",      "value": "Claude Sonnet 4.6" },
       { "label": "Embeddings", "value": "Voyage voyage-3 · 1024-D" },
       { "label": "Framework",  "value": "FastAPI · SSE" },
       { "label": "Runtime",    "value": "Cloud Run" },
@@ -293,7 +293,7 @@
     ],
     "searchMeta": {
       "type": "RAG",
-      "model": "Claude Sonnet 4.5",
+      "model": "Claude Sonnet 4.6",
       "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
     },
     "links": [

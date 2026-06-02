@@ -10,16 +10,11 @@ class VoyageEmbedder:
     def __init__(self, model: str = "voyage-3", key_env: str = "VOYAGE_API_KEY", api_key: str | None = None) -> None:
         import voyageai
 
-        resolved = (
-            api_key
-            or os.environ.get(key_env)
-            or os.environ.get("ANTHROPIC_API_KEY")
-            or os.environ.get("VOYAGE_API_KEY")
-        )
+        # api_key is already resolved by auth.resolve_key — do not fall back to env here.
+        resolved = api_key
         if not resolved:
             raise RuntimeError(
-                "No Voyage/Anthropic API key found. Provide a key in the UI or "
-                "set VOYAGE_API_KEY / ANTHROPIC_API_KEY in the server environment."
+                "No API key provided. Enter your Voyage/Anthropic key or the owner passphrase in the UI."
             )
         self._client = voyageai.Client(api_key=resolved)
         self._model = model

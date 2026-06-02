@@ -42,9 +42,10 @@ async def _query_stream(req: QueryRequest) -> AsyncGenerator[str, None]:
         "mode": req.mode,
     })
 
-    # Resolve keys: owner passphrase → env key; real key → use directly; empty → env fallback.
+    # Resolve keys: owner passphrase → env key; real key → use directly; empty → None (blocked).
     embed_key = resolve_key(req.embeddingApiKey, "VOYAGE_API_KEY")
-    llm_key   = resolve_key(req.llmApiKey, "ANTHROPIC_API_KEY")
+    llm_env   = "GOOGLE_API_KEY" if req.llm.startswith("gemini") else "ANTHROPIC_API_KEY"
+    llm_key   = resolve_key(req.llmApiKey, llm_env)
 
     # Clear embedding cache so a new run always re-embeds (not a leftover from a prior query).
     session._query_cache = {}

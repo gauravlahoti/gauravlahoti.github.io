@@ -8,7 +8,7 @@ from typing import Any, AsyncGenerator
 
 from app.llm.tools import HYBRID_SEARCH_TOOL
 
-DEFAULT_MODEL = "claude-sonnet-4-5"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 2048
 SYSTEM_PROMPT = (
     "You are a helpful assistant that answers questions grounded strictly in the provided context. "
@@ -31,10 +31,10 @@ async def generate(
 ) -> AsyncGenerator[dict[str, Any], None]:
     import anthropic
 
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    # api_key is already resolved by auth.resolve_key — do not fall back to env here.
     if not api_key:
         raise RuntimeError(
-            "No Anthropic API key found. Provide a key in the UI or set ANTHROPIC_API_KEY in the server environment."
+            "No API key provided. Enter your Anthropic key or the owner passphrase in the UI."
         )
 
     client = anthropic.Anthropic(api_key=api_key)

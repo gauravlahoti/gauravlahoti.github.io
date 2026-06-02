@@ -22,12 +22,15 @@ async def generate(
     retrieval_fn,
     model: str = DEFAULT_MODEL,
     iteration_offset: int = 0,
+    api_key: str | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     import google.generativeai as genai
 
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    # api_key resolved by auth.resolve_key — no env fallback here.
     if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY is not set")
+        raise RuntimeError(
+            "No API key provided. Enter your Google key or the owner passphrase in the UI."
+        )
     genai.configure(api_key=api_key)
 
     t0 = time.time()

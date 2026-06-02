@@ -16,10 +16,10 @@ class GoogleEmbedder:
     def __init__(self, model: str = "gemini-embedding-2", api_key: str | None = None) -> None:
         from google import genai
 
-        resolved = api_key or os.environ.get("GOOGLE_API_KEY")
+        resolved = api_key  # resolved by auth.resolve_key — no env fallback here
         if not resolved:
             raise RuntimeError(
-                "No Google API key found. Provide a key in the UI or set GOOGLE_API_KEY in the server environment."
+                "No API key provided. Enter your Google key or the owner passphrase in the UI."
             )
         self._client = genai.Client(api_key=resolved)
         self._model = model
