@@ -41,4 +41,4 @@ deploy: ## Deploy Agentic RAG Lab to Cloud Run (service: agentic-rag, us-central
 		--concurrency 4 \
 		--min-instances 0 \
 		--max-instances 1 \
-		--update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,VOYAGE_API_KEY=voyage-api-key:latest,OWNER_KEY=rag-lab-owner-key:latest
+		--update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,VOYAGE_API_KEY=voyage-api-key:latest,OWNER_KEY=rag-lab-owner-key:latest,GOOGLE_API_KEY=google-api-key:latest

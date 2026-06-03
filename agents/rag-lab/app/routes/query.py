@@ -43,7 +43,8 @@ async def _query_stream(req: QueryRequest) -> AsyncGenerator[str, None]:
     })
 
     # Resolve keys: owner passphrase → env key; real key → use directly; empty → None (blocked).
-    embed_key = resolve_key(req.embeddingApiKey, "VOYAGE_API_KEY")
+    embed_env = "GOOGLE_API_KEY" if (session.embedding_model or "").startswith("gemini") else "VOYAGE_API_KEY"
+    embed_key = resolve_key(req.embeddingApiKey, embed_env)
     llm_env   = "GOOGLE_API_KEY" if req.llm.startswith("gemini") else "ANTHROPIC_API_KEY"
     llm_key   = resolve_key(req.llmApiKey, llm_env)
 
@@ -60,10 +61,19 @@ async def _query_stream(req: QueryRequest) -> AsyncGenerator[str, None]:
         if req.mode == "linear":
             # Run retrieval once, build context, then generate
             fused_results: list[dict] = []
+            off_topic = False
             async for ev in hybrid_search(req.query, session, embedder, req.topK, 0):
                 if ev.get("type") == "fused_results":
                     fused_results = ev.get("results", [])
+                    if ev.get("offTopic"):
+                        off_topic = True
                 yield sse(ev)
+
+            if off_topic:
+                yield sse({"type": "augmentation", "contextPreview": "", "chunkIndices": [], "tokenEstimate": 0, "citations": [], "offTopic": True})
+                yield sse({"type": "llm_token", "delta": "⚠ The ingested document does not contain relevant information to answer this question."})
+                yield sse({"type": "done", "usage": {"input": 0, "output": 0}, "iterations": 0, "latencyMs": 0})
+                return
 
             context, citations = _build_context(fused_results)
             token_est = math.ceil(len(context) / 4)

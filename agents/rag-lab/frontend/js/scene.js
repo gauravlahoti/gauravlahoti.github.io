@@ -46,13 +46,14 @@ const SPARSE  = 0x5599ff; // clear blue — lexical matches
 const FUSED   = 0xbb88ff; // soft violet — fused winners
 const DIM_COL = 0x334d47; // visible-but-muted grey-teal for dimmed points
 const QUERY   = 0xffd166; // warm amber — query stands out from mint corpus
-const POINT_R = 0.055;    // sphere radius (world units)
+const POINT_R = 0.065;    // sphere radius (world units)
+const CLOUD_SCALE = 1.4;  // spread multiplier applied in _local() — separates dense clusters
 
 export function initScene(canvas) {
   canvasEl = canvas;
   ORIGIN = new THREE.Vector3(0, 0, 0);
   centroid = new THREE.Vector3(0, 0, 0);
-  _up = new THREE.Vector3(0, 0.13, 0);
+  _up = new THREE.Vector3(0, 0.22, 0);
 
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x0b1512, 8, 32);
@@ -349,7 +350,7 @@ export function frameAll() {
   // bounding radius from centroid
   let r = 0.6;
   pts.forEach((v) => { r = Math.max(r, v.distanceTo(centroid)); });
-  camDist = r * 2.8 + 2;
+  camDist = r * CLOUD_SCALE * 2.0 + 1.5;
 
   if (scene.fog) {
     scene.fog.near = Math.max(2, camDist * 0.6);
@@ -405,7 +406,7 @@ export function setAutoRotate(on) {
 
 let _up;
 function _local(base) {
-  return base.clone().sub(centroid);
+  return base.clone().sub(centroid).multiplyScalar(CLOUD_SCALE);
 }
 
 function _buildLines() {

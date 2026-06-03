@@ -43,11 +43,6 @@ async def config():
         embedding_models.append(
             {"id": "voyage-3", "name": "Voyage AI voyage-3", "dim": 1024, "default": True}
         )
-    if has_anthropic:
-        embedding_models.append(
-            {"id": "voyage-3-anthropic", "name": "Voyage 3 (via Anthropic key)", "dim": 1024,
-             "default": not has_voyage}
-        )
     # Gemini embedding always shown — user supplies their own Google key
     embedding_models.append(
         {"id": "gemini-embedding-2", "name": "Gemini Embedding 2", "dim": 3072, "default": False}
@@ -59,8 +54,8 @@ async def config():
 
     llms = [
         {"id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "default": True},
-        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "default": False},
         {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "default": False},
+        {"id": "gemini-3.5-flash", "name": "Gemini 3.5 Flash", "default": False},
     ]
     return {"embeddingModels": embedding_models, "llms": llms}
 

@@ -1,5 +1,5 @@
 import { ssePostForm } from "./sse.js";
-import { log } from "./log.js";
+import { log, clearLog } from "./log.js";
 import { addPoint, resetScene, frameAll, buildAxes, resize as resizeScene } from "./scene.js";
 import { renderChunks, resetChunks, pulseChunk } from "./chunksView.js";
 import { reach, setQueryEnabled, markStepDone, resetWizard } from "./viewState.js";
@@ -19,6 +19,7 @@ const btnIngest  = document.getElementById("btn-ingest");
 const btnReset   = document.getElementById("btn-reset");
 const docText    = document.getElementById("doc-text");
 const pdfUpload  = document.getElementById("pdf-upload");
+const urlInput   = document.getElementById("url-input");
 const embModel   = document.getElementById("embedding-model");
 const chunkSize  = document.getElementById("chunk-size");
 const chunkOver  = document.getElementById("chunk-overlap");
@@ -26,6 +27,8 @@ const chunkStrat = document.getElementById("chunk-strategy");
 const sceneLabel = document.getElementById("scene-label");
 const embedApiKey = document.getElementById("embed-api-key");
 const embedEye    = document.getElementById("embed-eye");
+
+let activeInputTab = "text";
 
 const STRATEGY_DESC = {
   recursive: "Recursive splitter — tries paragraph → line → sentence → word boundaries to keep chunks coherent.",
@@ -37,16 +40,47 @@ const STRATEGY_DESC = {
 let collectedChunks = [];
 
 export function initIngestController() {
+  // Input tab switching
+  document.querySelectorAll(".input-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".input-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeInputTab = btn.dataset.tab;
+      ["text","file","url"].forEach(t => {
+        document.getElementById(`input-pane-${t}`).style.display = t === activeInputTab ? "" : "none";
+      });
+    });
+  });
+
   pdfUpload.addEventListener("change", async () => {
     const file = pdfUpload.files[0];
     if (!file) return;
+    const isImage = file.type.startsWith("image/");
+    if (isImage) {
+      // Auto-switch embedding model to Gemini Embedding 2
+      const opt = [...embModel.options].find(o => o.value === "gemini-embedding-2");
+      if (opt) {
+        embModel.value = "gemini-embedding-2";
+        embModel.dispatchEvent(new Event("change"));
+      }
+      // Show inline notice
+      _setImageNotice(true);
+      log(`Image selected: ${file.name} — switched to Gemini Embedding 2 · enter your Google API key`, "accent");
+      return; // extraction happens at ingest time
+    }
+    _setImageNotice(false);
     const fd = new FormData();
     fd.append("file", file);
     log(`Uploading ${file.name}…`);
     const resp = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await resp.json();
     docText.value = data.text;
-    log(`Extracted ${data.charCount} chars from PDF`, "accent");
+    activeInputTab = "text";
+    document.querySelectorAll(".input-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === "text"));
+    ["text","file","url"].forEach(t => {
+      document.getElementById(`input-pane-${t}`).style.display = t === "text" ? "" : "none";
+    });
+    log(`Extracted ${data.charCount} chars from ${file.name}`, "accent");
   });
 
   if (embedEye) {
@@ -62,8 +96,43 @@ export function initIngestController() {
 }
 
 async function runIngest() {
-  const text = docText.value.trim();
-  if (!text) { log("No document text — paste or upload first.", "danger"); return; }
+  let text = "";
+
+  if (activeInputTab === "url") {
+    const url = urlInput?.value.trim();
+    if (!url) { log("Enter a URL first.", "danger"); return; }
+    log(`Fetching ${url}…`);
+    try {
+      const fd = new FormData(); fd.append("url", url);
+      const resp = await fetch("/api/fetch-url", { method: "POST", body: fd });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      text = data.text;
+      log(`Fetched ${data.charCount} chars from URL`, "accent");
+    } catch (e) { log(`URL fetch failed: ${e.message}`, "danger"); return; }
+  } else if (activeInputTab === "file") {
+    const file = pdfUpload?.files[0];
+    if (!file) { log("Select a file first.", "danger"); return; }
+    if (file.type.startsWith("image/")) {
+      log(`Sending image to Gemini Vision…`);
+      try {
+        const fd = new FormData(); fd.append("file", file);
+        fd.append("embedApiKey", (embedApiKey?.value || "").trim());
+        const resp = await fetch("/api/upload-image", { method: "POST", body: fd });
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+        text = data.text;
+        log(`Extracted ${data.charCount} chars via Gemini Vision`, "accent");
+      } catch (e) { log(`Image extraction failed: ${e.message}`, "danger"); return; }
+    } else {
+      text = docText.value.trim();
+      if (!text) { log("File not yet extracted — wait for upload.", "danger"); return; }
+    }
+  } else {
+    text = docText.value.trim();
+  }
+
+  if (!text) { log("No document text — paste, upload, or enter a URL.", "danger"); return; }
 
   btnIngest.disabled = true;
   setQueryEnabled(false);
@@ -218,7 +287,46 @@ async function resetSession() {
   pdfUpload.value = "";
   sceneLabel.textContent = "waiting for ingest";
 
-  // Clear the backend's in-process session. We do NOT auto-start anything after.
+  // Reset API key fields
+  if (embedApiKey) { embedApiKey.value = ""; embedApiKey.type = "password"; }
+  const llmKey = document.getElementById("llm-api-key");
+  if (llmKey) { llmKey.value = ""; llmKey.type = "password"; }
+
+  // Reset embedding model to first option (default)
+  if (embModel && embModel.options.length) {
+    embModel.selectedIndex = 0;
+    embModel.dispatchEvent(new Event("change"));
+  }
+
+  // Reset doc input back to TEXT tab
+  docText.value = "";
+  if (urlInput) urlInput.value = "";
+  activeInputTab = "text";
+  document.querySelectorAll(".input-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === "text"));
+  ["text", "file", "url"].forEach(t => {
+    document.getElementById(`input-pane-${t}`).style.display = t === "text" ? "" : "none";
+  });
+  _setImageNotice(false);
+
+  // Clear traces
+  clearLog();
+
+  // Clear the backend's in-process session.
   await fetch("/api/session/reset", { method: "POST" });
-  log("Session reset — start a new run when ready.", "accent");
+  log("Session reset — ready for a new run.", "accent");
+}
+
+function _setImageNotice(show) {
+  let el = document.getElementById("image-notice");
+  if (show && !el) {
+    el = document.createElement("div");
+    el.id = "image-notice";
+    el.className = "image-notice";
+    el.innerHTML = `<span class="image-notice-icon">⚠</span>
+      <span><b>Voyage AI is text-only.</b> Auto-switched to <b style="color:#6ba3f5">Gemini Embedding 2</b>.<br>
+      Image → Gemini Vision → text → Gemini Embedding 2.<br>Enter your <b>Google API key</b> below.</span>`;
+    document.getElementById("input-pane-file").appendChild(el);
+  } else if (!show && el) {
+    el.remove();
+  }
 }

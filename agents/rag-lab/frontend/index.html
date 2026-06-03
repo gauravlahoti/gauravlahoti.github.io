@@ -21,19 +21,33 @@
   <aside class="panel" id="panel-controls">
     <div class="panel-header">
       <span class="logo-title">Agentic RAG</span>
+      <div class="logo-providers">
+        <span class="provider-chip provider-claude">Claude</span>
+        <span class="provider-chip provider-voyage">Voyage AI</span>
+        <span class="provider-chip provider-gemini">Gemini</span>
+      </div>
     </div>
     <div class="panel-body">
 
-      <!-- Document input -->
+      <!-- Document input — tabbed: Text / File / URL -->
       <div class="field-group">
         <label>Document</label>
-        <textarea id="doc-text" placeholder="Paste text here…&#10;&#10;(or upload a PDF below)"></textarea>
-      </div>
-
-      <div class="field-group">
-        <label>Upload PDF</label>
-        <input type="file" id="pdf-upload" accept=".pdf,.txt,.md"
-               style="font-size:11px;color:var(--ink-muted);background:transparent;border:none;padding:0;cursor:pointer"/>
+        <div class="input-tabs">
+          <button class="input-tab active" data-tab="text">Text</button>
+          <button class="input-tab" data-tab="file">File</button>
+          <button class="input-tab" data-tab="url">URL</button>
+        </div>
+        <div class="input-pane" id="input-pane-text">
+          <textarea id="doc-text" placeholder="Paste text here…"></textarea>
+        </div>
+        <div class="input-pane" id="input-pane-file" style="display:none">
+          <input type="file" id="pdf-upload" accept=".pdf,.txt,.md,.jpg,.jpeg,.png,.webp,.gif" class="file-input"/>
+          <div class="file-hint">PDF · TXT · MD · JPG · PNG · WEBP<br><span class="file-hint-note">Images → Gemini Vision → text</span></div>
+        </div>
+        <div class="input-pane" id="input-pane-url" style="display:none">
+          <input type="text" id="url-input" placeholder="https://…" autocomplete="off" spellcheck="false"/>
+          <div class="file-hint">Fetches page text server-side</div>
+        </div>
       </div>
 
       <div class="field-group">
@@ -221,13 +235,13 @@
     <!-- Answer view: grounded generation -->
     <div class="view-pane" id="view-answer" style="display:none">
       <div class="retr-col" style="width:100%">
-        <div class="retr-thinking-block" id="retr-thinking-block" style="display:none">
-          <h4 class="retr-h" data-c="answer">Agent reasoning <span>tool-use loop</span></h4>
-          <div class="thinking-stream" id="thinking-col"></div>
-        </div>
         <h4 class="retr-h" data-c="answer">Grounded answer <span>generated from the retrieved chunks</span></h4>
         <div class="retr-answer" id="answer-col"><span class="retr-wait">run a query…</span></div>
         <div class="answer-sources" id="answer-sources"></div>
+        <div class="retr-thinking-block" id="retr-thinking-block" style="display:none">
+          <h4 class="retr-h retr-h--thinking" data-c="answer">Agent reasoning <span>tool-use loop</span></h4>
+          <div class="thinking-stream" id="thinking-col"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -235,7 +249,7 @@
   <!-- BOTTOM: Log (drag the resize handle to change height) -->
   <div id="panel-log">
     <div id="log-resize-handle"></div>
-    <div class="panel-header"><span>▸</span> System Log</div>
+    <div class="panel-header"><span>▸</span> Traces</div>
     <div id="log-scroll"></div>
   </div>
 

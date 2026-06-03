@@ -27,12 +27,17 @@ class GoogleEmbedder:
         self.dim = _MODEL_DIMS.get(model, 768)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        result = self._client.models.embed_content(
-            model=self._model,
-            contents=texts,
-            config={"task_type": "RETRIEVAL_DOCUMENT"},
-        )
-        return [list(e.values) for e in result.embeddings]
+        # Gemini embed_content processes one content at a time reliably;
+        # batching via a list returns only the first embedding repeated.
+        results = []
+        for text in texts:
+            result = self._client.models.embed_content(
+                model=self._model,
+                contents=text,
+                config={"task_type": "RETRIEVAL_DOCUMENT"},
+            )
+            results.append(list(result.embeddings[0].values))
+        return results
 
     def embed_query(self, text: str) -> list[float]:
         result = self._client.models.embed_content(

@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import time
 from typing import Any, AsyncGenerator
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 MAX_TOKENS = 2048
 SYSTEM_PROMPT = (
-    "You are a helpful assistant that answers questions grounded strictly in the provided context. "
-    "Cite specific parts of the context when relevant. "
-    "If the context does not contain enough information, say so clearly."
+    "You are a retrieval-grounded assistant. Answer ONLY using the numbered context passages below. "
+    "Cite specific parts of the context with inline numbers like [1], [2] right after each claim. "
+    "IMPORTANT: Do NOT use your training knowledge. If the answer cannot be found in the provided "
+    "context passages, respond with exactly: "
+    "'The ingested document does not contain enough information to answer this question.' "
+    "Never supplement with outside knowledge, even for definitions or background facts."
 )
 
 
@@ -24,33 +26,40 @@ async def generate(
     iteration_offset: int = 0,
     api_key: str | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
-    # api_key resolved by auth.resolve_key — no env fallback here.
     if not api_key:
         raise RuntimeError(
             "No API key provided. Enter your Google key or the owner passphrase in the UI."
         )
-    genai.configure(api_key=api_key)
 
+    client = genai.Client(api_key=api_key)
     t0 = time.time()
 
     if mode == "linear":
-        async for ev in _linear(genai, query, context, model, t0):
+        async for ev in _linear(client, types, query, context, model, t0):
             yield ev
     else:
-        async for ev in _agentic(genai, query, retrieval_fn, model, iteration_offset, t0):
+        async for ev in _agentic(client, types, query, retrieval_fn, model, iteration_offset, t0):
             yield ev
 
 
-async def _linear(genai, query, context, model, t0):
-    gmodel = genai.GenerativeModel(model, system_instruction=SYSTEM_PROMPT)
+async def _linear(client, types, query, context, model, t0):
     prompt = f"Context:\n{context}\n\nQuestion: {query}"
-    response = gmodel.generate_content(prompt, stream=True)
-    for chunk in response:
-        text = chunk.text if hasattr(chunk, "text") else ""
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        max_output_tokens=MAX_TOKENS,
+    )
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=prompt,
+        config=config,
+    ):
+        text = chunk.text or ""
         if text:
             yield {"type": "llm_token", "delta": text}
+
     yield {
         "type": "done",
         "usage": {"input": 0, "output": 0},
@@ -59,58 +68,56 @@ async def _linear(genai, query, context, model, t0):
     }
 
 
-async def _agentic(genai, query, retrieval_fn, model, iteration_offset, t0):
-    from google.generativeai.types import FunctionDeclaration, Tool
-
-    hybrid_tool = Tool(
-        function_declarations=[
-            FunctionDeclaration(
-                name="hybrid_search",
-                description="Search the corpus with hybrid retrieval.",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "top_k": {"type": "integer"},
-                    },
-                    "required": ["query"],
+async def _agentic(client, types, query, retrieval_fn, model, iteration_offset, t0):
+    hybrid_tool = types.Tool(function_declarations=[
+        types.FunctionDeclaration(
+            name="hybrid_search",
+            description="Search the corpus with hybrid retrieval.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "query": types.Schema(type=types.Type.STRING),
+                    "top_k": types.Schema(type=types.Type.INTEGER),
                 },
-            )
-        ]
-    )
+                required=["query"],
+            ),
+        )
+    ])
 
-    gmodel = genai.GenerativeModel(
-        model,
+    config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
+        max_output_tokens=MAX_TOKENS,
         tools=[hybrid_tool],
     )
-    chat = gmodel.start_chat()
+
+    messages = [types.Content(role="user", parts=[types.Part.from_text(text=query)])]
     iteration = iteration_offset
     fused_results: list[dict] = []
 
-    response = chat.send_message(query, stream=True)
-    response.resolve()
-
     while True:
         iteration += 1
-        fc = None
-        text_parts = []
+        response = client.models.generate_content(
+            model=model,
+            contents=messages,
+            config=config,
+        )
 
-        for part in response.parts:
-            if hasattr(part, "function_call") and part.function_call:
-                fc = part.function_call
-            elif hasattr(part, "text") and part.text:
-                text_parts.append(part.text)
+        candidate = response.candidates[0]
+        messages.append(types.Content(role="model", parts=candidate.content.parts))
 
-        if fc:
+        # Collect function calls and text parts
+        func_calls = [p for p in candidate.content.parts if p.function_call]
+        text_parts = [p.text for p in candidate.content.parts if p.text]
+
+        if func_calls:
+            fc = func_calls[0].function_call
             args = dict(fc.args)
             tool_query = args.get("query", query)
             tool_top_k = int(args.get("top_k", 5))
 
             yield {"type": "tool_call", "iteration": iteration, "name": "hybrid_search", "args": args}
 
-            gen = retrieval_fn(tool_query, tool_top_k, iteration)
-            async for ev in gen:
+            async for ev in retrieval_fn(tool_query, tool_top_k, iteration):
                 if ev.get("type") == "fused_results":
                     fused_results = ev.get("results", [])
                 yield ev
@@ -125,11 +132,13 @@ async def _agentic(genai, query, retrieval_fn, model, iteration_offset, t0):
                 "topChunkIndices": [r["chunkIndex"] for r in fused_results],
             }
 
-            response = chat.send_message(
-                {"role": "tool", "parts": [{"function_response": {"name": "hybrid_search", "response": {"result": result_text}}}]},
-                stream=True,
-            )
-            response.resolve()
+            messages.append(types.Content(
+                role="user",
+                parts=[types.Part.from_function_response(
+                    name="hybrid_search",
+                    response={"result": result_text},
+                )],
+            ))
 
         else:
             full = "".join(text_parts)

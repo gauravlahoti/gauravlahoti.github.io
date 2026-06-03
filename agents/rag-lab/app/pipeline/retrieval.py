@@ -67,11 +67,24 @@ async def hybrid_search(
 
     # Fusion
     fused = rrf(dense, sparse, top_k)
-    yield {
-        "type": "fused_results",
-        "iteration": iteration,
-        "results": fused,
-    }
+
+    # Relevance gate: if best cosine similarity is below threshold the query is off-topic.
+    MIN_COSINE = 0.45
+    top_score = max((r.get("score", 0) for r in dense), default=0)
+    if top_score < MIN_COSINE:
+        yield {
+            "type": "fused_results",
+            "iteration": iteration,
+            "results": [],
+            "offTopic": True,
+            "topScore": round(top_score, 3),
+        }
+    else:
+        yield {
+            "type": "fused_results",
+            "iteration": iteration,
+            "results": fused,
+        }
     await asyncio.sleep(PACE_FUSE)
 
 

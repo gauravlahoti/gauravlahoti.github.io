@@ -78,8 +78,7 @@
       "patterns": ["RAG", "Skills", "MCP", "Streaming"]
     },
     "links": [
-      { "label": "Try it live",         "href": "/#top" },
-      { "label": "View source (ADK)",   "href": "https://github.com/gauravlahoti/gauravlahoti.github.io/tree/main/agents/atlas" }
+      { "label": "Try it live",         "href": "/#top" }
     ]
   },
   {
@@ -210,21 +209,21 @@
     "role": "RAG Pipeline",
     "status": "LIVE",
     "headline": "An 8-stage agentic RAG pipeline, rendered as a 3D vector space you can step through.",
-    "description": "Agentic RAG runs the full Retrieval-Augmented Generation pipeline as a FastAPI service on Cloud Run and renders every stage as a 3D vector space. On ingest it chunks the document, embeds each chunk with Voyage AI, projects the 1024-D vectors to 3D with PCA, and stores them in ChromaDB. On query it embeds the question, runs dual retrieval — dense cosine search plus a BM25 lexical scan — fuses the rankings with Reciprocal Rank Fusion, augments the prompt with numbered context, and streams a grounded answer from Claude Sonnet 4.6.",
-    "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why the nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. What makes it agentic, not linear: Claude holds a hybrid_search tool and decides when to re-query — looping back into retrieval until it has enough grounded evidence to answer.",
-    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "Gemini Embedding 2", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.6", "PCA", "SSE"],
+    "description": "Agentic RAG runs the full 8-stage RAG pipeline as a FastAPI service on Cloud Run and renders every stage as an interactive 3D vector space. Ingest any document via text paste, PDF/file upload, URL fetch, or image (Gemini Vision extracts text first). Choose your embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and watch each chunk fly into the vector space. On query, dual retrieval runs cosine search over ChromaDB and BM25 keyword scan in parallel, Reciprocal Rank Fusion merges the rankings, and the answer is grounded strictly in the retrieved chunks — no training knowledge. Supports Claude Sonnet 4.6, Gemini 2.5 Flash, and Gemini 3.5 Flash as generation models.",
+    "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. A relevance gate blocks off-topic queries (cosine < 0.45) so the model never hallucinates from training knowledge. The Agentic/Linear toggle shows the difference between a one-shot pipeline and a reasoning loop where the LLM calls hybrid_search on demand.",
+    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "Gemini Embedding 2", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.6", "Gemini 2.5 Flash", "PCA", "SSE"],
     "diagramSvg": "agent-portfolio/diagrams/agentic-rag-v1.svg?v=2",
     "diagramAlt": "8-stage agentic RAG pipeline on Cloud Run: chunk → generate embedding (Voyage) → store in vector DB (ChromaDB) → embed query → retrieve (dense + BM25) → RRF fusion → augment → grounded answer (Claude), with an agentic tool-use loop from generation back to retrieval, streamed to the browser over SSE",
     "steps": [
       {
         "n": 1,
         "label": "Chunk the document",
-        "detail": "On ingest, the document is split by a recursive character splitter (800 chars / 120 overlap) that prefers paragraph, line, and sentence boundaries so each chunk stays coherent. The 3D view shows the chunk boundaries laid over the source text."
+        "detail": "Accepts text paste, PDF/file upload, URL (server-side HTML extraction strips nav and boilerplate), or image (Gemini Vision converts the image to text first). The document is then split by a recursive character splitter (800 chars / 120 overlap) across four strategies — recursive, sentence, paragraph, or fixed-window. The 3D view shows chunk boundaries laid over the source text."
       },
       {
         "n": 2,
         "label": "Generate embeddings",
-        "detail": "Each chunk is sent to Voyage AI voyage-3 and returned as a 1024-D vector — meaning becomes geometry. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
+        "detail": "Each chunk is sent to the chosen embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and returned as a high-dimensional vector. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
       },
       {
         "n": 3,
@@ -254,7 +253,7 @@
       {
         "n": 8,
         "label": "Grounded answer (agentic loop)",
-        "detail": "Claude Sonnet 4.6 streams an answer grounded in the retrieved chunks, token by token, with inline citations. In agentic mode it holds a hybrid_search tool and decides when to re-query — looping back to retrieval (step 5) until it has enough evidence, turning a linear pipeline into a reasoning loop."
+        "detail": "Claude Sonnet 4.6, Gemini 2.5 Flash, or Gemini 3.5 Flash streams an answer grounded strictly in the retrieved chunks — a strict system prompt blocks training-knowledge fallback. Off-topic queries (cosine similarity below 0.45) are blocked before generation. In agentic mode the LLM holds a hybrid_search tool and re-queries on demand, turning a linear pipeline into a reasoning loop."
       }
     ],
     "techDecisions": [
@@ -263,8 +262,8 @@
         "why": "The pipeline ships as a single FastAPI service on Cloud Run (min-instances=0, zero idle cost). Server-Sent Events stream chunks, vectors, retrieval results, and answer tokens over one channel with no WebSocket handshake, so the 3D view updates live as each stage completes."
       },
       {
-        "tech": "Voyage AI voyage-3",
-        "why": "A dedicated retrieval embedding model — distinct from a reasoning LLM — produces 1024-D vectors tuned for semantic similarity. The UI accepts a user's own key (or an owner passphrase that falls back to server keys), and never stores it."
+        "tech": "Voyage voyage-3 + Gemini Embedding 2",
+        "why": "Two embedding models are supported: Voyage voyage-3 (1024-D, best for text) and Gemini Embedding 2 (3072-D, required for image inputs since Voyage is text-only). Images are first converted to text via Gemini Vision, then embedded. Keys are resolved per-model — Voyage/Anthropic key for Voyage, Google key for Gemini — and never stored server-side."
       },
       {
         "tech": "ChromaDB + BM25 (hybrid)",
@@ -284,8 +283,8 @@
       }
     ],
     "traits": [
-      { "label": "Model",      "value": "Claude Sonnet 4.6" },
-      { "label": "Embeddings", "value": "Voyage voyage-3 · 1024-D" },
+      { "label": "Model",      "value": "Claude Sonnet 4.6 · Gemini 2.5 / 3.5 Flash" },
+      { "label": "Embeddings", "value": "Voyage voyage-3 · 1024-D or Gemini Embedding 2 · 3072-D" },
       { "label": "Framework",  "value": "FastAPI · SSE" },
       { "label": "Runtime",    "value": "Cloud Run" },
       { "label": "Retrieval",  "value": "Dense + BM25 · RRF" },
@@ -297,7 +296,6 @@
       "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
     },
     "links": [
-      { "label": "View source", "href": "https://github.com/gauravlahoti/gauravlahoti.github.io/tree/main/agents/rag-lab" }
     ]
   }
 ]

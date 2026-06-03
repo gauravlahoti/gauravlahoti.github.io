@@ -13,6 +13,10 @@ export function log(text, cls = "") {
   scroll.scrollTop = scroll.scrollHeight;
 }
 
+export function clearLog() {
+  scroll.innerHTML = "";
+}
+
 function timestamp() {
   const d = new Date();
   return [d.getHours(), d.getMinutes(), d.getSeconds()]

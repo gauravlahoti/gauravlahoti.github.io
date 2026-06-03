@@ -5,14 +5,14 @@ import uuid
 from typing import Any, AsyncGenerator
 
 import numpy as np
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.auth import resolve_key
 from app.pipeline.chunking import chunk_text
 from app.pipeline.embeddings.registry import get_embedder
 from app.pipeline.lexical import build_bm25
-from app.pipeline.parsing import extract_text
+from app.pipeline.parsing import extract_text, fetch_url, extract_image_text
 from app.pipeline.projection import PCA3D
 from app.sse import sse, streaming_response
 from app.state import session
@@ -36,6 +36,28 @@ async def upload(file: UploadFile = File(...)):
     return JSONResponse({"text": text, "charCount": len(text)})
 
 
+@router.post("/api/fetch-url")
+async def fetch_url_route(url: str = Form(...)):
+    try:
+        text = await fetch_url(url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return JSONResponse({"text": text, "charCount": len(text)})
+
+
+@router.post("/api/upload-image")
+async def upload_image(file: UploadFile = File(...), embedApiKey: str = Form("")):
+    key = resolve_key(embedApiKey, "GOOGLE_API_KEY")
+    if not key:
+        raise HTTPException(status_code=401, detail="Google API key required for image extraction. Enter your key or the owner passphrase.")
+    content = await file.read()
+    try:
+        text = await extract_image_text(content, file.content_type or "image/jpeg", key)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return JSONResponse({"text": text, "charCount": len(text)})
+
+
 @router.post("/api/ingest")
 async def ingest(
     text: str = Form(...),
@@ -45,7 +67,8 @@ async def ingest(
     chunkStrategy: str = Form("recursive"),
     apiKey: str = Form(""),
 ):
-    embed_key = resolve_key(apiKey, "VOYAGE_API_KEY")
+    embed_env = "GOOGLE_API_KEY" if embeddingModel.startswith("gemini") else "VOYAGE_API_KEY"
+    embed_key = resolve_key(apiKey, embed_env)
     return streaming_response(
         _ingest_stream(text, embeddingModel, chunkSize, chunkOverlap, chunkStrategy, embed_key)
     )

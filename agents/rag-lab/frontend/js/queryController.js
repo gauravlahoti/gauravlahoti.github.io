@@ -161,8 +161,12 @@ function handleQueryEvent(msg) {
     }
 
     case "fused_results": {
-      reach("fuse");  // Next pulses immediately; banner + content wait for user.
-      log(`Fused top-${msg.results.length}: chunks [${msg.results.map((r) => r.chunkIndex).join(", ")}]`);
+      reach("fuse");
+      if (msg.offTopic) {
+        log(`Query off-topic — best cosine similarity ${msg.topScore} is below threshold. No chunks retrieved.`, "danger");
+      } else {
+        log(`Fused top-${msg.results.length}: chunks [${msg.results.map((r) => r.chunkIndex).join(", ")}]`);
+      }
       const fusedResults = msg.results;
       gateEvent("fuse", () => {
         setStage("STEP 6/7", "Fusing the results (RRF)", "Reciprocal Rank Fusion blends the semantic and lexical rankings into one final top-k set.");
@@ -203,6 +207,11 @@ function handleQueryEvent(msg) {
         gateEvent("answer", () => {
           setStage("STEP 8/8", "Generating the answer", "The LLM writes an answer grounded in the retrieved chunks — streaming token by token.");
           setActive("answer");
+          // Scroll the answer pane to top so the header is visible first
+          const ansPane = document.getElementById("view-answer");
+          if (ansPane) ansPane.scrollTop = 0;
+          const ansCol = document.getElementById("answer-col");
+          if (ansCol) ansCol.scrollTop = 0;
         });
       }
       // Buffer tokens — when user clicks Next, all buffered tokens flush at once.
