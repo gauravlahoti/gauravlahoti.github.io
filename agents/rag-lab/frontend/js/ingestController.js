@@ -171,7 +171,7 @@ async function runIngest() {
   }
 }
 
-function handleIngestEvent(msg, fullText) {
+export function handleIngestEvent(msg, fullText) {
   switch (msg.type) {
     case "ingest_started":
       setCaption(msg.model, msg.dim);

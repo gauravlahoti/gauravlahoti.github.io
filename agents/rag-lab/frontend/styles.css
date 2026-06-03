@@ -318,6 +318,41 @@ select option {
 
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Guided simulation CTA ─────────────────────────── */
+.btn-simulate {
+    background: linear-gradient(135deg, rgba(0, 255, 209, 0.14), rgba(108, 163, 245, 0.14));
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    box-shadow: 0 0 0 0 var(--accent-glow);
+    animation: sim-pulse 2.4s ease-in-out infinite;
+}
+.btn-simulate:hover {
+    background: linear-gradient(135deg, rgba(0, 255, 209, 0.24), rgba(108, 163, 245, 0.22));
+    box-shadow: 0 0 16px var(--accent-glow);
+    animation: none;
+}
+.btn-simulate .sim-icon { font-size: 10px; }
+@keyframes sim-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 209, 0); }
+    50%      { box-shadow: 0 0 14px 0 rgba(0, 255, 209, 0.25); }
+}
+.sim-hint {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.45;
+    color: var(--ink-muted);
+    margin: 0 0 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
 /* ── Mode toggle ───────────────────────────────────── */
 .toggle-group {
     display: flex;

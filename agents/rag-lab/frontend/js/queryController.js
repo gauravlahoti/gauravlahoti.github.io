@@ -42,6 +42,16 @@ export function abortQuery() {
   if (queryAbort) { queryAbort.abort(); queryAbort = null; }
 }
 
+/**
+ * Prime the controller to replay a canned query stream (Simulation mode).
+ * Resets the per-run flags so handleQueryEvent behaves as if a fresh query began.
+ */
+export function beginQueryReplay(query) {
+  currentQuery = query;
+  answerStarted = false;
+  retrievedShown = false;
+}
+
 export function initQueryController() {
   toggleBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -104,7 +114,7 @@ async function runQuery() {
   }
 }
 
-function handleQueryEvent(msg) {
+export function handleQueryEvent(msg) {
   switch (msg.type) {
     case "query_started":
       log(`Query [${msg.mode}]: "${msg.query}"`, "accent");
@@ -120,17 +130,23 @@ function handleQueryEvent(msg) {
       log(`🔧 ${msg.name}(query="${msg.args?.query}")  iter=${msg.iteration}`);
       break;
 
-    case "query_embedded":
-      setQuery(msg.point[0], msg.point[1], msg.point[2]);
-      setQueryReadout(msg.point);
-      setQueryEmbedRow(currentQuery, msg.vectorPreview, msg.dim);
-      markStepDone("query");
-      sceneLabel.textContent = "query embedded";
-      _hint("Query embedded — measuring cosine similarity to every chunk");
-      log(`Query embedded — point=[${msg.point.map((v) => v.toFixed(2)).join(", ")}], ${msg.dim}-D`);
+    case "query_embedded": {
+      // Scene + embed-row render gated to the Query step so a replayed (Simulation)
+      // stream doesn't drop the query sphere in before the user walks there.
+      const qp = msg.point, qvec = msg.vectorPreview, qdim = msg.dim, q = currentQuery;
+      gateEvent("query", () => {
+        setQuery(qp[0], qp[1], qp[2]);
+        setQueryReadout(qp);
+        setQueryEmbedRow(q, qvec, qdim);
+        markStepDone("query");
+        sceneLabel.textContent = "query embedded";
+        _hint("Query embedded — measuring cosine similarity to every chunk");
+      });
+      log(`Query embedded — point=[${qp.map((v) => v.toFixed(2)).join(", ")}], ${qdim}-D`);
       // Banner update deferred — show only when user clicks Next into retrieve.
       gateEvent("retrieve", () => setStage("STEP 5/7", "Retrieving — semantic + lexical", "The query runs through BOTH a semantic (cosine) search and a lexical (BM25) keyword search, side by side."));
       break;
+    }
 
     case "dense_results": {
       // Unlock retrieve tab immediately so Next pulses; render content when user arrives.

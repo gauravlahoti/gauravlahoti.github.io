@@ -3,6 +3,7 @@ import { initIngestController } from "./ingestController.js";
 import { initQueryController } from "./queryController.js";
 import { initViewTabs } from "./viewState.js";
 import { initPointDetail, showDetail } from "./pointDetail.js";
+import { initSimulation } from "./simulationController.js";
 import { log } from "./log.js";
 
 // ── 3D / content column drag-to-resize ───────────────
@@ -97,10 +98,11 @@ async function boot() {
   setPointClickHandler(showDetail);   // click a 3D point → show its vector details
   initIngestController();
   initQueryController();
+  initSimulation();
   initSceneColResize();
   initLogResize();
 
-  log("Agentic RAG ready — paste a document and click Ingest.", "accent");
+  log("Agentic RAG ready — paste a document and click Ingest, or run the guided simulation.", "accent");
 }
 
 boot();
