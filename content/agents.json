@@ -295,6 +295,7 @@
       "model": "Claude Sonnet 4.6",
       "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
     },
+    "demoVideo": "https://storage.googleapis.com/portfolio-assets-gaurav/videos/agentic-rag-demo.mp4",
     "links": [
     ]
   }

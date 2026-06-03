@@ -1117,6 +1117,15 @@
     padding-top: var(--space-2);
 }
 
+.agent-demo-video {
+    width: 100%;
+    display: block;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: #000;
+    max-height: 480px;
+}
+
 /* ─── "More coming" teaser tile ────────────────────────────────────── */
 
 .agents-teaser {

@@ -503,6 +503,16 @@ async function buildPanel(agent) {
     // Single-column layout: diagram full-width on top, all content below
     const body = el("div", { class: "agent-panel-body" });
 
+    if (agent.demoVideo) {
+        const videoSec = el("div", { class: "agent-panel-section agent-panel-video" });
+        videoSec.append(el("p", { class: "agent-panel-eyebrow" }, "// demo"));
+        const vid = el("video", { class: "agent-demo-video", controls: "", preload: "metadata", playsinline: "" });
+        const src = el("source", { src: agent.demoVideo, type: "video/mp4" });
+        vid.appendChild(src);
+        videoSec.appendChild(vid);
+        body.append(videoSec);
+    }
+
     body.append(diagSection);
     body.append(titleBlock);
     if (traitsSection) body.append(traitsSection);
