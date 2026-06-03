@@ -18,9 +18,56 @@ import { log, clearLog } from "./log.js";
 import { setStage } from "./stageBanner.js";
 import { DEMO_DOC, DEMO_QUERY, INGEST_EVENTS, QUERY_EVENTS } from "./demoData.js";
 
+let tourObserver = null;
+
 export function initSimulation() {
   const btn = document.getElementById("btn-simulate");
   if (btn) btn.addEventListener("click", runSimulation);
+}
+
+/** Enter guided-tour mode: lock the ingest controls, flag the Next button. */
+function enterTourMode() {
+  const body = document.querySelector("#panel-controls .panel-body");
+  if (body) body.classList.add("sim-active");
+  const btnIngest = document.getElementById("btn-ingest");
+  if (btnIngest) btnIngest.disabled = true;
+
+  const nav = document.querySelector(".stage-nav");
+  const btnNext = document.getElementById("step-next");
+  if (!nav || !btnNext) return;
+
+  let coach = document.getElementById("tour-coach");
+  if (!coach) {
+    coach = document.createElement("div");
+    coach.id = "tour-coach";
+    coach.className = "tour-coach";
+    nav.appendChild(coach);
+  }
+  const setCoach = () => {
+    if (btnNext.disabled) {
+      coach.className = "tour-coach done";
+      coach.innerHTML = `✓ That's the full pipeline — hit <b>Reset Session</b> to run it live.`;
+    } else {
+      coach.className = "tour-coach";
+      coach.innerHTML = `<span class="tour-coach-arrow">↑</span> Click <b>Next ▶</b> to walk each stage`;
+    }
+  };
+  setCoach();
+
+  if (tourObserver) tourObserver.disconnect();
+  tourObserver = new MutationObserver(setCoach);
+  tourObserver.observe(btnNext, { attributes: true, attributeFilter: ["disabled"] });
+}
+
+/** Exit guided-tour mode (called by Reset Session). */
+export function exitTourMode() {
+  const body = document.querySelector("#panel-controls .panel-body");
+  if (body) body.classList.remove("sim-active");
+  const btnIngest = document.getElementById("btn-ingest");
+  if (btnIngest) btnIngest.disabled = false;
+  const coach = document.getElementById("tour-coach");
+  if (coach) coach.remove();
+  if (tourObserver) { tourObserver.disconnect(); tourObserver = null; }
 }
 
 function runSimulation() {
@@ -56,5 +103,6 @@ function runSimulation() {
   QUERY_EVENTS.forEach((ev) => handleQueryEvent(ev));
   setQueryEnabled(false); // Run Query stays disabled — this is a replayed run.
 
+  enterTourMode();
   log("Simulation loaded — use ◀ Prev / Next ▶ (or click a tab) to step through all 8 stages.", "muted");
 }

@@ -12,6 +12,7 @@ import { abortQuery } from "./queryController.js";
 import { resetCosTable } from "./cosTable.js";
 import { setChunkData, resetDetail } from "./pointDetail.js";
 import { gateEvent } from "./eventGate.js";
+import { exitTourMode } from "./simulationController.js";
 
 let ingestAbort = null;
 
@@ -267,6 +268,7 @@ async function resetSession() {
   // Stop any in-flight ingest/query stream (closes the connection → server stops work).
   if (ingestAbort) { ingestAbort.abort(); ingestAbort = null; }
   abortQuery();
+  exitTourMode();  // leave guided-simulation mode if it was active
 
   // Clear all UI state back to the blank starting point.
   resetScene();
