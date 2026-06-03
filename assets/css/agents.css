@@ -1124,28 +1124,7 @@
     flex-wrap: wrap;
 }
 
-.demo-try-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 24px;
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--color-accent);
-    background: transparent;
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    letter-spacing: 0.04em;
-    text-decoration: none;
-    transition: background 180ms, color 180ms, box-shadow 180ms;
-}
-.demo-try-btn:hover {
-    background: rgba(0,255,209,0.08);
-    box-shadow: 0 0 18px rgba(0,255,209,0.2);
-}
-
+.demo-try-btn,
 .demo-watch-btn {
     display: inline-flex;
     align-items: center;
@@ -1154,17 +1133,19 @@
     font-family: var(--font-mono);
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--ink);
     background: transparent;
-    border: 1px solid var(--color-accent);
+    border: 1.5px solid var(--ink);
     border-radius: var(--radius-md);
     cursor: pointer;
     letter-spacing: 0.04em;
-    transition: background 180ms, color 180ms, box-shadow 180ms;
+    text-decoration: none;
+    transition: background 180ms, border-color 180ms;
 }
+.demo-try-btn:hover,
 .demo-watch-btn:hover {
-    background: rgba(0,255,209,0.08);
-    box-shadow: 0 0 18px rgba(0,255,209,0.2);
+    background: var(--border-strong);
+    border-color: var(--ink);
 }
 .demo-play-icon {
     font-size: 1rem;
