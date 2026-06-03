@@ -556,6 +556,9 @@ function openPanel(overlay) {
     // overscroll-behavior:contain on .agent-panel-scroll prevents chaining.
     overlay.classList.add("is-open");
     activePanel = overlay;
+    if (overlay._agentId) {
+        history.pushState({ agentId: overlay._agentId }, "", `/agent-portfolio/?agent=${overlay._agentId}`);
+    }
 
     const gsap = window.gsap;
     if (gsap && !REDUCE_MOTION) {
@@ -584,6 +587,7 @@ function closePanel(overlay) {
     const gsap = window.gsap;
     // Kill the looping diagram animation timeline
     overlay._diagTl?.kill();
+    history.replaceState(null, "", "/agent-portfolio/");
 
     const done = () => {
         overlay.classList.remove("is-open");
@@ -781,11 +785,19 @@ async function init() {
     agents.forEach(agent => {
         const card = buildCard(agent, async (a) => {
             const panel = await buildPanel(a);
+            panel._agentId = a.id;
             openPanel(panel);
         });
         cards.push(card);
         grid.appendChild(card);
     });
+
+    // Deep-link: open panel if ?agent=<id> is in the URL on page load
+    const deepId = new URLSearchParams(location.search).get("agent");
+    if (deepId) {
+        const target = agents.find(a => a.id === deepId);
+        if (target) buildPanel(target).then(panel => { panel._agentId = target.id; openPanel(panel); });
+    }
 
     const { bar, emptyState } = buildSearchBar(agents, cards);
     root.appendChild(bar);
