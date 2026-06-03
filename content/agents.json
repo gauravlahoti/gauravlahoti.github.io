@@ -297,7 +297,7 @@
     },
     "demoVideo": "https://storage.googleapis.com/portfolio-assets-gaurav/videos/agentic-rag-demo.mp4",
     "links": [
-      { "label": "Try it yourself", "href": "https://rag-lab.gauravlahoti.dev/" }
+      { "label": "Try it yourself", "href": "https://agentic-rag-593919045544.us-central1.run.app" }
     ]
   }
 ]
