@@ -1117,14 +1117,76 @@
     padding-top: var(--space-2);
 }
 
-.agent-demo-video {
+.demo-watch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    background: transparent;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 180ms, color 180ms, box-shadow 180ms;
+}
+.demo-watch-btn:hover {
+    background: rgba(0,255,209,0.08);
+    box-shadow: 0 0 18px rgba(0,255,209,0.2);
+}
+.demo-play-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+/* Video lightbox modal */
+.video-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 250ms;
+}
+.video-modal-overlay.video-modal-visible { opacity: 1; }
+.video-modal-wrap {
+    position: relative;
+    width: min(90vw, 1100px);
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.video-modal-player {
     width: 100%;
     display: block;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    background: #000;
-    max-height: 480px;
+    max-height: 80vh;
 }
+.video-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 10;
+    background: rgba(0,0,0,0.65);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 150ms;
+}
+.video-modal-close:hover { background: rgba(255,255,255,0.15); }
 
 /* ─── "More coming" teaser tile ────────────────────────────────────── */
 

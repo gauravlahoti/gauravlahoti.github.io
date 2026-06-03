@@ -506,10 +506,10 @@ async function buildPanel(agent) {
     if (agent.demoVideo) {
         const videoSec = el("div", { class: "agent-panel-section agent-panel-video" });
         videoSec.append(el("p", { class: "agent-panel-eyebrow" }, "// demo"));
-        const vid = el("video", { class: "agent-demo-video", controls: "", preload: "metadata", playsinline: "" });
-        const src = el("source", { src: agent.demoVideo, type: "video/mp4" });
-        vid.appendChild(src);
-        videoSec.appendChild(vid);
+        const btn = el("button", { class: "demo-watch-btn", type: "button" });
+        btn.innerHTML = `<span class="demo-play-icon">▶</span><span>Watch Pipeline Demo</span>`;
+        btn.addEventListener("click", () => _openVideoModal(agent.demoVideo));
+        videoSec.appendChild(btn);
         body.append(videoSec);
     }
 
@@ -807,6 +807,29 @@ async function init() {
         if (!href) return;
         e.preventDefault();
         runPageTransition(href);
+    });
+}
+
+function _openVideoModal(src) {
+    const overlay = el("div", { class: "video-modal-overlay", role: "dialog", "aria-modal": "true" });
+    const wrap = el("div", { class: "video-modal-wrap" });
+    const closeBtn = el("button", { class: "video-modal-close", "aria-label": "Close" }, "✕");
+    const vid = el("video", { class: "video-modal-player", controls: "", autoplay: "", playsinline: "", preload: "auto" });
+    vid.appendChild(el("source", { src, type: "video/mp4" }));
+    wrap.append(closeBtn, vid);
+    overlay.appendChild(wrap);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("video-modal-visible"));
+
+    const close = () => {
+        vid.pause();
+        overlay.classList.remove("video-modal-visible");
+        setTimeout(() => overlay.remove(), 250);
+    };
+    closeBtn.addEventListener("click", close);
+    overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+    document.addEventListener("keydown", function esc(e) {
+        if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
     });
 }
 
