@@ -1161,12 +1161,12 @@
     background: #000;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    overflow: hidden;
 }
 .video-modal-player {
     width: 100%;
     display: block;
     max-height: 80vh;
+    border-radius: var(--radius-lg);
 }
 .video-modal-close {
     position: absolute;
