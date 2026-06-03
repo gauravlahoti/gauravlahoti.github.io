@@ -42,14 +42,21 @@ function enterTourMode() {
     coach.id = "tour-coach";
     coach.className = "tour-coach";
     nav.appendChild(coach);
+    // Dismiss (✕) — user understood; kill the hint + Next pulse, keep sim loaded.
+    coach.addEventListener("click", (e) => {
+      if (!e.target.closest(".tour-coach-close")) return;
+      coach.remove();
+      if (tourObserver) { tourObserver.disconnect(); tourObserver = null; }
+    });
   }
+  const CLOSE = `<button class="tour-coach-close" title="Dismiss" aria-label="Dismiss">✕</button>`;
   const setCoach = () => {
     if (btnNext.disabled) {
       coach.className = "tour-coach done";
-      coach.innerHTML = `✓ That's the full pipeline — hit <b>Reset Session</b> to run it live.`;
+      coach.innerHTML = `✓ That's the full pipeline — hit <b>Reset Session</b> to run it live.${CLOSE}`;
     } else {
       coach.className = "tour-coach";
-      coach.innerHTML = `<span class="tour-coach-arrow">↑</span> Click <b>Next ▶</b> to walk each stage`;
+      coach.innerHTML = `<span class="tour-coach-arrow">↑</span> Click <b>Next ▶</b> to walk each stage${CLOSE}`;
     }
   };
   setCoach();

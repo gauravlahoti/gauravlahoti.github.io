@@ -528,6 +528,26 @@ select option {
 }
 .tour-coach b { font-weight: 700; }
 .tour-coach .tour-coach-arrow { font-weight: 700; margin-right: 2px; }
+.tour-coach-close {
+    margin-left: 10px;
+    border: none;
+    background: rgba(0, 17, 14, 0.18);
+    color: #00110e;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background var(--dur-fast);
+}
+.tour-coach-close:hover { background: rgba(0, 17, 14, 0.38); }
+.tour-coach.done .tour-coach-close {
+    background: var(--bg-elevated, rgba(255,255,255,0.06));
+    color: var(--ink-muted);
+}
 .tour-coach::before {
     content: "";
     position: absolute;
