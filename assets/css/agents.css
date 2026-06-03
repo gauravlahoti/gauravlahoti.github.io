@@ -1117,6 +1117,35 @@
     padding-top: var(--space-2);
 }
 
+.demo-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.demo-try-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: border-color 180ms, color 180ms;
+}
+.demo-try-btn:hover {
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+}
+
 .demo-watch-btn {
     display: inline-flex;
     align-items: center;

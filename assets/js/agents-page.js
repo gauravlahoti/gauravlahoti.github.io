@@ -506,10 +506,18 @@ async function buildPanel(agent) {
     if (agent.demoVideo) {
         const videoSec = el("div", { class: "agent-panel-section agent-panel-video" });
         videoSec.append(el("p", { class: "agent-panel-eyebrow" }, "// demo"));
+        const demoRow = el("div", { class: "demo-btn-row" });
         const btn = el("button", { class: "demo-watch-btn", type: "button" });
         btn.innerHTML = `<span class="demo-play-icon">▶</span><span>Watch Pipeline Demo</span>`;
         btn.addEventListener("click", () => _openVideoModal(agent.demoVideo));
-        videoSec.appendChild(btn);
+        demoRow.appendChild(btn);
+        const tryLink = agent.links?.find(l => l.label === "Try it yourself");
+        if (tryLink) {
+            const tryBtn = el("a", { class: "demo-try-btn", href: tryLink.href, target: "_blank", rel: "noopener noreferrer" });
+            tryBtn.innerHTML = `<span>↗</span><span>Try it yourself</span>`;
+            demoRow.appendChild(tryBtn);
+        }
+        videoSec.appendChild(demoRow);
         body.append(videoSec);
     }
 
