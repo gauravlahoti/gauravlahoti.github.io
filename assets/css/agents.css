@@ -1161,6 +1161,7 @@
     background: #000;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+    overflow: hidden;
 }
 .video-modal-player {
     width: 100%;
@@ -1187,6 +1188,37 @@
     transition: background 150ms;
 }
 .video-modal-close:hover { background: rgba(255,255,255,0.15); }
+
+.video-play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: rgba(0,0,0,0.35);
+    border-radius: var(--radius-lg);
+    transition: background 150ms;
+}
+.video-play-overlay:hover { background: rgba(0,0,0,0.2); }
+.video-play-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(0,255,209,0.15);
+    border: 2px solid var(--color-accent);
+    color: var(--color-accent);
+    font-size: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 4px;
+    transition: transform 150ms, background 150ms;
+}
+.video-play-overlay:hover .video-play-btn {
+    transform: scale(1.08);
+    background: rgba(0,255,209,0.25);
+}
 
 /* ─── "More coming" teaser tile ────────────────────────────────────── */
 

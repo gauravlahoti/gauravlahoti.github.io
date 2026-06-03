@@ -814,9 +814,29 @@ function _openVideoModal(src) {
     const overlay = el("div", { class: "video-modal-overlay", role: "dialog", "aria-modal": "true" });
     const wrap = el("div", { class: "video-modal-wrap" });
     const closeBtn = el("button", { class: "video-modal-close", "aria-label": "Close" }, "✕");
-    const vid = el("video", { class: "video-modal-player", controls: "", autoplay: "", playsinline: "", preload: "auto" });
-    vid.appendChild(el("source", { src, type: "video/mp4" }));
-    wrap.append(closeBtn, vid);
+
+    // Video with native controls — no autoplay (blocked by browsers)
+    const vid = document.createElement("video");
+    vid.className = "video-modal-player";
+    vid.controls = true;
+    vid.playsInline = true;
+    vid.preload = "auto";
+    const source = document.createElement("source");
+    source.src = src;
+    source.type = "video/mp4";
+    vid.appendChild(source);
+
+    // Big centred play overlay — disappears once video starts
+    const playOverlay = el("div", { class: "video-play-overlay" });
+    playOverlay.innerHTML = `<div class="video-play-btn">▶</div>`;
+    playOverlay.addEventListener("click", () => {
+        vid.play();
+        playOverlay.style.display = "none";
+    });
+    vid.addEventListener("play", () => { playOverlay.style.display = "none"; });
+    vid.addEventListener("pause", () => { if (vid.paused && !vid.ended) playOverlay.style.display = "flex"; });
+
+    wrap.append(closeBtn, vid, playOverlay);
     overlay.appendChild(wrap);
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add("video-modal-visible"));
