@@ -608,7 +608,14 @@ function buildSearchBar(agents, cards) {
     const models   = [...new Set(agents.map(a => a.searchMeta?.model).filter(Boolean))];
     const patterns = [...new Set(agents.flatMap(a => a.searchMeta?.patterns || []))];
 
-    const bar = el("div", { class: "agent-search-bar", role: "search" });
+    const bar = el("div", { class: "agent-search-bar agent-console", role: "search" });
+
+    // HUD corner brackets (decorative, sci-fi console frame)
+    ["tl", "tr", "bl", "br"].forEach(pos =>
+        bar.appendChild(el("span", { class: `console-corner console-corner--${pos}`, "aria-hidden": "true" })),
+    );
+    // Animated scan sweep across the console
+    bar.appendChild(el("span", { class: "console-scan", "aria-hidden": "true" }));
 
     // Input row
     const inputWrap = el("div", { class: "agent-search-input-wrap" });
@@ -617,11 +624,12 @@ function buildSearchBar(agents, cards) {
     const input = el("input", {
         class: "agent-search-field",
         type: "search",
-        placeholder: "filter agents…",
+        placeholder: "query the agent index…",
         autocomplete: "off",
         spellcheck: "false",
         "aria-label": "Search agents by name, model, or pattern",
     });
+    const hint = el("kbd", { class: "agent-search-hint", "aria-hidden": "true" }, "/");
     const clearBtn = el("button", {
         class: "agent-search-clear",
         type: "button",
@@ -629,14 +637,17 @@ function buildSearchBar(agents, cards) {
     });
     clearBtn.hidden = true;
     clearBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+    const readout = el("span", { class: "agent-search-readout" });
+    const statusDot = el("span", { class: "agent-search-status", "aria-hidden": "true" });
     const countBadge = el("span", { class: "agent-search-count", "aria-live": "polite" });
     countBadge.textContent = `${agents.length} agents`;
-    inputWrap.append(prompt, input, clearBtn, countBadge);
+    readout.append(statusDot, countBadge);
+    inputWrap.append(prompt, input, hint, clearBtn, readout);
 
     // Filter groups
     const filterRow = el("div", { class: "agent-filter-row" });
     function makeGroup(cat, label, values) {
-        const group = el("div", { class: "agent-filter-group" });
+        const group = el("div", { class: "agent-filter-group", "data-cat": cat });
         const lbl   = el("span", { class: "agent-filter-label" }, label);
         const pills = el("div", { class: "agent-filter-pills" });
         values.forEach(val => {
@@ -646,15 +657,17 @@ function buildSearchBar(agents, cards) {
                 "data-cat": cat,
                 "data-val": val,
                 "aria-pressed": "false",
-            }, val);
+            });
+            pill.innerHTML = `<span class="pill-dot" aria-hidden="true"></span><span class="pill-label"></span>`;
+            pill.querySelector(".pill-label").textContent = val;
             pills.appendChild(pill);
         });
         group.append(lbl, pills);
         return group;
     }
-    if (types.length)    filterRow.appendChild(makeGroup("type",    "// type",    types));
-    if (models.length)   filterRow.appendChild(makeGroup("model",   "// model",   models));
-    if (patterns.length) filterRow.appendChild(makeGroup("pattern", "// pattern", patterns));
+    if (types.length)    filterRow.appendChild(makeGroup("type",    "type",    types));
+    if (models.length)   filterRow.appendChild(makeGroup("model",   "model",   models));
+    if (patterns.length) filterRow.appendChild(makeGroup("pattern", "pattern", patterns));
 
     // Empty state (rendered inside grid via caller)
     const emptyState = el("div", { class: "agents-empty" });
