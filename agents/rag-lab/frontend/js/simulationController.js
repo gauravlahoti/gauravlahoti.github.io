@@ -112,4 +112,13 @@ function runSimulation() {
 
   enterTourMode();
   log("Simulation loaded — use ◀ Prev / Next ▶ (or click a tab) to step through all 8 stages.", "muted");
+
+  // On phones the controls panel fills the screen, so the user lands far above
+  // the stage view. Scroll the scene into view so they immediately see step 1
+  // and the Next control.
+  if (matchMedia("(max-width: 768px)").matches) {
+    requestAnimationFrame(() => {
+      document.getElementById("panel-scene")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 }

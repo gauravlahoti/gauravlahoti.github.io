@@ -1686,10 +1686,46 @@ select option {
   }
   #scene-label { font-size: 10px; }
 
-  /* Stage banner wraps; Prev/Next become full-width-ish, easy to tap */
+  /* Stage banner wraps; the step text stays at the top of the scene */
   .stage-banner { flex-wrap: wrap; gap: 8px; }
-  .stage-nav { margin-left: 0; width: 100%; }
-  .stage-nav .step-btn { flex: 1; padding: 9px 12px; font-size: 12px; }
+
+  /* Prev/Next become a PERSISTENT bottom bar so the next action is always
+     visible and never clipped — the standard mobile guided-tour pattern.
+     The bar lives inside the banner, which is display:none until a run starts,
+     so it only appears during ingest/simulation. */
+  .stage-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: 100%;
+    margin: 0;
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(8, 14, 12, 0.96);
+    border-top: 1px solid var(--accent-soft);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .stage-nav .step-btn { flex: 1; padding: 13px; font-size: 14px; }
+  /* (#app bottom padding clears the fixed bar — set in the safe-area block) */
+
+  /* Coachmark floats just above the fixed nav bar, full-width and centered */
+  .tour-coach {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 70px;
+    top: auto;
+    max-width: none;
+    text-align: center;
+    white-space: normal;
+    z-index: 61;
+  }
+  .tour-coach::before { display: none; }
+  .tour-coach .tour-coach-arrow { display: none; }
 
   /* Split mode → stack: 3D canvas on top, active content below */
   #panel-scene.scene-split {
@@ -1761,11 +1797,12 @@ select option {
   .cos-table { font-size: 9px; max-width: 60%; }
 
   /* ── Native-app polish for iOS / Android ────────────────────────────── */
-  /* Respect the iPhone notch / home-indicator safe areas */
+  /* Respect the iPhone notch / home-indicator safe areas. Bottom keeps the
+     76px clearance for the fixed step-nav bar plus the home-indicator inset. */
   #app {
     padding-left: max(10px, env(safe-area-inset-left));
     padding-right: max(10px, env(safe-area-inset-right));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
     padding-top: max(10px, env(safe-area-inset-top));
   }
   /* Kill the grey tap-flash on buttons/tabs; keep momentum scrolling smooth */
