@@ -1686,8 +1686,12 @@ select option {
   }
   #scene-label { font-size: 10px; }
 
-  /* Stage banner wraps; the step text stays at the top of the scene */
-  .stage-banner { flex-wrap: wrap; gap: 8px; }
+  /* Stage banner wraps; the step text stays at the top of the scene. The
+     text block must be allowed to shrink (min-width:0) or its long desc
+     ("Grounded in the retrieved chunks · 612in…") overflows the right edge. */
+  .stage-banner { flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .stage-banner .stage-text { min-width: 0; flex: 1; }
+  .stage-desc { overflow-wrap: anywhere; }
 
   /* Prev/Next become a PERSISTENT bottom bar so the next action is always
      visible and never clipped — the standard mobile guided-tour pattern.
@@ -1758,6 +1762,28 @@ select option {
     height: auto;
     overflow: visible;
   }
+  /* Flex children default to min-width:auto and won't shrink below their
+     content, so long headers/answers blew past the right edge. Force every
+     content container to shrink to the column and clip stray horizontal
+     overflow; wrap the section headers onto their own lines. */
+  #panel-scene.scene-split .view-pane:not(#view-vectors),
+  #panel-scene.scene-split .retr-compare,
+  #panel-scene.scene-split .retr-col,
+  #panel-scene.scene-split .retr-list,
+  #panel-scene.scene-split .augment-list,
+  #panel-scene.scene-split .retr-answer,
+  #panel-scene.scene-split .augment-meta {
+    min-width: 0;
+    max-width: 100%;
+  }
+  #panel-scene.scene-split .retr-list,
+  #panel-scene.scene-split .augment-list { overflow-x: hidden; }
+  #panel-scene.scene-split .retr-answer,
+  #panel-scene.scene-split .retr-card { overflow-wrap: anywhere; }
+  /* Section headers (title + uppercase sublabel) stack instead of forcing
+     the column wide */
+  #panel-scene.scene-split .retr-h { flex-wrap: wrap; }
+  #panel-scene.scene-split .retr-h span { width: 100%; }
   /* Resize handles are useless on touch */
   #scene-col-handle,
   #panel-scene.scene-split #scene-col-handle,
