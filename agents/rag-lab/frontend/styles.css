@@ -1784,6 +1784,11 @@ select option {
      the column wide */
   #panel-scene.scene-split .retr-h { flex-wrap: wrap; }
   #panel-scene.scene-split .retr-h span { width: 100%; }
+  /* Hard catch-all: nothing inside the scene panel may exceed its container
+     width on mobile, whatever the element. Combined with body's
+     overflow-x:hidden this guarantees no right-edge clip. (No overflow on
+     #panel-scene itself — that would break the sticky 3D panel.) */
+  #panel-scene * { max-width: 100%; }
   /* Resize handles are useless on touch */
   #scene-col-handle,
   #panel-scene.scene-split #scene-col-handle,
