@@ -1387,7 +1387,7 @@ select option {
  */
 #panel-scene.scene-split {
   display: grid !important;
-  grid-template-columns: 60% 5px 1fr;
+  grid-template-columns: 60% 5px minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
 }
 #panel-scene.scene-split .panel-header {
@@ -1623,7 +1623,10 @@ select option {
 
   /* Stack the three panels in DOM order: controls → scene → log */
   #app {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr): a plain 1fr track has an implicit min of min-content,
+       so a long unbreakable string grows the track past the viewport and
+       clips on the right. minmax(0,…) lets the column actually shrink. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto;
     height: auto;
     min-height: 100dvh;
@@ -1736,7 +1739,7 @@ select option {
      top of the viewport while the step content scrolls underneath it — it
      never vanishes as the user walks the pipeline with Next. */
   #panel-scene.scene-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto auto;
   }
   #panel-scene.scene-split #view-vectors {
@@ -1813,7 +1816,7 @@ select option {
   /* All side-by-side splits collapse to one column */
   .chunk-split,
   .retr-compare {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Query bar stacks; full-width Run button */
