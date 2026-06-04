@@ -1635,12 +1635,35 @@ select option {
   #panel-log {
     grid-column: 1;
     grid-row: auto;
+    /* Grid items default to min-width:auto and won't shrink below their
+       content, which pushed the panels past the viewport (half-cut UI).
+       min-width:0 lets the single 1fr column actually fit the screen. */
+    min-width: 0;
+    max-width: 100%;
   }
   #panel-scene { min-height: 76dvh; }
   #panel-log   { height: 180px; }
 
   /* The controls form shows in full — no internal scroll needed */
   #panel-controls .panel-body { overflow: visible; }
+
+  /* Form fields must shrink to the panel, never force horizontal overflow */
+  .field-group { min-width: 0; }
+  .field-group input,
+  .field-group select,
+  .field-group textarea,
+  #doc-text, #url-input, #chunk-size, #chunk-overlap,
+  .api-key-input, select {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+  /* Long button labels wrap instead of overflowing */
+  .btn-simulate, .btn { white-space: normal; }
+  /* Chunk size / overlap row: two inputs that must each shrink */
+  .field-group[style*="row"] > div { min-width: 0; }
+  /* API-key field (input + eye toggle) must also shrink to the panel */
+  .api-key-wrap, .panel-body { min-width: 0; max-width: 100%; }
 
   /* Scene header: let the 8 view-tabs scroll horizontally instead of crushing */
   #panel-scene .panel-header {
