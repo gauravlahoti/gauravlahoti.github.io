@@ -1727,7 +1727,10 @@ select option {
   .tour-coach::before { display: none; }
   .tour-coach .tour-coach-arrow { display: none; }
 
-  /* Split mode → stack: 3D canvas on top, active content below */
+  /* Split mode → stack: 3D canvas pinned on top (sticky hero), content below.
+     The 3D embedding space is the centrepiece, so on mobile it sticks to the
+     top of the viewport while the step content scrolls underneath it — it
+     never vanishes as the user walks the pipeline with Next. */
   #panel-scene.scene-split {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto auto;
@@ -1736,12 +1739,24 @@ select option {
     grid-column: 1;
     grid-row: 3;
     height: 320px;
+    min-height: 0;
+    position: sticky;
+    top: 6px;
+    z-index: 5;
+    background: #0b1512;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
   }
+  /* Content panes expand and let the PAGE scroll (not an inner scroller) —
+     otherwise the sticky 3D panel above would have nothing to stick against. */
   #panel-scene.scene-split .view-pane:not(#view-vectors) {
     grid-column: 1;
     grid-row: 4;
-    min-height: 40dvh;
-    overflow-y: auto;
+    min-height: 46dvh;
+    height: auto;
+    overflow: visible;
   }
   /* Resize handles are useless on touch */
   #scene-col-handle,
@@ -1793,8 +1808,27 @@ select option {
     font-size: 12px;
   }
 
+  /* Overlays are sized for a desktop canvas; on a phone-sized canvas they
+     smother the 3D graph. Shrink them and cap their footprint so the
+     embedding space (points + query + axes) stays clearly readable. */
+  .vec-readout {
+    font-size: 9px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    max-width: 47%;
+    max-height: 44%;
+    overflow: hidden;
+  }
+  .vec-readout .vec-head { font-size: 8px; margin-bottom: 3px; }
+  .scene-legend { top: 6px; right: 6px; padding: 4px 6px; gap: 3px; }
+  .legend-caption { font-size: 7px; }
+  .lg, .legend-counts { font-size: 8px; }
+  .legend-counts { padding: 1px 6px; }
   /* Cosine table overlay can crowd a small canvas — shrink + pin bottom-left */
-  .cos-table { font-size: 9px; max-width: 60%; }
+  .cos-table { font-size: 8.5px; min-width: 0; max-width: 56%; padding: 6px 8px; }
+  .cos-table-head { font-size: 8px; margin-bottom: 4px; }
+  /* Point-detail card spans the canvas width on mobile */
+  .vec-detail { width: auto; left: 8px; right: 8px; bottom: 8px; padding: 10px 12px; }
 
   /* ── Native-app polish for iOS / Android ────────────────────────────── */
   /* Respect the iPhone notch / home-indicator safe areas. Bottom keeps the

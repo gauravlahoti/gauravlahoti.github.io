@@ -162,12 +162,11 @@ export function setQueryEnabled(on) {
 function _render() {
   const view   = VIEWS[current];
   setGateStep(view);  // keep eventGate in sync with where the user is
-  // Split mode (3D canvas pinned beside the active content) is a desktop
-  // luxury. On phones it crams two panes onto a tiny screen and shows an
-  // empty canvas on the early steps — so mobile stays single-pane: one view
-  // at a time, navigated with Prev/Next.
-  const isMobile = matchMedia("(max-width: 768px)").matches;
-  const isSplit = maxReached >= SPLIT_FROM && !isMobile;
+  // Split mode pins the 3D embedding space (our hero visual) next to the
+  // active step. On desktop it sits in the left column; on mobile the same
+  // class re-stacks it as a sticky panel on top of the scrolling content, so
+  // the 3D space never disappears as the user walks the pipeline with Next.
+  const isSplit = maxReached >= SPLIT_FROM;
 
   // ── Split mode: 3D canvas pinned left, content pane on the right ──
   scenePanel.classList.toggle("scene-split", isSplit);
