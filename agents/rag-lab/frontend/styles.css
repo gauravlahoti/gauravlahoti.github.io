@@ -1606,3 +1606,129 @@ select option {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE / NARROW VIEWPORTS  (≤ 768px)
+   The desktop UI is a fixed 100vh 3-pane grid. On phones we stack the panels
+   vertically, let the page scroll, give the 3D scene a usable touch height,
+   collapse all side-by-side splits to single column, and enlarge tap targets.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  html, body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: auto;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Stack the three panels in DOM order: controls → scene → log */
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    height: auto;
+    min-height: 100dvh;
+    gap: 10px;
+    padding: 10px;
+  }
+  #panel-controls,
+  #panel-scene,
+  #panel-log {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  #panel-scene { min-height: 76dvh; }
+  #panel-log   { height: 180px; }
+
+  /* The controls form shows in full — no internal scroll needed */
+  #panel-controls .panel-body { overflow: visible; }
+
+  /* Scene header: let the 8 view-tabs scroll horizontally instead of crushing */
+  #panel-scene .panel-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .view-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .view-tabs::-webkit-scrollbar { display: none; }
+  .view-tab {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 6px 9px;
+  }
+  #scene-label { font-size: 10px; }
+
+  /* Stage banner wraps; Prev/Next become full-width-ish, easy to tap */
+  .stage-banner { flex-wrap: wrap; gap: 8px; }
+  .stage-nav { margin-left: 0; width: 100%; }
+  .stage-nav .step-btn { flex: 1; padding: 9px 12px; font-size: 12px; }
+
+  /* Split mode → stack: 3D canvas on top, active content below */
+  #panel-scene.scene-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+  #panel-scene.scene-split #view-vectors {
+    grid-column: 1;
+    grid-row: 3;
+    height: 46dvh;
+    min-height: 300px;
+  }
+  #panel-scene.scene-split .view-pane:not(#view-vectors) {
+    grid-column: 1;
+    grid-row: 4;
+    min-height: 40dvh;
+    overflow-y: auto;
+  }
+  /* Resize handles are useless on touch */
+  #scene-col-handle,
+  #panel-scene.scene-split #scene-col-handle,
+  #log-resize-handle { display: none !important; }
+
+  /* Non-split 3D view still needs explicit height for the canvas */
+  #view-vectors { min-height: 300px; }
+
+  /* Every content pane (chunks, embed, retrieve, fuse, augment, answer)
+     scrolls internally so long output never blows out the layout */
+  .view-pane:not(#view-vectors) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* All side-by-side splits collapse to one column */
+  .chunk-split,
+  .retr-compare {
+    grid-template-columns: 1fr;
+  }
+
+  /* Query bar stacks; full-width Run button */
+  .query-bar { gap: 10px; }
+  .query-bar textarea { min-width: 0; width: 100%; }
+  .query-bar-side { width: 100%; }
+  .query-bar-side .btn { width: 100%; padding: 11px; }
+
+  /* Larger tap targets for the primary controls */
+  .btn { padding: 11px 14px; font-size: 12px; }
+  .btn-simulate { padding: 13px 14px; font-size: 13px; }
+  select, .api-key-input, #chunk-size, #chunk-overlap, #url-input, #doc-text {
+    font-size: 16px;  /* ≥16px stops iOS Safari auto-zoom on focus */
+  }
+  #doc-text { min-height: 96px; }
+
+  /* Coachmark: keep it inside the viewport, point from the right edge */
+  .tour-coach {
+    right: 0;
+    left: auto;
+    max-width: calc(100vw - 32px);
+    white-space: normal;
+    font-size: 12px;
+  }
+
+  /* Cosine table overlay can crowd a small canvas — shrink + pin bottom-left */
+  .cos-table { font-size: 9px; max-width: 60%; }
+}

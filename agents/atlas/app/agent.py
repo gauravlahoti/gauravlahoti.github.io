@@ -55,13 +55,17 @@ _skills = [
     for p in sorted(_SKILLS_DIR.iterdir())
     if p.is_dir()
 ]
-skill_toolset = SkillToolset(
-    skills=_skills,
-    additional_tools=[
-        portfolio_tools.send_resume,
-        portfolio_tools.send_note_to_gaurav,
-    ],
-)
+skill_toolset = SkillToolset(skills=_skills)
+
+# Action tools are registered at the AGENT level (not via SkillToolset
+# additional_tools). additional_tools only injects their *declarations* into the
+# model prompt — it does NOT add them to the flow's executable tools_dict, so a
+# model-emitted send_resume call raised "Tool 'send_resume' not found" at
+# execution. Agent-level tools land in the canonical set and are executable.
+_action_tools = [
+    portfolio_tools.send_resume,
+    portfolio_tools.send_note_to_gaurav,
+]
 
 root_agent = Agent(
     name="root_agent",
@@ -75,7 +79,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,
-    tools=[skill_toolset],
+    tools=[skill_toolset, *_action_tools],
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(
