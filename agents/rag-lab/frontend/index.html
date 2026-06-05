@@ -199,26 +199,33 @@
     <!-- Vector space view (used by Store + Query steps) -->
     <div class="view-pane" id="view-vectors" style="display:none">
       <div id="canvas-wrap">
-        <canvas id="rag-canvas"></canvas>
-        <div class="vec-readout" id="vec-readout"></div>
-        <div class="scene-legend" id="scene-legend">
-          <div class="legend-caption" id="legend-caption">PCA → 3D</div>
-          <div class="legend-row">
-            <span class="lg"><i style="background:#00FFD1"></i>chunk</span>
-            <span class="lg"><i style="background:#c7a6ff"></i>match</span>
-            <span class="lg"><i style="background:#ffd166"></i>query</span>
+        <!-- The 3D stage: canvas + the overlays that belong ON the graph
+             (legend, hint, point-detail). On mobile this is the standalone
+             pinned hero; the vector + cosine tables below sit ABOVE it in flow. -->
+        <div id="canvas-stage">
+          <canvas id="rag-canvas"></canvas>
+          <div class="scene-legend" id="scene-legend">
+            <div class="legend-caption" id="legend-caption">PCA → 3D</div>
+            <div class="legend-row">
+              <span class="lg"><i style="background:#00FFD1"></i>chunk</span>
+              <span class="lg"><i style="background:#c7a6ff"></i>match</span>
+              <span class="lg"><i style="background:#ffd166"></i>query</span>
+            </div>
+            <div class="legend-counts"><b id="lg-points">0</b> vectors · <b id="lg-matched">0</b> matched</div>
           </div>
-          <div class="legend-counts"><b id="lg-points">0</b> vectors · <b id="lg-matched">0</b> matched</div>
+          <div class="scene-hint" id="scene-hint"></div>
+          <div class="vec-detail" id="vec-detail">
+            <button class="vec-detail-close" id="vec-detail-close" title="Close">✕</button>
+            <div class="vd-title" id="vd-title">Chunk</div>
+            <div class="vd-coords" id="vd-coords"></div>
+            <div class="vd-vec" id="vd-vec"></div>
+            <div class="vd-text" id="vd-text"></div>
+          </div>
         </div>
-        <div class="scene-hint" id="scene-hint"></div>
+        <!-- Decoupled data tables: desktop overlays them on the stage;
+             mobile flows them as standalone blocks above the 3D. -->
+        <div class="vec-readout" id="vec-readout"></div>
         <div class="cos-table" id="cos-table"></div>
-        <div class="vec-detail" id="vec-detail">
-          <button class="vec-detail-close" id="vec-detail-close" title="Close">✕</button>
-          <div class="vd-title" id="vd-title">Chunk</div>
-          <div class="vd-coords" id="vd-coords"></div>
-          <div class="vd-vec" id="vd-vec"></div>
-          <div class="vd-text" id="vd-text"></div>
-        </div>
       </div>
 
       <!-- Query input — lives on the Query step itself -->

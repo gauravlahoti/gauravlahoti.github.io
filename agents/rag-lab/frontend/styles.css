@@ -1145,6 +1145,10 @@ select option {
     overflow: hidden;
     background: #0b1512;
 }
+/* The 3D stage fills the wrap on desktop, so the canvas + on-graph overlays
+   (legend/hint/detail) lay out exactly as before. The vector + cosine tables
+   are siblings of the stage and overlay it via their own absolute coords. */
+#canvas-stage { position: absolute; inset: 0; }
 
 #rag-canvas { position: relative; z-index: 1; }
 .vec-readout, .scene-hint, .scene-legend { z-index: 2; }
@@ -1938,16 +1942,16 @@ select option {
   #panel-scene.scene-split #view-vectors {
     grid-column: 1;
     grid-row: 3;
-    height: min(300px, 40dvh);
+    height: auto;            /* grows for the tables stacked above the 3D stage */
     min-height: 0;
     position: sticky;
     top: 6px;
     z-index: 5;
-    background: #0b1512;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+    background: transparent; /* the #canvas-stage is the card now */
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
   }
   /* Content panes expand and let the PAGE scroll (not an inner scroller) —
      otherwise the sticky 3D panel above would have nothing to stick against. */
@@ -1990,13 +1994,34 @@ select option {
   #panel-scene.scene-split #scene-col-handle,
   #log-resize-handle { display: none !important; }
 
-  /* 3D scene height + canvas sizing.
-     `height: 100%` on the canvas collapses inside the mobile flex/grid chain
-     (percentage heights against flex items are unreliable on mobile Safari),
-     so we give the wrap a fixed pixel height and absolutely fill it with the
-     canvas. The scene's ResizeObserver then sees a real box and renders. */
-  #view-vectors { height: 340px; min-height: 340px; }
-  #canvas-wrap { height: 100%; min-height: 280px; }
+  /* 3D scene: DECOUPLE the data tables from the graph. #canvas-wrap becomes a
+     vertical stack — the vector readout + cosine table flow ABOVE a standalone
+     3D stage, so they never overlay the hero graph on a phone-sized canvas. */
+  #view-vectors { height: auto; min-height: 0; }
+  #canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    background: transparent;
+  }
+  /* The standalone hero graph (canvas + on-graph overlays: legend/hint/detail).
+     A fixed pixel height gives the canvas a real box for the ResizeObserver. */
+  #canvas-stage {
+    position: relative;
+    inset: auto;
+    order: 3;
+    width: 100%;
+    height: min(280px, 38dvh);
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: #0b1512;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  }
   #rag-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* Every content pane (chunks, embed, retrieve, fuse, augment, answer)
@@ -2026,27 +2051,46 @@ select option {
   }
   #doc-text { min-height: 96px; }
 
-  /* Overlays are sized for a desktop canvas; on a phone-sized canvas they
-     smother the 3D graph. Shrink them and cap their footprint so the
-     embedding space (points + query + axes) stays clearly readable. */
-  .vec-readout {
-    font-size: 9px;
-    line-height: 1.4;
-    padding: 6px 8px;
-    max-width: 47%;
-    max-height: 44%;
-    overflow: hidden;
-  }
-  .vec-readout .vec-head { font-size: 8px; margin-bottom: 3px; }
+  /* The legend, hint and point-detail stay as overlays ON the standalone 3D
+     stage — shrunk so they don't smother the small canvas. */
   .scene-legend { top: 6px; right: 6px; padding: 4px 6px; gap: 3px; }
   .legend-caption { font-size: 7px; }
   .lg, .legend-counts { font-size: 8px; }
   .legend-counts { padding: 1px 6px; }
-  /* Cosine table overlay can crowd a small canvas — shrink + pin bottom-left */
-  .cos-table { font-size: 8.5px; min-width: 0; max-width: 56%; padding: 6px 8px; }
-  .cos-table-head { font-size: 8px; margin-bottom: 4px; }
-  /* Point-detail card spans the canvas width on mobile */
+  /* Point-detail card spans the stage width on mobile */
   .vec-detail { width: auto; left: 8px; right: 8px; bottom: 8px; padding: 10px 12px; }
+
+  /* Vector readout + cosine table are DECOUPLED from the graph: full-width
+     blocks stacked above the 3D stage, shown only when populated (.show) so an
+     empty one never leaves a blank box. They no longer overlay the canvas. */
+  .vec-readout, .cos-table {
+    position: static;
+    inset: auto;
+    order: 1;
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+    display: none;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .vec-readout {
+    white-space: pre-wrap;
+    font-size: 10px;
+    line-height: 1.5;
+    padding: 8px 10px;
+  }
+  .vec-readout .vec-head { font-size: 9px; margin-bottom: 3px; }
+  .cos-table {
+    order: 2;
+    min-width: 0;
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+  .cos-table-head { font-size: 9.5px; margin-bottom: 4px; }
+  .vec-readout.show, .cos-table.show { display: block; }
 
   /* ── Native-app polish for iOS / Android ────────────────────────────── */
   /* Respect the iPhone notch / home-indicator safe areas. Bottom keeps the
@@ -2089,6 +2133,6 @@ select option {
 
 /* Landscape phones: give the stacked 3D scene a touch more height */
 @media (max-width: 768px) and (orientation: landscape) {
-  #panel-scene.scene-split #view-vectors { height: 60dvh; }
-  #view-vectors { height: 60dvh; min-height: 260px; }
+  /* #view-vectors is an auto-height stack now; size the 3D stage itself. */
+  #canvas-stage { height: 62dvh; min-height: 220px; }
 }
