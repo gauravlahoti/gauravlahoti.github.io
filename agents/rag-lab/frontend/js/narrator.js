@@ -13,7 +13,7 @@
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TYPE_MS = 14; // per-character typing speed
 
-let el, stepChip, titleEl, textEl, dot;
+let el, stepChip, titleEl, textEl, dot, collapseBtn;
 let typeTimer = null;
 let collapsed = false;
 
@@ -25,10 +25,12 @@ function ensureMounted() {
   titleEl  = document.getElementById("narrator-title");
   textEl   = document.getElementById("narrator-text");
   dot      = document.getElementById("narrator-dot");
+  collapseBtn = document.getElementById("narrator-collapse");
 
-  // Avatar toggles expand; collapse button collapses.
+  // Avatar (desktop corner badge) always expands; the collapse button toggles —
+  // on mobile the dock has no corner avatar, so the button is the only handle.
   document.getElementById("narrator-avatar")?.addEventListener("click", () => setCollapsed(false));
-  document.getElementById("narrator-collapse")?.addEventListener("click", () => setCollapsed(true));
+  collapseBtn?.addEventListener("click", () => setCollapsed(!collapsed));
   return true;
 }
 
@@ -36,6 +38,11 @@ function setCollapsed(on) {
   collapsed = on;
   if (!el) return;
   el.classList.toggle("collapsed", on);
+  document.body.classList.toggle("rag-guide-collapsed", on); // mobile reclaims dock space
+  if (collapseBtn) {
+    collapseBtn.textContent = on ? "+" : "—";
+    collapseBtn.title = on ? "Expand guide" : "Collapse guide";
+  }
   if (!on && dot) dot.classList.remove("show"); // expanding clears the "new" ping
 }
 
@@ -72,6 +79,8 @@ function type(text) {
 export function narrate(chipText, titleText, descText, tone = "active") {
   if (!ensureMounted()) return;
   el.hidden = false;
+  // Flag the run so mobile can reserve room for the fixed bottom agent dock.
+  document.body.classList.add("rag-narrating");
 
   el.classList.remove("tone-done", "tone-idle");
   if (tone === "done") el.classList.add("tone-done");
@@ -99,4 +108,5 @@ export function hideNarrator() {
   if (!ensureMounted()) return;
   stopTyping();
   el.hidden = true;
+  document.body.classList.remove("rag-narrating");
 }

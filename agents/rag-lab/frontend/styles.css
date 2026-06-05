@@ -1850,19 +1850,55 @@ select option {
   }
   #scene-label { font-size: 10px; }
 
-  /* Stage banner wraps; the step text stays at the top of the scene. The
-     text block must be allowed to shrink (min-width:0) or its long desc
-     ("Grounded in the retrieved chunks · 612in…") overflows the right edge. */
-  .stage-banner { flex-wrap: wrap; gap: 8px; min-width: 0; }
-  .stage-banner .stage-text { min-width: 0; flex: 1; }
-  .stage-desc { overflow-wrap: anywhere; }
+  /* ── Mobile guided tour: ONE bottom "agent dock" ─────────────────────────
+     On phones the top banner, the floating narrator bubble and the Prev/Next
+     bar all fought for space and showed the SAME explanation twice. Here we
+     mute the top banner to a zero-height host for the (fixed) Prev/Next bar,
+     and dock the narrator full-width directly above it — so the agent face +
+     explanation + navigation read as ONE thumb-zone unit, while the 3D space
+     stays pinned above. */
 
-  /* Narrator: tighter on phones so it doesn't blanket the small 3D canvas.
-     Anchored a little higher to clear the persistent bottom step-nav bar. */
-  .stage-narrator { right: 10px; bottom: 12px; width: 250px; max-width: calc(100% - 20px); }
-  .narrator-body { padding: 8px 10px 9px; }
-  .narrator-title { font-size: 11px; }
-  .narrator-text { font-size: 10.5px; }
+  /* Top banner: keep it in flow only as the (out-of-flow) nav's host. */
+  .stage-banner { padding: 0; border: 0; background: none; gap: 0; min-height: 0; }
+  .stage-banner .stage-chip,
+  .stage-banner .stage-text { display: none; }
+
+  /* Narrator → full-width fixed dock sitting on top of the Prev/Next bar. */
+  .stage-narrator {
+    position: fixed;
+    left: 0; right: 0; top: auto;
+    bottom: calc(54px + env(safe-area-inset-bottom));  /* tucks under the nav bar — overlap, never a gap */
+    width: 100%; max-width: 100%;
+    z-index: 59;
+    padding: 0;
+    align-items: stretch;
+  }
+  .stage-narrator .narrator-body {
+    flex: 1;
+    border: 0;
+    border-top: 1px solid var(--accent-soft);
+    border-left: 3px solid var(--accent);   /* accent spine = "agent is speaking" */
+    border-radius: 0;
+    background: rgba(8, 14, 12, 0.97);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+    padding: 9px 14px 10px;
+  }
+  .narrator-face { width: 20px; height: 20px; }
+  .narrator-title { font-size: 12px; }
+  .narrator-text {
+    font-size: 11px;
+    max-height: 4.6em;        /* ~3 lines then scroll — dock height stays bounded */
+    overflow-y: auto;
+  }
+  /* Collapse on mobile = drop title+text, keep the slim face/step header.
+     (The desktop corner-avatar mode is suppressed in the dock.) */
+  .stage-narrator.collapsed .narrator-avatar { display: none; }
+  .stage-narrator.collapsed .narrator-body { display: block; }
+  .stage-narrator.collapsed .narrator-title,
+  .stage-narrator.collapsed .narrator-text { display: none; }
+  .narrator-collapse { font-size: 20px; padding: 0 8px; }   /* bigger tap target */
 
   /* Prev/Next become a PERSISTENT bottom bar so the next action is always
      visible and never clipped — the standard mobile guided-tour pattern.
@@ -1879,28 +1915,17 @@ select option {
     display: flex;
     gap: 10px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(8, 14, 12, 0.96);
-    border-top: 1px solid var(--accent-soft);
+    background: rgba(8, 14, 12, 0.97);
+    border-top: 0;   /* the docked narrator above owns the top edge of the dock */
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
-  .stage-nav .step-btn { flex: 1; padding: 13px; font-size: 14px; }
+  .stage-nav .step-btn { flex: 1; padding: 12px; font-size: 14px; }
   /* (#app bottom padding clears the fixed bar — set in the safe-area block) */
 
-  /* Coachmark floats just above the fixed nav bar, full-width and centered */
-  .tour-coach {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: 70px;
-    top: auto;
-    max-width: none;
-    text-align: center;
-    white-space: normal;
-    z-index: 61;
-  }
-  .tour-coach::before { display: none; }
-  .tour-coach .tour-coach-arrow { display: none; }
+  /* Coachmark is redundant on mobile — the docked agent + pulsing Next button
+     already make the next action obvious. Hide it to keep the bottom clean. */
+  .tour-coach { display: none !important; }
 
   /* Split mode → stack: 3D canvas pinned on top (sticky hero), content below.
      The 3D embedding space is the centrepiece, so on mobile it sticks to the
@@ -1913,7 +1938,7 @@ select option {
   #panel-scene.scene-split #view-vectors {
     grid-column: 1;
     grid-row: 3;
-    height: 320px;
+    height: min(300px, 40dvh);
     min-height: 0;
     position: sticky;
     top: 6px;
@@ -2001,15 +2026,6 @@ select option {
   }
   #doc-text { min-height: 96px; }
 
-  /* Coachmark: keep it inside the viewport, point from the right edge */
-  .tour-coach {
-    right: 0;
-    left: auto;
-    max-width: calc(100vw - 32px);
-    white-space: normal;
-    font-size: 12px;
-  }
-
   /* Overlays are sized for a desktop canvas; on a phone-sized canvas they
      smother the 3D graph. Shrink them and cap their footprint so the
      embedding space (points + query + axes) stays clearly readable. */
@@ -2038,8 +2054,23 @@ select option {
   #app {
     padding-left: max(10px, env(safe-area-inset-left));
     padding-right: max(10px, env(safe-area-inset-right));
-    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
     padding-top: max(10px, env(safe-area-inset-top));
+  }
+  /* During a run the fixed agent dock (narrator sheet + Prev/Next bar) overlays
+     the bottom ~180px. Reserve that space only while narrating so the page can
+     scroll its last content clear of the dock, and idle screens stay tight. */
+  body.rag-narrating #app {
+    padding-bottom: calc(184px + env(safe-area-inset-bottom));
+  }
+  /* Collapsed dock is just a slim header + nav, so reclaim the reserved space. */
+  body.rag-narrating.rag-guide-collapsed #app {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  /* Non-split panes scroll internally (no page scroll to absorb #app padding),
+     so they need their own clearance under the dock. */
+  body.rag-narrating #panel-scene:not(.scene-split) .view-pane:not(#view-vectors) {
+    padding-bottom: 160px;
   }
   /* Kill the grey tap-flash on buttons/tabs; keep momentum scrolling smooth */
   button, .view-tab, .input-tab, .toggle-btn, .step-btn, a {
