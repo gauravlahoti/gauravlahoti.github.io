@@ -100,8 +100,8 @@ function runSimulation() {
   log("▶ Simulation — replaying a full pipeline run with canned data (no API key, no model calls).", "accent");
 
   // Step-1 banner (chunking). Later steps set their own banners as the user advances.
-  setStage("STEP 1/7", "Chunking the document",
-    "Recursive splitter — the document is cut into overlapping passages so each fits the embedding model and keeps one coherent idea.");
+  setStage("STEP 1/8", "Chunking the document",
+    "What it is: a long document is cut into small, overlapping passages so each fits the model and holds one coherent idea. Recursive splitter — tries paragraph → line → sentence → word boundaries.");
 
   // Replay ingest, then query. reach()/markStepDone() unlock all 8 tabs; visual
   // content for each step is buffered by the gate and revealed as the user clicks Next.

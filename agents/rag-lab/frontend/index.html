@@ -132,6 +132,22 @@
       </div>
     </div>
 
+    <!-- Floating guide narrator — types out what each step is doing -->
+    <div class="stage-narrator" id="stage-narrator" hidden>
+      <button class="narrator-avatar" id="narrator-avatar" title="Show the RAG guide" aria-label="Show the RAG guide">
+        ◍<span class="narrator-dot" id="narrator-dot"></span>
+      </button>
+      <div class="narrator-body">
+        <div class="narrator-head">
+          <span class="narrator-name">guide</span>
+          <span class="narrator-step" id="narrator-step"></span>
+          <button class="narrator-collapse" id="narrator-collapse" title="Collapse guide" aria-label="Collapse guide">—</button>
+        </div>
+        <div class="narrator-title" id="narrator-title"></div>
+        <div class="narrator-text" id="narrator-text"></div>
+      </div>
+    </div>
+
     <!-- Chunking view: document ↔ chunk cards -->
     <div class="view-pane" id="view-chunks">
       <div class="chunk-split">

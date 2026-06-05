@@ -147,7 +147,8 @@ async function runIngest() {
   resetWizard();
   collectedChunks = [];
   const strat = chunkStrat.value;
-  setStage("STEP 1/7", "Chunking the document", STRATEGY_DESC[strat] || STRATEGY_DESC.recursive);
+  setStage("STEP 1/8", "Chunking the document",
+    `What it is: a long document is cut into small, overlapping passages so each fits the model and holds one coherent idea. ${STRATEGY_DESC[strat] || STRATEGY_DESC.recursive}`);
   sceneLabel.textContent = "chunking…";
 
   const fd = new FormData();
@@ -192,7 +193,7 @@ export function handleIngestEvent(msg, fullText) {
         markStepDone("chunks");
         reach("embed");
         // Banner update deferred — show only when user clicks Next into the embed step.
-        gateEvent("embed", () => setStage("STEP 2/7", "Embedding the chunks", "Each chunk is sent to the embedding model and returned as a vector of numbers — meaning becomes geometry."));
+        gateEvent("embed", () => setStage("STEP 2/8", "Embedding the chunks", "What it is: an embedding turns each chunk of text into a vector of numbers that captures its meaning — so passages about the same idea land close together."));
       }
       break;
 
@@ -214,7 +215,7 @@ export function handleIngestEvent(msg, fullText) {
       log(`PCA ready — variance ${msg.explainedVariance.map((v) => (v * 100).toFixed(1) + "%").join(", ")}`, "accent");
       reach("store");  // Next button pulses; banner + scene content wait for user.
       gateEvent("store", () => {
-        setStage("STEP 3/7", "Projecting to 3D (PCA)", `1024-D vectors reduced to 3 axes — PC1/PC2/PC3 capture ${msg.explainedVariance.map((v) => (v * 100).toFixed(0) + "%").join("/")} of the variance.`);
+        setStage("STEP 3/8", "Projecting to 3D (PCA)", `What it is: PCA flattens the 1024-D vectors down to 3 axes just so we can see them — PC1/PC2/PC3 capture ${msg.explainedVariance.map((v) => (v * 100).toFixed(0) + "%").join("/")} of the variance. The geometry, not the math, is the point.`);
         sceneLabel.textContent = "projecting…";
         buildAxes(msg.explainedVariance);
         resizeScene();
@@ -224,7 +225,7 @@ export function handleIngestEvent(msg, fullText) {
     case "store_started":
       log(`Storing ${msg.count} vectors in Chroma "${msg.collection}" (${msg.space})…`, "accent");
       gateEvent("store", () => {
-        setStage("STEP 3/7", "Storing in the vector DB", `Writing ${msg.count} vectors into the Chroma "${msg.collection}" collection (${msg.space} space)…`);
+        setStage("STEP 3/8", "Storing in the vector DB", `What it is: a vector database keeps every embedding indexed so we can later find the closest ones to a question in milliseconds. Writing ${msg.count} vectors into Chroma "${msg.collection}" (${msg.space} space)…`);
         sceneLabel.textContent = "storing in vector DB…";
       });
       break;
@@ -242,7 +243,7 @@ export function handleIngestEvent(msg, fullText) {
         if (stIdx === stTotal - 1) {
           markStepDone("store");
           sceneLabel.textContent = `${stTotal} vectors`;
-          setStage("STORED ✓", "Vectors stored in Chroma", `${stTotal} vectors are now searchable in the Agentic RAG vector store.`, "done");
+          setStage("STORED ✓", "Vectors stored in Chroma", `${stTotal} vectors are now indexed and searchable in the Agentic RAG vector store.`, "done");
           log(`Stored ${stTotal} vectors in Chroma (agentic-rag collection)`, "accent");
         }
       });
@@ -254,7 +255,7 @@ export function handleIngestEvent(msg, fullText) {
       reach("query");
       setQueryEnabled(true);
       log(`Ready — ${msg.count} chunks stored. Ask a question to query the vector space.`, "accent");
-      gateEvent("query", () => setStage("STEP 4/7", "Ask a question", "Type your question below and hit Run Query — it'll be embedded and matched against the stored vectors."));
+      gateEvent("query", () => setStage("STEP 4/8", "Ask a question", "What happens next: your question is embedded the same way as the chunks, then matched against the stored vectors. Type it below and hit Run Query."));
       break;
 
     case "error":

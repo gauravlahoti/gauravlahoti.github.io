@@ -1,4 +1,5 @@
 /** Prominent step-by-step narration banner for the demo. */
+import { narrate, hideNarrator } from "./narrator.js";
 
 const banner = document.getElementById("stage-banner");
 const chip  = document.getElementById("stage-chip");
@@ -17,9 +18,11 @@ export function setStage(chipText, titleText, descText, tone = "active") {
   chip.className = "stage-chip" + (tone === "done" ? " done" : tone === "idle" ? " idle" : "");
   title.textContent = titleText;
   desc.textContent = descText;
+  narrate(chipText, titleText, descText, tone);
 }
 
 /** Hide the banner entirely (e.g. at rest, before a run). */
 export function hideStage() {
   banner.style.display = "none";
+  hideNarrator();
 }

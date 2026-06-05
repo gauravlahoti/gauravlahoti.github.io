@@ -85,7 +85,7 @@ async function runQuery() {
   resetAugment();
   resetCosTable();
   reach("query");                 // watch the query land in the cloud
-  setStage("STEP 4/7", "Embedding your question", "Your question goes through the same embedding model, so it lands in the same vector space as the chunks.");
+  setStage("STEP 4/8", "Embedding your question", "What it is: the question runs through the exact same embedding model as the chunks, so it lands in the same vector space — now \"nearest\" means \"most relevant\".");
   _hint("Embedding query…");
 
   queryAbort = new AbortController();
@@ -144,7 +144,7 @@ export function handleQueryEvent(msg) {
       });
       log(`Query embedded — point=[${qp.map((v) => v.toFixed(2)).join(", ")}], ${qdim}-D`);
       // Banner update deferred — show only when user clicks Next into retrieve.
-      gateEvent("retrieve", () => setStage("STEP 5/7", "Retrieving — semantic + lexical", "The query runs through BOTH a semantic (cosine) search and a lexical (BM25) keyword search, side by side."));
+      gateEvent("retrieve", () => setStage("STEP 5/8", "Retrieving — semantic + lexical", "What it is: retrieval finds the chunks nearest the question two ways at once — semantic (cosine, by meaning) and lexical (BM25, by keyword) — so neither exact terms nor paraphrases slip through."));
       break;
     }
 
@@ -185,7 +185,7 @@ export function handleQueryEvent(msg) {
       }
       const fusedResults = msg.results;
       gateEvent("fuse", () => {
-        setStage("STEP 6/7", "Fusing the results (RRF)", "Reciprocal Rank Fusion blends the semantic and lexical rankings into one final top-k set.");
+        setStage("STEP 6/8", "Fusing the results (RRF)", "What it is: Reciprocal Rank Fusion blends the two ranked lists into one — a chunk that scores well in either search rises to the top, no score-scaling needed.");
         showFused(fusedResults);
         setActive("fused");
         markStepDone("fuse");
@@ -208,7 +208,7 @@ export function handleQueryEvent(msg) {
       log(`Context assembled — ~${msg.tokenEstimate} tokens, chunks [${msg.chunkIndices?.join(", ")}]`);
       const augCitations = msg.citations, augTokens = msg.tokenEstimate, augQuery = currentQuery;
       gateEvent("augment", () => {
-        setStage("STEP 7/8", "Augmenting the prompt", `The matched chunks (~${augTokens} tokens) are injected into the LLM prompt as numbered, citable context.`);
+        setStage("STEP 7/8", "Augmenting the prompt", `What it is: the top chunks (~${augTokens} tokens) are pasted into the LLM prompt as numbered, citable context — so the model answers from these facts, not its memory.`);
         setCitations(augCitations);
         showAugment(augCitations, augTokens, augQuery);
         markStepDone("augment");
@@ -221,7 +221,7 @@ export function handleQueryEvent(msg) {
         answerStarted = true;
         reach("answer");  // Next pulses immediately; banner + content wait for user.
         gateEvent("answer", () => {
-          setStage("STEP 8/8", "Generating the answer", "The LLM writes an answer grounded in the retrieved chunks — streaming token by token.");
+          setStage("STEP 8/8", "Generating the answer", "What it is: grounded generation — the LLM writes the answer using only the retrieved context, so every claim traces back to a numbered source. Streaming token by token.");
           setActive("answer");
           // Scroll the answer pane to top so the header is visible first
           const ansPane = document.getElementById("view-answer");
