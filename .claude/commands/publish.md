@@ -166,19 +166,15 @@ Once deploy succeeds, print:
 
 Hint a 30–60s propagation delay if a custom domain is in use (CDN cache).
 
-## Step 8b — Refresh post metrics (only if posts.json shipped)
+## Step 8b — Refresh post metrics (always)
 
-The LinkedIn-metrics scraper reads the **live** `content/posts.json`, so any
-post added in this deploy is only now visible to it. **If `content/posts.json`
-was among the files shipped in this publish** (check the Step 4 diff /
-`git log` you already captured), invoke the `/refresh-post-metrics` skill via
-the Skill tool *after* the deploy succeeds — this scrapes the newly-live
-post(s) and populates their Perspectives engagement chips.
+After every successful deploy, invoke the `/refresh-post-metrics` skill via
+the Skill tool. This scrapes current LinkedIn engagement counts for all posts
+and writes them to D1 so the live Perspectives chips stay fresh.
 
-- If `posts.json` was **not** part of this publish, **skip** this step — no
-  need to fire a production scrape for a CSS/JS-only deploy.
-- Give the CDN a moment first (the scraper fetches the live file); if it
-  races a stale cache, the new post can be re-captured on the next run.
+- Run it unconditionally — engagement counts change independently of whether
+  `posts.json` shipped. A CSS-only deploy is still an opportunity to update chips.
+- Give the CDN a moment first (`sleep 5`) so the scraper fetches the latest live file.
 - If `/refresh-post-metrics` fails (e.g. `gcloud` unauthenticated), do **not**
   treat the publish as failed — the deploy already succeeded. Report the
   refresh error and remind the user they can re-run `/refresh-post-metrics`.
