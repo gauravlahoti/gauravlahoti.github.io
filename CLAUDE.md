@@ -30,69 +30,31 @@ python3 -m http.server 5173
 |-------|----------|-------|
 | HTML | `index.html` | Single page; semantic anchors |
 | Standalone pages | `agent-portfolio/index.html` | `/agent-portfolio/` portfolio; shares the nav but boots its own module |
-| CSS | `assets/css/{base,layout,components}.css` | `base.css` holds all variables |
+| CSS | `assets/css/{base,layout,components,agents}.css` | `base.css` holds all variables; `agents.css` styles the `/agent-portfolio/` page |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
+| Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/agent-portfolio/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
 | Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. |
-| Static media | `assets/img/` | Resume PDF, OG image, favicon, badge PNGs |
-| Backend | `backend/` | Resume-gate + agent audit log + analytics |
+| Static media | `assets/img/`, `diagram-icons/`, `agent-portfolio/diagrams/` | Resume PDF, OG image, favicon, badges (`assets/img/`); vendor/cloud logos for architecture art (`diagram-icons/`); per-agent architecture SVGs referenced by `agents.json` → `diagramSvg` (`agent-portfolio/diagrams/`) |
+| Backend | `backend/` | Resume-gate + agent audit log + analytics + GCP cost alerts |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
+| Redirect stub | `rag-lab/index.html` | Static redirect → `https://agentic-rag.gauravlahoti.dev/` (the RAG Lab agent is served off-repo) |
 
-## Resume-gate backend (`backend/`)
+## Backend, analytics & MCP → `.claude/docs/backend.md`
 
-Gates the resume PDF behind Google Sign-In. Two runtimes share `schema.sql`:
+`backend/` gates the resume PDF behind Google Sign-In: Cloudflare Worker + D1 in prod (`backend/src/index.js`), Node + SQLite locally (`backend/local-server.js` → `:8787`). Also holds the agent audit log (`agent_interactions`), self-hosted page-view analytics, post metrics, and GCP cost alerts. `resend_mcp_server/` is a Cloud Run MCP server exposing `send-email`, used by both agents.
 
-- **Local** (`backend/local-server.js`): `cd backend && npm install && npm start` → `:8787`, SQLite (`leads.db`)
-- **Production** (`backend/src/index.js` + `wrangler.toml`): Cloudflare Worker writing to D1
+→ **Full endpoint list, migrations, audit-log schema, scripts, analytics beacon, and MCP commands: `.claude/docs/backend.md`.**
 
-`assets/js/resume-gate.js` calls the backend; the PDF fires only after JWT verification and lead row write.
+## Agents (`agents/`) → `.claude/docs/agents.md`
 
-**Agent audit log:** D1 also holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Rows expire after 90 days via monthly cron. Source: `agents/atlas/app/app_utils/audit_log.py`. Schema migration: `backend/migrations/003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta` columns.
+Three independent Google ADK projects: **Atlas** (chat widget, service `atlas`), **Pulse** (ambient weekly digest, service `pulse`), **RAG Lab** (off-repo teaching agent, reached via `rag-lab/index.html` redirect).
 
-**Backend migrations** (`backend/migrations/`): 7 files covering Google sign-in fields (001), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient), resume sends (005), page views (006), post metrics (007). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start.
+⚠️ **Footgun:** never hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns them. `[project].name` stays `portfolio-agent` in both (so `uv.lock --frozen` matches); identity is the `agents-cli-manifest.yaml` `name`.
 
-**Useful backend scripts:**
-- `npm run leads` — recent resume downloads
-- `npm run agent-log` — last 50 agent turns
+⚠️ **Before every atlas deploy:** `make corpus` (syncs `content/*.json` → `app/corpus/`). After deploying atlas, update `profile.json` agent links + `index.html` CSP; after pulse, repoint the two Cloud Scheduler jobs.
 
-## Analytics beacon
-
-`analytics.js` fires `navigator.sendBeacon` → `profile.links.pageviewApi` (`POST /api/pageview`) on each page load. Worker stores `{path, referrer, visitor_hash}` in `page_views` table (bot traffic filtered; raw IP never stored; hash rotates daily). Lazy-loaded via `requestIdleCallback`.
-
-## Resend MCP Server (`resend_mcp_server/`)
-
-Standalone Node.js MCP server deployed on Cloud Run. Exposes a `send-email` tool. API key passed via `Authorization: Bearer` (no server-side secrets). Portfolio agent connects via `RESEND_MCP_URL`. Reused by both the main agent and ambient agent for outbound email.
-
-| Task | Command (from `resend_mcp_server/`) |
-|------|--------------------------------------|
-| Local dev | `make dev` → `:3000` |
-| Deploy to Cloud Run | `make deploy` (injects secrets from Secret Manager) |
-
-## Agents (`agents/`)
-
-Two **independent** Google ADK (agents-cli) projects, each deploying its own Cloud Run service (`min-instances=0`). Both keep `App(name="app")` + `agent_directory: app`; the Cloud Run service name comes from the `gcloud run deploy <name>` arg in each Makefile.
-
-- **`agents/atlas/`** — **Atlas**, the chat-widget agent (Cloud Run service `atlas`). Five retrieval tools (`get_profile`, `get_work_history`, `get_projects`, `get_recent_posts`, `get_certifications`) served via ADK Skills over a frozen JSON corpus bundled at deploy. Routes: `POST /api/agent-chat` (SSE), `GET /api/agent-chat/warm`. Frontend: `assets/js/agent-widget.js`, lazy-loaded via `requestIdleCallback`.
-- **`agents/pulse/`** — **Pulse**, the ambient weekly-digest agent (Cloud Run service `pulse`). Routes: `POST /api/ambient/run` and `POST /api/ambient/metrics` (gated by `AMBIENT_TRIGGER_TOKEN` via the `x-internal-token` header), triggered by two Cloud Scheduler jobs (`portfolio-ambient-agent` Mon/Thu 08:00, `portfolio-ambient-metrics` every 2 days). Fetches visitor stats + LinkedIn post metrics, generates insights, drafts leads, and sends one dashboard email via Resend MCP.
-
-Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated into each project (no shared package).
-
-**Critical:** do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns those. `pyproject.toml [project].name` stays `portfolio-agent` in both so `uv.lock --frozen` (and the Docker build) match; project identity is the `agents-cli-manifest.yaml` `name` (`atlas`/`pulse`).
-
-| Task | Command (from `agents/atlas/` or `agents/pulse/`) |
-|------|----------------------------------|
-| Local dev (FastAPI) | `make dev` (atlas `:8000`, pulse `:8001`) |
-| One-shot smoke test | `agents-cli run "your prompt"` |
-| Lint | `make lint` |
-| Eval gate (atlas only, before deploy) | `make eval` — free-tier key only, never Vertex (no model charges); `make eval-quick` for a cheap 2-case check |
-| Refresh corpus (atlas only) | `make corpus` — **before every atlas deploy**; syncs `../../content/*.json` → `app/corpus/` |
-| Deploy | `make deploy` (atlas → service `atlas`; pulse → service `pulse`). Sets the full env/secret set inline. |
-
-After deploying **atlas**, update `content/profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL. After deploying **pulse**, repoint the two Cloud Scheduler jobs (`gcloud scheduler jobs update http … --uri=…`).
-
-**Agent env vars** (see each `.env.example`): `GEMINI_API_KEY`, `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `RESEND_MCP_URL`, `MCP_CALLER_TOKEN`, `RESEND_FROM_ADDRESS`, `NOTE_FROM_ADDRESS`, `GAURAV_CONTACT_EMAIL` (both); `ALLOW_ORIGINS`, `RESUME_PDF_URL`, `CORPUS_LIVE_*` (atlas); `AMBIENT_TRIGGER_TOKEN` (pulse). All secrets come from Secret Manager via `--update-secrets`.
-
-**`[[META]]` block:** every agent reply ends with `[[META]]…[[/META]]` carrying `citations`, `suggestions`, and optional `cta`. `_stream_agent` strips it from the stream, validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as SSE events (`citations`, `suggestions`, `cta`) before `done`. Widget renders `[N]` superscripts post-stream, a chip row, and a CTA button. `[[META]]`/`[[/META]]` are stripped from user input in `before_model_callback` as injection defense. CTA copy lives in `profile.agentCopy`; transparency modal copy in `profile.agentExplainer`.
+→ **Tools, routes, env vars, deploy commands, eval gate, and the `[[META]]` protocol: `.claude/docs/agents.md`.**
 
 ## Standalone scripts (`scripts/`)
 
@@ -113,12 +75,14 @@ After deploying **atlas**, update `content/profile.json` (`links.agentApi`, `lin
 
 Specs are append-only. Never rewrite an old spec — write a new one. Zero-padded numbering (`00`, `01`, …).
 
-## Recent specs (31–34)
+## Recent specs (31–38)
 
 - **Spec 31** — Ambient agent on Cloud Run (background runs, visitor digest email)
 - **Spec 32** — Cloud Scheduler trigger for ambient agent (replaced Lambda)
 - **Spec 33** — Self-hosted analytics (`analytics.js` beacon → `page_views` D1 table → dashboard digest)
-- **Spec 34** — LinkedIn post metrics in Perspectives (engagement chips: hearts, comments, shares)
+- **Spec 34** — LinkedIn post metrics in Perspectives (engagement chips: hearts, comments, shares). _No `34-*.md` file on disk; numbering jumps 33 → 35._
+- **Spec 37** — Atlas corpus served via ADK Skills (progressive disclosure, replaces bulk corpus injection)
+- **Spec 38** — Agentic RAG Lab — standalone FastAPI agent + 3D vector-space viz (`agents/rag-lab/`, served off-repo)
 
 > The "Learn AI" game (`/learn/`, specs 35–36) was removed from the site. Specs 35–36 retained as history.
 
