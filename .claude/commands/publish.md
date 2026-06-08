@@ -1,7 +1,7 @@
 ---
 description: Validate prereqs, commit, push to main, and watch the GitHub Pages deploy
 argument-hint: "Optional commit message"
-allowed-tools: Read, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(python3:*), Bash(test:*), Bash(ls:*), Bash(cat:*), Bash(grep:*), Bash(find:*)
+allowed-tools: Read, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(python3:*), Bash(test:*), Bash(ls:*), Bash(cat:*), Bash(grep:*), Bash(find:*), Skill
 ---
 
 Ship pending work to GitHub Pages safely. Walk every pre-flight check;
@@ -165,6 +165,23 @@ Once deploy succeeds, print:
 ```
 
 Hint a 30–60s propagation delay if a custom domain is in use (CDN cache).
+
+## Step 8b — Refresh post metrics (only if posts.json shipped)
+
+The LinkedIn-metrics scraper reads the **live** `content/posts.json`, so any
+post added in this deploy is only now visible to it. **If `content/posts.json`
+was among the files shipped in this publish** (check the Step 4 diff /
+`git log` you already captured), invoke the `/refresh-post-metrics` skill via
+the Skill tool *after* the deploy succeeds — this scrapes the newly-live
+post(s) and populates their Perspectives engagement chips.
+
+- If `posts.json` was **not** part of this publish, **skip** this step — no
+  need to fire a production scrape for a CSS/JS-only deploy.
+- Give the CDN a moment first (the scraper fetches the live file); if it
+  races a stale cache, the new post can be re-captured on the next run.
+- If `/refresh-post-metrics` fails (e.g. `gcloud` unauthenticated), do **not**
+  treat the publish as failed — the deploy already succeeded. Report the
+  refresh error and remind the user they can re-run `/refresh-post-metrics`.
 
 ## Step 9 — Notes
 

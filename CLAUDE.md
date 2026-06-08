@@ -21,6 +21,8 @@ python3 -m http.server 5173
 | `/implement-spec <step>` | Read spec, plan, implement |
 | `/add-project` | Add a node to `graph.json` |
 | `/add-post <linkedin-url>` | Fetch post title, confirm, prepend to `posts.json` |
+| `/refresh-post-metrics` | Trigger Pulse ad-hoc to scrape LinkedIn engagement → D1 (updates Perspectives chips; no email) |
+| `/run-ambient-digest` | Run the full Pulse cycle ad-hoc (visitor stats + leads + one dashboard email) |
 | `/ship` | Commit branch → PR → squash-merge to main |
 | `/publish` | Commit + push → trigger Pages deploy |
 

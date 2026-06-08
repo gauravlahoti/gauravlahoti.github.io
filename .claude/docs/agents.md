@@ -30,6 +30,17 @@ Do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the
 - After deploying **atlas**: update `content/profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL.
 - After deploying **pulse**: repoint the two Cloud Scheduler jobs (`gcloud scheduler jobs update http … --uri=…`).
 
+## Pulse Cloud Scheduler jobs (region `us-central1`)
+
+| Job | Schedule | Route | Effect |
+|-----|----------|-------|--------|
+| `portfolio-ambient-agent` | Mon/Thu 08:00 IST | `POST /api/ambient/run` | Full LLM cycle: visitor stats + leads + one dashboard email |
+| `portfolio-ambient-metrics` | every 2 days 08:00 IST | `POST /api/ambient/metrics` | Scrape LinkedIn engagement → D1 `post_metrics` (no LLM, no email) |
+
+Both jobs send `AMBIENT_TRIGGER_TOKEN` in the `x-internal-token` header. Pulse URL: `https://pulse-593919045544.us-central1.run.app`.
+
+**Run ad-hoc:** force the job (reuses its URI + token, no secret handling) — `gcloud scheduler jobs run <job> --location=us-central1`. The `/refresh-post-metrics` and `/run-ambient-digest` slash commands wrap this. Pulse has `min-instances=0`, so the first call cold-starts (uv build); verify completion via Cloud Run logs filtered on the request URL. Post-metrics are read by the site from the Worker (`profile.links.metricsApi`), **not** the Pages domain.
+
 ## Environment variables
 
 See each `.env.example`. Common to both: `GEMINI_API_KEY`, `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `RESEND_MCP_URL`, `MCP_CALLER_TOKEN`, `RESEND_FROM_ADDRESS`, `NOTE_FROM_ADDRESS`, `GAURAV_CONTACT_EMAIL`. Atlas-only: `ALLOW_ORIGINS`, `RESUME_PDF_URL`, `CORPUS_LIVE_*`. Pulse-only: `AMBIENT_TRIGGER_TOKEN`. All secrets come from Secret Manager via `--update-secrets`.
