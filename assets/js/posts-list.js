@@ -14,9 +14,6 @@ const _compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFr
 let postsPromise = null;
 let metricsPromise = null;
 
-// Memoized fetch — both surfaces share one HTTP roundtrip.
-// `no-cache` makes the browser revalidate so re-running add-post.mjs shows
-// up immediately on reload (Python's http.server doesn't set Cache-Control).
 function getPosts() {
     if (!postsPromise) {
         postsPromise = fetch("content/posts.json", { cache: "no-cache" })
@@ -29,8 +26,6 @@ function getPosts() {
     return postsPromise;
 }
 
-// Fetch the metrics map (post_id → {reactions, comments, reposts, fetchedAt}).
-// Resolves to {} on any failure so posts always render even without metrics.
 function getMetrics(metricsApi) {
     if (!metricsApi) return Promise.resolve({});
     if (!metricsPromise) {
@@ -42,8 +37,6 @@ function getMetrics(metricsApi) {
     return metricsPromise;
 }
 
-// Extract the stable numeric activity/share/ugcPost id from a LinkedIn post URL.
-// Returns the id string, or null if not found. Mirrors the Python _derive_urn regex.
 function deriveActivityId(url) {
     if (typeof url !== "string") return null;
     const clean = url.split("?")[0].split("#")[0];
@@ -51,13 +44,9 @@ function deriveActivityId(url) {
            || clean.match(/-(share|ugcPost|activity)-(\d{15,21})/i)
            || clean.match(/urn:li:(?:share|ugcPost|activity):(\d{15,21})/i);
     if (!m) return null;
-    // group 2 for the first two patterns, group 1 for the direct-urn fallback
     return m[2] || m[1] || null;
 }
 
-// ISO `YYYY-MM-DD` strings sort lexicographically the same as
-// chronologically, so `localeCompare` with reversed args gives newest-first.
-// Entries without a date sort to the bottom.
 function sortNewestFirst(posts) {
     return [...posts].sort((a, b) => {
         const da = (a && a.date) || "";
@@ -87,7 +76,6 @@ export async function initPostsList(root, opts = {}) {
         return { destroy() {} };
     }
 
-    // Attach metrics to each post by stable activity id.
     if (metricsMap && typeof metricsMap === "object") {
         for (const post of posts) {
             const id = deriveActivityId(post.url);
@@ -107,12 +95,12 @@ export async function initPostsList(root, opts = {}) {
         }
     }
     root.replaceChildren(frag);
-    buildFilterBar(root, allRows);
+    buildSearchAndFilter(root, allRows, posts.length);
 
     return {
         destroy() {
-            const bar = root.parentElement && root.parentElement.querySelector(".post-filter-bar");
-            if (bar) bar.remove();
+            const outer = root.parentElement && root.parentElement.querySelector(".post-search-outer");
+            if (outer) outer.remove();
             root.replaceChildren();
         },
     };
@@ -179,8 +167,6 @@ function renderFlyoutItem(post) {
     a.dataset.cursor = "magnet";
     a.title = post.firstLine;
 
-    // Title goes in its own span so flex + ellipsis truncate it cleanly while
-    // an arrow indicator sits on the right (added via CSS ::after).
     const title = document.createElement("span");
     title.className = "nav-flyout-link-title";
     title.textContent = post.firstLine;
@@ -190,64 +176,257 @@ function renderFlyoutItem(post) {
     return li;
 }
 
-function buildFilterBar(root, rows) {
+// ─── Search + Filter bar ────────────────────────────────────────────────────
+
+function buildSearchAndFilter(root, allRows, totalCount) {
+    // Build tag frequency map
     const freq = new Map();
-    for (const row of rows) {
+    for (const row of allRows) {
         for (const t of (row.dataset.tags || "").split(" ").filter(Boolean)) {
             freq.set(t, (freq.get(t) || 0) + 1);
         }
     }
-
     const chips = [...freq.entries()]
         .filter(([, count]) => count >= 2)
         .sort((a, b) => b[1] - a[1])
         .map(([tag]) => tag);
 
-    if (chips.length === 0) return;
-
     let activeTag = null;
+    let activeQuery = "";
+    let emptyState = null;
 
-    const bar = document.createElement("div");
-    bar.className = "post-filter-bar";
-    bar.setAttribute("role", "group");
-    bar.setAttribute("aria-label", "Filter posts by topic");
+    // ── outer wrapper ──────────────────────────────────────────────────
+    const outer = document.createElement("div");
+    outer.className = "post-search-outer";
 
-    const applyFilter = (tag) => {
-        activeTag = tag;
-        for (const btn of bar.querySelectorAll(".post-filter-chip")) {
-            const isActive = btn.dataset.filterTag === (tag || "");
-            btn.setAttribute("aria-pressed", String(isActive));
-            btn.classList.toggle("is-active", isActive);
+    // ── search row ────────────────────────────────────────────────────
+    const searchWrap = document.createElement("div");
+    searchWrap.className = "post-search-wrap";
+    searchWrap.setAttribute("role", "search");
+
+    const prefix = document.createElement("span");
+    prefix.className = "post-search-prefix";
+    prefix.setAttribute("aria-hidden", "true");
+    prefix.textContent = "~/search";
+
+    const sep = document.createElement("span");
+    sep.className = "post-search-sep";
+    sep.setAttribute("aria-hidden", "true");
+    sep.textContent = "$";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "post-search-input";
+    input.placeholder = "search posts...";
+    input.setAttribute("aria-label", "Search posts by title or content");
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("spellcheck", "false");
+
+    const kbdHint = document.createElement("kbd");
+    kbdHint.className = "post-search-kbd";
+    kbdHint.setAttribute("aria-label", "Press / to search");
+    kbdHint.textContent = "/";
+
+    const countEl = document.createElement("span");
+    countEl.className = "post-search-count";
+    countEl.setAttribute("aria-live", "polite");
+    countEl.setAttribute("aria-atomic", "true");
+
+    searchWrap.append(prefix, sep, input, kbdHint, countEl);
+
+    // ── filter chips row ──────────────────────────────────────────────
+    let filterBar = null;
+    if (chips.length > 0) {
+        filterBar = document.createElement("div");
+        filterBar.className = "post-filter-bar";
+        filterBar.setAttribute("role", "group");
+        filterBar.setAttribute("aria-label", "Filter posts by topic");
+
+        const makeChip = (label, tag) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "post-filter-chip";
+            btn.textContent = label;
+            btn.dataset.filterTag = tag;
+            btn.setAttribute("aria-pressed", tag === "" ? "true" : "false");
+            if (tag === "") btn.classList.add("is-active");
+            btn.addEventListener("click", () => {
+                const clicked = btn.dataset.filterTag;
+                if (clicked === "") {
+                    activeTag = null;
+                } else {
+                    activeTag = activeTag === clicked ? null : clicked;
+                }
+                applyFilter();
+            });
+            return btn;
+        };
+
+        filterBar.appendChild(makeChip("All", ""));
+        for (const tag of chips) filterBar.appendChild(makeChip(`#${tag}`, tag));
+    }
+
+    // ── empty state ───────────────────────────────────────────────────
+    const getOrCreateEmpty = () => {
+        if (!emptyState) {
+            emptyState = document.createElement("div");
+            emptyState.className = "post-search-empty";
+            emptyState.setAttribute("role", "status");
+            emptyState.setAttribute("aria-live", "polite");
+            const line1 = document.createElement("p");
+            line1.className = "post-search-empty-title";
+            line1.textContent = "No matches found.";
+            const line2 = document.createElement("p");
+            line2.className = "post-search-empty-sub";
+            line2.textContent = "Try a different query or clear the filters above.";
+            emptyState.append(line1, line2);
         }
-        for (const row of rows) {
-            if (!tag) {
-                row.style.display = "";
-            } else {
-                row.style.display = row.dataset.tags.split(" ").includes(tag) ? "" : "none";
+        return emptyState;
+    };
+
+    // ── combined filter logic ─────────────────────────────────────────
+    const applyFilter = () => {
+        const q = activeQuery.trim().toLowerCase();
+
+        // Update chip active states
+        if (filterBar) {
+            for (const btn of filterBar.querySelectorAll(".post-filter-chip")) {
+                const isAll = btn.dataset.filterTag === "";
+                const isTag = btn.dataset.filterTag === activeTag;
+                const isActive = isAll ? !activeTag : isTag;
+                btn.setAttribute("aria-pressed", String(isActive));
+                btn.classList.toggle("is-active", isActive);
             }
         }
+
+        let shown = 0;
+        const toReveal = [];
+        for (const row of allRows) {
+            const title = (row.dataset.originalTitle || "").toLowerCase();
+            const excerpt = (row.dataset.originalExcerpt || "").toLowerCase();
+            const tags = row.dataset.tags || "";
+
+            const textMatch = !q || title.includes(q) || excerpt.includes(q);
+            const tagMatch = !activeTag || tags.split(" ").includes(activeTag);
+
+            if (textMatch && tagMatch) {
+                if (row.classList.contains("post-row--hidden")) {
+                    row.classList.remove("post-row--hidden");
+                    toReveal.push(row);
+                }
+                applyHighlight(row, q);
+                shown++;
+            } else {
+                row.classList.add("post-row--hidden");
+                clearHighlight(row);
+            }
+        }
+
+        // Staggered entrance for newly visible rows
+        toReveal.forEach((row, i) => {
+            row.style.animationDelay = `${i * 25}ms`;
+            row.classList.remove("post-row--entering");
+            void row.offsetWidth; // force reflow to restart animation
+            row.classList.add("post-row--entering");
+            row.addEventListener("animationend", () => {
+                row.classList.remove("post-row--entering");
+                row.style.animationDelay = "";
+            }, { once: true });
+        });
+
+        // Update count badge
+        if (q || activeTag) {
+            countEl.textContent = `${shown} / ${totalCount}`;
+            countEl.classList.toggle("post-search-count--filtered", shown < totalCount);
+        } else {
+            countEl.textContent = "";
+            countEl.classList.remove("post-search-count--filtered");
+        }
+
+        // Empty state
+        const existingEmpty = root.querySelector(".post-search-empty");
+        if (shown === 0) {
+            if (!existingEmpty) root.appendChild(getOrCreateEmpty());
+        } else {
+            if (existingEmpty) existingEmpty.remove();
+        }
     };
 
-    const makeChip = (label, tag) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "post-filter-chip";
-        btn.textContent = label;
-        btn.dataset.filterTag = tag;
-        btn.setAttribute("aria-pressed", tag === "" ? "true" : "false");
-        if (tag === "") btn.classList.add("is-active");
-        btn.addEventListener("click", () => applyFilter(activeTag === tag ? null : tag || null));
-        return btn;
+    // ── search input events ───────────────────────────────────────────
+    input.addEventListener("input", () => {
+        activeQuery = input.value;
+        applyFilter();
+    });
+
+    input.addEventListener("keydown", e => {
+        if (e.key === "Escape") {
+            input.value = "";
+            activeQuery = "";
+            activeTag = null;
+            applyFilter();
+            input.blur();
+        }
+    });
+
+    // Global `/` shortcut — focus search unless already in an input
+    const onKeyDown = e => {
+        if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+        const active = document.activeElement;
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+        e.preventDefault();
+        input.focus();
+        input.select();
     };
+    document.addEventListener("keydown", onKeyDown);
 
-    bar.appendChild(makeChip("All", ""));
-    for (const tag of chips) bar.appendChild(makeChip(`#${tag}`, tag));
+    // ── assemble & inject ─────────────────────────────────────────────
+    outer.appendChild(searchWrap);
+    if (filterBar) outer.appendChild(filterBar);
+    root.before(outer);
 
-    root.before(bar);
+    // cleanup hook
+    const origDestroy = () => {
+        document.removeEventListener("keydown", onKeyDown);
+        outer.remove();
+    };
+    outer._destroy = origDestroy;
 }
 
-// Returns a .post-row-metrics span with muted icon chips, or null if nothing to show.
-// Each present, positive metric gets an aria-labeled chip; glyph is decorative.
+// ─── Text highlight helpers ──────────────────────────────────────────────────
+
+function applyHighlight(row, query) {
+    const titleEl = row.querySelector(".post-row-title");
+    if (!titleEl) return;
+    const original = row.dataset.originalTitle || "";
+    if (!query) {
+        titleEl.textContent = original;
+        return;
+    }
+    const lower = original.toLowerCase();
+    const idx = lower.indexOf(query);
+    if (idx === -1) {
+        titleEl.textContent = original;
+        return;
+    }
+    const mark = document.createElement("mark");
+    mark.className = "post-search-mark";
+    mark.textContent = original.slice(idx, idx + query.length);
+    titleEl.replaceChildren(
+        document.createTextNode(original.slice(0, idx)),
+        mark,
+        document.createTextNode(original.slice(idx + query.length))
+    );
+}
+
+function clearHighlight(row) {
+    const titleEl = row.querySelector(".post-row-title");
+    if (!titleEl) return;
+    const original = row.dataset.originalTitle || "";
+    titleEl.textContent = original;
+}
+
+// ─── Metrics renderer ────────────────────────────────────────────────────────
+
 function renderMetrics(metrics) {
     if (!metrics || typeof metrics !== "object") return null;
     const defs = [
@@ -278,6 +457,8 @@ function renderMetrics(metrics) {
     return shown ? group : null;
 }
 
+// ─── Post row renderer ───────────────────────────────────────────────────────
+
 function renderPost(post) {
     if (!post || typeof post.url !== "string" || typeof post.firstLine !== "string") {
         return null;
@@ -289,6 +470,10 @@ function renderPost(post) {
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     a.dataset.cursor = "magnet";
+    // Store originals for search + highlight
+    a.dataset.originalTitle = post.firstLine;
+    a.dataset.originalExcerpt = post.excerpt || "";
+
     const titleEl = document.createElement("span");
     titleEl.className = "post-row-title";
     titleEl.textContent = post.firstLine;
@@ -302,7 +487,6 @@ function renderPost(post) {
     const foot = document.createElement("span");
     foot.className = "post-row-foot";
 
-    // Left cluster: date + metrics chips together, so space-between keeps tags on the right.
     const leftCluster = document.createElement("span");
     leftCluster.className = "post-row-foot-left";
 
@@ -343,6 +527,8 @@ function renderPost(post) {
     return a;
 }
 
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
 function formatDate(iso) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
@@ -353,10 +539,6 @@ function formatDate(iso) {
     });
 }
 
-// LinkedIn's og:description hard-truncates at ~500 chars, so excerpts
-// almost always end mid-sentence. Append a single ellipsis so the cut-off
-// reads as intentional and signals "more on LinkedIn ↗" — no JSON
-// migration needed.
 function withEllipsis(s) {
     const t = (s || "").trimEnd();
     if (!t) return t;

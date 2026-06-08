@@ -1,7 +1,7 @@
 ---
 description: Fetch a LinkedIn post's title, get user approval, then add it to the Perspectives section
 argument-hint: "LinkedIn post URL"
-allowed-tools: Read, Write, Edit, Bash(node:*), AskUserQuestion
+allowed-tools: Read, Write, Edit, Bash(node:*), AskUserQuestion, Skill
 ---
 
 Add a LinkedIn post to `content/posts.json` (the data file that
@@ -104,6 +104,26 @@ Reload:  http://localhost:5173/  (hard-refresh; posts.json fetches with cache: "
 Do not commit. Do not bump asset versions — `posts.json` is data, not
 code, and is fetched with `cache: "no-cache"` so a normal reload picks
 it up.
+
+## Step 7b — Refresh post metrics (always, only after a successful write)
+
+After a successful "Add as-is" write (never on Cancel or any error path),
+**always invoke the `/refresh-post-metrics` skill** via the Skill tool so the
+Perspectives engagement chips re-scrape. Do not ask — just run it.
+
+⚠️ **Accuracy caveat — surface this to the user:** the metrics scraper reads
+its post list from the **live** `https://gauravlahoti.dev/content/posts.json`
+(see `agents/pulse/app/app_utils/post_metrics.py`), not your local file. So
+this refresh updates counts for posts already live, but the post you just
+added won't get a chip until it's been **published** (`/publish`). Tell the
+user: "Refreshed existing posts; this new one will get its engagement chip
+after `/publish` + the next refresh." If the user just wants existing counts
+updated, this is already done; if they want the new post's chip, prompt them
+to `/publish` first, then it'll be captured on the following refresh.
+
+If `/refresh-post-metrics` fails (e.g. `gcloud` not authenticated), do **not**
+fail the add — the post is already written. Report the refresh error
+separately and remind the user they can re-run `/refresh-post-metrics` later.
 
 ## Step 8 — On cancel
 

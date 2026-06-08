@@ -507,10 +507,14 @@ function initPostsListWhenVisible(profile) {
     const root = document.querySelector("#perspectives [data-posts-root]");
     if (!root) return;
     const metricsApi = profile?.links?.metricsApi;
-    const io = new IntersectionObserver(async (entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
+    let initiated = false;
+    let initPromise = null;
+
+    const doInit = () => {
+        if (initPromise) return initPromise;
+        initiated = true;
+        io.disconnect();
+        initPromise = (async () => {
             try {
                 const { initPostsList } = await import(v("./posts-list.js"));
                 const inst = await initPostsList(root, { metricsApi });
@@ -518,9 +522,32 @@ function initPostsListWhenVisible(profile) {
             } catch (err) {
                 console.warn("[posts] failed to init", err);
             }
+        })();
+        return initPromise;
+    };
+
+    // Large rootMargin ensures posts load well before the viewport reaches
+    // the section when the user scrolls normally.
+    const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (entry.isIntersecting) doInit();
         }
-    }, { rootMargin: "300px" });
+    }, { rootMargin: "1200px" });
     io.observe(root);
+
+    // When any link to #perspectives is clicked: block navigation, wait for
+    // posts to fully render (so DOM height is stable), then scroll there.
+    // This prevents the smooth-scroll landing in the wrong place mid-load.
+    document.addEventListener("click", async e => {
+        const a = e.target.closest("a[href='#perspectives']");
+        if (!a) return;
+        e.preventDefault();
+        await doInit();
+        // One rAF to let the browser apply layout after DOM changes
+        await new Promise(r => requestAnimationFrame(r));
+        const section = document.getElementById("perspectives");
+        if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, { capture: true });
 }
 
 async function initPostsFlyoutEager() {
