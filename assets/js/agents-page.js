@@ -516,29 +516,26 @@ async function buildPanel(agent) {
         traitsSection.appendChild(table);
     }
 
-    // Links
+    // Links — exclude anything already rendered in the demo section
     let linksSection = null;
     if (agent.links && agent.links.length) {
-        linksSection = el("div", { class: "agent-panel-section agent-panel-links" });
-        agent.links.forEach(({ label, href }) => {
-            // "Try it live" on Atlas → open chat widget inline instead of navigating
-            if (label === "Try it live" && href && href.startsWith("/#")) {
-                const btn = el("button", { class: "deepdive-link deepdive-link--btn deepdive-link--cta", type: "button" });
-                btn.innerHTML = `${label} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>`;
-                overlay._isAtlas = true;
-                btn.addEventListener("click", () => _openAtlasWidget());
-                linksSection.appendChild(btn);
-                return;
-            }
-            const a = el("a", {
-                class: "deepdive-link",
-                href,
-                target: href.startsWith("/") || href.startsWith("#") ? "_self" : "_blank",
-                rel: "noopener noreferrer",
+        const otherLinks = agent.links.filter(({ label, href }) =>
+            !(label === "Try it live" && href && href.startsWith("/#")) &&
+            !(label === "Try it yourself")
+        );
+        if (otherLinks.length) {
+            linksSection = el("div", { class: "agent-panel-section agent-panel-links" });
+            otherLinks.forEach(({ label, href }) => {
+                const a = el("a", {
+                    class: "deepdive-link",
+                    href,
+                    target: href.startsWith("/") || href.startsWith("#") ? "_self" : "_blank",
+                    rel: "noopener noreferrer",
+                });
+                a.innerHTML = `${label} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>`;
+                linksSection.appendChild(a);
             });
-            a.innerHTML = `${label} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>`;
-            linksSection.appendChild(a);
-        });
+        }
     }
 
     // Single-column layout: diagram full-width on top, all content below
@@ -560,6 +557,23 @@ async function buildPanel(agent) {
         }
         videoSec.appendChild(demoRow);
         body.append(videoSec);
+    } else {
+        // No demo video — show "Try it live" in the demo section if present
+        const tryItLive = agent.links?.find(({ label, href }) =>
+            label === "Try it live" && href && href.startsWith("/#")
+        );
+        if (tryItLive) {
+            overlay._isAtlas = true;
+            const videoSec = el("div", { class: "agent-panel-section agent-panel-video" });
+            videoSec.append(el("p", { class: "agent-panel-eyebrow" }, "// demo"));
+            const demoRow = el("div", { class: "demo-btn-row" });
+            const tryBtn = el("button", { class: "demo-try-btn", type: "button" });
+            tryBtn.innerHTML = `<span>↗</span><span>Try it live</span>`;
+            tryBtn.addEventListener("click", () => _openAtlasWidget());
+            demoRow.appendChild(tryBtn);
+            videoSec.appendChild(demoRow);
+            body.append(videoSec);
+        }
     }
 
     body.append(diagSection);
