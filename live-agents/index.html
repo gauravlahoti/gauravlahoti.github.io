@@ -185,64 +185,44 @@
     <div id="agent-root"></div>
 
     <script type="module">
-        // Insights flyout: fetch posts.json and populate the nav dropdown.
+        // Insights flyout: reuse the same initPostsFlyout from posts-list.js
+        // so the live-agents nav gets the identical dropdown as the main page.
+        const selfV = new URL(document.querySelector('script[src*="agents-page"]').src).searchParams.get("v") || "";
+        const vq = p => selfV ? `${p}?v=${selfV}` : p;
         const flyoutRoot = document.querySelector("[data-posts-flyout]");
-        const group      = flyoutRoot && flyoutRoot.closest("[data-flyout-group]");
-        const link       = group && group.querySelector("a[aria-haspopup]");
-        if (flyoutRoot && group && link) {
-            fetch("/content/posts.json").then(r => r.json()).then(posts => {
-                const recent = posts.slice(0, 3);
-                const list = document.createElement("ul");
-                list.className = "nav-flyout-list";
-                list.setAttribute("role", "none");
-                recent.forEach(p => {
-                    const li = document.createElement("li");
-                    li.setAttribute("role", "none");
-                    const a = document.createElement("a");
-                    a.className = "nav-flyout-link";
-                    a.href = p.url;
-                    a.target = "_blank";
-                    a.rel = "noopener noreferrer";
-                    a.setAttribute("role", "menuitem");
-                    const title = document.createElement("span");
-                    title.className = "nav-flyout-link-title";
-                    title.textContent = p.title;
-                    a.appendChild(title);
-                    li.appendChild(a);
-                    list.appendChild(li);
+        if (flyoutRoot) {
+            import(vq("assets/js/posts-list.js")).then(({ initPostsFlyout }) => {
+                initPostsFlyout(flyoutRoot).then(inst => {
+                    if (!inst) return;
+                    // Fix the "View all" footer link — posts-list uses "#perspectives"
+                    // (relative), but on this page it needs to be the full cross-page path.
+                    const footLink = flyoutRoot.querySelector(".nav-flyout-foot");
+                    if (footLink) footLink.href = "/#perspectives";
+                    const group = flyoutRoot.closest("[data-flyout-group]");
+                    const link  = group && group.querySelector("a[aria-haspopup]");
+                    if (!group || !link) return;
+                    const sync = open => link.setAttribute("aria-expanded", open ? "true" : "false");
+                    group.addEventListener("mouseenter", () => sync(true));
+                    group.addEventListener("mouseleave", () => sync(false));
+                    group.addEventListener("focusin",   () => sync(true));
+                    group.addEventListener("focusout",  () => sync(false));
+                    if (matchMedia("(any-pointer: coarse)").matches) {
+                        link.addEventListener("click", e => {
+                            if (!group.classList.contains("is-open")) {
+                                e.preventDefault();
+                                group.classList.add("is-open");
+                                sync(true);
+                            }
+                        });
+                        document.addEventListener("click", e => {
+                            if (group.classList.contains("is-open") && !group.contains(e.target)) {
+                                group.classList.remove("is-open");
+                                sync(false);
+                            }
+                        });
+                    }
                 });
-                const foot = document.createElement("a");
-                foot.className = "nav-flyout-foot";
-                foot.href = "/#perspectives";
-                const remaining = posts.length - 3;
-                foot.textContent = remaining > 0
-                    ? `View all insights (+${remaining}) →`
-                    : "View all insights →";
-                flyoutRoot.appendChild(list);
-                flyoutRoot.appendChild(foot);
-                flyoutRoot.removeAttribute("hidden");
-
-                const sync = open => link.setAttribute("aria-expanded", open ? "true" : "false");
-                group.addEventListener("mouseenter", () => sync(true));
-                group.addEventListener("mouseleave", () => sync(false));
-                group.addEventListener("focusin",   () => sync(true));
-                group.addEventListener("focusout",  () => sync(false));
-                if (matchMedia("(any-pointer: coarse)").matches) {
-                    link.addEventListener("click", e => {
-                        if (!group.classList.contains("is-open")) {
-                            e.preventDefault();
-                            group.classList.add("is-open");
-                            sync(true);
-                        }
-                    });
-                    document.addEventListener("click", e => {
-                        if (group.classList.contains("is-open") && !group.contains(e.target)) {
-                            group.classList.remove("is-open");
-                            sync(false);
-                        }
-                    });
-                }
-            }).catch(() => {});
+            }).catch(err => console.warn("[flyout] failed", err));
         }
     </script>
 </body>

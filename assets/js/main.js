@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "197";
+const ASSET_VERSION = "198";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -50,6 +50,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     setTitle(profile);
     setYear();
     initLenis();
+    initAnchorScroll();
     scheduleHeroReveal();
     initHeroGraphWhenVisible();
 
@@ -729,17 +730,21 @@ function initLenis() {
     function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
     requestAnimationFrame(raf);
     window.__lenis = lenis;
+}
 
-    // Delegated listener: catches anchor clicks on links rendered after
-    // bootstrap (e.g. the nav flyout's "View all perspectives →" footer)
-    // as well as anything present at boot. Routes through scrollToTarget
-    // so we get drift correction when lazy-loaded sections shift the
-    // target mid-scroll.
+/* ---------- anchor scroll (all browsers) ---------- */
+// Runs unconditionally so Chrome/Windows/narrow users also get proper
+// offset-corrected scrolling — the delegated listener was previously
+// inside initLenis() which returns early for those environments,
+// leaving them on raw native scroll with no nav-height offset.
+function initAnchorScroll() {
     document.addEventListener("click", (e) => {
         const a = e.target.closest('a[href^="#"]');
         if (!a) return;
         const id = a.getAttribute("href");
-        if (!id || id.length < 2) return;
+        if (!id || id.length < 2 || id === "#") return;
+        // #perspectives has its own capture handler that awaits posts loading.
+        if (id === "#perspectives") return;
         const target = document.querySelector(id);
         if (!target) return;
         e.preventDefault();
