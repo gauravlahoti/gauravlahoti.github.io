@@ -47,7 +47,10 @@
             <nav class="nav-links" aria-label="Primary">
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
-                <a href="/#perspectives">Insights</a>
+                <div class="nav-link-group" data-flyout-group>
+                    <a href="/#perspectives" aria-haspopup="true" aria-expanded="false">Insights</a>
+                    <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent insights" hidden></div>
+                </div>
                 <a href="/live-agents/" class="nav-link-active" data-page-link aria-current="page">Live Agents</a>
                 <a href="/#" data-resume-trigger-agents>Resume</a>
             </nav>
@@ -180,5 +183,67 @@
 
     <script type="module" src="assets/js/agents-page.js?v=187"></script>
     <div id="agent-root"></div>
+
+    <script type="module">
+        // Insights flyout: fetch posts.json and populate the nav dropdown.
+        const flyoutRoot = document.querySelector("[data-posts-flyout]");
+        const group      = flyoutRoot && flyoutRoot.closest("[data-flyout-group]");
+        const link       = group && group.querySelector("a[aria-haspopup]");
+        if (flyoutRoot && group && link) {
+            fetch("/content/posts.json").then(r => r.json()).then(posts => {
+                const recent = posts.slice(0, 3);
+                const list = document.createElement("ul");
+                list.className = "nav-flyout-list";
+                list.setAttribute("role", "none");
+                recent.forEach(p => {
+                    const li = document.createElement("li");
+                    li.setAttribute("role", "none");
+                    const a = document.createElement("a");
+                    a.className = "nav-flyout-link";
+                    a.href = p.url;
+                    a.target = "_blank";
+                    a.rel = "noopener noreferrer";
+                    a.setAttribute("role", "menuitem");
+                    const title = document.createElement("span");
+                    title.className = "nav-flyout-link-title";
+                    title.textContent = p.title;
+                    a.appendChild(title);
+                    li.appendChild(a);
+                    list.appendChild(li);
+                });
+                const foot = document.createElement("a");
+                foot.className = "nav-flyout-foot";
+                foot.href = "/#perspectives";
+                const remaining = posts.length - 3;
+                foot.textContent = remaining > 0
+                    ? `View all insights (+${remaining}) →`
+                    : "View all insights →";
+                flyoutRoot.appendChild(list);
+                flyoutRoot.appendChild(foot);
+                flyoutRoot.removeAttribute("hidden");
+
+                const sync = open => link.setAttribute("aria-expanded", open ? "true" : "false");
+                group.addEventListener("mouseenter", () => sync(true));
+                group.addEventListener("mouseleave", () => sync(false));
+                group.addEventListener("focusin",   () => sync(true));
+                group.addEventListener("focusout",  () => sync(false));
+                if (matchMedia("(any-pointer: coarse)").matches) {
+                    link.addEventListener("click", e => {
+                        if (!group.classList.contains("is-open")) {
+                            e.preventDefault();
+                            group.classList.add("is-open");
+                            sync(true);
+                        }
+                    });
+                    document.addEventListener("click", e => {
+                        if (group.classList.contains("is-open") && !group.contains(e.target)) {
+                            group.classList.remove("is-open");
+                            sync(false);
+                        }
+                    });
+                }
+            }).catch(() => {});
+        }
+    </script>
 </body>
 </html>

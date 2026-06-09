@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "196";
+const ASSET_VERSION = "197";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -542,11 +542,14 @@ function initPostsListWhenVisible(profile) {
         const a = e.target.closest("a[href='#perspectives']");
         if (!a) return;
         e.preventDefault();
+        e.stopPropagation(); // prevent delegated Lenis handler from also firing
         await doInit();
-        // One rAF to let the browser apply layout after DOM changes
+        // Two rAFs: first lets layout settle after posts insert, second lets
+        // any following repaints flush before we measure the final target Y.
+        await new Promise(r => requestAnimationFrame(r));
         await new Promise(r => requestAnimationFrame(r));
         const section = document.getElementById("perspectives");
-        if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (section) scrollToTarget(section);
     }, { capture: true });
 }
 
