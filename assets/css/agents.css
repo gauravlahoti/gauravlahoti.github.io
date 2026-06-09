@@ -852,9 +852,38 @@
     background: transparent;
 }
 
+.deepdive-link--cta {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 700;
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+}
+
+.deepdive-link--cta:hover {
+    background: var(--accent);
+    opacity: 0.85;
+    border-color: var(--accent);
+}
+
 /* Page transition styles are injected by page-transition.js (self-contained). */
 
 /* ─── Full-screen agent panel ──────────────────────────────────────── */
+
+/* Hide the chat widget on the agents page by default */
+.agents-page .agent-widget-host {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Show the chat widget on top of the Atlas panel when it's open */
+[data-deep-dive-open] .agent-widget-host {
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 1010;
+}
 
 .agent-panel-overlay {
     position: fixed;
@@ -887,7 +916,7 @@
 .agent-panel-inner {
     max-width: 1120px;
     margin: 0 auto;
-    padding: 0 24px 48px;
+    padding: 0 24px 96px;
 }
 
 /* Single-column body: diagram full-width, content below.
@@ -1248,12 +1277,19 @@
     text-align: right;
 }
 
-/* Panel links section */
+/* Panel links section — pinned outside the scroll container, always visible */
 .agent-panel-links {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);
-    padding-top: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 2;
 }
 
 .demo-btn-row {

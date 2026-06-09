@@ -523,8 +523,9 @@ async function buildPanel(agent) {
         agent.links.forEach(({ label, href }) => {
             // "Try it live" on Atlas → open chat widget inline instead of navigating
             if (label === "Try it live" && href && href.startsWith("/#")) {
-                const btn = el("button", { class: "deepdive-link deepdive-link--btn", type: "button" });
+                const btn = el("button", { class: "deepdive-link deepdive-link--btn deepdive-link--cta", type: "button" });
                 btn.innerHTML = `${label} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>`;
+                overlay._isAtlas = true;
                 btn.addEventListener("click", () => _openAtlasWidget());
                 linksSection.appendChild(btn);
                 return;
@@ -566,7 +567,6 @@ async function buildPanel(agent) {
     if (traitsSection) body.append(traitsSection);
     if (stepsSection) body.append(stepsSection);
     if (techSection) body.append(techSection);
-    if (linksSection) body.append(linksSection);
 
     inner.append(hdr, body);
 
@@ -576,6 +576,10 @@ async function buildPanel(agent) {
     const scrollRoot = el("div", { class: "agent-panel-scroll" });
     scrollRoot.appendChild(inner);
     overlay.appendChild(scrollRoot);
+
+    // Links (CTA) sits outside the scroll so it's always visible at the bottom
+    if (linksSection) overlay.appendChild(linksSection);
+
     document.body.appendChild(overlay);
 
     // Close when tapping the backdrop (overlay or the scroll root gutter)
@@ -596,6 +600,7 @@ function openPanel(overlay) {
     // overscroll-behavior:contain on .agent-panel-scroll prevents chaining.
     overlay.classList.add("is-open");
     activePanel = overlay;
+    if (overlay._isAtlas) document.body.setAttribute("data-deep-dive-open", "true");
     if (overlay._agentId) {
         history.pushState({ agentId: overlay._agentId }, "", `/live-agents/?agent=${overlay._agentId}`);
     }
@@ -623,16 +628,18 @@ function openPanel(overlay) {
     }
 }
 
-function closePanel(overlay) {
+function closePanel(overlay, onComplete) {
     const gsap = window.gsap;
-    // Kill the looping diagram animation timeline
     overlay._diagTl?.kill();
     history.replaceState(null, "", "/live-agents/");
+    document.body.removeAttribute("data-deep-dive-open");
+    window.__agentWidget?.close?.();
 
     const done = () => {
         overlay.classList.remove("is-open");
         overlay.remove();
         activePanel = null;
+        onComplete?.();
     };
     if (gsap && !REDUCE_MOTION) {
         gsap.to(overlay, { opacity: 0, duration: 0.18, ease: "power2.in", onComplete: done });
