@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "198";
+const ASSET_VERSION = "199";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -624,41 +624,57 @@ function wireScrollTo() {
     });
 }
 
-// Lenis snapshots the target's document Y at scrollTo() time and animates
-// to that fixed position. If lazy-loaded modules render between the
-// current viewport and the target during the animation, the page grows
-// and the target moves down — Lenis lands at the original (now stale)
-// position. Fix: after onComplete, re-check the target's position and
-// scroll the small remaining delta if it drifted.
+// Lazy-loaded modules (trajectory, cert rail, posts) render as the scroll
+// passes them, growing the page and pushing the target down — a single
+// scroll undershoots and lands short (e.g. clicking "Insights" lands at
+// the Career section). A one-shot onComplete fix isn't enough on Chrome,
+// where there's no Lenis and native scrollIntoView never corrects at all.
+//
+// Fix: poll after the scroll. Whenever the page has settled (stopped
+// moving) but we're still off the re-measured target, re-scroll. Works on
+// every browser since it doesn't depend on Lenis. Bounded to ~2s so it
+// can't fight the user indefinitely; exits the instant we're on target.
 function scrollToTarget(target, opts) {
     if (!target) return;
     const offset   = (opts && typeof opts.offset   === "number") ? opts.offset   : -80;
     const duration = (opts && typeof opts.duration === "number") ? opts.duration : 1.1;
-
-    const lenis = window.__lenis;
-    if (!lenis || typeof lenis.scrollTo !== "function") {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-    }
+    const lenis    = window.__lenis;
+    const hasLenis = lenis && typeof lenis.scrollTo === "function";
 
     const expectedY = () => {
         const r = target.getBoundingClientRect();
-        return r.top + window.scrollY + offset; // offset is negative
+        return Math.max(0, r.top + window.scrollY + offset); // offset is negative
     };
 
-    lenis.scrollTo(target, {
-        offset,
-        duration,
-        onComplete: () => {
-            // Wait one frame so any layout settling finishes, then verify.
-            requestAnimationFrame(() => {
-                const drift = expectedY() - window.scrollY;
-                if (Math.abs(drift) > 8) {
-                    lenis.scrollTo(target, { offset, duration: 0.4 });
-                }
-            });
-        },
-    });
+    const doScroll = (dur) => {
+        if (hasLenis) {
+            lenis.scrollTo(target, { offset, duration: dur });
+        } else {
+            window.scrollTo({ top: expectedY(), behavior: "smooth" });
+        }
+    };
+
+    doScroll(duration);
+
+    const deadline = performance.now() + 2000;
+    let prevY = window.scrollY;
+    let stable = 0;
+    const check = () => {
+        const y = window.scrollY;
+        const moving = Math.abs(y - prevY) > 1;
+        prevY = y;
+        const drift = expectedY() - y;
+        if (Math.abs(drift) <= 4) return; // on target — stop polling
+        if (moving) {
+            stable = 0;
+        } else if (++stable >= 2) {
+            // Settled short of the (re-measured) target — correct.
+            doScroll(0.3);
+            stable = 0;
+        }
+        if (performance.now() < deadline) setTimeout(check, 90);
+    };
+    setTimeout(check, 150);
 }
 
 /* ---------- data binding ---------- */
