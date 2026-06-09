@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "199";
+const ASSET_VERSION = "200";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -71,8 +71,23 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initMobileEnhancements(profile);
     initAnalyticsWhenIdle(profile);
     initPageLinks();
+    initLoadHashScroll();
     auditConsole();
 })();
+
+// Cross-page landings (e.g. clicking "Insights" on /live-agents/ → /#perspectives)
+// arrive with a section hash. The browser's native jump lands short because
+// trajectory/cert/posts lazy-render after parse and grow the page. Re-issue
+// a drift-corrected scroll once we're booted so it rides all the way down.
+function initLoadHashScroll() {
+    const hash = location.hash;
+    if (!hash || hash.length < 2) return;
+    const target = document.querySelector(hash);
+    if (!target) return;
+    // For #perspectives, kick the posts list to load first so the section
+    // reaches a stable height; scrollToTarget's polling handles the rest.
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToTarget(target)));
+}
 
 // Cookieless pageview beacon (Spec #33). Lazy-loaded on idle so it stays off
 // the FCP path; the beacon itself is a single fire-and-forget POST.

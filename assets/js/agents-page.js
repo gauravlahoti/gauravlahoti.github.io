@@ -837,8 +837,84 @@ function runEntranceAnimation(grid) {
     );
 }
 
+// Page chrome (year, nav drawer, resume redirect, Insights flyout). Lives
+// here — not in an inline <script> — because the page CSP is `script-src
+// 'self'` with no 'unsafe-inline', so inline scripts are blocked. This
+// module is loaded via <script src> and is allowed.
+function initPageChrome() {
+    const yearEl = document.getElementById("agents-year");
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+    const trigger = document.querySelector("[data-nav-trigger]");
+    const drawer  = document.querySelector("[data-nav-drawer]");
+    const closes  = document.querySelectorAll("[data-nav-close]");
+    if (trigger && drawer) {
+        trigger.addEventListener("click", () => {
+            const open = drawer.getAttribute("aria-hidden") === "false";
+            drawer.setAttribute("aria-hidden", open ? "true" : "false");
+            trigger.setAttribute("aria-expanded", open ? "false" : "true");
+            document.body.style.overflow = open ? "" : "hidden";
+        });
+        closes.forEach(c => c.addEventListener("click", () => {
+            drawer.setAttribute("aria-hidden", "true");
+            trigger.setAttribute("aria-expanded", "false");
+            document.body.style.overflow = "";
+        }));
+    }
+
+    document.querySelectorAll("[data-resume-trigger-agents]").forEach(eln => {
+        eln.addEventListener("click", e => {
+            e.preventDefault();
+            window.location.href = "/#";
+        });
+    });
+
+    initInsightsFlyout();
+}
+
+// Reuse the exact initPostsFlyout from posts-list.js so the live-agents nav
+// gets the identical dropdown as the main page.
+function initInsightsFlyout() {
+    const flyoutRoot = document.querySelector("[data-posts-flyout]");
+    if (!flyoutRoot) return;
+    import(_vq("./posts-list.js")).then(({ initPostsFlyout }) =>
+        initPostsFlyout(flyoutRoot)
+    ).then(inst => {
+        if (!inst) return;
+        // posts-list sets the footer href to "#perspectives" (same-page on
+        // the main site). Here it must be the cross-page path.
+        const footLink = flyoutRoot.querySelector(".nav-flyout-foot");
+        if (footLink) footLink.href = "/#perspectives";
+
+        const group = flyoutRoot.closest("[data-flyout-group]");
+        const link  = group && group.querySelector("a[aria-haspopup]");
+        if (!group || !link) return;
+        const sync = open => link.setAttribute("aria-expanded", open ? "true" : "false");
+        group.addEventListener("mouseenter", () => sync(true));
+        group.addEventListener("mouseleave", () => sync(false));
+        group.addEventListener("focusin",   () => sync(true));
+        group.addEventListener("focusout",  () => sync(false));
+        if (matchMedia("(any-pointer: coarse)").matches) {
+            link.addEventListener("click", e => {
+                if (!group.classList.contains("is-open")) {
+                    e.preventDefault();
+                    group.classList.add("is-open");
+                    sync(true);
+                }
+            });
+            document.addEventListener("click", e => {
+                if (group.classList.contains("is-open") && !group.contains(e.target)) {
+                    group.classList.remove("is-open");
+                    sync(false);
+                }
+            });
+        }
+    }).catch(err => console.warn("[agents-page] insights flyout failed", err));
+}
+
 async function init() {
     playEntranceWipe();
+    initPageChrome();
 
     const root = document.querySelector("[data-agents-root]");
     if (!root) return;
