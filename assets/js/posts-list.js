@@ -199,6 +199,18 @@ function buildSearchAndFilter(root, allRows, totalCount) {
     const outer = document.createElement("div");
     outer.className = "post-search-outer";
 
+    // HUD corner brackets + scan sweep (terminal aesthetic)
+    for (const pos of ["tl", "tr", "bl", "br"]) {
+        const c = document.createElement("span");
+        c.className = `console-corner console-corner--${pos}`;
+        c.setAttribute("aria-hidden", "true");
+        outer.appendChild(c);
+    }
+    const scan = document.createElement("span");
+    scan.className = "console-scan";
+    scan.setAttribute("aria-hidden", "true");
+    outer.appendChild(scan);
+
     // ── search row ────────────────────────────────────────────────────
     const searchWrap = document.createElement("div");
     searchWrap.className = "post-search-wrap";

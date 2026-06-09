@@ -1607,67 +1607,98 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 
 .post-search-outer {
     max-width: 760px;
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--space-10);
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-5);
+    position: relative;
+    padding: var(--space-5) var(--space-6) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background:
+        linear-gradient(180deg, rgba(0, 255, 209, 0.035), transparent 42%),
+        radial-gradient(120% 140% at 0% 0%, rgba(0, 255, 209, 0.05), transparent 55%),
+        var(--bg-elev);
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.post-search-outer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 80%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 80%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* HUD corner brackets — shared with agent-console, defined here for components.css scope */
+.console-corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--accent);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 1;
+}
+.console-corner--tl { top: 7px;    left: 7px;    border-right: none; border-bottom: none; }
+.console-corner--tr { top: 7px;    right: 7px;   border-left: none;  border-bottom: none; }
+.console-corner--bl { bottom: 7px; left: 7px;    border-right: none; border-top: none; }
+.console-corner--br { bottom: 7px; right: 7px;   border-left: none;  border-top: none; }
+
+.console-scan {
+    position: absolute;
+    top: 0; left: -30%;
+    width: 30%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 209, 0.06), transparent);
+    pointer-events: none;
+    z-index: 0;
+    animation: console-sweep 6.5s var(--ease-out) infinite;
+}
+@keyframes console-sweep {
+    0%        { left: -30%; }
+    55%, 100% { left: 130%; }
 }
 
 .post-search-wrap {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-elev);
+    gap: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.35);
     padding: 0 var(--space-4);
     position: relative;
+    z-index: 1;
     transition: border-color var(--dur-fast) var(--ease-out),
                 box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .post-search-wrap:focus-within {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent-glow) inset,
-                0 0 24px rgba(0, 255, 209, 0.06);
-}
-
-/* Scan-line sweep on focus */
-.post-search-wrap::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-md);
-    background: linear-gradient(
-        180deg,
-        transparent 0%,
-        rgba(0, 255, 209, 0.03) 50%,
-        transparent 100%
-    );
-    background-size: 100% 200%;
-    background-position: 0 100%;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity var(--dur-fast) var(--ease-out);
-}
-.post-search-wrap:focus-within::after {
-    opacity: 1;
-    animation: search-scan 2.4s linear infinite;
-}
-
-@keyframes search-scan {
-    0%   { background-position: 0 200%; }
-    100% { background-position: 0 -200%; }
+    box-shadow: 0 0 0 1px var(--accent-soft), 0 0 18px var(--accent-glow);
 }
 
 .post-search-prefix {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-subtle);
+    font-size: var(--text-sm);
+    color: var(--accent);
     white-space: nowrap;
     user-select: none;
     flex-shrink: 0;
-    letter-spacing: 0.04em;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 8px var(--accent-glow);
+    animation: search-prompt-blink 1.4s step-end infinite;
+}
+
+@keyframes search-prompt-blink {
+    0%, 100% { opacity: 1; }
+    48%, 56%  { opacity: 0.15; }
 }
 
 .post-search-sep {
@@ -1676,11 +1707,12 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     color: var(--accent);
     user-select: none;
     flex-shrink: 0;
+    text-shadow: 0 0 8px var(--accent-glow);
     transition: text-shadow var(--dur-fast) var(--ease-out);
 }
 
 .post-search-wrap:focus-within .post-search-sep {
-    text-shadow: 0 0 8px var(--accent-glow);
+    text-shadow: 0 0 12px var(--accent-glow);
 }
 
 .post-search-input {
@@ -1779,36 +1811,54 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .post-filter-bar {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-2);
-    max-width: 760px;
+    position: relative;
+    z-index: 1;
+}
+
+.post-filter-bar::before {
+    content: "TOPIC";
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.7;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-right: var(--space-1);
 }
 
 .post-filter-chip {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    padding: calc(var(--space-1) + 1px) var(--space-3);
+    font-size: 0.72rem;
+    padding: 5px 11px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--ink-subtle);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--ink-muted);
     cursor: pointer;
     transition: border-color var(--dur-fast) var(--ease-out),
                 color var(--dur-fast) var(--ease-out),
                 background var(--dur-fast) var(--ease-out),
-                box-shadow var(--dur-fast) var(--ease-out);
+                box-shadow var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
     letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 .post-filter-chip:hover,
 .post-filter-chip:focus-visible {
     border-color: var(--border-strong);
     color: var(--ink);
     outline: none;
+    transform: translateY(-1px);
 }
 .post-filter-chip.is-active {
     border-color: var(--accent);
     color: var(--accent);
-    background: var(--accent-soft);
-    box-shadow: 0 0 8px rgba(0, 255, 209, 0.12);
+    background: rgba(0, 255, 209, 0.06);
+    box-shadow: 0 0 10px rgba(0, 255, 209, 0.15);
 }
 
 /* Post rows — flat anchor cards (spec 25) ----------------------------- */
