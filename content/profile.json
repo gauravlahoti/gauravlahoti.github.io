@@ -47,7 +47,7 @@
       { "key": "protocols",      "label": "AI protocols",               "context": "Wiring agents to tools, data, and each other through open standards",                                     "items": ["Model Context Protocol (MCP)", "Agent-to-Agent (A2A)"] },
       { "key": "rag",            "label": "RAG & vector data",          "context": "Grounding generation in proprietary knowledge. Embeddings, retrieval, reranking.",                        "items": ["pgvector", "ChromaDB", "Vector Search", "Gemini Embedding Models", "Voyage AI Embedding Models"] },
       { "key": "evals",          "label": "Evals & observability",      "context": "Trusting agents in production. Evals, tracing, guardrails, regression coverage.",                          "items": ["LangSmith", "Agent Engine"] },
-      { "key": "coding-agents",  "label": "Coding agents & dev tooling","context": "Building software with agents in the loop, and shipping skills users can install.",                       "items": ["Claude Code", "Gemini CLI", "GitHub Copilot"] }
+      { "key": "coding-agents",  "label": "Coding agents & dev tooling","context": "Building software with agents in the loop, and shipping skills users can install.",                       "items": ["Claude Code", "Antigravity CLI", "agents-cli", "GitHub Copilot"] }
     ],
     "cloud": [
       { "key": "cloud",       "label": "Cloud native",      "context": "Building on GCP and AWS primitives. Serverless first, IaC always.",     "items": ["GCP Cloud Run", "Pub/Sub", "Firestore", "BigQuery", "Agent Platform (Vertex AI)", "Gemini Enterprise", "AWS Lambda", "EventBridge", "S3", "SageMaker", "Kubernetes", "Terraform"] },
