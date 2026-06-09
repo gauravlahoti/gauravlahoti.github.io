@@ -138,8 +138,8 @@ export async function initPostsFlyout(root) {
     foot.setAttribute("role", "menuitem");
     foot.dataset.cursor = "magnet";
     foot.textContent = remaining > 0
-        ? `View all perspectives (+${remaining}) →`
-        : "View all perspectives →";
+        ? `View all insights (+${remaining}) →`
+        : "View all insights →";
 
     root.replaceChildren(list, foot);
     root.removeAttribute("hidden");
