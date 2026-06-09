@@ -557,7 +557,7 @@ function openPanel(overlay) {
     overlay.classList.add("is-open");
     activePanel = overlay;
     if (overlay._agentId) {
-        history.pushState({ agentId: overlay._agentId }, "", `/agent-portfolio/?agent=${overlay._agentId}`);
+        history.pushState({ agentId: overlay._agentId }, "", `/live-agents/?agent=${overlay._agentId}`);
     }
 
     const gsap = window.gsap;
@@ -587,7 +587,7 @@ function closePanel(overlay) {
     const gsap = window.gsap;
     // Kill the looping diagram animation timeline
     overlay._diagTl?.kill();
-    history.replaceState(null, "", "/agent-portfolio/");
+    history.replaceState(null, "", "/live-agents/");
 
     const done = () => {
         overlay.classList.remove("is-open");

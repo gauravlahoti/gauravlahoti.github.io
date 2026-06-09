@@ -22,7 +22,7 @@
     "agentWarm": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
     "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
     "metricsApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/post-metrics",
-    "agentsPage": "/agent-portfolio/"
+    "agentsPage": "/live-agents/"
   },
   "agentActions": [
     {

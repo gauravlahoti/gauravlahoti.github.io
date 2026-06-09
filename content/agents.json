@@ -1,6 +1,6 @@
 [
   {
-    "id": "chat",
+    "id": "atlas",
     "name": "Atlas",
     "subtitle": "Portfolio Intelligence Agent",
     "role": "Conversational AI",
@@ -82,7 +82,7 @@
     ]
   },
   {
-    "id": "ambient",
+    "id": "pulse",
     "name": "Pulse",
     "subtitle": "Ambient Agent",
     "role": "Ambient Agent",
