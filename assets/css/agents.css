@@ -841,9 +841,15 @@
         background var(--dur-fast) var(--ease-out);
 }
 
-.deepdive-link:hover {
+.deepdive-link:hover,
+.deepdive-link--btn:hover {
     border-color: var(--accent);
     background: var(--accent-soft);
+}
+
+.deepdive-link--btn {
+    cursor: pointer;
+    background: transparent;
 }
 
 /* Page transition styles are injected by page-transition.js (self-contained). */

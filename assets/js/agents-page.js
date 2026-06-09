@@ -1,8 +1,40 @@
-// agents-page.js — /agent-portfolio/ bootstrap
+// agents-page.js — /live-agents/ bootstrap
 
 import { playEntranceWipe, runPageTransition } from "./page-transition.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
+const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
+const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
+
+// Lazy-init the Atlas chat widget on demand (used by "Try it live" button).
+let _widgetPromise = null;
+async function _openAtlasWidget() {
+    if (!_widgetPromise) {
+        const base = document.querySelector("base")?.href || window.location.origin + "/";
+        _widgetPromise = Promise.all([
+            fetch(new URL(_vq("content/profile.json"), base)).then(r => r.json()),
+            import(_vq("./agent-widget.js")),
+        ]).then(([profile, { initAgentWidget }]) => {
+            let root = document.getElementById("agent-root");
+            if (!root) {
+                root = document.createElement("div");
+                root.id = "agent-root";
+                document.body.appendChild(root);
+            }
+            const widget = initAgentWidget(root, profile);
+            window.__agentWidget = widget;
+            return widget;
+        }).catch(err => {
+            console.warn("[agents-page] atlas widget failed to load", err);
+            _widgetPromise = null;
+            return null;
+        });
+    }
+    const widget = await _widgetPromise;
+    if (widget?.open) widget.open();
+}
 
 function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -489,6 +521,14 @@ async function buildPanel(agent) {
     if (agent.links && agent.links.length) {
         linksSection = el("div", { class: "agent-panel-section agent-panel-links" });
         agent.links.forEach(({ label, href }) => {
+            // "Try it live" on Atlas → open chat widget inline instead of navigating
+            if (label === "Try it live" && href && href.startsWith("/#")) {
+                const btn = el("button", { class: "deepdive-link deepdive-link--btn", type: "button" });
+                btn.innerHTML = `${label} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>`;
+                btn.addEventListener("click", () => _openAtlasWidget());
+                linksSection.appendChild(btn);
+                return;
+            }
             const a = el("a", {
                 class: "deepdive-link",
                 href,
