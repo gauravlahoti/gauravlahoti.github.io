@@ -2,7 +2,6 @@
 name: refresh-post-metrics
 description: Trigger Pulse ad-hoc to scrape LinkedIn post engagement → D1 (updates the live site's Perspectives chips). No email. Examples - "refresh post metrics", "update engagement counts", "sync LinkedIn stats".
 context: fork
-disable-model-invocation: true
 allowed-tools: Bash
 ---
 

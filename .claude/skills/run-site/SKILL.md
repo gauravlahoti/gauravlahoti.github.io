@@ -3,7 +3,6 @@ name: run-site
 description: Boot the static dev server and tell me the URL. Examples - "run the site", "start the dev server", "boot localhost".
 argument-hint: "[port]"
 context: fork
-disable-model-invocation: true
 allowed-tools: Bash, AskUserQuestion
 ---
 

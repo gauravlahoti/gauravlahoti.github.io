@@ -2,7 +2,6 @@
 name: run-ambient-digest
 description: Run the full Pulse ambient cycle ad-hoc — visitor stats + leads + one dashboard email to Gaurav. Sends email. Examples - "run the digest", "trigger ambient agent", "send the weekly summary now".
 context: fork
-disable-model-invocation: true
 allowed-tools: Bash, AskUserQuestion
 ---
 

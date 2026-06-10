@@ -3,7 +3,6 @@ name: diagram-agent
 description: Read a codebase (GitHub URL or local path), understand its architecture, and generate an agent architecture SVG diagram matching the portfolio design language. Examples - "generate a diagram for this repo", "create an architecture SVG for my agent", "diagram https://github.com/...".
 argument-hint: "<github-url-or-local-path> [agent-id]"
 context: fork
-disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, WebFetch, AskUserQuestion
 ---
 
