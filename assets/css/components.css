@@ -58,6 +58,18 @@
     background: var(--accent-soft);
 }
 
+.btn-outline-accent {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.btn-outline-accent:hover, .btn-outline-accent:focus-visible {
+    color: var(--accent);
+    background: rgba(0, 255, 209, 0.18);
+    box-shadow: 0 0 10px 1px var(--accent-glow);
+    transform: translateY(-1px);
+}
+
 .nav-cta {
     display: inline-flex;
     align-items: center;
@@ -2110,6 +2122,11 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     pointer-events: auto;
     transform: translateY(0);
 }
+.nav-link-group.flyout-suppressed .nav-flyout {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(-4px) !important;
+}
 
 .nav-flyout-list {
     list-style: none;
@@ -2992,22 +3009,22 @@ sup.agent-cite a:focus-visible {
 }
 
 /* ==================== Spec 22 — Mobile overhaul ==================== */
-/* Desktop hero CTA — hidden on mobile where the bottom-bar owns this action */
-.hero-cta-desktop {
+/* Desktop hero CTA group — wraps agent + resume buttons side-by-side.
+   Hidden on mobile where the bottom-bar owns this action. */
+.hero-cta-group {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    flex-wrap: wrap;
     margin-top: var(--space-2);
     align-self: flex-start;
-}
-
-/* Hero CTAs start hidden — GSAP reveals them after hero text + skills hex
-   finish (see scheduleHeroReveal() in main.js). */
-.hero-cta-desktop,
-.hero-cta-mobile {
     opacity: 0;
 }
 
+/* Hero CTA group starts hidden — GSAP reveals it after hero text + skills hex
+   finish (see scheduleHeroReveal() in main.js). */
 @media (prefers-reduced-motion: reduce) {
-    .hero-cta-desktop,
-    .hero-cta-mobile { opacity: 1; }
+    .hero-cta-group { opacity: 1; }
 }
 
 /* FAB and its tooltip replaced by the hero CTA button on desktop */
@@ -3670,4 +3687,18 @@ sup.agent-cite a:focus-visible {
     .hero-cta-icon .bot-eye-l,
     .hero-cta-icon .bot-eye-r,
     .hero-cta-icon .bot-antenna { animation: none; }
+}
+
+/* Resume icon — text lines scan in sequence, like a doc being read */
+@keyframes resume-line-scan {
+    0%, 20%, 100% { opacity: 0.25; }
+    50%           { opacity: 1; }
+}
+.resume-icon .resume-line-1 { animation: resume-line-scan 2.4s ease-in-out infinite; }
+.resume-icon .resume-line-2 { animation: resume-line-scan 2.4s ease-in-out infinite 0.4s; }
+.resume-icon .resume-line-3 { animation: resume-line-scan 2.4s ease-in-out infinite 0.8s; }
+@media (prefers-reduced-motion: reduce) {
+    .resume-icon .resume-line-1,
+    .resume-icon .resume-line-2,
+    .resume-icon .resume-line-3 { animation: none; opacity: 1; }
 }

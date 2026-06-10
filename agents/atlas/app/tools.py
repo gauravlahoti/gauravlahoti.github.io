@@ -252,3 +252,39 @@ def get_certifications() -> list[dict]:
         }
         for c in corpus_live.get_profile().get("certifications", [])
     ]
+
+
+def get_live_agents() -> list[dict]:
+    """Return the production AI agents Gaurav has built and deployed.
+
+    Use this for questions about what agents Gaurav has shipped, the agents
+    showcased on his site, or any specific one (Atlas, Pulse, ErrorLens,
+    Agentic RAG). Each entry carries a `liveUrl` — the link to try that agent
+    live, when one exists. Cite `liveUrl` verbatim.
+
+    Returns:
+        A list of agent dicts, each: {name, role, status, headline,
+        description, value, stack, liveUrl}.
+    """
+    agents = corpus_live.get_agents()
+    out = []
+    for a in agents:
+        # The live link is whichever link points off-site to a running demo,
+        # not a same-page (#) or main-site (/) anchor.
+        live_url = None
+        for link in a.get("links", []):
+            href = link.get("href", "")
+            if href.startswith("http"):
+                live_url = href
+                break
+        out.append({
+            "name": a.get("name"),
+            "role": a.get("role"),
+            "status": a.get("status"),
+            "headline": a.get("headline"),
+            "description": a.get("description"),
+            "value": a.get("value"),
+            "stack": a.get("stack", []),
+            "liveUrl": live_url,
+        })
+    return out

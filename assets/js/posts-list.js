@@ -160,9 +160,13 @@ function renderFlyoutItem(post) {
     li.setAttribute("role", "none");
     const a = document.createElement("a");
     a.className = "nav-flyout-link";
-    a.href = post.url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
+    if (post.slug) {
+        a.href = `/insights/${post.slug}/`;
+    } else {
+        a.href = post.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+    }
     a.setAttribute("role", "menuitem");
     a.dataset.cursor = "magnet";
     a.title = post.firstLine;
@@ -478,9 +482,13 @@ function renderPost(post) {
 
     const a = document.createElement("a");
     a.className = "post-row";
-    a.href = post.url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
+    if (post.slug) {
+        a.href = `/insights/${post.slug}/`;
+    } else {
+        a.href = post.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+    }
     a.dataset.cursor = "magnet";
     // Store originals for search + highlight
     a.dataset.originalTitle = post.firstLine;
@@ -533,7 +541,7 @@ function renderPost(post) {
     const arrow = document.createElement("span");
     arrow.className = "post-row-arrow";
     arrow.setAttribute("aria-hidden", "true");
-    arrow.textContent = "↗";
+    arrow.textContent = post.slug ? "→" : "↗";
     a.appendChild(arrow);
 
     return a;

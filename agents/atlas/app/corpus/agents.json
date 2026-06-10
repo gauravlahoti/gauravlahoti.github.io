@@ -1,0 +1,303 @@
+[
+  {
+    "id": "atlas",
+    "name": "Atlas",
+    "subtitle": "Portfolio Intelligence Agent",
+    "role": "Conversational AI",
+    "status": "LIVE",
+    "headline": "The AI behind the chat widget on this portfolio.",
+    "description": "Atlas answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, grounded in a versioned snapshot of his profile, work history, projects, certifications, and recent writing — served on demand through ADK Skills and rebuilt on every deploy. Inference runs on a tiered Gemini cascade that keeps the widget answering even when a model's free-tier quota is spent.",
+    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
+    "stack": ["Google ADK", "ADK Skills", "Gemini 3.5 → 2.5 Flash", "Cloud Run", "MCP", "SSE"],
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg?v=2",
+    "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → ADK Skills (corpus) + Resend MCP Server",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Visitor sends a question via SSE",
+        "detail": "The browser opens a Server-Sent Events stream to Cloud Run. Questions are rate-limited per IP and stripped of injection attempts before reaching the ADK runner."
+      },
+      {
+        "n": 2,
+        "label": "ADK Agent loads the skill it needs",
+        "detail": "Gemini sees a lightweight skill menu and calls load_skill to pull one curated domain — profile, work history, projects, posts, or certifications — on demand, instead of stuffing the whole corpus into every prompt. Inference is tiered: gemini-3.5-flash first, cascading to 2.5-flash then 2.5-flash-lite if a model's free-tier quota is exhausted."
+      },
+      {
+        "n": 3,
+        "label": "Skill returns curated corpus data",
+        "detail": "Each skill is built from a frozen JSON corpus bundled at deploy time. Deterministic, fast, and zero external latency. No hallucinations from stale web data."
+      },
+      {
+        "n": 4,
+        "label": "Response streams back with citations",
+        "detail": "Tokens stream through SSE as generated. A [[META]] block carries citation URLs and follow-up chip suggestions. The widget validates and renders them as UI."
+      },
+      {
+        "n": 5,
+        "label": "Email actions go via Resend MCP",
+        "detail": "Resume sends and contact notes route through the Resend MCP Server. The agent holds no credentials; it just calls the tool."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Google ADK",
+        "why": "Structured Python framework for tools, evals, and Cloud Run deployment. An eval gate runs before every deploy, catching regressions before production."
+      },
+      {
+        "tech": "Tiered Gemini (3.5 → 2.5 Flash → Flash-Lite)",
+        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. Each model carries its own daily free-tier quota, so a 429 transparently cascades to the next model — the widget keeps answering at zero cost instead of erroring when one quota is spent."
+      },
+      {
+        "tech": "ADK Skills",
+        "why": "The corpus is exposed as on-demand skills, not a per-turn full-corpus dump. The model loads only the domain it needs, cutting prompt tokens and keeping grounding tight as the corpus grows."
+      },
+      {
+        "tech": "Cloud Run (min-instances=0)",
+        "why": "Zero idle cost. Cold-starts in ~6s. A /warm endpoint, pinged when the page loads, hides the cold-start behind the hero section read time."
+      },
+      {
+        "tech": "Model Context Protocol (MCP)",
+        "why": "Decouples email from the agent binary. The Resend MCP Server is a separate Cloud Run service, reused by the Ambient Agent, making it a shared capability."
+      },
+      {
+        "tech": "Server-Sent Events (SSE)",
+        "why": "Simpler than WebSockets for one-way streaming: no upgrade handshake, works through CDN, natively supported by the browser fetch API."
+      }
+    ],
+    "traits": [
+      { "label": "Model",          "value": "Gemini 3.5 → 2.5 Flash (tiered)" },
+      { "label": "Framework",      "value": "Google ADK 1.32+" },
+      { "label": "Runtime",        "value": "Cloud Run (gen2)" },
+      { "label": "Latency p50",    "value": "~1.2 s warm" },
+      { "label": "Grounding",      "value": "ADK Skills · frozen corpus" },
+      { "label": "Pattern",        "value": "Skills · MCP · Streaming" }
+    ],
+    "searchMeta": {
+      "type": "Chat",
+      "model": "Gemini 3.5 → 2.5 Flash (tiered)",
+      "patterns": ["RAG", "Skills", "MCP", "Streaming"]
+    },
+    "links": [
+      { "label": "Try it live",         "href": "/#top" }
+    ]
+  },
+  {
+    "id": "pulse",
+    "name": "Pulse",
+    "subtitle": "Ambient Agent",
+    "role": "Ambient Agent",
+    "status": "LIVE",
+    "headline": "The autonomous agent running silently behind this portfolio.",
+    "description": "Beacon is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
+    "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
+    "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
+    "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
+    "diagramAlt": "Cloud Scheduler → Ambient Agent (ADK/Gemini) → Cloudflare D1 (stats) + Resend MCP (email)",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Cloud Scheduler fires the trigger",
+        "detail": "An authenticated POST hits /api/ambient/run on Cloud Run every Monday and Thursday at 08:00 IST. The bearer token is validated before handing off to the ADK runner."
+      },
+      {
+        "n": 2,
+        "label": "Agent fetches visitor interaction stats",
+        "detail": "get_recent_interactions calls the Cloudflare Worker, which reads agent_interactions and page_views from D1. The agent receives the last 4 days of chat turns and page views."
+      },
+      {
+        "n": 3,
+        "label": "Insights generated, leads qualified",
+        "detail": "Gemini 3.5 Flash reasons over the interaction data: top questions, resume downloads, hiring-intent signals. Leads above the threshold get a draft outreach note."
+      },
+      {
+        "n": 4,
+        "label": "Digest email sent to Gaurav via MCP",
+        "detail": "The agent calls the Resend MCP Server with a weekly summary: engagement stats, top questions, notable visitors. Always sent, regardless of lead count."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Google Cloud Scheduler",
+        "why": "Managed cron, zero infrastructure. Integrates with Cloud Run via OIDC natively. Mon/Thu cadence gives a 3–4 day window of interaction data per run."
+      },
+      {
+        "tech": "Google ADK (InMemoryRunner)",
+        "why": "Runs as a standalone Agent with no session state; starts fresh each run, completes cleanly. Same ADK version as the chat agent; single Cloud Run service."
+      },
+      {
+        "tech": "Cloudflare D1",
+        "why": "Interaction data already lives in D1 via the Cloudflare Worker analytics backend. Reusing it avoids a second database; 90-day row expiry keeps the table lean."
+      },
+      {
+        "tech": "Shared Resend MCP Server",
+        "why": "Same MCP server used by Corpus handles email here. One credential to rotate, one audit log; sharing was trivial because both agents just call the same endpoint."
+      },
+      {
+        "tech": "Single Cloud Run service (shared with Corpus)",
+        "why": "Beacon runs on the same service as Corpus to avoid a second cold-start cost. Request-based concurrency means both can run without competing."
+      }
+    ],
+    "traits": [
+      { "label": "Model",           "value": "Gemini 3.5 Flash" },
+      { "label": "Framework",       "value": "Google ADK 1.15+" },
+      { "label": "Runtime",         "value": "Cloud Run (gen2)" },
+      { "label": "Trigger",         "value": "Cloud Scheduler (Mon + Thu)" },
+      { "label": "Data source",     "value": "Cloudflare D1" },
+      { "label": "Run duration",    "value": "< 30 s" },
+      { "label": "Run cost",        "value": "~$0.001 / run" },
+      { "label": "Human in loop",   "value": "None" }
+    ],
+    "searchMeta": {
+      "type": "Ambient",
+      "model": "Gemini 3.5 Flash",
+      "patterns": ["Scheduled", "Background", "MCP"]
+    },
+    "links": []
+  },
+  {
+    "id": "error-lens",
+    "name": "ErrorLens",
+    "subtitle": "Self-learning GCP error resolution system",
+    "role": "Multi-Agent System",
+    "status": "LIVE",
+    "headline": "Diagnoses GCP errors and gets smarter with every confirmed fix.",
+    "description": "ErrorLens is a multi-agent orchestrator that triages GCP errors, runs parallel research across documentation and community sources, and stores confirmed resolutions in a vector knowledge bank. Mature deployments skip the research pipeline entirely for previously encountered issues via semantic similarity matching (≥0.85 threshold).",
+    "value": "Reduces mean-time-to-resolution for recurring GCP errors by accumulating institutional knowledge across every incident. The self-improving feedback loop means the system delivers faster, higher-confidence answers over time.",
+    "stack": ["Google ADK", "Gemini 2.5", "A2A Protocol", "AlloyDB + pgvector", "MCP Toolbox", "Cloud Run", "Vertex AI Embeddings"],
+    "diagramSvg": "agent-portfolio/diagrams/error-lens-v2.svg?v=13",
+    "diagramAlt": "ErrorLens multi-agent architecture: orchestrator routes errors to quick-scan or full research pipeline, with A2A KB agent backed by AlloyDB vector store",
+    "steps": [
+      { "n": 1, "label": "Error intake", "detail": "Developer submits a GCP error. The orchestrator determines if a known fix exists in the knowledge bank." },
+      { "n": 2, "label": "Quick scan", "detail": "Sequential signal extraction + KB vector search (≥0.85 similarity). Returns immediately if a match is found." },
+      { "n": 3, "label": "Sage pipeline", "detail": "For novel errors: deep_search runs GCP docs and community agents in parallel, then aggregates with composite confidence scoring." },
+      { "n": 4, "label": "Parallel research", "detail": "GCP Knowledge Agent and Community Search Agent run concurrently, searching official docs and Stack Overflow / GitHub Issues." },
+      { "n": 5, "label": "External research", "detail": "GCP Knowledge Agent calls a managed MCP server for official GCP docs; Community Search Agent uses Google Search for SO, Reddit and GitHub issues — both run in parallel. On KB HIT, quick_scan bypasses sage_pipeline via a direct hot-path into the KB Toolbox." },
+      { "n": 6, "label": "A2A KB record", "detail": "Confirmed fixes are dispatched to error-kb-agent via A2A Protocol, triggering embedding regeneration to include the resolution." },
+      { "n": 7, "label": "MCP tool execution", "detail": "error-kb-agent calls error-kb-toolbox (MCP Toolbox for Databases) to read/write cases, perform vector searches, and deposit fixes." },
+      { "n": 8, "label": "AlloyDB pgvector", "detail": "768-dimensional embeddings from Vertex AI text-embedding-005 power semantic similarity search across the growing case library." },
+      { "n": 9, "label": "PDF export", "detail": "The orchestrator generates a structured PDF diagnostic report delivered back to the developer." }
+    ],
+    "techDecisions": [
+      { "tech": "A2A Protocol", "why": "Enables error-kb-agent to be independently deployed and versioned on Cloud Run while remaining callable from the main orchestrator over HTTP." },
+      { "tech": "AlloyDB + pgvector", "why": "PostgreSQL-compatible vector store with native pgvector extension and Vertex AI integration for high-quality 768-dim embeddings — no separate vector DB needed." },
+      { "tech": "MCP Toolbox for Databases", "why": "Decouples SQL/vector logic from agent code; exposes database operations as typed MCP tools consumable by any ADK agent." },
+      { "tech": "Parallel research agents", "why": "GCP docs and community sources are searched concurrently via ParallelAgent, cutting research latency roughly in half." }
+    ],
+    "traits": [
+      { "label": "Model",          "value": "Gemini 2.5 Flash / Pro" },
+      { "label": "Framework",      "value": "Google ADK + A2A" },
+      { "label": "Runtime",        "value": "Cloud Run (3 services)" },
+      { "label": "Orchestration",  "value": "Multi-Agent · Sequential + Parallel" },
+      { "label": "Vector store",   "value": "AlloyDB + pgvector (768-dim)" },
+      { "label": "Tool protocol",  "value": "MCP Toolbox for Databases" },
+      { "label": "KB similarity",  "value": "Cosine ≥ 0.85 (hot path)" },
+      { "label": "Inter-agent",    "value": "A2A Protocol" }
+    ],
+    "searchMeta": {
+      "type": "Multi-Agent",
+      "model": "Gemini 2.5",
+      "patterns": ["A2A", "Parallel", "RAG", "MCP", "Vector Search"]
+    },
+    "links": [
+      { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
+    ]
+  },
+  {
+    "id": "agentic-rag",
+    "name": "Agentic RAG",
+    "subtitle": "Retrieval-Augmented Generation Pipeline",
+    "role": "RAG Pipeline",
+    "status": "LIVE",
+    "headline": "An 8-stage agentic RAG pipeline, rendered as a 3D vector space you can step through.",
+    "description": "Agentic RAG runs the full 8-stage RAG pipeline as a FastAPI service on Cloud Run and renders every stage as an interactive 3D vector space. Ingest any document via text paste, PDF/file upload, URL fetch, or image (Gemini Vision extracts text first). Choose your embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and watch each chunk fly into the vector space. On query, dual retrieval runs cosine search over ChromaDB and BM25 keyword scan in parallel, Reciprocal Rank Fusion merges the rankings, and the answer is grounded strictly in the retrieved chunks — no training knowledge. Supports Claude Sonnet 4.6, Gemini 2.5 Flash, and Gemini 3.5 Flash as generation models.",
+    "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. A relevance gate blocks off-topic queries (cosine < 0.45) so the model never hallucinates from training knowledge. The Agentic/Linear toggle shows the difference between a one-shot pipeline and a reasoning loop where the LLM calls hybrid_search on demand.",
+    "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "Gemini Embedding 2", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.6", "Gemini 2.5 Flash", "PCA", "SSE"],
+    "diagramSvg": "agent-portfolio/diagrams/agentic-rag-v1.svg?v=2",
+    "diagramAlt": "8-stage agentic RAG pipeline on Cloud Run: chunk → generate embedding (Voyage) → store in vector DB (ChromaDB) → embed query → retrieve (dense + BM25) → RRF fusion → augment → grounded answer (Claude), with an agentic tool-use loop from generation back to retrieval, streamed to the browser over SSE",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Chunk the document",
+        "detail": "Accepts text paste, PDF/file upload, URL (server-side HTML extraction strips nav and boilerplate), or image (Gemini Vision converts the image to text first). The document is then split by a recursive character splitter (800 chars / 120 overlap) across four strategies — recursive, sentence, paragraph, or fixed-window. The 3D view shows chunk boundaries laid over the source text."
+      },
+      {
+        "n": 2,
+        "label": "Generate embeddings",
+        "detail": "Each chunk is sent to the chosen embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and returned as a high-dimensional vector. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
+      },
+      {
+        "n": 3,
+        "label": "Store in the vector DB",
+        "detail": "Vectors are written to a ChromaDB collection over cosine space, and the points populate the 3D vector space one at a time. A parallel BM25 index is built over the same chunks for lexical retrieval."
+      },
+      {
+        "n": 4,
+        "label": "Embed the query",
+        "detail": "On query, the question is embedded by the same model into the same PCA basis, so it lands in the same space as the chunks. The query point drops into the 3D scene alongside the corpus."
+      },
+      {
+        "n": 5,
+        "label": "Retrieve — dense + lexical",
+        "detail": "The query runs through both a dense cosine search over ChromaDB and a BM25 keyword scan, side by side. Cosine similarity to every chunk is surfaced as a live distance table over the 3D canvas, with connection lines to the nearest neighbours."
+      },
+      {
+        "n": 6,
+        "label": "Fuse with RRF",
+        "detail": "Reciprocal Rank Fusion (k=60) blends the semantic and lexical rankings into one final top-k set. Because RRF only cares about rank position, it merges the two scorers without needing them to share a scale — reconciling cases where keyword overlap and vector proximity disagree."
+      },
+      {
+        "n": 7,
+        "label": "Augment the prompt",
+        "detail": "The fused chunks are assembled into numbered, citable passages and injected into the LLM prompt as grounded context. The token estimate and chunk indices are shown so the cost and provenance of the context are explicit."
+      },
+      {
+        "n": 8,
+        "label": "Grounded answer (agentic loop)",
+        "detail": "Claude Sonnet 4.6, Gemini 2.5 Flash, or Gemini 3.5 Flash streams an answer grounded strictly in the retrieved chunks — a strict system prompt blocks training-knowledge fallback. Off-topic queries (cosine similarity below 0.45) are blocked before generation. In agentic mode the LLM holds a hybrid_search tool and re-queries on demand, turning a linear pipeline into a reasoning loop."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "Cloud Run + FastAPI + SSE",
+        "why": "The pipeline ships as a single FastAPI service on Cloud Run (min-instances=0, zero idle cost). Server-Sent Events stream chunks, vectors, retrieval results, and answer tokens over one channel with no WebSocket handshake, so the 3D view updates live as each stage completes."
+      },
+      {
+        "tech": "Voyage voyage-3 + Gemini Embedding 2",
+        "why": "Two embedding models are supported: Voyage voyage-3 (1024-D, best for text) and Gemini Embedding 2 (3072-D, required for image inputs since Voyage is text-only). Images are first converted to text via Gemini Vision, then embedded. Keys are resolved per-model — Voyage/Anthropic key for Voyage, Google key for Gemini — and never stored server-side."
+      },
+      {
+        "tech": "ChromaDB + BM25 (hybrid)",
+        "why": "Dense vector search alone misses exact-keyword matches; BM25 alone misses paraphrase. Running both and fusing teaches why production RAG is almost always hybrid, not purely semantic."
+      },
+      {
+        "tech": "Reciprocal Rank Fusion (k=60)",
+        "why": "RRF blends rankings without needing the two scorers to share a scale — it only cares about rank position. Simple, robust, and the standard way to merge dense and sparse retrieval."
+      },
+      {
+        "tech": "PCA → 3D projection",
+        "why": "Projecting 1024-D embeddings to three principal components makes the vector space visible and orbit-able. The explained-variance labels on each axis keep the lossy reduction honest about what's being shown."
+      },
+      {
+        "tech": "Agentic tool-use loop",
+        "why": "Linear RAG retrieves once; agentic RAG lets Claude call hybrid_search on demand and re-query when the first pass is thin. The Agentic/Linear toggle makes the difference between a pipeline and an agent tangible."
+      }
+    ],
+    "traits": [
+      { "label": "Model",      "value": "Claude Sonnet 4.6 · Gemini 2.5 / 3.5 Flash" },
+      { "label": "Embeddings", "value": "Voyage voyage-3 · 1024-D or Gemini Embedding 2 · 3072-D" },
+      { "label": "Framework",  "value": "FastAPI · SSE" },
+      { "label": "Runtime",    "value": "Cloud Run" },
+      { "label": "Retrieval",  "value": "Dense + BM25 · RRF" },
+      { "label": "Pattern",    "value": "Agentic Hybrid RAG · Tool-use" }
+    ],
+    "searchMeta": {
+      "type": "RAG",
+      "model": "Claude Sonnet 4.6",
+      "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
+    },
+    "demoVideo": "https://storage.googleapis.com/portfolio-assets-gaurav/videos/agentic-rag-demo.mp4",
+    "links": [
+      { "label": "Try it yourself", "href": "https://agentic-rag.gauravlahoti.dev/" }
+    ]
+  }
+]

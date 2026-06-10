@@ -559,6 +559,16 @@ function initPostsListWhenVisible(profile) {
         if (!a) return;
         e.preventDefault();
         e.stopPropagation(); // prevent delegated Lenis handler from also firing
+        // If this was the nav flyout trigger, collapse the flyout: blur to drop
+        // :focus-within, and suppress :hover until the cursor leaves the group.
+        const navGroup = a.closest("[data-flyout-group]");
+        if (navGroup) {
+            a.blur();
+            navGroup.classList.add("flyout-suppressed");
+            navGroup.addEventListener("mouseleave", () => {
+                navGroup.classList.remove("flyout-suppressed");
+            }, { once: true });
+        }
         await doInit();
         // Two rAFs: first lets layout settle after posts insert, second lets
         // any following repaints flush before we measure the final target Y.
@@ -820,7 +830,7 @@ function scheduleHeroReveal() {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
-        document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
+        document.querySelectorAll(".hero-cta-group")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
         const certRail = document.querySelector("[data-cert-rail]");
@@ -833,7 +843,7 @@ function scheduleHeroReveal() {
         chrome.forEach(c => (c.style.opacity = "1"));
         if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
         if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
-        document.querySelectorAll(".hero-cta-desktop, .hero-cta-mobile")
+        document.querySelectorAll(".hero-cta-group")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
         const certRail = document.querySelector("[data-cert-rail]");
@@ -868,14 +878,15 @@ function scheduleHeroReveal() {
         );
     }
 
-    // 2.6s — "Chat with my agent" CTA eases up after hero text + skills hex
-    // both complete (skills hex finishes ~2.4s desktop, hero text ~2.2s).
-    tl.fromTo(".hero-cta-desktop, .hero-cta-mobile",
+    // 2.6s — CTA group eases up after hero text + skills hex both complete
+    // (skills hex finishes ~2.4s desktop, hero text ~2.2s). Glow pulse only
+    // on the primary (agent) button to keep visual hierarchy clear.
+    tl.fromTo(".hero-cta-group",
         { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.55, stagger: 0.08, ease: "power3.out" },
+        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" },
         2.6
     );
-    tl.to(".hero-cta-desktop, .hero-cta-mobile", {
+    tl.to(".hero-cta-group .btn-primary", {
         boxShadow: "0 0 24px 4px var(--accent-glow)",
         duration: 0.4,
         yoyo: true,
