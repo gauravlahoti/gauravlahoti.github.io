@@ -431,6 +431,12 @@ export function initAgentWidget(root, profile) {
                         messages.push({ role: "assistant", content: full });
                         liveRegion.textContent = stripUrls(full).slice(0, 240);
 
+                        // Tick the hero "Atlas has responded to N questions"
+                        // counter — only on a successful answer (not on send,
+                        // not on empty/errored turns), so the count reflects
+                        // real responses, matching the backend's logged total.
+                        document.dispatchEvent(new CustomEvent("portfolio:agent-question"));
+
                         // Render follow-up chips
                         if (FEATURES.suggestions && turnState.suggestions.length) {
                             renderSuggestions(assistant, turnState.suggestions);
@@ -836,23 +842,23 @@ function renderShell(root, agentExplainer) {
     fab.type = "button";
     fab.role = "button";
     fab.className = "agent-fab" + (REDUCE_MOTION ? "" : " agent-fab-pulse");
-    fab.setAttribute("aria-label", "Ask my AI agent");
+    fab.setAttribute("aria-label", "Ask Atlas");
     fab.setAttribute("aria-expanded", "false");
     fab.setAttribute("data-cursor", "magnet");
-    fab.title = "Ask my AI agent";
+    fab.title = "Ask Atlas";
     fab.innerHTML = `
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 9 9 12 4 15"/>
             <line x1="12" y1="15" x2="20" y2="15"/>
         </svg>
-        <span>Ask my agent</span>
+        <span>Ask Atlas</span>
     `;
 
     const tooltip = document.createElement("div");
     tooltip.className = "agent-fab-tooltip";
     tooltip.id = "agent-fab-tooltip";
     tooltip.setAttribute("role", "tooltip");
-    tooltip.textContent = "Curious about my architecture experience? Ask my agent.";
+    tooltip.textContent = "Curious about my architecture experience? Ask Atlas.";
     fab.setAttribute("aria-describedby", "agent-fab-tooltip");
 
     const panel = document.createElement("section");
@@ -880,7 +886,7 @@ function renderShell(root, agentExplainer) {
                 <line x1="12" y1="3" x2="12" y2="7"/>
                 <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
             </svg>
-            Ask my agent
+            Ask Atlas
         </h3>
         <div class="agent-panel-head-actions">
             <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">

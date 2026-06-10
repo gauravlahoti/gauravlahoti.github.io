@@ -8,7 +8,7 @@
          GSAP's runtime style mutations and for the Google Sign-In iframe's
          inline styles; everything else is locked down. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://accounts.google.com https://www.googleapis.com https://atlas-lw4bt7nrba-uc.a.run.app; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-    <script src="assets/js/scroll-restore.js?v=202"></script>
+    <script src="assets/js/scroll-restore.js?v=203"></script>
     <title>Gaurav Lahoti</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.dev/">
@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=202">
-    <link rel="stylesheet" href="assets/css/layout.css?v=202">
-    <link rel="stylesheet" href="assets/css/components.css?v=202">
+    <link rel="stylesheet" href="assets/css/base.css?v=203">
+    <link rel="stylesheet" href="assets/css/layout.css?v=203">
+    <link rel="stylesheet" href="assets/css/components.css?v=203">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
@@ -289,7 +289,7 @@
                                 <line x1="12" y1="3" x2="12" y2="7"/>
                                 <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
                             </svg>
-                            <span>Chat with my agent</span>
+                            <span>Chat with my AI agent, Atlas</span>
                             <span aria-hidden="true">→</span>
                         </button>
                         <a class="btn btn-outline-accent" href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">
@@ -305,6 +305,11 @@
                         </a>
                     </div>
 
+                    <p class="hero-livestat" data-agent-stat hidden>
+                        <span class="hero-livestat-dot" aria-hidden="true"></span>
+                        Atlas has responded to <span class="hero-livestat-num" data-agent-stat-num>0</span> questions so far
+                    </p>
+
                     <!-- Spec 22: mobile-only in-hero actions. Hidden on ≥768px. -->
                     <div class="hero-mobile-actions" aria-hidden="false">
                         <button class="hero-cta-mobile btn btn-primary" type="button" data-agent-open data-cursor="magnet">
@@ -315,7 +320,7 @@
                                 <line x1="12" y1="3" x2="12" y2="7"/>
                                 <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
                             </svg>
-                            <span>Chat with my agent</span>
+                            <span>Chat with my AI agent, Atlas</span>
                             <span class="hero-cta-mobile-arrow" aria-hidden="true">→</span>
                         </button>
                         <button class="cert-rail-chip-mobile" type="button" data-cert-chip-trigger aria-haspopup="dialog">
@@ -460,7 +465,7 @@
                 <line x1="12" y1="3" x2="12" y2="7"/>
                 <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
             </svg>
-            <span>Chat with my agent</span>
+            <span>Chat with my AI agent, Atlas</span>
         </button>
     </aside>
 
@@ -468,6 +473,6 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=202"></script>
+    <script type="module" src="assets/js/main.js?v=203"></script>
 </body>
 </html>

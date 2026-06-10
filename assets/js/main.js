@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "202";
+const ASSET_VERSION = "203";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -70,10 +70,90 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initAgentWidgetWhenIdle(profile);
     initMobileEnhancements(profile);
     initAnalyticsWhenIdle(profile);
+    initAgentStat(profile);
     initPageLinks();
     initLoadHashScroll();
     auditConsole();
 })();
+
+// Live Atlas counter — fetches total questions answered from /api/agent-stats
+// and reveals "Atlas has answered N questions" under the hero tagline, counting
+// the number up. The element starts [hidden]; we only show it once we have a
+// real positive number (never flash "0"). Fired on idle to stay off the FCP
+// path. The endpoint is CDN-cached 1h, so this reflects a fresh count per visit.
+function initAgentStat(profile) {
+    const api = profile && profile.links && profile.links.agentStatsApi;
+    const el = document.querySelector("[data-agent-stat]");
+    const numEl = el && el.querySelector("[data-agent-stat-num]");
+    if (!api || !el || !numEl) return;
+
+    // The hero CTA buttons reveal via GSAP at ~2.6–2.8s (scheduleHeroReveal).
+    // Hold the stat until just after so it doesn't pop in before the buttons.
+    // Under reduced-motion the buttons show instantly, so reveal immediately.
+    const REVEAL_AT = reduceMotion ? 0 : 3100;
+
+    let total = 0;
+    let ready = false;
+
+    const reveal = (n) => {
+        el.hidden = false;
+        // Two rAFs so the [hidden]→visible flip paints before we add
+        // .is-shown, letting the opacity/transform transition play.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            el.classList.add("is-shown");
+            countUp(numEl, n);
+        }));
+    };
+
+    const run = () => {
+        fetch(api, { cache: "no-cache" })
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => {
+                const n = data && Number(data.total_conversations);
+                if (!Number.isFinite(n) || n <= 0) return; // stay hidden
+                total = n;
+                ready = true;
+                const wait = Math.max(0, REVEAL_AT - performance.now());
+                wait ? setTimeout(() => reveal(total), wait) : reveal(total);
+            })
+            .catch(() => { /* leave hidden on failure */ });
+    };
+
+    // Optimistic tick: when a visitor sends a question to Atlas (agent-widget
+    // dispatches this), bump the displayed count by one with a brief pop so it
+    // feels live — even though /api/agent-stats is 1h-cached.
+    document.addEventListener("portfolio:agent-question", () => {
+        if (!ready) return;
+        total += 1;
+        const fmt = new Intl.NumberFormat("en-US");
+        numEl.textContent = fmt.format(total);
+        if (reduceMotion) return;
+        numEl.classList.remove("bump");
+        void numEl.offsetWidth; // reflow so the animation restarts each tick
+        numEl.classList.add("bump");
+    });
+
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(run, { timeout: 3000 });
+    } else {
+        setTimeout(run, 1200);
+    }
+}
+
+function countUp(node, target) {
+    const fmt = new Intl.NumberFormat("en-US");
+    if (reduceMotion) { node.textContent = fmt.format(target); return; }
+    const duration = 1100;
+    const start = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const tick = (now) => {
+        const p = Math.min(1, (now - start) / duration);
+        node.textContent = fmt.format(Math.round(ease(p) * target));
+        if (p < 1) requestAnimationFrame(tick);
+        else node.textContent = fmt.format(target);
+    };
+    requestAnimationFrame(tick);
+}
 
 // Cross-page landings (e.g. clicking "Insights" on /live-agents/ → /#perspectives)
 // arrive with a section hash. The browser's native jump lands short because

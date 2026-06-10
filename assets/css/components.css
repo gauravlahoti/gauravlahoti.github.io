@@ -3027,6 +3027,63 @@ sup.agent-cite a:focus-visible {
     .hero-cta-group { opacity: 1; }
 }
 
+/* Live Atlas counter — a quiet caption below the CTAs: ● Atlas, my AI agent,
+   has answered N questions. No border/background — just a dim mono proof line
+   with a pulsing dot + mint number. Starts [hidden] (set in HTML); main.js
+   removes hidden + adds .is-shown once /api/agent-stats resolves, counts up. */
+.hero-livestat {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    align-self: flex-start;
+    max-width: 100%;
+    margin-top: var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+        opacity var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
+}
+.hero-livestat.is-shown {
+    opacity: 1;
+    transform: translateY(0);
+}
+.hero-livestat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px 1px var(--accent-glow);
+    flex-shrink: 0;
+    animation: dot-pulse 1.8s ease-in-out infinite;
+}
+.hero-livestat-num {
+    display: inline-block;   /* allow transform for the optimistic-tick pop */
+    padding: 1px 8px;
+    border: 1px solid rgba(0, 255, 209, 0.3);
+    border-radius: 999px;
+    background: rgba(0, 255, 209, 0.1);
+    color: var(--accent);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.hero-livestat-num.bump {
+    animation: livestat-bump 0.5s var(--ease-out);
+}
+@keyframes livestat-bump {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.35); text-shadow: 0 0 10px var(--accent-glow); }
+    100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero-livestat { transition: none; }
+    .hero-livestat-dot { animation: none; }
+    .hero-livestat-num.bump { animation: none; }
+}
+
 /* FAB and its tooltip replaced by the hero CTA button on desktop */
 .agent-fab { display: none; }
 .agent-fab-tooltip { display: none !important; }
