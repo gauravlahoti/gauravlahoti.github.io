@@ -8,7 +8,7 @@
          GSAP's runtime style mutations and for the Google Sign-In iframe's
          inline styles; everything else is locked down. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://accounts.google.com https://www.googleapis.com https://atlas-lw4bt7nrba-uc.a.run.app; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-    <script src="assets/js/scroll-restore.js?v=201"></script>
+    <script src="assets/js/scroll-restore.js?v=202"></script>
     <title>Gaurav Lahoti</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.dev/">
@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=201">
-    <link rel="stylesheet" href="assets/css/layout.css?v=201">
-    <link rel="stylesheet" href="assets/css/components.css?v=201">
+    <link rel="stylesheet" href="assets/css/base.css?v=202">
+    <link rel="stylesheet" href="assets/css/layout.css?v=202">
+    <link rel="stylesheet" href="assets/css/components.css?v=202">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
@@ -462,22 +462,12 @@
             </svg>
             <span>Chat with my agent</span>
         </button>
-        <a class="mobile-bottombar-btn" href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">
-            <svg class="resume-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line class="resume-line-1" x1="8" y1="11" x2="16" y2="11"/>
-                <line class="resume-line-2" x1="8" y1="14" x2="16" y2="14"/>
-                <line class="resume-line-3" x1="8" y1="17" x2="12" y2="17"/>
-            </svg>
-            <span>View resume</span>
-        </a>
     </aside>
 
     <!-- Mount point for the agent chat widget (spec 21). The widget renders
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=201"></script>
+    <script type="module" src="assets/js/main.js?v=202"></script>
 </body>
 </html>
