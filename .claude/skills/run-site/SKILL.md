@@ -1,8 +1,13 @@
 ---
-description: Boot the static dev server and tell me the URL
-argument-hint: "Optional port number e.g. 5173"
-allowed-tools: Bash
+name: run-site
+description: Boot the static dev server and tell me the URL. Examples - "run the site", "start the dev server", "boot localhost".
+argument-hint: "[port]"
+context: fork
+disable-model-invocation: true
+allowed-tools: Bash, AskUserQuestion
 ---
+
+> Forked from `.claude/commands/run-site.md`
 
 Boot a local static server for the portfolio. Default port
 5173 unless $ARGUMENTS provides one.

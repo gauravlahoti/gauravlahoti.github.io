@@ -1,8 +1,13 @@
 ---
-description: Read a codebase (GitHub URL or local path), understand its architecture, and generate an agent architecture SVG diagram matching the portfolio design language.
+name: diagram-agent
+description: Read a codebase (GitHub URL or local path), understand its architecture, and generate an agent architecture SVG diagram matching the portfolio design language. Examples - "generate a diagram for this repo", "create an architecture SVG for my agent", "diagram https://github.com/...".
 argument-hint: "<github-url-or-local-path> [agent-id]"
+context: fork
+disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, WebFetch, AskUserQuestion
 ---
+
+> Forked from `.claude/commands/diagram-agent.md`
 
 Generate an architecture diagram SVG for a given codebase, matching the exact design language used by the Agents Portfolio page at `/agents/`. The output SVG is saved to `agents/diagrams/<agent-id>-v1.svg` and is immediately usable as a `diagramSvg` value in `content/agents.json`.
 

@@ -1,7 +1,12 @@
 ---
-description: Run the full Pulse ambient cycle ad-hoc — visitor stats + leads + one dashboard email to Gaurav. Sends email.
-allowed-tools: Bash
+name: run-ambient-digest
+description: Run the full Pulse ambient cycle ad-hoc — visitor stats + leads + one dashboard email to Gaurav. Sends email. Examples - "run the digest", "trigger ambient agent", "send the weekly summary now".
+context: fork
+disable-model-invocation: true
+allowed-tools: Bash, AskUserQuestion
 ---
+
+> Forked from `.claude/commands/run-ambient-digest.md`
 
 Run the **Pulse** full ambient digest on demand. This is the `POST
 /api/ambient/run` route (`agents/pulse/app/api.py`): the agent reasons over
