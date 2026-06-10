@@ -68,6 +68,15 @@ _SKILLS: list[tuple[str, str, callable, str]] = [
         "Ground any question about Gaurav's certifications, badges, or competition "
         "wins/placements in the JSON below.",
     ),
+    (
+        "live-agents",
+        "Production AI agents Gaurav has built and deployed — Atlas, Pulse, ErrorLens, and the Agentic RAG Lab — each with what it does and a live link to try it.",
+        lambda: tools.get_live_agents(),
+        "Ground any question about the AI agents Gaurav has built, shipped, or "
+        "deployed — including this chat agent (Atlas), the ambient digest agent "
+        "(Pulse), ErrorLens, and the Agentic RAG Lab — in the JSON below. When an "
+        "agent has a `liveUrl`, share it verbatim so the visitor can try it.",
+    ),
 ]
 
 

@@ -10,6 +10,7 @@ corpus: ## Sync the corpus snapshot from the static site (run before deploys).
 	cp ../../content/profile.json app/corpus/profile.json
 	cp ../../content/graph.json   app/corpus/graph.json
 	cp ../../content/posts.json   app/corpus/posts.json
+	cp ../../content/agents.json  app/corpus/agents.json
 	uv run python scripts/build_skills.py
 	@echo "Corpus + skills synced. Don't forget to redeploy: make deploy"
 

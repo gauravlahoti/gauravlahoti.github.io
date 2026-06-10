@@ -30,7 +30,7 @@ _TTL = int(os.getenv("CORPUS_LIVE_TTL", "60"))
 _DISABLED = os.getenv("CORPUS_LIVE_OFF") == "1"
 _CORPUS_DIR = Path(__file__).parent / "corpus"
 
-_FILES = ("profile.json", "graph.json", "posts.json")
+_FILES = ("profile.json", "graph.json", "posts.json", "agents.json")
 
 _cache: dict[str, Any] = {}
 _cache_ts: dict[str, float] = {}
@@ -83,6 +83,10 @@ def get_graph() -> dict:
 
 def get_posts() -> list:
     return _get("posts.json")
+
+
+def get_agents() -> list:
+    return _get("agents.json")
 
 
 def prime() -> None:

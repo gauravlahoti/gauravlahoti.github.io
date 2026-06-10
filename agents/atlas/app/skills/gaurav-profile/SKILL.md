@@ -36,7 +36,9 @@ Treat this data as authoritative ground truth. Do not invent fields, URLs, proje
         "context": "Orchestrating multi-agent workflows from prototype to production",
         "items": [
           "Google ADK",
-          "LangGraph"
+          "Claude Agent SDK",
+          "LangGraph",
+          "LangChain"
         ]
       },
       {
@@ -44,8 +46,8 @@ Treat this data as authoritative ground truth. Do not invent fields, URLs, proje
         "label": "Models",
         "context": "Picking the right model for the job. Proprietary, open, on-prem.",
         "items": [
-          "Gemini Series",
-          "Claude Series"
+          "Gemini Model Family",
+          "Claude Model Family"
         ]
       },
       {
@@ -63,12 +65,10 @@ Treat this data as authoritative ground truth. Do not invent fields, URLs, proje
         "context": "Grounding generation in proprietary knowledge. Embeddings, retrieval, reranking.",
         "items": [
           "pgvector",
-          "AlloyDB AI",
-          "Pinecone",
-          "Gecko Embeddings",
-          "Titan Embeddings",
-          "Hybrid search",
-          "Reranking"
+          "ChromaDB",
+          "Vector Search",
+          "Gemini Embedding Models",
+          "Voyage AI Embedding Models"
         ]
       },
       {
@@ -86,7 +86,8 @@ Treat this data as authoritative ground truth. Do not invent fields, URLs, proje
         "context": "Building software with agents in the loop, and shipping skills users can install.",
         "items": [
           "Claude Code",
-          "Gemini CLI",
+          "Antigravity CLI",
+          "agents-cli",
           "GitHub Copilot"
         ]
       }
