@@ -108,7 +108,7 @@
                     <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent insights" hidden></div>
                 </div>
                 <a href="/live-agents/" data-page-link data-cursor="magnet">Live Agents</a>
-                <a href="#" data-resume-trigger data-cursor="magnet">Resume</a>
+                <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">Resume</a>
             </nav>
             <div class="nav-actions">
                 <ul class="nav-channels" aria-label="Channels">
@@ -154,7 +154,7 @@
                 <a href="#about">About</a>
                 <a href="#perspectives">Insights</a>
                 <a href="/live-agents/" data-page-link>Live Agents</a>
-                <a href="#" data-resume-trigger>Resume</a>
+                <a href="/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
             </nav>
             <hr class="nav-drawer-divider" aria-hidden="true">
             <ul class="nav-drawer-channels" aria-label="Channels">
@@ -280,17 +280,30 @@
                     </p>
                     <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
 
-                    <button class="hero-cta-desktop btn btn-primary" type="button" data-agent-open data-cursor="magnet">
-                        <svg class="hero-cta-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="7" width="18" height="13" rx="3"/>
-                            <circle class="bot-eye-l" cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
-                            <circle class="bot-eye-r" cx="15.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
-                            <line x1="12" y1="3" x2="12" y2="7"/>
-                            <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
-                        </svg>
-                        <span>Chat with my agent</span>
-                        <span aria-hidden="true">→</span>
-                    </button>
+                    <div class="hero-cta-group">
+                        <button class="hero-cta-desktop btn btn-primary" type="button" data-agent-open data-cursor="magnet">
+                            <svg class="hero-cta-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="7" width="18" height="13" rx="3"/>
+                                <circle class="bot-eye-l" cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
+                                <circle class="bot-eye-r" cx="15.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
+                                <line x1="12" y1="3" x2="12" y2="7"/>
+                                <circle class="bot-antenna" cx="12" cy="2.5" r="1.2" fill="currentColor" stroke="none"/>
+                            </svg>
+                            <span>Chat with my agent</span>
+                            <span aria-hidden="true">→</span>
+                        </button>
+                        <a class="btn btn-outline-accent" href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">
+                            <svg class="resume-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line class="resume-line-1" x1="8" y1="11" x2="16" y2="11"/>
+                                <line class="resume-line-2" x1="8" y1="14" x2="16" y2="14"/>
+                                <line class="resume-line-3" x1="8" y1="17" x2="12" y2="17"/>
+                            </svg>
+                            <span>View resume</span>
+                            <span aria-hidden="true">→</span>
+                        </a>
+                    </div>
 
                     <!-- Spec 22: mobile-only in-hero actions. Hidden on ≥768px. -->
                     <div class="hero-mobile-actions" aria-hidden="false">
@@ -449,6 +462,16 @@
             </svg>
             <span>Chat with my agent</span>
         </button>
+        <a class="mobile-bottombar-btn" href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">
+            <svg class="resume-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line class="resume-line-1" x1="8" y1="11" x2="16" y2="11"/>
+                <line class="resume-line-2" x1="8" y1="14" x2="16" y2="14"/>
+                <line class="resume-line-3" x1="8" y1="17" x2="12" y2="17"/>
+            </svg>
+            <span>View resume</span>
+        </a>
     </aside>
 
     <!-- Mount point for the agent chat widget (spec 21). The widget renders
