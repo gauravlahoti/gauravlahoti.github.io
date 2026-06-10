@@ -3032,14 +3032,14 @@ sup.agent-cite a:focus-visible {
    with a pulsing dot + mint number. Starts [hidden] (set in HTML); main.js
    removes hidden + adds .is-shown once /api/agent-stats resolves, counts up. */
 .hero-livestat {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    align-self: flex-start;
+    /* Normal text flow (not flex) so it inherits the hero's text-align —
+       left on desktop, centered on mobile — and wraps cleanly. */
+    display: block;
     max-width: 100%;
     margin-top: var(--space-4);
     font-family: var(--font-mono);
     font-size: var(--text-sm);
+    line-height: 1.7;
     color: var(--ink-muted);
     opacity: 0;
     transform: translateY(4px);
@@ -3052,12 +3052,14 @@ sup.agent-cite a:focus-visible {
     transform: translateY(0);
 }
 .hero-livestat-dot {
+    display: inline-block;
     width: 6px;
     height: 6px;
+    margin-right: var(--space-2);
     border-radius: 50%;
+    vertical-align: middle;
     background: var(--accent);
     box-shadow: 0 0 6px 1px var(--accent-glow);
-    flex-shrink: 0;
     animation: dot-pulse 1.8s ease-in-out infinite;
 }
 .hero-livestat-num {
@@ -3065,10 +3067,18 @@ sup.agent-cite a:focus-visible {
     padding: 1px 8px;
     border: 1px solid rgba(0, 255, 209, 0.3);
     border-radius: 999px;
+    vertical-align: baseline;
     background: rgba(0, 255, 209, 0.1);
     color: var(--accent);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;     /* keep the pill intact when the line wraps */
+}
+@media (max-width: 767px) {
+    .hero-livestat {
+        font-size: var(--text-xs);
+        margin-top: var(--space-3);
+    }
 }
 .hero-livestat-num.bump {
     animation: livestat-bump 0.5s var(--ease-out);
