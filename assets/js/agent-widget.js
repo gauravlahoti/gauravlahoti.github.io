@@ -1149,7 +1149,7 @@ function startLoadingStages(assistantLi) {
     const t2 = setTimeout(() => {
         if (stage <= 1 && (p.textContent.startsWith("Pulling") || p.textContent.startsWith("Let me think"))) {
             p.textContent =
-                "Just waking up — the first answer always takes a moment. Hang tight.";
+                "Still on it — the first answer of the session takes a few extra seconds. Hang tight.";
         }
     }, 10000);
     return {
@@ -1160,7 +1160,7 @@ function startLoadingStages(assistantLi) {
             if (
                 p.textContent.startsWith("Let me think") ||
                 p.textContent.startsWith("Pulling") ||
-                p.textContent.startsWith("Just waking")
+                p.textContent.startsWith("Still on it")
             ) {
                 p.textContent = "";
             }
