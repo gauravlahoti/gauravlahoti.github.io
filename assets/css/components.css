@@ -3094,6 +3094,27 @@ sup.agent-cite a:focus-visible {
     .hero-livestat-num.bump { animation: none; }
 }
 
+.hero-agents-link {
+    display: inline-block;
+    margin-top: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+    opacity: 0;
+    transform: translateY(8px);
+    text-decoration: none;
+    transition:
+        opacity var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
+}
+.hero-agents-link.is-shown { opacity: 0.8; transform: none; }
+.hero-agents-link.is-shown:hover,
+.hero-agents-link.is-shown:focus-visible {
+    opacity: 1;
+    text-decoration: underline;
+    outline: none;
+}
+
 /* FAB and its tooltip replaced by the hero CTA button on desktop */
 .agent-fab { display: none; }
 .agent-fab-tooltip { display: none !important; }

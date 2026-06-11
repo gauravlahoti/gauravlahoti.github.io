@@ -82,6 +82,19 @@ body.is-scrolling .nav {
     outline: none;
 }
 
+.nav-live-link {
+    color: var(--accent) !important;
+    text-shadow: 0 0 7px var(--accent-glow);
+    animation: nav-live-breathe 2.5s ease-in-out infinite;
+}
+@keyframes nav-live-breathe {
+    0%, 100% { opacity: 1;    text-shadow: 0 0 7px var(--accent-glow); }
+    50%      { opacity: 0.74; text-shadow: 0 0 2px var(--accent-glow); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nav-live-link { animation: none; }
+}
+
 .nav-cta { white-space: nowrap; }
 
 .nav-actions {

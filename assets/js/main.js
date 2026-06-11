@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "206";
+const ASSET_VERSION = "207";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -905,6 +905,7 @@ function scheduleHeroReveal() {
     splitWords(taglineEl);
 
     const bottomBar = document.querySelector("[data-mobile-bottombar]");
+    const agentsLink = document.querySelector(".hero-agents-link");
 
     if (reduceMotion) {
         chrome.forEach(c => (c.style.opacity = "1"));
@@ -913,6 +914,7 @@ function scheduleHeroReveal() {
         document.querySelectorAll(".hero-cta-group")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
+        if (agentsLink) agentsLink.classList.add("is-shown");
         const certRail = document.querySelector("[data-cert-rail]");
         if (certRail) certRail.style.opacity = "1";
         return;
@@ -926,6 +928,7 @@ function scheduleHeroReveal() {
         document.querySelectorAll(".hero-cta-group")
             .forEach(el => (el.style.opacity = "1"));
         if (bottomBar) bottomBar.removeAttribute("data-hidden");
+        if (agentsLink) agentsLink.classList.add("is-shown");
         const certRail = document.querySelector("[data-cert-rail]");
         if (certRail) certRail.style.opacity = "1";
         return;
@@ -977,6 +980,18 @@ function scheduleHeroReveal() {
     // the translateY transition via [data-hidden] → no transform on bar).
     if (bottomBar) {
         tl.call(() => bottomBar.removeAttribute("data-hidden"), [], 2.6);
+    }
+
+    // 2.9s — "See agents in production" link fades up after the CTA buttons.
+    // Mirrors the hero-livestat pattern: remove [hidden] then double-rAF so
+    // the browser paints opacity:0 before the CSS transition fires.
+    if (agentsLink) {
+        tl.call(() => {
+            agentsLink.hidden = false;
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                agentsLink.classList.add("is-shown");
+            }));
+        }, [], 2.9);
     }
 
     // 3.15s — cert rail fades in as the final piece of the hero reveal,

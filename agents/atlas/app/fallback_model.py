@@ -22,6 +22,7 @@ from google.adk.models import Gemini
 from google.adk.models.google_llm import _ResourceExhaustedError
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from google.genai.errors import ServerError
 from pydantic import Field
 
 logger = logging.getLogger(__name__)
@@ -56,16 +57,22 @@ class FallbackGemini(Gemini):
                 if idx > 0:
                     logger.warning("atlas: turn served by fallback model %s", model_name)
                 return
-            except _ResourceExhaustedError as err:
+            except (ServerError, _ResourceExhaustedError) as err:
+                # Only cascade on transient capacity errors (503 UNAVAILABLE or
+                # 429 RESOURCE_EXHAUSTED). Other ServerError codes (e.g. 500)
+                # indicate a request problem — propagate unchanged.
+                if isinstance(err, ServerError) and err.status_code != 503:
+                    raise
                 last_err = err
                 if produced:
-                    # Mid-stream exhaustion: a clean model switch is impossible
+                    # Mid-stream error: a clean model switch is impossible
                     # without a torn reply, so surface the error.
                     raise
                 if idx < len(candidates) - 1:
                     logger.warning(
-                        "atlas: %s hit free-tier 429; falling back to %s",
+                        "atlas: %s returned %s; falling back to %s",
                         model_name,
+                        err.status_code if isinstance(err, ServerError) else 429,
                         candidates[idx + 1],
                     )
                     continue
