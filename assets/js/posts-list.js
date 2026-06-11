@@ -1,5 +1,5 @@
 // posts-list.js — Writing section (LinkedIn posts feed) + nav flyout.
-// Exports: initPostsList(root, opts) → flat-link rows in #perspectives (all posts)
+// Exports: initPostsList(root, opts) → flat-link rows in #insights (all posts)
 //          initPostsFlyout(root)     → top FLYOUT_LIMIT posts in nav dropdown
 // Both surfaces sort by date descending so adding a newer post via
 // /add-post automatically rises to the top of the flyout — no need to
@@ -134,7 +134,7 @@ export async function initPostsFlyout(root) {
 
     const foot = document.createElement("a");
     foot.className = "nav-flyout-foot";
-    foot.href = "#perspectives";
+    foot.href = "#insights";
     foot.setAttribute("role", "menuitem");
     foot.dataset.cursor = "magnet";
     foot.textContent = remaining > 0

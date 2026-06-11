@@ -51,7 +51,7 @@ export function initCursor(opts = {}) {
         // Use the browser's hit-testing via elementFromPoint instead of
         // walking all `[data-cursor="magnet"]` rects. The previous approach
         // matched on bounding-rect proximity, which would snap onto magnet
-        // elements inside *hidden* containers — e.g., the Perspectives nav
+        // elements inside *hidden* containers — e.g., the Insights nav
         // flyout (`visibility: hidden; pointer-events: none`) and the
         // mobile drawer (`transform: translateX(100%)`) both leave their
         // children with valid layout rects, producing phantom brackets in

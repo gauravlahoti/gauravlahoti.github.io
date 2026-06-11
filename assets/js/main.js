@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "209";
+const ASSET_VERSION = "210";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -155,7 +155,7 @@ function countUp(node, target) {
     requestAnimationFrame(tick);
 }
 
-// Cross-page landings (e.g. clicking "Insights" on /live-agents/ → /#perspectives)
+// Cross-page landings (e.g. clicking "Insights" on /live-agents/ → /#insights)
 // arrive with a section hash. The browser's native jump lands short because
 // trajectory/cert/posts lazy-render after parse and grow the page. Re-issue
 // a drift-corrected scroll once we're booted so it rides all the way down.
@@ -164,7 +164,7 @@ function initLoadHashScroll() {
     if (!hash || hash.length < 2) return;
     const target = document.querySelector(hash);
     if (!target) return;
-    // For #perspectives, kick the posts list to load first so the section
+    // For #insights, kick the posts list to load first so the section
     // reaches a stable height; scrollToTarget's polling handles the rest.
     requestAnimationFrame(() => requestAnimationFrame(() => scrollToTarget(target)));
 }
@@ -600,7 +600,7 @@ function initSkillsHexWhenVisible() {
 }
 
 function initPostsListWhenVisible(profile) {
-    const root = document.querySelector("#perspectives [data-posts-root]");
+    const root = document.querySelector("#insights [data-posts-root]");
     if (!root) return;
     const metricsApi = profile?.links?.metricsApi;
     let initiated = false;
@@ -631,11 +631,11 @@ function initPostsListWhenVisible(profile) {
     }, { rootMargin: "1200px" });
     io.observe(root);
 
-    // When any link to #perspectives is clicked: block navigation, wait for
+    // When any link to #insights is clicked: block navigation, wait for
     // posts to fully render (so DOM height is stable), then scroll there.
     // This prevents the smooth-scroll landing in the wrong place mid-load.
     document.addEventListener("click", async e => {
-        const a = e.target.closest("a[href='#perspectives']");
+        const a = e.target.closest("a[href='#insights']");
         if (!a) return;
         e.preventDefault();
         e.stopPropagation(); // prevent delegated Lenis handler from also firing
@@ -654,7 +654,7 @@ function initPostsListWhenVisible(profile) {
         // any following repaints flush before we measure the final target Y.
         await new Promise(r => requestAnimationFrame(r));
         await new Promise(r => requestAnimationFrame(r));
-        const section = document.getElementById("perspectives");
+        const section = document.getElementById("insights");
         if (section) scrollToTarget(section);
     }, { capture: true });
 }
@@ -680,7 +680,7 @@ async function initPostsFlyoutEager() {
         group.addEventListener("focusout",  () => sync(false));
 
         // Touch (iPad, touch laptops, mobile-with-large-viewport): the link
-        // would otherwise navigate to #perspectives on the first tap, never
+        // would otherwise navigate to #insights on the first tap, never
         // revealing the flyout. Standard "first tap opens, second tap
         // navigates" pattern, with tap-outside to dismiss.
         if (matchMedia("(any-pointer: coarse)").matches) {
@@ -693,7 +693,7 @@ async function initPostsFlyoutEager() {
                     e.preventDefault();
                     setOpen(true);
                 }
-                // Else: link click goes through and navigates to #perspectives.
+                // Else: link click goes through and navigates to #insights.
             });
             document.addEventListener("click", (e) => {
                 if (!group.classList.contains("is-open")) return;
@@ -864,8 +864,8 @@ function initAnchorScroll() {
         if (!a) return;
         const id = a.getAttribute("href");
         if (!id || id.length < 2 || id === "#") return;
-        // #perspectives has its own capture handler that awaits posts loading.
-        if (id === "#perspectives") return;
+        // #insights has its own capture handler that awaits posts loading.
+        if (id === "#insights") return;
         const target = document.querySelector(id);
         if (!target) return;
         e.preventDefault();
