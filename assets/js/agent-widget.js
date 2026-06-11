@@ -471,7 +471,7 @@ export function initAgentWidget(root, profile) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "agent-retry-inline";
-        btn.textContent = "Connection dropped — retry?";
+        btn.textContent = "Connection slipped — try again?";
         btn.addEventListener("click", () => {
             btn.remove();
             // Re-send the last user message; append a fresh assistant bubble
@@ -507,6 +507,16 @@ export function initAgentWidget(root, profile) {
     function appendAssistantPlaceholder() {
         const li = document.createElement("li");
         li.className = "agent-message agent-message-assistant";
+        const dots = document.createElement("div");
+        dots.className = "agent-loading-dots";
+        dots.hidden = true;
+        dots.setAttribute("aria-hidden", "true");
+        dots.append(
+            document.createElement("span"),
+            document.createElement("span"),
+            document.createElement("span"),
+        );
+        li.appendChild(dots);
         const p = document.createElement("p");
         p.className = "agent-message-text";
         p.textContent = "";
@@ -1125,29 +1135,32 @@ function validateEmailInMessage(text) {
 
 function startLoadingStages(assistantLi) {
     const p = assistantLi.querySelector(".agent-message-text");
+    const dots = assistantLi.querySelector(".agent-loading-dots");
     if (!p) return { cancel() {} };
+    if (dots) dots.hidden = false;
     let stage = 0;
-    p.textContent = "Connecting to agent…";
+    p.textContent = "Let me think…";
     const t1 = setTimeout(() => {
-        if (p.textContent.startsWith("Connecting")) {
+        if (p.textContent.startsWith("Let me think")) {
             stage = 1;
-            p.textContent = "Agent is loading up — first request takes a moment.";
+            p.textContent = "Pulling the details together…";
         }
     }, 3000);
     const t2 = setTimeout(() => {
-        if (stage <= 1 && (p.textContent.startsWith("Agent is loading") || p.textContent.startsWith("Connecting"))) {
+        if (stage <= 1 && (p.textContent.startsWith("Pulling") || p.textContent.startsWith("Let me think"))) {
             p.textContent =
-                "Still warming up. If this hangs, reach me on LinkedIn (https://www.linkedin.com/in/glahoti/).";
+                "Just waking up — the first answer always takes a moment. Hang tight.";
         }
     }, 10000);
     return {
         cancel() {
             clearTimeout(t1);
             clearTimeout(t2);
+            if (dots) dots.hidden = true;
             if (
-                p.textContent.startsWith("Connecting") ||
-                p.textContent.startsWith("Agent is loading") ||
-                p.textContent.startsWith("Still warming")
+                p.textContent.startsWith("Let me think") ||
+                p.textContent.startsWith("Pulling") ||
+                p.textContent.startsWith("Just waking")
             ) {
                 p.textContent = "";
             }
@@ -1169,7 +1182,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onC
             body: JSON.stringify(reqBody),
         });
     } catch (err) {
-        onError("I couldn't reach the agent. You appear to be offline, or the service is down. Try LinkedIn instead: https://www.linkedin.com/in/glahoti/", false);
+        onError("I can't reach the server right now — might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
         onDone("");
         return;
     }
@@ -1177,9 +1190,9 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onC
         let detail;
         try { detail = (await response.json()).error; } catch { detail = null; }
         if (response.status === 429) {
-            onError(detail || "I've been chatting a lot — try again in a few minutes, or reach me on LinkedIn.", false);
+            onError(detail || "Lots of people are chatting right now. Give it a minute, or find Gaurav on LinkedIn.", false);
         } else if (response.status >= 500) {
-            onError("The agent hit a server error. Try again in a moment, or reach me on LinkedIn for anything urgent.", false);
+            onError("Hmm, something went wrong on my end. Mind trying that again?", false);
         } else {
             onError(detail || `Request failed (${response.status}).`, false);
         }

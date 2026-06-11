@@ -297,8 +297,8 @@ async def _stream_agent(
         error_message = repr(exc)[:500]
         yield _sse(
             {
-                "delta": "Sorry — the agent hit an error. Try again, or "
-                "reach Gaurav on LinkedIn for anything urgent."
+                "delta": "Hmm, something went wrong on my end. Mind trying "
+                "that again? Gaurav's on LinkedIn for anything urgent."
             }
         )
 

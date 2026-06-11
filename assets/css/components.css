@@ -2673,6 +2673,31 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .agent-cursor { animation: none; opacity: 1; }
 }
 
+/* Three-dot bounce — shown while waiting for agent warm-up / first token. */
+.agent-loading-dots {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3) 0;
+    align-items: center;
+    height: 1.6rem;
+}
+.agent-loading-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: dot-pulse 1.4s ease-in-out infinite;
+    opacity: 0.5;
+}
+.agent-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.agent-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+/* `display: flex` above overrides the UA `[hidden] { display: none }`, so the
+   hidden attribute alone won't hide the dots — restore it explicitly. */
+.agent-loading-dots[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    .agent-loading-dots span { animation: none; }
+}
+
 /* Inline citation superscripts [1], [2], [3]. */
 sup.agent-cite {
     font-size: 0.7em;
