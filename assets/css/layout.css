@@ -595,6 +595,35 @@ main { padding-top: 0; }
     }
 }
 
+/* 901–1439px dead-zone fix: hide portrait, bring skills panel into the hero.
+   Covers Windows at 125–150% display scaling (e.g. 1536×864 at 125% =
+   1228px CSS width) where the portrait + skills combo previously didn't fit.
+   Skills mount to [data-skills-root] (inside hero-stack) and escape via
+   position:absolute to sit left of the text column — same layout as ≥1440px.
+   padding-top is anchored to nav-h so the name always clears the chrome text
+   (which sits at calc(nav-h + space-6) = 88px from the hero top). */
+@media (min-width: 901px) and (max-width: 1439px) {
+    .hero-portrait { display: none; }
+    .hero-hex-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: absolute;
+        left: clamp(16px, 3vw, 56px);
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 4;
+        margin-top: -60px;
+        --hex-w: 86px;
+    }
+    .hero-stack {
+        align-self: start;
+        padding-top: calc(var(--nav-h) + var(--space-12));
+        padding-left: clamp(260px, 22vw, 340px);
+        padding-right: clamp(var(--space-8), 5vw, 120px);
+    }
+}
+
 @media (max-width: 900px) {
     .hero-stack { padding-bottom: 200px; }
 }

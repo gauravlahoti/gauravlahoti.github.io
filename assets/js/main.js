@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "212";
+const ASSET_VERSION = "213";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -607,7 +607,7 @@ function initSkillsHexWhenVisible() {
     // The in-hero panel only renders at ≥1440px (see layout.css). Below that —
     // including the 768–1439px range Windows display scaling lands in — the
     // honeycomb lives in the standalone .mobile-skills section, so mount there.
-    const inHero = matchMedia("(min-width: 1440px)").matches;
+    const inHero = matchMedia("(min-width: 901px)").matches;
     const root = inHero
         ? document.querySelector('[data-skills-root]')
         : document.querySelector('[data-mobile-skills-root]');

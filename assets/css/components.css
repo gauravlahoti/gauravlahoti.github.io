@@ -3161,11 +3161,10 @@ sup.agent-cite a:focus-visible {
 .agent-panel-drag-handle { display: none; }
 .agent-panel-drag-zone { display: none; }
 
-/* Standalone skills honeycomb — shown whenever the in-hero panel is hidden
-   (< 1440px, see layout.css). This covers the 768–1439px range that Windows
-   display scaling (125/150%) commonly lands in, plus all phones. Without it,
-   that range shows no honeycomb at all. The in-hero panel takes over ≥1440px. */
-@media (max-width: 1439px) {
+/* Standalone skills honeycomb — shown only on phones/small tablets (≤900px)
+   where the in-hero panel is not shown. At 901px+ the dead-zone fix in
+   layout.css brings the panel back into the hero, so this section is hidden. */
+@media (max-width: 900px) {
     .mobile-skills {
         display: flex;
         flex-direction: column;
