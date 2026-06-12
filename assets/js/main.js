@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "211";
+const ASSET_VERSION = "212";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -66,6 +66,7 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     initScrollStateClass();
     wireScrollTo();
     initCursorAsync();
+    initRevealWhenIdle();
     initResumeGateLazy(profile);
     initAgentWidgetWhenIdle(profile);
     initMobileEnhancements(profile);
@@ -259,6 +260,22 @@ async function initCursorAsync() {
     }
 }
 
+function initRevealWhenIdle() {
+    const run = async () => {
+        try {
+            const { initReveal } = await import(v("./reveal.js"));
+            initReveal(document);
+        } catch (err) {
+            console.warn("[reveal] failed to load", err);
+        }
+    };
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(run, { timeout: 2500 });
+    } else {
+        setTimeout(run, 300);
+    }
+}
+
 function auditConsole() {
     // Surface unexpected runtime errors without breaking the page.
     window.addEventListener("error", (e) => {
@@ -295,14 +312,11 @@ function initCapabilities(profile) {
             if (!entry.isIntersecting) continue;
             io.disconnect();
             if (gsap && !reduceMotion) {
-                // Opacity-only fade. We dropped the `y: 20` because the
-                // staggered tween left a residual `transform: translate(0,20px)`
-                // on later cards (cloud/business), shifting them 20px below
-                // their grid position and breaking row alignment. clearProps
-                // also ensures GSAP wipes inline transform/opacity once the
-                // tween finishes so nothing leaks into post-animation layout.
+                // clearProps wipes inline opacity+transform once the tween
+                // finishes so nothing leaks into post-animation layout.
                 gsap.from(cards, {
                     opacity: 0,
+                    y: 16,
                     stagger: 0.05,
                     duration: 0.5,
                     ease: "power3.out",

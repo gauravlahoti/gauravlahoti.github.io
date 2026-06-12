@@ -118,6 +118,7 @@ export function initTrajectory(root, profile) {
                 gsap.to(els, {
                     opacity: 1, y: 0, duration: 0.55, stagger: 0.05, ease: "power3.out",
                 });
+                staggerPillsIn(gsap, els);
             },
         });
         if (Array.isArray(batch)) triggers.push(...batch);
@@ -170,6 +171,7 @@ export function initTrajectory(root, profile) {
             once: true,
             onEnter(els) {
                 gsap.to(els, { opacity: 1, y: 0, duration: 0.55, stagger: 0.05, ease: "power3.out" });
+                staggerPillsIn(gsap, els);
             },
         });
         if (Array.isArray(batch)) triggers.push(...batch);
@@ -280,6 +282,28 @@ export function initTrajectory(root, profile) {
 }
 
 /* ---------- helpers ---------- */
+
+// Slide in visible skill pills within role tiles after the tiles themselves
+// have started revealing. Pills inherit their parent tile's opacity during
+// the tile's own tween, so fromTo drives their independent enter sequence.
+function staggerPillsIn(gsap, els) {
+    els.forEach((el, i) => {
+        if (!el.classList.contains("role-tile")) return;
+        const pills = el.querySelectorAll(".skill-pill:not(.is-hidden)");
+        if (!pills.length) return;
+        gsap.fromTo(pills,
+            { opacity: 0, x: -5 },
+            {
+                opacity: 1, x: 0,
+                duration: 0.22,
+                stagger: 0.035,
+                delay: 0.28 + i * 0.04,
+                ease: "power2.out",
+                clearProps: "opacity,transform",
+            }
+        );
+    });
+}
 
 function renderCompany(co) {
     const li = document.createElement("li");

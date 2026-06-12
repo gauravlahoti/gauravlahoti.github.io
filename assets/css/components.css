@@ -857,12 +857,15 @@
     transition:
         border-color var(--dur-base) var(--ease-out),
         background var(--dur-base) var(--ease-out),
-        box-shadow var(--dur-base) var(--ease-out);
+        box-shadow var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
     will-change: opacity, transform;
 }
 .role-tile:hover {
     border-color: var(--border-strong);
     background: var(--bg-card);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
 }
 .role-tile.is-pulsing {
     border-color: var(--accent);
@@ -1013,6 +1016,7 @@
 @media (prefers-reduced-motion: reduce) {
     .trail-rail-line { stroke-dashoffset: 0 !important; }
     .role-tile.is-pulsing { animation: none; }
+    .role-tile:hover { transform: none; }
 }
 
 /* Capabilities -------------------------------------------------------- */
