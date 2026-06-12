@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "210";
+const ASSET_VERSION = "211";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -590,12 +590,16 @@ function initTrajectoryWhenVisible(profile) {
 }
 
 function initSkillsHexWhenVisible() {
-    const root = isNarrow
-        ? document.querySelector('[data-mobile-skills-root]')
-        : document.querySelector('[data-skills-root]');
+    // The in-hero panel only renders at ≥1440px (see layout.css). Below that —
+    // including the 768–1439px range Windows display scaling lands in — the
+    // honeycomb lives in the standalone .mobile-skills section, so mount there.
+    const inHero = matchMedia("(min-width: 1440px)").matches;
+    const root = inHero
+        ? document.querySelector('[data-skills-root]')
+        : document.querySelector('[data-mobile-skills-root]');
     if (!root) return;
     import(v("./skills-hex.js"))
-        .then(({ initSkillsHex }) => initSkillsHex(root, { baseDelay: isNarrow ? 800 : 1200 }))
+        .then(({ initSkillsHex }) => initSkillsHex(root, { baseDelay: inHero ? 1200 : 800 }))
         .catch((err) => console.warn("[skills-hex] failed to init", err));
 }
 

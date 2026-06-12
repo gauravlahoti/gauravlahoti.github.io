@@ -3157,13 +3157,11 @@ sup.agent-cite a:focus-visible {
 .agent-panel-drag-handle { display: none; }
 .agent-panel-drag-zone { display: none; }
 
-@media (max-width: 767px) {
-    /* Hide the entire hero CTA group on mobile — the persistent bottom-bar
-       owns both the agent + resume actions here. (Hiding only
-       .hero-cta-desktop would leak the resume button into the hero.) */
-    .hero-cta-group { display: none; }
-
-    /* Mobile skills honeycomb — full-width section below the hero. */
+/* Standalone skills honeycomb — shown whenever the in-hero panel is hidden
+   (< 1440px, see layout.css). This covers the 768–1439px range that Windows
+   display scaling (125/150%) commonly lands in, plus all phones. Without it,
+   that range shows no honeycomb at all. The in-hero panel takes over ≥1440px. */
+@media (max-width: 1439px) {
     .mobile-skills {
         display: flex;
         flex-direction: column;
@@ -3178,6 +3176,13 @@ sup.agent-cite a:focus-visible {
         align-items: center;
         position: static;
     }
+}
+
+@media (max-width: 767px) {
+    /* Hide the entire hero CTA group on mobile — the persistent bottom-bar
+       owns both the agent + resume actions here. (Hiding only
+       .hero-cta-desktop would leak the resume button into the hero.) */
+    .hero-cta-group { display: none; }
 
     /* Spec 22.1: keep the original animated cert ticker on mobile — the
        static chip didn't add value. Lift the rail above the persistent
