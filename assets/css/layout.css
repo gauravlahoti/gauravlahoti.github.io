@@ -600,8 +600,9 @@ main { padding-top: 0; }
    1228px CSS width) where the portrait + skills combo previously didn't fit.
    Skills mount to [data-skills-root] (inside hero-stack) and escape via
    position:absolute to sit left of the text column — same layout as ≥1440px.
-   padding-top is anchored to nav-h so the name always clears the chrome text
-   (which sits at calc(nav-h + space-6) = 88px from the hero top). */
+   padding-top min is anchored above the chrome text (88px from hero top).
+   padding-bottom uses vh so the stack never overflows short viewports while
+   still centering correctly on tall ones (align-self: center). */
 @media (min-width: 901px) and (max-width: 1439px) {
     .hero-portrait { display: none; }
     .hero-hex-panel {
@@ -617,8 +618,9 @@ main { padding-top: 0; }
         --hex-w: 86px;
     }
     .hero-stack {
-        align-self: start;
-        padding-top: calc(var(--nav-h) + var(--space-12));
+        align-self: center;
+        padding-top: max(calc(var(--nav-h) + var(--space-12)), clamp(60px, 8vh, 120px));
+        padding-bottom: clamp(160px, 24vh, 260px);
         padding-left: clamp(260px, 22vw, 340px);
         padding-right: clamp(var(--space-8), 5vw, 120px);
     }
