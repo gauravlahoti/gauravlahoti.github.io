@@ -23,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -109,6 +110,22 @@ _ALLOWED_CITE_HOSTS = {
     "learn.microsoft.com",                     # Microsoft/Azure cert verify
 }
 
+# Off-scope suggestion filter. Atlas declines generic technology-definition
+# questions ("What is AlloyDB?") — its scope is Gaurav's use of tech, not the
+# tech itself — so it must never *suggest* one either. The instruction already
+# forbids this, but a weaker fallback model can slip; enforce it server-side.
+# Drop a suggestion that opens with a definitional stem AND never references
+# Gaurav (he/his/him/Gaurav) — that combination is the generic-definition shape.
+_DEFINITION_STEM_RE = re.compile(
+    r"^\s*(?:what(?:'s|s| is| are)|explain|define|describe|tell me about)\b",
+    re.IGNORECASE,
+)
+_GAURAV_REF_RE = re.compile(r"\b(?:gaurav|he|his|him|he's)\b", re.IGNORECASE)
+
+
+def _is_offscope_suggestion(s: str) -> bool:
+    return bool(_DEFINITION_STEM_RE.match(s)) and not _GAURAV_REF_RE.search(s)
+
 
 def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None]:
     """Parse a raw meta-block JSON string into (citations, suggestions, cta).
@@ -134,9 +151,14 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None]:
             if not any(host == h or host.endswith("." + h) for h in _ALLOWED_CITE_HOSTS):
                 continue  # server is canonical — drop off-allowlist entries
             citations.append({"id": cid, "url": url[:500], "label": str(label)[:80]})
-        # suggestions: 2–3 non-empty strings ≤ 80 chars
+        # suggestions: 2–3 non-empty strings ≤ 80 chars; drop off-scope
+        # (generic tech-definition) suggestions Atlas would only decline.
         raw_sugg = obj.get("suggestions") or []
-        suggestions = [str(s)[:80] for s in raw_sugg if isinstance(s, str) and s.strip()][:3]
+        suggestions = [
+            str(s)[:80]
+            for s in raw_sugg
+            if isinstance(s, str) and s.strip() and not _is_offscope_suggestion(s)
+        ][:3]
         # cta: null or one of the allowed values
         raw_cta = obj.get("cta")
         cta = raw_cta if isinstance(raw_cta, str) and raw_cta in _ALLOWED_CTA else None

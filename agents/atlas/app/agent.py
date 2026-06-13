@@ -14,14 +14,12 @@
 # limitations under the License.
 
 import os
-from pathlib import Path
 
 from google.adk.agents import Agent
 from google.adk.apps import App
-from google.adk.skills import load_skill_from_dir
-from google.adk.tools.skill_toolset import SkillToolset
 from google.genai import types
 
+from app import corpus_live
 from app import tools as portfolio_tools
 from app.fallback_model import FallbackGemini
 from app.guardrails import after_model_callback, before_model_callback
@@ -42,27 +40,26 @@ else:
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 
-# Corpus retrieval is served through ADK Skills (Spec 37): the bundled
-# `app/skills/<name>/SKILL.md` files are loaded at import. `SkillToolset`
-# auto-injects a lightweight skill menu (list_skills) into context and exposes
-# `load_skill` so the model pulls one domain's curated data on demand — instead
-# of the old per-turn full-corpus dump. Action tools (send_resume,
-# send_note_to_gaurav) ride along as additional_tools. Skills are static,
-# rebuilt at deploy via `make corpus` (scripts/build_skills.py).
-_SKILLS_DIR = Path(__file__).parent / "skills"
-_skills = [
-    load_skill_from_dir(p)
-    for p in sorted(_SKILLS_DIR.iterdir())
-    if p.is_dir()
-]
-skill_toolset = SkillToolset(skills=_skills)
+# Corpus retrieval is served by LIVE tools, not frozen skills. Each retrieval
+# tool reads `app/corpus_live.py`, which fetches the canonical JSON from
+# gauravlahoti.dev/content/*.json with a short TTL (bundled snapshot as the
+# offline fallback). So any edit to the site's content — profile, work history,
+# projects, posts, certs, live agents — reflects in Atlas within the TTL with
+# NO redeploy. The model calls each tool on demand (same token-efficient,
+# progressive-disclosure shape the skills had, but always current). All tools
+# are registered at the AGENT level so they land in the executable tools_dict
+# (declaration-only registration raised "Tool not found" at execution).
+# Warm the live-corpus cache at import so the first user request is fast.
+corpus_live.prime()
 
-# Action tools are registered at the AGENT level (not via SkillToolset
-# additional_tools). additional_tools only injects their *declarations* into the
-# model prompt — it does NOT add them to the flow's executable tools_dict, so a
-# model-emitted send_resume call raised "Tool 'send_resume' not found" at
-# execution. Agent-level tools land in the canonical set and are executable.
-_action_tools = [
+_tools = [
+    portfolio_tools.get_profile,
+    portfolio_tools.get_work_history,
+    portfolio_tools.get_projects,
+    portfolio_tools.get_recent_posts,
+    portfolio_tools.get_certifications,
+    portfolio_tools.get_live_agents,
+    portfolio_tools.get_site_stats,
     portfolio_tools.send_resume,
     portfolio_tools.send_note_to_gaurav,
 ]
@@ -79,7 +76,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=SYSTEM_INSTRUCTION,
-    tools=[skill_toolset, *_action_tools],
+    tools=_tools,
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
     generate_content_config=types.GenerateContentConfig(

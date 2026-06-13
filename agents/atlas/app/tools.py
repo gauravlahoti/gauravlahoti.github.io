@@ -14,15 +14,33 @@ resume-gate Worker for rate-limit bookkeeping.
 
 from __future__ import annotations
 
+import logging
+import os
+import threading
+import time
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from app import corpus_live
 from app.app_utils.note_send import send_note_email
 from app.app_utils.resume_send import send_resume_email
 
+log = logging.getLogger(__name__)
+
 _CORPUS_DIR = Path(__file__).parent / "corpus"
 _RESUME_MD: str = (_CORPUS_DIR / "resume.md").read_text(encoding="utf-8")
+
+# Live site-stats endpoint (resume-gate Worker). Public, 1h CDN-cached. Returns
+# {"ok": true, "total_conversations": N}. Mirrors profile.json links.agentStatsApi.
+_STATS_URL = os.getenv(
+    "AGENT_STATS_URL",
+    "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats",
+)
+_STATS_TTL = 60  # seconds — short in-process cache on top of the Worker's CDN cache
+_stats_cache: dict[str, Any] = {"value": None, "ts": 0.0}
+_stats_lock = threading.Lock()
 
 
 def get_profile() -> dict:
@@ -207,7 +225,7 @@ async def send_resume(email: str) -> dict[str, Any]:
     return await send_resume_email(email)
 
 
-async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
+async def suresend_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
     """Send a personal note from a site visitor to Gaurav Lahoti by email.
 
     Call this tool ONLY when the visitor has BOTH composed a message AND
@@ -288,3 +306,39 @@ def get_live_agents() -> list[dict]:
             "liveUrl": live_url,
         })
     return out
+
+
+def get_site_stats() -> dict:
+    """Return live usage stats for this portfolio site.
+
+    Use this when the visitor asks about Atlas's own activity or how busy the
+    site is — e.g. "how many questions have you answered?", "how many people
+    have used you?", "how active is this site?". The count is the same number
+    shown in the live counter under the hero ("Atlas has answered N questions").
+
+    Returns:
+        A dict {total_questions: int | None}. `total_questions` is the total
+        number of questions Atlas has answered across all visitors. It is
+        `None` if the live count can't be fetched right now — in that case, say
+        you can't pull the live number this moment and point to the counter on
+        the page rather than guessing.
+    """
+    now = time.time()
+    cached = _stats_cache["value"]
+    if cached is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
+        return {"total_questions": cached}
+    with _stats_lock:
+        cached = _stats_cache["value"]
+        if cached is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
+            return {"total_questions": cached}
+        try:
+            resp = httpx.get(_STATS_URL, timeout=3.0)
+            resp.raise_for_status()
+            total = resp.json().get("total_conversations")
+            if isinstance(total, int) and total >= 0:
+                _stats_cache["value"] = total
+                _stats_cache["ts"] = now
+                return {"total_questions": total}
+        except Exception as exc:
+            log.warning("site-stats fetch failed: %s", exc)
+        return {"total_questions": None}

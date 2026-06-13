@@ -15,13 +15,14 @@
     "linkedin": "https://www.linkedin.com/in/glahoti/",
     "github": "https://github.com/gauravlahoti",
     "topmate": "https://topmate.io/gaurav_lahoti25",
-    "resume": "assets/img/resume.pdf",
+    "resume": "/resume.pdf",
     "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
     "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
     "agentApi": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
     "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
     "metricsApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/post-metrics",
+    "agentStatsApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats",
     "agentsPage": "/live-agents/"
   },
   "agentActions": [

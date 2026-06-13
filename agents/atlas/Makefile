@@ -6,13 +6,12 @@
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 
-corpus: ## Sync the corpus snapshot from the static site (run before deploys).
+corpus: ## Refresh the bundled corpus snapshot (offline fallback only — Atlas reads live).
 	cp ../../content/profile.json app/corpus/profile.json
 	cp ../../content/graph.json   app/corpus/graph.json
 	cp ../../content/posts.json   app/corpus/posts.json
 	cp ../../content/agents.json  app/corpus/agents.json
-	uv run python scripts/build_skills.py
-	@echo "Corpus + skills synced. Don't forget to redeploy: make deploy"
+	@echo "Corpus snapshot refreshed. Atlas reads content live (corpus_live); this snapshot is only the network-failure fallback, so a redeploy is NOT required for content changes."
 
 install: ## Install Python deps (uv sync).
 	uv sync
@@ -64,7 +63,7 @@ deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1)
 		--execution-environment gen2 \
 		--concurrency 80 \
 		--min-instances 0 \
-		--update-env-vars "^;^AGENT_VERSION=0.1.0;APP_URL=https://atlas-lw4bt7nrba-uc.a.run.app;ALLOW_ORIGINS=https://gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173;AGENT_LOG_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-log;RESEND_FROM_ADDRESS=resume@gauravlahoti.dev;RESUME_PDF_URL=https://gauravlahoti.dev/assets/img/resume.pdf;RESEND_MCP_URL=https://resend-mcp-server-593919045544.us-central1.run.app/mcp;NOTE_FROM_ADDRESS=agent@gauravlahoti.dev" \
+		--update-env-vars "^;^AGENT_VERSION=0.1.0;APP_URL=https://atlas-lw4bt7nrba-uc.a.run.app;ALLOW_ORIGINS=https://gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173;AGENT_LOG_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-log;AGENT_STATS_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats;RESEND_FROM_ADDRESS=resume@gauravlahoti.dev;RESUME_PDF_URL=https://gauravlahoti.dev/assets/img/resume.pdf;RESEND_MCP_URL=https://resend-mcp-server-593919045544.us-central1.run.app/mcp;NOTE_FROM_ADDRESS=agent@gauravlahoti.dev" \
 		--update-secrets GEMINI_API_KEY=gemini-api-key:latest,AGENT_LOG_TOKEN=agent-log-token:latest,GAURAV_CONTACT_EMAIL=gaurav-contact-email:latest,MCP_CALLER_TOKEN=resend-mcp-caller-token:latest \
 		--labels created-by=adk
 

@@ -64,6 +64,7 @@ export function initAgentWidget(root, profile) {
     let isOpen = false;
     let isMinimized = false;
     let isPending = false; // true while a response is streaming
+    let sessionWarmed = false; // true after the first streamed token this session — gates the cold-start loading copy
     let panelEverOpened = false; // for scroll nudge — flipped on first open
     let introRendered = false; // guards one-shot intro stream on first open
     let nudgeIo = null; // IntersectionObserver for scroll nudge
@@ -386,7 +387,9 @@ export function initAgentWidget(root, profile) {
         messages.push({ role: "user", content: text });
 
         const assistant = appendAssistantPlaceholder();
-        const stages = startLoadingStages(assistant);
+        // Only the first turn of a session can hit a cold start — the loading
+        // copy escalates to the "first answer takes a moment" line only then.
+        const stages = startLoadingStages(assistant, !sessionWarmed);
         let firstDelta = true;
         let errorShown = false;
         let midStreamError = false;
@@ -406,6 +409,7 @@ export function initAgentWidget(root, profile) {
                 onDelta(delta) {
                     if (firstDelta) {
                         firstDelta = false;
+                        sessionWarmed = true; // container has served a token this session
                         stages.cancel(); // clear loading indicator on first char
                     }
                     appendDelta(assistant, delta, FEATURES.typingCursor);
@@ -1133,7 +1137,7 @@ function validateEmailInMessage(text) {
 
 // --- loading stages ---------------------------------------------------------
 
-function startLoadingStages(assistantLi) {
+function startLoadingStages(assistantLi, isFirstTurn) {
     const p = assistantLi.querySelector(".agent-message-text");
     const dots = assistantLi.querySelector(".agent-loading-dots");
     if (!p) return { cancel() {} };
@@ -1148,8 +1152,12 @@ function startLoadingStages(assistantLi) {
     }, 3000);
     const t2 = setTimeout(() => {
         if (stage <= 1 && (p.textContent.startsWith("Pulling") || p.textContent.startsWith("Let me think"))) {
-            p.textContent =
-                "Still on it — the first answer of the session takes a few extra seconds. Hang tight.";
+            // Only the first turn can be a cold start, so only then explain the
+            // wait that way. Later turns hit a warm container — a slow one is
+            // just a complex answer, so stay neutral (no "first answer" claim).
+            p.textContent = isFirstTurn
+                ? "Still on it — the first answer of the session takes a few extra seconds. Hang tight."
+                : "Still on it — this one's taking a moment. Hang tight.";
         }
     }, 10000);
     return {
