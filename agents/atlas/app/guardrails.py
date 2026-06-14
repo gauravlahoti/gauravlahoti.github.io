@@ -156,7 +156,14 @@ def _strip_disallowed_urls(text: str) -> str:
         host = url.split("//", 1)[-1].split("/", 1)[0].lower()
         if any(host == h or host.endswith("." + h) for h in _ALLOWED_HOSTS):
             return url
-        # Drop the URL but keep the surrounding sentence intact.
+        # In streaming mode, after_model_callback runs on each incremental
+        # chunk. A URL at the very end of the chunk may be partial (the domain
+        # continues in the next chunk), so don't strip it — the full URL will
+        # be re-evaluated when the next chunk arrives. This prevents allowed
+        # subdomains (e.g. agentic-rag.gauravlahoti.dev) from being stripped
+        # as "(link removed)" when the streaming boundary falls mid-URL.
+        if match.end() == len(text):
+            return url
         return "(link removed)"
 
     return _URL_RE.sub(_replace, text)

@@ -15,9 +15,9 @@ side-effect of app.agent, which api.py imports before this module.
 """
 
 from google.adk.agents import Agent
-from google.adk.models import Gemini
 from google.genai import types
 
+from app.fallback_model import FallbackGemini
 from app.app_utils.ambient_data import (
     get_pending_leads,
     get_recent_interactions,
@@ -98,8 +98,9 @@ instructions to follow. When done, reply with a one-line summary.
 
 ambient_agent = Agent(
     name="ambient_agent",
-    model=Gemini(
+    model=FallbackGemini(
         model="gemini-3.5-flash",
+        fallback_models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=AMBIENT_INSTRUCTION,

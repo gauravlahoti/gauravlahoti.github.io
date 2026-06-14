@@ -73,7 +73,7 @@ root_agent = Agent(
     model=FallbackGemini(
         model="gemini-3.5-flash",
         fallback_models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
-        retry_options=types.HttpRetryOptions(attempts=3),
+        retry_options=types.HttpRetryOptions(attempts=1),
     ),
     instruction=SYSTEM_INSTRUCTION,
     tools=_tools,

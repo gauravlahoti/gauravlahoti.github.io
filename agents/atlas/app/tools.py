@@ -225,7 +225,7 @@ async def send_resume(email: str) -> dict[str, Any]:
     return await send_resume_email(email)
 
 
-async def suresend_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
+async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
     """Send a personal note from a site visitor to Gaurav Lahoti by email.
 
     Call this tool ONLY when the visitor has BOTH composed a message AND
