@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' https://storage.googleapis.com; connect-src 'self' https://cdn.jsdelivr.net https://atlas-lw4bt7nrba-uc.a.run.app; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' https://storage.googleapis.com; connect-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
     <base href="/">
-    <script src="assets/js/scroll-restore.js?v=163"></script>
-    <title>Live Agents | Gaurav Lahoti</title>
-    <meta name="description" content="Production agents built by Gaurav Lahoti — Google ADK, Gemini, Cloud Run, MCP, and more.">
-    <link rel="canonical" href="https://gauravlahoti.dev/live-agents/">
-    <meta property="og:title" content="Live Agents | Gaurav Lahoti">
-    <meta property="og:description" content="Production agents built by Gaurav Lahoti — Google ADK, Gemini, Cloud Run, MCP, and more.">
+    <script src="assets/js/scroll-restore.js?v=216"></script>
+    <title>AI Concepts — Interactive Explainers | Gaurav Lahoti</title>
+    <meta name="description" content="Hard AI ideas, demystified through hands-on interactive visuals — the Model Context Protocol, Agentic RAG, and more. By Gaurav Lahoti.">
+    <link rel="canonical" href="https://gauravlahoti.dev/ai-concepts/">
+    <meta property="og:title" content="AI Concepts — Interactive Explainers">
+    <meta property="og:description" content="Hard AI ideas, demystified through hands-on interactive visuals — the Model Context Protocol, Agentic RAG, and more.">
     <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
-    <meta property="og:url" content="https://gauravlahoti.dev/live-agents/">
+    <meta property="og:url" content="https://gauravlahoti.dev/ai-concepts/">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
@@ -23,17 +23,17 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=163">
-    <link rel="stylesheet" href="assets/css/layout.css?v=163">
-    <link rel="stylesheet" href="assets/css/components.css?v=163">
-    <link rel="stylesheet" href="assets/css/agents.css?v=180">
+    <link rel="stylesheet" href="assets/css/base.css?v=216">
+    <link rel="stylesheet" href="assets/css/layout.css?v=216">
+    <link rel="stylesheet" href="assets/css/components.css?v=216">
+    <link rel="stylesheet" href="assets/css/mcp-lab.css?v=216">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
             crossorigin="anonymous" defer></script>
 </head>
-<body class="agents-page">
-    <a class="skip-link" href="#agents-main">Skip to content</a>
+<body class="ai-concepts-page">
+    <a class="skip-link" href="#concepts-main">Skip to content</a>
 
     <!-- Shared header — mirrors index.html structure -->
     <header class="nav" role="banner">
@@ -51,8 +51,8 @@
                     <a href="/#insights" aria-haspopup="true" aria-expanded="false">Insights</a>
                     <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent insights" hidden></div>
                 </div>
-                <a href="/live-agents/" class="nav-link-active nav-live-link" data-page-link aria-current="page">Live Agents</a>
-                <a href="/ai-concepts/" class="nav-live-link" data-page-link>AI Concepts</a>
+                <a href="/live-agents/" class="nav-live-link" data-page-link>Live Agents</a>
+                <a href="/ai-concepts/" class="nav-link-active nav-live-link" data-page-link aria-current="page">AI Concepts</a>
                 <a href="/#" data-resume-trigger-agents>Resume</a>
             </nav>
             <div class="nav-actions">
@@ -98,8 +98,8 @@
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
                 <a href="/#insights">Insights</a>
-                <a href="/live-agents/" class="nav-live-link" data-page-link aria-current="page">Live Agents</a>
-                <a href="/ai-concepts/" class="nav-live-link" data-page-link>AI Concepts</a>
+                <a href="/live-agents/" class="nav-live-link" data-page-link>Live Agents</a>
+                <a href="/ai-concepts/" class="nav-live-link" data-page-link aria-current="page">AI Concepts</a>
                 <a href="/#" data-resume-trigger-agents>Resume</a>
             </nav>
             <hr class="nav-drawer-divider" aria-hidden="true">
@@ -132,26 +132,21 @@
         </div>
     </aside>
 
-    <main id="agents-main">
-        <section class="agents-section" aria-label="Live Agents">
-            <header class="agents-header">
-                <h1 class="agents-title">Agents in production.</h1>
-                <p class="agents-sub">Not demos. Not prototypes. Every agent here is live, wired to real data, and handling real workloads. This is my working lab for production-grade agentic architecture — and it keeps growing.</p>
-            </header>
-
-            <div data-agents-root></div>
+    <main id="concepts-main">
+        <section class="concepts-section" aria-label="AI Concepts">
+            <header class="concepts-header" data-concepts-header></header>
+            <div data-concepts-root></div>
         </section>
 
-        <footer class="agents-section agents-footer" role="contentinfo">
-            <p class="agents-footer-copy">© <span id="agents-year">2026</span> Gaurav Lahoti</p>
-            <a href="/" class="agents-footer-back" data-page-link>
+        <footer class="mcp-footer" role="contentinfo">
+            <p class="mcp-footer-copy">© <span id="concepts-year">2026</span> Gaurav Lahoti</p>
+            <a href="/" class="mcp-footer-back" data-page-link>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
                 Back to portfolio
             </a>
         </footer>
     </main>
 
-    <script type="module" src="assets/js/agents-page.js?v=200"></script>
-    <div id="agent-root"></div>
+    <script type="module" src="assets/js/ai-concepts-page.js?v=216"></script>
 </body>
 </html>
