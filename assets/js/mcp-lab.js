@@ -333,7 +333,7 @@ function mountMess({ stage, extra, act, ctl }) {
     }
     const caption = el("p", { class: "mcp-caption" });
     caption.style.visibility = "hidden";
-    const swapBtn = el("button", { class: "mcp-action-btn mcp-action-btn--danger", type: "button" }, act.swapLabel + " ⟳");
+    const swapBtn = el("button", { class: "mcp-action-btn", type: "button" }, act.swapLabel + " ⟳");
     const revealBtn = el("button", { class: "mcp-action-btn", type: "button" }, act.revealLabel + " ↗");
     const actions = el("div", { class: "mcp-action-row" }, swapBtn, revealBtn);
     extra.append(pains, counter, actions, caption);

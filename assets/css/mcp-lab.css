@@ -330,8 +330,6 @@
 .mcp-pain-note { font-size: var(--text-xs); color: var(--ink-muted); line-height: 1.45; }
 
 .mcp-action-row { display: flex; gap: var(--space-3); flex-wrap: wrap; }
-.mcp-action-btn--danger { color: var(--danger); background: transparent; border-color: var(--danger); }
-.mcp-action-btn--danger:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--danger-soft), 0 0 22px var(--danger-glow); }
 
 .mcp-counter { font-family: var(--font-mono); }
 .mcp-counter-num {
@@ -357,9 +355,8 @@
 }
 .mcp-action-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow); transform: translateY(-1px); }
 .mcp-action-btn:disabled { opacity: 0.4; cursor: default; }
-/* toggled-on state — a soft tint + glow ring, never a harsh solid fill */
+/* toggled-on state — a soft cyan tint + glow ring */
 .mcp-action-btn.is-on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent), 0 0 18px var(--accent-glow); }
-.mcp-action-btn--danger.is-on { background: var(--danger-soft); box-shadow: inset 0 0 0 1px var(--danger), 0 0 18px var(--danger-glow); }
 
 /* ─── act 2 copy: usb analogy ────────────────────────────────────────────────── */
 
