@@ -61,7 +61,7 @@ class FallbackGemini(Gemini):
                 # Only cascade on transient capacity errors (503 UNAVAILABLE or
                 # 429 RESOURCE_EXHAUSTED). Other ServerError codes (e.g. 500)
                 # indicate a request problem — propagate unchanged.
-                if isinstance(err, ServerError) and err.status_code != 503:
+                if isinstance(err, ServerError) and err.code != 503:
                     raise
                 last_err = err
                 if produced:
@@ -72,7 +72,7 @@ class FallbackGemini(Gemini):
                     logger.warning(
                         "atlas: %s returned %s; falling back to %s",
                         model_name,
-                        err.status_code if isinstance(err, ServerError) else 429,
+                        err.code if isinstance(err, ServerError) else 429,
                         candidates[idx + 1],
                     )
                     continue

@@ -13,7 +13,7 @@ from google.adk.models.google_llm import _ResourceExhaustedError
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
-from google.genai.errors import ClientError
+from google.genai.errors import ClientError, ServerError
 
 from app.fallback_model import FallbackGemini
 
@@ -39,6 +39,20 @@ def _exhausted(model_name):
     return _ResourceExhaustedError(ce)
 
 
+def _server_error(model_name, code, status):
+    return ServerError(
+        code,
+        {
+            "error": {
+                "code": code,
+                "status": status,
+                "message": f"{status.lower()} for {model_name}",
+            }
+        },
+        None,
+    )
+
+
 def _resp(text):
     return LlmResponse(
         content=types.Content(role="model", parts=[types.Part(text=text)])
@@ -46,12 +60,19 @@ def _resp(text):
 
 
 def _fake(exhausted: set, served: list, *, yield_then_fail: set = frozenset(),
-          raise_other: set = frozenset()):
-    """Build a fake parent generate_content_async that records the model used."""
+          raise_other: set = frozenset(), server_errors: dict = None):
+    """Build a fake parent generate_content_async that records the model used.
+
+    `server_errors` maps a model name → (code, status) for a `ServerError`
+    (e.g. 503 UNAVAILABLE for capacity, 500 INTERNAL for a request problem).
+    """
+    server_errors = server_errors or {}
 
     async def fake(self, llm_request, stream=False):
         m = llm_request.model
         served.append(m)
+        if m in server_errors:
+            raise _server_error(m, *server_errors[m])
         if m in raise_other:
             raise ValueError(f"non-429 boom for {m}")
         if m in yield_then_fail:
@@ -126,3 +147,29 @@ async def test_mid_stream_429_is_not_retried(monkeypatch):
             _fake(set(), served, yield_then_fail={"gemini-3.5-flash"}),
         )
     assert served == ["gemini-3.5-flash"]  # did not advance after partial output
+
+
+@pytest.mark.asyncio
+async def test_falls_back_on_503_server_error(monkeypatch):
+    """A 503 UNAVAILABLE (model overloaded) cascades to the next model."""
+    served = []
+    out = await _drain(
+        _model(), monkeypatch,
+        _fake(set(), served,
+              server_errors={"gemini-3.5-flash": (503, "UNAVAILABLE")}),
+    )
+    assert served == ["gemini-3.5-flash", "gemini-2.5-flash"]
+    assert out[0].content.parts[0].text == "answer from gemini-2.5-flash"
+
+
+@pytest.mark.asyncio
+async def test_non_503_server_error_does_not_fall_back(monkeypatch):
+    """A 500 INTERNAL signals a request problem — propagate, don't cascade."""
+    served = []
+    with pytest.raises(ServerError):
+        await _drain(
+            _model(), monkeypatch,
+            _fake(set(), served,
+                  server_errors={"gemini-3.5-flash": (500, "INTERNAL")}),
+        )
+    assert served == ["gemini-3.5-flash"]  # no cascade on non-capacity errors
