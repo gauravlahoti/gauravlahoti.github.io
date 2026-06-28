@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Notion app-icon tile + "N" mark -->
+  <rect width="200" height="200" rx="36" fill="#fff"/>
+  <rect width="200" height="200" rx="36" fill="none" stroke="#EDEDEC" stroke-width="2"/>
+  <g fill="#0F0F0F">
+    <rect x="58" y="52" width="15" height="96"/>
+    <rect x="127" y="52" width="15" height="96"/>
+    <polygon points="58,52 79,52 142,148 121,148"/>
+  </g>
+</svg>

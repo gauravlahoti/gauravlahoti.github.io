@@ -62,6 +62,54 @@ Three independent Google ADK projects: **Atlas** (chat widget, service `atlas`),
 
 `scripts/add-post.mjs` — Node script that fetches Open Graph metadata from a LinkedIn URL and prepends a post entry to `posts.json`. The `/add-post` slash command wraps this. Supports `--print` flag for preview without writing.
 
+## Design system
+
+All design tokens live in `assets/css/base.css :root`. **Never hardcode hex or px values** — always reference a token.
+
+### Typography
+
+| Token | Value | Use for |
+|-------|-------|---------|
+| `--font-sans` | Inter, -apple-system, system-ui | Body text, UI labels, buttons, headings |
+| `--font-mono` | JetBrains Mono, SF Mono, Consolas | Code, technical labels, eyebrows (`// tag`), captions, counters, nav pill |
+
+**Rule**: interactive UI elements (buttons, CTAs, body copy, headings) use `--font-sans`. Technical / terminal-aesthetic labels (`// 01 · act`, formula counters, code snippets) use `--font-mono`. When in doubt, use `--font-sans`.
+
+### Colour tokens
+
+| Token | Value | Use for |
+|-------|-------|---------|
+| `--bg` | `#000000` | Page background |
+| `--bg-card` | `#111111` | Cards, panels |
+| `--ink` | `#E5E5E5` | Primary body text |
+| `--ink-muted` | `#888888` | Secondary / supporting text |
+| `--ink-subtle` | `#555555` | Placeholder, disabled labels |
+| `--accent` | `#00FFD1` | Cyan — primary accent, active states, links |
+| `--accent-soft` | `rgba(0,255,209,0.12)` | Tinted backgrounds on accent elements |
+| `--accent-glow` | `rgba(0,255,209,0.35)` | Box-shadow glows on accent elements |
+| `--border` | `rgba(255,255,255,0.08)` | Subtle dividers |
+| `--border-strong` | `rgba(255,255,255,0.16)` | Visible borders (cards, inputs) |
+| `--danger` | `#FF5C5C` | Error / destructive / broken-wire states only |
+
+Axis colours (`--axis-ai` = cyan, `--axis-cloud` = blue, `--axis-biz` = purple) are for the skills/trajectory visualisations — do not use them for generic UI.
+
+### Type scale
+
+`--text-xs` (0.75rem) · `--text-sm` (0.875rem) · `--text-base` (1rem) · `--text-lg` (1.125rem) · `--text-xl` (1.5rem) · `--text-2xl` (2.25rem) · `--text-3xl` (3.5rem)
+
+### Spacing scale
+
+`--space-1` (0.25rem) through `--space-24` (6rem) — always use these, never raw px/em.
+
+### Voice & copy
+
+All user-facing text (headings, body, captions, button labels, JSON content in `content/`) must read in a **natural, human tone** — the way a knowledgeable person actually talks, not how an LLM writes.
+
+- **No em-dashes (`—`) in copy.** They read as machine-generated. Use a comma, a period, or rephrase the sentence instead. (Hyphens in compound words like `purpose-built` are fine.)
+- Prefer short, plain sentences over clause-stacked ones. Break a long thought into two sentences.
+- Avoid filler and stock LLM phrasing ("delve", "leverage", "in the realm of", "it's worth noting"). Say it the way you'd say it out loud.
+- Read it back: if it sounds like marketing or a model talking, rewrite it.
+
 ## Conventions
 
 - **Content in JSON, not HTML.** `content/` is the source of truth for all identity and project data.
