@@ -203,6 +203,231 @@
       "callout": "The model never sees your REST APIs. It only interacts through the structured MCP schema, handling discovery, validation, and execution uniformly.",
       "insight": "Same APIs underneath. MCP just makes them speak the model's language.",
       "analogy": { "glyph": "≈", "lead": "Like a translator at an embassy.", "points": ["You speak your language", "They handle the foreign forms and offices underneath", "Those never change: the model talks to MCP, MCP talks to your APIs"] }
+    },
+    {
+      "id": "buildit",
+      "eyebrow": "// 07 · hands on",
+      "title": "Wire It Yourself: API vs MCP",
+      "body": "Every provider needs different code. MCP writes it once. Pick a model, run it, then swap and watch the left side rewrite.",
+      "api": {
+        "name": "Weather API",
+        "method": "GET",
+        "endpoint": "/v1/current?city={city}",
+        "returns": "{ \"temp_c\": 22, \"conditions\": \"partly cloudy\" }",
+        "desc": "A normal REST endpoint. To call it from an AI model you must describe it in that provider's tool-calling format — or expose it once through MCP."
+      },
+      "steps": [
+        "Pick a model and Run",
+        "Swap the provider",
+        "Approve the rewrite",
+        "Now just swap — MCP never asks"
+      ],
+      "task": "get_weather(city: string) → temperature",
+      "runLabel": "Run",
+      "frictionLabel": "rewrites",
+      "approveLabel": "Approve rewrite",
+      "mcpNoChange": "Written once · nothing to approve",
+      "frictionMeterLabel": "Bespoke rewrites accumulated",
+      "apiColLabel": "Without MCP — wire each provider yourself",
+      "mcpColLabel": "With MCP — wire once",
+      "stages": [
+        { "n": "①", "key": "define", "label": "Define the tool" },
+        { "n": "②", "key": "call",   "label": "Make the call"   },
+        { "n": "③", "key": "parse",  "label": "Parse the result" }
+      ],
+      "models": [
+        { "name": "GPT-4o",   "schema": "OpenAI functions",            "family": "openai"    },
+        { "name": "Claude",   "schema": "Anthropic tool-use",          "family": "anthropic" },
+        { "name": "Gemini",   "schema": "Google functionDeclarations",  "family": "google"    },
+        { "name": "DeepSeek", "schema": "OpenAI-style functions",       "family": "openai"    }
+      ],
+      "apiAdapter": {
+        "openai": {
+          "define": [
+            "tools = [{",
+            "  \"type\": \"function\",",
+            "  \"function\": {",
+            "    \"name\": \"get_weather\",",
+            "    \"parameters\": {",
+            "      \"type\": \"object\",",
+            "      \"properties\": {",
+            "        \"city\": {\"type\": \"string\"}",
+            "      },",
+            "      \"required\": [\"city\"]",
+            "    }",
+            "  }",
+            "}]"
+          ],
+          "call": [
+            "resp = openai.chat.completions.create(",
+            "  model=\"gpt-4o\",",
+            "  messages=msgs,",
+            "  tools=tools",
+            ")"
+          ],
+          "parse": [
+            "call = resp.choices[0]",
+            "         .message.tool_calls[0]",
+            "args = json.loads(",
+            "  call.function.arguments",
+            ")",
+            "city = args[\"city\"]"
+          ],
+          "parseNote": "arguments arrives as a JSON string — you must json.loads() it"
+        },
+        "anthropic": {
+          "define": [
+            "tools = [{",
+            "  \"name\": \"get_weather\",",
+            "  \"input_schema\": {",
+            "    \"type\": \"object\",",
+            "    \"properties\": {",
+            "      \"city\": {\"type\": \"string\"}",
+            "    },",
+            "    \"required\": [\"city\"]",
+            "  }",
+            "}]"
+          ],
+          "call": [
+            "resp = anthropic.messages.create(",
+            "  model=\"claude-opus-4-5\",",
+            "  messages=msgs,",
+            "  tools=tools",
+            ")"
+          ],
+          "parse": [
+            "block = resp.content[0]",
+            "# block.type == \"tool_use\"",
+            "city = block.input[\"city\"]",
+            "# already a Python dict"
+          ],
+          "parseNote": "input is already a Python dict on the tool_use block — no json.loads() needed"
+        },
+        "google": {
+          "define": [
+            "from google.generativeai import types",
+            "",
+            "tools = [types.Tool(",
+            "  function_declarations=[",
+            "    types.FunctionDeclaration(",
+            "      name=\"get_weather\",",
+            "      parameters=types.Schema(",
+            "        type=types.Type.OBJECT,",
+            "        properties={\"city\":",
+            "          types.Schema(type=types.Type.STRING)},",
+            "        required=[\"city\"]",
+            "      )",
+            "    )",
+            "  ]",
+            ")]"
+          ],
+          "call": [
+            "resp = client.models.generate_content(",
+            "  model=\"gemini-2.5-pro\",",
+            "  contents=msgs,",
+            "  config=types.GenerateContentConfig(",
+            "    tools=tools",
+            "  )",
+            ")"
+          ],
+          "parse": [
+            "part = resp.candidates[0]",
+            "         .content.parts[0]",
+            "city = part.function_call",
+            "           .args[\"city\"]"
+          ],
+          "parseNote": "functionCall.args is a dict nested under candidates[0].content.parts[0]"
+        }
+      },
+      "mcpStages": {
+        "define": {
+          "lines": [
+            "# MCP server's tools/list response:",
+            "{",
+            "  \"name\": \"get_weather\",",
+            "  \"description\": \"Current conditions\",",
+            "  \"inputSchema\": {",
+            "    \"type\": \"object\",",
+            "    \"properties\": {",
+            "      \"city\": {\"type\": \"string\"}",
+            "    },",
+            "    \"required\": [\"city\"]",
+            "  }",
+            "}",
+            "# you write nothing — server owns this"
+          ],
+          "badge": "once"
+        },
+        "call": {
+          "lines": [
+            "result = await session.call_tool(",
+            "  \"get_weather\",",
+            "  {\"city\": \"London\"}",
+            ")"
+          ],
+          "badge": "same for every model"
+        },
+        "parse": {
+          "lines": [
+            "city = result.content[0].text",
+            "# uniform result shape —",
+            "# identical regardless of",
+            "# which model is behind it"
+          ],
+          "badge": "uniform"
+        }
+      },
+      "apiResult": {
+        "openai": [
+          "# resp.choices[0].message.tool_calls[0]",
+          "function_name = \"get_weather\"",
+          "arguments     = '{\"city\": \"London\"}'",
+          "# → json.loads → city = \"London\"",
+          "",
+          "→  London: 22°C, partly cloudy"
+        ],
+        "anthropic": [
+          "# resp.content[0]  (type='tool_use')",
+          "name  = \"get_weather\"",
+          "input = {\"city\": \"London\"}",
+          "# → block.input['city'] = \"London\"",
+          "",
+          "→  London: 22°C, partly cloudy"
+        ],
+        "google": [
+          "# resp.candidates[0].content.parts[0]",
+          "function_name = \"get_weather\"",
+          "args = {\"city\": \"London\"}",
+          "# → part.function_call.args['city']",
+          "",
+          "→  London: 22°C, partly cloudy"
+        ]
+      },
+      "mcpResult": [
+        "# result.content[0].text",
+        "# same shape, every model",
+        "",
+        "→  London: 22°C, partly cloudy"
+      ],
+      "narration": {
+        "initial": "① Pick a model and click **Run** — see the live call land. Then swap providers and feel what changes.",
+        "run": "The call landed on both sides. Now **swap the model** and watch what the left side has to do next.",
+        "pendingRewrite": "**{model}** speaks a different schema ({schema}). The Direct-API integration breaks until you hand-rewrite it. **Approve the rewrite** to apply it yourself.",
+        "approved": "You just hand-rewrote **{count} lines** across all three stages. Imagine doing that for every model and every tool. MCP needed zero changes.",
+        "swapAuto": "Swapped to **{model}**. Left rewrote {count} lines again — you've felt the pain, now just watch it pile up. MCP: still zero.",
+        "swapSame": "**{model}** uses the same format as before. Nothing changed on either side.",
+        "done": "Keep swapping. The friction climbs every time. The MCP counter never moves."
+      },
+      "reducedMotionNote": "Both windows show the same three stages: define the tool, make the call, parse the result. On the left (without MCP) all three stages change every time you switch provider — different schema, different SDK call, different parse path. On the right (with MCP) all three are frozen: the server advertises the tool, one call goes out, one result shape comes back. Swap providers on the left and the friction counter climbs; the MCP counter stays at zero.",
+      "analogy": {
+        "glyph": "≈",
+        "lead": "Like a bag of country-specific plug adapters vs one universal adapter.",
+        "points": [
+          "Every device needs its own adapter for every country's socket",
+          "Swap a device and you're back to hunting for the right plug",
+          "A universal adapter works everywhere, no matter what you plug in"
+        ]
+      }
     }
   ]
 }

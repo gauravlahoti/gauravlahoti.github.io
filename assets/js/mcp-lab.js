@@ -1977,10 +1977,513 @@ function mountVsApis({ stage, extra, act, ctl = {} }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// Act 7 — Build It Yourself: API vs MCP
+// ════════════════════════════════════════════════════════════════════════════════
+
+function mountBuildIt({ stage, extra, act, ctl = {} }) {
+    const g = gsap();
+
+    // ── state ──
+    let currentFamily = null;
+    let currentName   = null;
+    let frictionTotal = 0;
+    let hasRun   = false;
+    let painFelt = false;            // true after first Approve click
+    let pending  = null;             // { model, prevFamily, prevName, diffsByKey, totalDiff }
+    let currentStep = 0;             // 0-indexed step rail
+    const tweens    = [];
+    const listeners = [];
+    const swapLog   = [];
+
+    const LOGOS = {
+        "GPT-4o":   "assets/img/logo-openai.svg",
+        "Claude":   "assets/img/logo-claude.svg",
+        "Gemini":   "assets/img/logo-gemini.svg",
+        "DeepSeek": "assets/img/logo-deepseek.svg",
+    };
+
+    function addListener(node, ev, fn) { node.addEventListener(ev, fn); listeners.push([node, ev, fn]); }
+    function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+    // ── step rail ──
+    const stepEls = act.steps.map((label, i) => {
+        const dot  = el("span", { class: "mcp-bi-step-dot", text: String(i + 1) });
+        const text = el("span", { class: "mcp-bi-step-text", text: label });
+        return el("div", { class: `mcp-bi-step${i === 0 ? " is-active" : ""}` }, dot, text);
+    });
+    const stepRail = el("div", { class: "mcp-bi-step-rail" }, ...stepEls);
+
+    function advanceStep(idx) {
+        if (idx <= currentStep) return;
+        currentStep = idx;
+        stepEls.forEach((s, i) => {
+            s.classList.toggle("is-done",   i < idx);
+            s.classList.toggle("is-active", i === idx);
+        });
+        if (g && !REDUCE_MOTION) {
+            tweens.push(g.fromTo(stepEls[idx], { x: 8, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power2.out" }));
+        }
+    }
+
+    // ── API card ──
+    const apiCard = el("div", { class: "mcp-bi-api-card" },
+        el("div", { class: "mcp-bi-api-card-top" },
+            el("span", { class: "mcp-bi-api-method", text: act.api.method }),
+            el("code", { class: "mcp-bi-api-endpoint", text: act.api.endpoint }),
+        ),
+        el("div", { class: "mcp-bi-api-returns" },
+            el("span", { class: "mcp-bi-api-returns-label", text: "returns" }),
+            el("code", { class: "mcp-bi-api-returns-val", text: act.api.returns }),
+        ),
+        el("p", { class: "mcp-bi-api-desc", text: act.api.desc }),
+    );
+
+    // ── API window ──
+    const apiStageEls = {};
+    const apiCountEl  = el("span", { class: "mcp-bi-col-count", text: "0" });
+    const apiGate     = el("div", { class: "mcp-bi-gate", "aria-hidden": "true" });
+    const approveBtn  = el("button", { class: "mcp-bi-approve-btn mcp-action-btn", type: "button", text: act.approveLabel });
+    const gateWarnEl  = el("p", { class: "mcp-bi-gate-warn" });
+    apiGate.append(gateWarnEl, approveBtn);
+
+    const apiColBody = el("div", { class: "mcp-bi-col-body" });
+    const apiNoteEl  = el("div", { class: "mcp-bi-parse-note" });
+    const apiResultEl = el("div", { class: "mcp-bi-result mcp-bi-result--api", "aria-hidden": "true" });
+
+    const apiCol = el("div", { class: "mcp-bi-col mcp-bi-col--api" },
+        el("div", { class: "mcp-bi-col-head" },
+            el("span", { class: "mcp-bi-col-title", text: act.apiColLabel }),
+            el("span", { class: "mcp-bi-friction" }, apiCountEl, el("span", { class: "mcp-bi-friction-label", text: " " + act.frictionLabel })),
+        ),
+        apiColBody,
+        apiNoteEl,
+        apiResultEl,
+        apiGate,
+    );
+
+    act.stages.forEach(s => {
+        const badge   = el("span", { class: "mcp-bi-badge mcp-bi-badge--rewrites", text: "rewrites" });
+        const pre     = el("pre", { class: "mcp-msg-json mcp-bi-code" });
+        const stageEl = el("div", { class: "mcp-bi-stage" },
+            el("div", { class: "mcp-bi-stage-label" },
+                el("span", { class: "mcp-bi-stage-n", text: s.n }),
+                el("span", { class: "mcp-bi-stage-name", text: s.label }),
+                badge,
+            ),
+            pre,
+        );
+        apiStageEls[s.key] = { pre, badge, stageEl };
+        apiColBody.appendChild(stageEl);
+    });
+    const placeholderEl = el("p", { class: "mcp-bi-placeholder", text: "← Select a model to see the integration code" });
+    apiColBody.appendChild(placeholderEl);
+    apiColBody.classList.add("mcp-bi-col-body--empty");
+
+    // ── MCP window ──
+    const mcpStageEls  = {};
+    const mcpLockedEl  = el("span", { class: "mcp-bi-locked", "aria-hidden": "true" }, "✓ " + act.mcpNoChange);
+    const mcpResultEl  = el("div", { class: "mcp-bi-result mcp-bi-result--mcp", "aria-hidden": "true" });
+
+    const mcpCol = el("div", { class: "mcp-bi-col mcp-bi-col--mcp" },
+        el("div", { class: "mcp-bi-col-head" },
+            el("span", { class: "mcp-bi-col-title mcp-bi-col-title--mcp", text: act.mcpColLabel }),
+            el("span", { class: "mcp-bi-friction mcp-bi-friction--zero" },
+                el("span", { class: "mcp-bi-col-count", text: "0" }),
+                el("span", { class: "mcp-bi-friction-label", text: " " + act.frictionLabel }),
+            ),
+        ),
+    );
+
+    act.stages.forEach(s => {
+        const stageData = act.mcpStages[s.key];
+        const badge   = el("span", { class: "mcp-bi-badge mcp-bi-badge--frozen", text: stageData.badge });
+        const pre     = el("pre", { class: "mcp-msg-json mcp-bi-code" });
+        const stageEl = el("div", { class: "mcp-bi-stage" },
+            el("div", { class: "mcp-bi-stage-label" },
+                el("span", { class: "mcp-bi-stage-n", text: s.n }),
+                el("span", { class: "mcp-bi-stage-name", text: s.label }),
+                badge,
+            ),
+            pre,
+        );
+        mcpStageEls[s.key] = { pre };
+        mcpCol.appendChild(stageEl);
+    });
+    mcpCol.append(mcpLockedEl, mcpResultEl);
+
+    // ── friction meter ──
+    const meterFillEl = el("div", { class: "mcp-bi-meter-fill mcp-bi-meter-fill--api" });
+    const meterRow = el("div", { class: "mcp-bi-meter-row" },
+        el("div", { class: "mcp-bi-meter-track" }, meterFillEl),
+        el("span", { class: "mcp-bi-meter-label", text: act.frictionMeterLabel }),
+    );
+
+    // ── FX layer for packet flights ──
+    const fxLayer = el("div", { class: "mcp-bi-fx", "aria-hidden": "true" });
+
+    // ── grid + controls ──
+    const grid = el("div", { class: "mcp-bi-grid" }, apiCol, mcpCol);
+
+    const chipEls = act.models.map(m => {
+        const logo = LOGOS[m.name] ? el("img", { src: LOGOS[m.name], class: "mcp-bi-chip-logo", alt: "", width: "14", height: "14" }) : null;
+        const chip = el("button", { class: "mcp-bi-chip", type: "button", title: m.schema },
+            ...(logo ? [logo] : []),
+            el("span", { text: m.name }),
+        );
+        return chip;
+    });
+    const runBtn  = el("button", { class: "mcp-action-btn mcp-bi-run-btn", type: "button", text: act.runLabel, disabled: true });
+    const controls = el("div", { class: "mcp-bi-controls" }, ...chipEls, runBtn);
+
+    const wrap = el("div", { class: "mcp-bi-wrap" },
+        apiCard, stepRail, grid, meterRow, fxLayer,
+    );
+    stage.appendChild(wrap);
+
+    // ── copy column — narration + controls (chips + Run) + swap log ──
+    const narrEl = el("p", { class: "mcp-bi-narr" });
+    const logEl  = el("div", { class: "mcp-bi-log" });
+    extra.append(narrEl, controls, logEl);
+
+    // ── render helpers ──
+    function renderStage(preEl, lines, diffSet) {
+        preEl.innerHTML = lines.map((line, i) => {
+            const safe = esc(line);
+            return diffSet && diffSet.has(i) ? `<span class="mcp-json-hl--diff">${safe}</span>` : safe;
+        }).join("\n");
+    }
+
+    function renderApiStages(family, diffsByKey) {
+        const adapter = act.apiAdapter[family];
+        act.stages.forEach(s => {
+            renderStage(apiStageEls[s.key].pre, adapter[s.key], diffsByKey ? new Set(diffsByKey[s.key] || []) : null);
+        });
+        apiNoteEl.textContent = adapter.parseNote;
+        if (hasRun) renderApiResult(family);
+    }
+
+    function renderApiResult(family) {
+        apiResultEl.innerHTML = "";
+        act.apiResult[family].forEach(line => {
+            const isOutput = line.startsWith("→");
+            apiResultEl.appendChild(el("div", { class: isOutput ? "mcp-bi-result-output" : "mcp-bi-result-line", text: line }));
+        });
+    }
+
+    function renderMcpStages() {
+        act.stages.forEach(s => {
+            renderStage(mcpStageEls[s.key].pre, act.mcpStages[s.key].lines, null);
+        });
+    }
+
+    function setNarr(template, vars = {}) {
+        let text = template;
+        for (const [k, v] of Object.entries(vars)) text = text.replaceAll("{" + k + "}", v);
+        narrEl.innerHTML = "";
+        text.split(/\*\*(.+?)\*\*/g).forEach((part, i) => {
+            narrEl.append(i % 2 === 1 ? el("span", { class: "mcp-accent", text: part }) : document.createTextNode(part));
+        });
+    }
+
+    function selectChip(name) {
+        chipEls.forEach((c, i) => c.classList.toggle("is-active", act.models[i].name === name));
+    }
+
+    function renderLog() {
+        logEl.innerHTML = "";
+        logEl.appendChild(el("div", { class: "mcp-bi-log-row mcp-bi-log-row--mcp", text: "MCP · 0 rewrites, always" }));
+        [...swapLog].reverse().slice(0, 4).forEach(entry => {
+            const label = entry.count === 0
+                ? `${entry.from} → ${entry.to} · same format, 0 rewrites`
+                : `${entry.from} → ${entry.to} · rewrote all 3 stages (${entry.count} lines)`;
+            logEl.appendChild(el("div", { class: "mcp-bi-log-row mcp-bi-log-row--api", text: label }));
+        });
+    }
+
+    function updateMeter() {
+        const pct = Math.min(frictionTotal * 4, 100);
+        if (g && !REDUCE_MOTION) {
+            tweens.push(g.to(meterFillEl, { width: pct + "%", duration: 0.5, ease: "power2.out" }));
+        } else {
+            meterFillEl.style.width = pct + "%";
+        }
+    }
+
+    // ── packet flight animation ──
+    function flyPacket(color, fromEl, toEl, delay, onLand) {
+        if (!g || REDUCE_MOTION) { onLand?.(); return; }
+        const stageRect = stage.getBoundingClientRect();
+        const fr = fromEl.getBoundingClientRect();
+        const tr = toEl.getBoundingClientRect();
+        const sx = fr.left + fr.width / 2 - stageRect.left;
+        const sy = fr.top  + fr.height / 2 - stageRect.top;
+        const ex = tr.left + tr.width / 2 - stageRect.left;
+        const ey = tr.top  + tr.height / 2 - stageRect.top;
+
+        const glow = color === "amber" ? "rgba(255,158,109,0.9)" : "rgba(0,255,209,0.9)";
+        const pkt = el("div", { class: `mcp-bi-packet mcp-bi-packet--${color}` });
+        fxLayer.appendChild(pkt);
+        g.set(pkt, { x: sx, y: sy, opacity: 0 });
+        const tl = g.timeline({ delay, onComplete: () => { pkt.remove(); onLand?.(); } });
+        tl.to(pkt, { opacity: 1, duration: 0.1 })
+          .to(pkt, { x: ex, y: ey, duration: 0.55, ease: "power2.inOut" }, 0.05)
+          .to(pkt, { opacity: 0, duration: 0.15 }, "-=0.15");
+        tweens.push(tl);
+    }
+
+    function animateRunPackets(apiFromEl, mcpFromEl) {
+        const apiDest = apiResultEl;
+        const mcpDest = mcpResultEl;
+        // Amber packet: chip → API window → apiCard pulse
+        flyPacket("amber", apiFromEl, apiCol, 0, () => {
+            if (g && !REDUCE_MOTION) {
+                tweens.push(g.fromTo(apiCard,
+                    { boxShadow: "0 0 0 2px rgba(255,158,109,0.7)" },
+                    { boxShadow: "0 0 0 2px rgba(255,158,109,0)", duration: 0.8, ease: "power2.out" },
+                ));
+                tweens.push(g.fromTo(apiResultEl, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }));
+            }
+        });
+        // Cyan packet: chip → MCP window (slightly faster, arrives "clean")
+        flyPacket("cyan", mcpFromEl, mcpCol, 0.1, () => {
+            if (g && !REDUCE_MOTION) {
+                tweens.push(g.fromTo(apiCard,
+                    { boxShadow: "0 0 0 2px rgba(0,255,209,0.5)" },
+                    { boxShadow: "0 0 0 2px rgba(0,255,209,0)", duration: 0.6, ease: "power2.out" },
+                ));
+                tweens.push(g.fromTo(mcpResultEl, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }));
+            }
+        });
+    }
+
+    // ── gate open / close ──
+    function openGate(model, diffsByKey, totalDiff) {
+        pending = { model, diffsByKey, totalDiff };
+        gateWarnEl.textContent = `Switching to ${model.name} (${model.schema}) — all 3 stages need a rewrite. You have to do this by hand.`;
+        apiGate.removeAttribute("aria-hidden");
+        apiGate.classList.add("is-open");
+        mcpLockedEl.classList.add("is-visible");
+
+        if (g && !REDUCE_MOTION) {
+            // Shake the API window
+            const tl = g.timeline();
+            tl.to(apiCol, { x: -6, duration: 0.06 })
+              .to(apiCol, { x: 6, duration: 0.06 })
+              .to(apiCol, { x: -4, duration: 0.06 })
+              .to(apiCol, { x: 0, duration: 0.06 });
+            tweens.push(tl);
+            // Gate fades in
+            tweens.push(g.fromTo(apiGate, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.4)" }));
+            // MCP locked badge pulses in
+            tweens.push(g.fromTo(mcpLockedEl, { opacity: 0, y: -4 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }));
+            // MCP window calm cyan ring
+            tweens.push(g.fromTo(mcpCol,
+                { boxShadow: "0 0 0 2px rgba(0,255,209,0.6)" },
+                { boxShadow: "0 0 0 2px rgba(0,255,209,0)", duration: 1.4, ease: "power2.out" },
+            ));
+        }
+    }
+
+    function closeGate() {
+        apiGate.setAttribute("aria-hidden", "true");
+        apiGate.classList.remove("is-open");
+        mcpLockedEl.classList.remove("is-visible");
+        if (g && !REDUCE_MOTION) {
+            tweens.push(g.to(apiGate, { opacity: 0, scale: 0.96, duration: 0.25, ease: "power2.in",
+                onComplete: () => { apiGate.style.opacity = ""; apiGate.style.transform = ""; } }));
+        }
+    }
+
+    // ── commit a swap (apply the rewrite) ──
+    function commit(model, prevFamily, prevName, diffsByKey, totalDiff, viaApproval) {
+        currentFamily = model.family;
+        currentName   = model.name;
+        selectChip(model.name);
+
+        const sameFamily = totalDiff === 0;
+        if (!sameFamily) {
+            frictionTotal += totalDiff;
+            apiCountEl.textContent = String(frictionTotal);
+        }
+
+        if (!sameFamily && g && !REDUCE_MOTION) {
+            // Morph: line-by-line staggered slide-in
+            renderApiStages(currentFamily, diffsByKey);
+            act.stages.forEach(s => {
+                const diffSpans = apiStageEls[s.key].pre.querySelectorAll(".mcp-json-hl--diff");
+                diffSpans.forEach((span, i) => {
+                    tweens.push(g.fromTo(span,
+                        { y: -4, backgroundColor: "rgba(255,158,109,0.45)" },
+                        { y: 0, backgroundColor: "rgba(255,158,109,0)", duration: viaApproval ? 0.6 : 1.8,
+                          delay: i * (viaApproval ? 0.06 : 0.03), ease: "power2.out" },
+                    ));
+                });
+            });
+            // Counter count-up
+            const startVal = frictionTotal - totalDiff;
+            const countObj = { val: startVal };
+            tweens.push(g.to(countObj, { val: frictionTotal, duration: 0.6, ease: "power2.out",
+                onUpdate: () => { apiCountEl.textContent = String(Math.round(countObj.val)); } }));
+            // MCP freeze-pulse
+            tweens.push(g.fromTo(mcpCol,
+                { boxShadow: "0 0 0 2px rgba(0,255,209,0.55)" },
+                { boxShadow: "0 0 0 2px rgba(0,255,209,0)", duration: 1.0, ease: "power2.out" },
+            ));
+        } else {
+            renderApiStages(currentFamily, sameFamily ? null : diffsByKey);
+        }
+
+        updateMeter();
+
+        swapLog.push({ from: prevName, to: model.name, count: sameFamily ? 0 : totalDiff });
+        renderLog();
+
+        if (sameFamily) {
+            setNarr(act.narration.swapSame, { model: model.name, schema: model.schema });
+        } else if (viaApproval) {
+            setNarr(act.narration.approved, { count: String(totalDiff) });
+            if (frictionTotal > 0) ctl.signalReady?.();
+        } else {
+            setNarr(act.narration.swapAuto, { model: model.name, count: String(totalDiff) });
+            if (frictionTotal > 0) ctl.signalReady?.();
+        }
+    }
+
+    // ── request a model swap ──
+    function requestModel(model) {
+        if (model.name === currentName) return;
+        const prevFamily = currentFamily;
+        const prevName   = currentName;
+
+        // Compute diff
+        const sameFamily = prevFamily === model.family;
+        const diffsByKey = {};
+        let totalDiff = 0;
+        act.stages.forEach(s => {
+            const prev = act.apiAdapter[prevFamily][s.key];
+            const next = act.apiAdapter[model.family][s.key];
+            const maxLen = Math.max(prev.length, next.length);
+            const idxs = [];
+            for (let i = 0; i < maxLen; i++) { if (prev[i] !== next[i]) idxs.push(i); }
+            diffsByKey[s.key] = idxs;
+            if (!sameFamily) totalDiff += idxs.length;
+        });
+
+        // Same family or no diff → commit immediately, no gate
+        if (sameFamily || totalDiff === 0) {
+            pending = null;
+            commit(model, prevFamily, prevName, diffsByKey, totalDiff, false);
+            return;
+        }
+
+        // First cross-provider swap → open gate
+        if (!painFelt) {
+            openGate(model, diffsByKey, totalDiff);
+            setNarr(act.narration.pendingRewrite, { model: model.name, schema: model.schema });
+            advanceStep(2);
+            return;
+        }
+
+        // Pain already felt → commit immediately
+        pending = null;
+        commit(model, prevFamily, prevName, diffsByKey, totalDiff, false);
+        advanceStep(3);
+    }
+
+    // ── initial render ──
+    renderMcpStages();
+    renderLog();
+    setNarr(act.narration.initial);
+
+    if (REDUCE_MOTION || !g) ctl.signalReady?.();
+
+    function clearRun() {
+        hasRun = false;
+        runBtn.removeAttribute("disabled");
+        apiResultEl.classList.remove("is-visible");
+        apiResultEl.setAttribute("aria-hidden", "true");
+        mcpResultEl.classList.remove("is-visible");
+        mcpResultEl.setAttribute("aria-hidden", "true");
+    }
+
+    // ── event wiring ──
+    chipEls.forEach((chip, i) => {
+        addListener(chip, "click", () => {
+            const model = act.models[i];
+            if (currentFamily === null) {
+                // first-ever pick — reveal the API window stages
+                apiColBody.classList.remove("mcp-bi-col-body--empty");
+                currentFamily = model.family;
+                currentName   = model.name;
+                renderApiStages(currentFamily, null);
+                selectChip(currentName);
+                runBtn.removeAttribute("disabled");
+                return;
+            }
+            if (model.name === currentName) return;
+            if (hasRun) clearRun();
+            requestModel(model);
+        });
+    });
+
+    addListener(approveBtn, "click", () => {
+        if (!pending) return;
+        const { model, diffsByKey, totalDiff } = pending;
+        const prevFamily = currentFamily;
+        const prevName   = currentName;
+        painFelt = true;
+        pending  = null;
+        closeGate();
+        commit(model, prevFamily, prevName, diffsByKey, totalDiff, true);
+        advanceStep(3);
+        // Confirmation packet to show the fixed call works
+        if (g && !REDUCE_MOTION) {
+            setTimeout(() => flyPacket("amber", approveBtn, apiResultEl, 0, null), 300);
+        }
+    });
+
+    addListener(runBtn, "click", () => {
+        if (hasRun) return;
+        hasRun = true;
+
+        // Reveal results
+        renderApiResult(currentFamily);
+        apiResultEl.removeAttribute("aria-hidden");
+        apiResultEl.classList.add("is-visible");
+        mcpResultEl.innerHTML = "";
+        act.mcpResult.forEach(line => {
+            const isOutput = line.startsWith("→");
+            mcpResultEl.appendChild(el("div", { class: isOutput ? "mcp-bi-result-output" : "mcp-bi-result-line", text: line }));
+        });
+        mcpResultEl.removeAttribute("aria-hidden");
+        mcpResultEl.classList.add("is-visible");
+
+        setNarr(act.narration.run);
+        ctl.signalReady?.();
+        advanceStep(1);
+
+        if (g && !REDUCE_MOTION) {
+            // Packet flight: active chip → each window → apiCard pulse → result reveal
+            const activeChip = chipEls[act.models.findIndex(m => m.name === currentName)];
+            animateRunPackets(activeChip, activeChip);
+        } else {
+            // No animation — just show results
+        }
+    });
+
+    return {
+        destroy() {
+            tweens.forEach(t => t?.kill?.());
+            listeners.forEach(([node, ev, fn]) => node.removeEventListener(ev, fn));
+        },
+    };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // Controller
 // ════════════════════════════════════════════════════════════════════════════════
 
-const MOUNTERS = { mess: mountMess, standard: mountStandard, humanapi: mountHumanApi, underhood: mountUnderHood, handshake: mountHandshake, vsapis: mountVsApis };
+const MOUNTERS = { mess: mountMess, standard: mountStandard, humanapi: mountHumanApi, underhood: mountUnderHood, handshake: mountHandshake, vsapis: mountVsApis, buildit: mountBuildIt };
 
 export function initMcpLab(rootEl, opts = {}) {
     const content = opts.content;
@@ -2107,6 +2610,8 @@ export function initMcpLab(rootEl, opts = {}) {
             if (!g2 || REDUCE_MOTION) { if (act.id !== "mess") signalReady(); }
             else if (act.id !== "mess") analogyReveal = g2.delayedCall(16, signalReady);
         }
+
+        stageWrap.classList.toggle("mcp-stagewrap--buildit", act.id === "buildit");
 
         const mount = MOUNTERS[act.id];
         const doMount = () => { active = mount({ stage, extra, act, ctl: { ui, signalReady } }); };
