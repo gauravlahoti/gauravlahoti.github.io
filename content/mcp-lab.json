@@ -18,6 +18,9 @@
       "id": "mess",
       "eyebrow": "// model context protocol",
       "title": "The Universal Adapter for AI",
+      "sprawlEyebrow": "// 01 · the sprawl",
+      "sprawlTitle": "The Sprawl",
+      "sprawlBody": "Life before MCP. Every model is wired to every service by hand, so M models and N services mean M×N bespoke integrations to build and keep alive.",
       "intro": {
         "lines": [
           "Everyone's talking about MCP.",
