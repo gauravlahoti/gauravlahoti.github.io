@@ -36,10 +36,10 @@
         { "name": "GPT-4o", "schema": "OpenAI functions" }
       ],
       "tools": [
-        { "name": "GitHub", "api": "REST · OAuth" },
-        { "name": "Postgres", "api": "SQL · row sets" },
-        { "name": "Slack", "api": "Web API · paging" },
-        { "name": "Drive", "api": "gRPC · streaming" }
+        { "name": "GitHub", "api": "REST + GraphQL · OAuth" },
+        { "name": "Postgres", "api": "SQL · no HTTP · schemas" },
+        { "name": "Slack", "api": "OAuth · cursor paging" },
+        { "name": "Drive", "api": "gRPC · not REST · scopes" }
       ],
       "painPoints": [
         { "k": "differ", "title": "Every service's API behaves differently", "note": "Different auth, request/response schemas, pagination, error formats. One service can even expose several APIs (GitHub has REST and GraphQL), and no two are alike." },
@@ -68,7 +68,7 @@
       "frictions": ["OAuth", "Rate limits", "Edge cases", "Fragile prompts"],
       "oldCaption": "Writing glue code for every service. Teaching endpoints via massive system prompts.",
       "hubLabel": "MCP standard",
-      "mcpServers": ["Calendar Server", "Node Server", "Email Server"],
+      "mcpServers": ["Calendar Server", "Notion Server", "Email Server"],
       "mcpCaption": "Servers advertise capabilities. The model reasons about what to use and when. Zero glue code.",
       "httpAnalogy": "Just as HTTP unified how browsers talk to servers without changing the databases underneath, MCP is unifying how models talk to tools. Expose your systems once and any compliant model can use them, with no custom integration per service.",
       "analogy": { "glyph": "≈", "lead": "USB-C for AI.", "points": ["One port replaced the drawer of chargers", "Plug into any service, no rewrites"] },
@@ -78,7 +78,7 @@
     {
       "id": "humanapi",
       "eyebrow": "// 03 · the mismatch",
-      "title": "APIs Were Never Built for AI",
+      "title": "APIs Were Never Built for AI Models",
       "body": "APIs were built for a human integrator. Watch how a person actually wires one up.",
       "loop": {
         "actor": "Human Integrator",
@@ -95,7 +95,7 @@
         "That code invokes the API and just runs, a million times over."
       ],
       "insight": "The hard thinking happened up front, just once, and got cached as code.",
-      "bridge": "An AI model can't cache a call like that. It generates each step probabilistically and reasons through uncertain inputs, often asking, clarifying, or exploring before it knows what to do.",
+      "bridge": "AI models can't cache calls like that. They generate each step probabilistically and reason through uncertain inputs, often asking, clarifying, or exploring before knowing what to do.",
       "analogy": { "glyph": "≈", "lead": "Like a chef's perfected recipe.", "points": ["Weeks of testing happen once, then it's frozen on the card", "A line cook reproduces it identically forever", "An AI is the home cook, improvising and tasting each time"] }
     },
     {
@@ -115,7 +115,7 @@
       ],
       "narration": [
         "A host app runs an MCP client. Each service runs an MCP server.",
-        "The server exposes three things: tools to act, resources to read, and prompts to reuse.",
+        "The server exposes 3 primitives: **tools** to act, **resources** to read, and **prompts** to reuse.",
         "On connect, the server advertises what it can do, so the client discovers its tools at runtime instead of hardcoding them.",
         "The client calls a tool, the server runs it and returns the result. That loop repeats for every action."
       ],

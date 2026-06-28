@@ -60,7 +60,21 @@
 
 /* ─── act header: per-act heading in a full-width bar at the top ──────────────── */
 
-.mcp-actheader { margin-bottom: var(--space-8); }
+.mcp-actheader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-6);
+    margin-bottom: var(--space-8);
+}
+.mcp-actheader-text { flex: 1; min-width: 0; }
+.mcp-header-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    padding-top: var(--space-1);
+}
 .mcp-actheader .mcp-eyebrow { margin: 0 0 var(--space-2); }
 .mcp-actheader .mcp-title {
     font-size: clamp(2rem, 4.5vw, var(--text-3xl));
@@ -164,8 +178,28 @@
     border-color: var(--accent);
     box-shadow: 0 0 12px var(--accent-glow);
 }
+
+/* Stage-embedded nav buttons (prev / next) */
+@keyframes mcp-next-pulse {
+    0%, 100% { box-shadow: 0 0 6px var(--accent-glow), 0 0 0 1px var(--accent); }
+    50%       { box-shadow: 0 0 18px var(--accent-glow), 0 0 0 1px var(--accent); }
+}
+.mcp-stage-nav { width: 32px; height: 32px; font-size: 18px; }
+.mcp-nav-prev:disabled { opacity: 0.25; cursor: default; }
+.mcp-nav-prev:not(:disabled) { color: var(--ink-muted); }
+.mcp-nav-next:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+    animation: mcp-next-pulse 2s ease-in-out infinite;
+}
+.mcp-nav-next:not(:disabled):hover {
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 0 1px var(--accent);
+    animation: none;
+}
+
 /* Hide the controls while the Act 1 phrase-journey overlay owns the stage. */
 .mcp-lab--intro .mcp-stage-tools { display: none; }
+.mcp-lab--intro .mcp-header-nav  { display: none; }
 
 .mcp-stage-backdrop {
     position: fixed;
@@ -296,11 +330,11 @@
 .mcp-nav-pill {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-3);
     background: var(--bg-card);
     border: 1px solid var(--border-strong);
     border-radius: 99px;
-    padding: var(--space-2) var(--space-2);
+    padding: var(--space-2) var(--space-4);
 }
 
 .mcp-nav-btn {
@@ -463,12 +497,21 @@
 .mcp-std-panel-title--mcp { fill: var(--accent); }
 
 /* friction annotations on the tangled old-world wires */
+.mcp-friction-pill { fill: rgba(6,6,6,0.82); }
 .mcp-friction-label {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 700;
     fill: var(--mcp-tool);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
+    paint-order: stroke fill;
+    stroke: var(--mcp-stage-bg);
+    stroke-width: 4px;
 }
+.mcp-friction-label--caption { font-size: 10px; font-weight: 500; }
+
+/* inline keyword highlights in narration text */
+.mcp-accent { color: var(--accent); font-weight: 600; }
 
 /* in-panel caption boxes (native SVG text) */
 .mcp-caption-rect { fill: var(--bg-card); stroke: var(--border-strong); stroke-width: 1; }
@@ -815,6 +858,11 @@
 }
 /* the human-integrator node carries a longer label — shrink it to fit the box */
 .mcp-node--human .mcp-node-label { font-size: 11px; }
+
+/* animated human figure (Act 3) */
+.mcp-human-head  { fill: var(--ink-muted); stroke: none; }
+.mcp-human-body, .mcp-human-arms, .mcp-human-leg { stroke: var(--ink-muted); stroke-width: 2.5; stroke-linecap: round; }
+.mcp-human-glow  { stroke: var(--accent); stroke-width: 1.5; opacity: 0.6; }
 
 .mcp-loop-node { fill: var(--ink-subtle); }
 .mcp-loop-label {
@@ -1368,7 +1416,7 @@
     .mcp-blade { display: none; }
 }
 
-/* ═══ AI Concepts hub (/ai-concepts/) ════════════════════════════════════════ */
+/* ═══ AI Lab hub (/ai-concepts/) ════════════════════════════════════════════ */
 
 .ai-concepts-page { background: var(--bg); color: var(--ink); min-height: 100vh; }
 #concepts-main {

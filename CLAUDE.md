@@ -41,6 +41,7 @@ python3 -m http.server 5173
 | Backend | `backend/` | Resume-gate + agent audit log + analytics + GCP cost alerts |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
 | Redirect stub | `rag-lab/index.html` | Static redirect → `https://agentic-rag.gauravlahoti.dev/` (the RAG Lab agent is served off-repo) |
+| MCP Lab | `mcp-lab/index.html`, `assets/js/mcp-lab.js`, `assets/css/mcp-lab.css`, `content/mcp-lab.json` | 6-act interactive SVG explainer for the Model Context Protocol. Content in JSON; each act has a `mountXxx()` function in `mcp-lab.js`. Nav is prev/next buttons top-right of heading with GSAP slide transitions. Friction labels use `--mcp-tool` amber. Narration supports `**word**` markdown-bold → `.mcp-accent` cyan highlight. |
 
 ## Backend, analytics & MCP → `.claude/docs/backend.md`
 

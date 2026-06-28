@@ -198,8 +198,7 @@ function subNode(cx, cy, name, sub, cls) {
     const g = s("g", { class: `mcp-node ${cls}`, transform: `translate(${cx},${cy})` });
     g.append(
         s("rect", { x: -w / 2, y: -h / 2, width: w, height: h, rx: 8, class: "mcp-node-rect" }),
-        s("text", { x: 0, y: -4, "text-anchor": "middle", class: "mcp-node-label" }, name),
-        s("text", { x: 0, y: 14, "text-anchor": "middle", class: "mcp-node-sub" }, sub),
+        s("text", { x: 0, y: 6, "text-anchor": "middle", class: "mcp-node-label" }, name),
     );
     g._cx = cx; g._cy = cy; g._w = w; g._h = h;
     return g;
@@ -232,17 +231,16 @@ function deviceNode(cx, cy, label, cls, portCount = 3) {
 // An app-icon endpoint (Act 2 old world): brand-logo chip (light tile) + a top
 // port nub where the pipe enters + the service name below. Returns the group plus
 // `_topY` (the pipe entry point) and `_w`.
-function endpointNode(cx, cy, name, logoHref) {
-    const chip = 50;
-    const g = s("g", { class: "mcp-node mcp-endpoint", transform: `translate(${cx},${cy})` });
+function endpointNode(cx, cy, name) {
+    const w = 128, h = 44;
+    const g = s("g", { class: "mcp-node mcp-node--tool", transform: `translate(${cx},${cy})` });
     g.append(
-        s("rect", { x: -6, y: -chip / 2 - 10, width: 12, height: 10, rx: 2, class: "mcp-port-nub" }),
-        s("rect", { x: -chip / 2, y: -chip / 2, width: chip, height: chip, rx: 12, class: "mcp-endpoint-chip", filter: "url(#mcpSoftShadow)" }),
-        s("image", { href: logoHref, x: -chip / 2 + 7, y: -chip / 2 + 7, width: chip - 14, height: chip - 14, class: "mcp-logo-img" }),
-        s("text", { x: 0, y: chip / 2 + 21, "text-anchor": "middle", class: "mcp-endpoint-label" }, name),
+        s("rect", { x: -6, y: -h / 2 - 10, width: 12, height: 10, rx: 2, class: "mcp-port-nub" }),
+        s("rect", { x: -w / 2, y: -h / 2, width: w, height: h, rx: 8, class: "mcp-node-rect" }),
+        s("text", { x: 0, y: 5, "text-anchor": "middle", class: "mcp-node-label" }, name),
     );
-    g._cx = cx; g._cy = cy; g._w = chip;
-    g._topY = cy - chip / 2 - 10;
+    g._cx = cx; g._cy = cy; g._w = w; g._h = h;
+    g._topY = cy - h / 2 - 10;
     return g;
 }
 
@@ -338,7 +336,6 @@ function mountMess({ stage, extra, act, ctl }) {
     const g = gsap();
     const VB_W = 760, VB_H = 470;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
-    svg.append(s("title", {}, "Every AI app wires bespoke glue to every tool — the M×N problem"));
     stage.appendChild(svg);
 
     const wireLayer = s("g", {}); const flowLayer = s("g", {}); const glueLayer = s("g", {}); const nodeLayer = s("g", {}); const markLayer = s("g", {});
@@ -364,15 +361,15 @@ function mountMess({ stage, extra, act, ctl }) {
             const imgEl = s("image", { href: logo, x: logoX, y: -logoSize / 2, width: logoSize, height: logoSize, class: "mcp-logo-img" });
             grp.append(
                 imgEl,
-                s("text", { x: textX, y: -4, "text-anchor": "start", class: "mcp-node-label" }, name),
-                s("text", { x: textX, y: 14, "text-anchor": "start", class: "mcp-node-sub" }, sub),
+                s("text", { x: textX, y: sub ? -1 : 6, "text-anchor": "start", class: "mcp-node-label" }, name),
             );
+            if (sub) grp.append(s("text", { x: textX, y: 13, "text-anchor": "start", class: "mcp-node-sub" }, sub));
             grp._logoEl = imgEl;
         } else {
             grp.append(
-                s("text", { x: 0, y: -4, "text-anchor": "middle", class: "mcp-node-label" }, name),
-                s("text", { x: 0, y: 14, "text-anchor": "middle", class: "mcp-node-sub" }, sub),
+                s("text", { x: 0, y: sub ? -1 : 6, "text-anchor": "middle", class: "mcp-node-label" }, name),
             );
+            if (sub) grp.append(s("text", { x: 0, y: 13, "text-anchor": "middle", class: "mcp-node-sub" }, sub));
         }
         grp._cx = cx; grp._cy = cy; grp._w = w; grp._h = h;
         return grp;
@@ -393,11 +390,11 @@ function mountMess({ stage, extra, act, ctl }) {
     const swapY = 195;
     const appX = 136, toolX = 624;
 
-    const apps = act.apps.map((a, i) => messNode(appX, appY[i], a.name, a.schema, `mcp-node--${AXES[i % AXES.length]}`));
+    const apps = act.apps.map((a, i) => messNode(appX, appY[i], a.name, null, `mcp-node--${AXES[i % AXES.length]}`));
     const tools = act.tools.map((t, i) => messNode(toolX, toolY[i], t.name, t.api, "mcp-node--tool"));
     const claudeNode = apps[0];
     // DeepSeek: the model you swap Claude for. Sits between Claude and Gemini.
-    const swapNode = messNode(appX, swapY, act.swapTo, act.swapToSchema, "mcp-node--swap");
+    const swapNode = messNode(appX, swapY, act.swapTo, null, "mcp-node--swap");
 
     tools.forEach(t => nodeLayer.appendChild(t));
     apps.forEach(a => nodeLayer.appendChild(a));
@@ -769,7 +766,7 @@ function mountMess({ stage, extra, act, ctl }) {
         let beat = 0;
         // Only 3 labels — beat 3 (last pain point) transitions directly to action buttons
         const BEAT_LABELS = ["Continue", "Continue", "Continue"];
-        const cBtn = el("button", { class: "mcp-continue-btn", type: "button" }, BEAT_LABELS[0] + " →");
+        const cBtn = el("button", { class: "mcp-continue-btn", type: "button" }, "Begin →");
         extra.appendChild(cBtn);
 
         function nextBeat() {
@@ -831,6 +828,7 @@ function mountMess({ stage, extra, act, ctl }) {
             // Replace Continue with the shared story-action buttons (Add a tool / Add More Models).
             if (beat >= painRows.length) {
                 storyComplete = true;
+                ctl.signalReady?.();
                 const storyActions = buildStoryActions();
                 if (gx) {
                     extra.appendChild(storyActions);
@@ -914,7 +912,6 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
     const g = gsap();
     const VB_W = 1000, VB_H = 560;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
-    svg.append(s("title", {}, "The Old World: bespoke glue per service. The MCP World: one standard, zero glue."));
     stage.appendChild(svg);
 
     // shared <defs>: metallic pipe sheen, soft depth shadow, amber flow chevron
@@ -952,44 +949,36 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
     // ── centre partition ──
     bgLayer.append(s("rect", { x: DIV_X + 1, y: 0, width: VB_W - DIV_X - 1, height: VB_H, class: "mcp-std-bg" }));
     labelLayer.append(s("line", { x1: DIV_X, y1: 0, x2: DIV_X, y2: VB_H, class: "mcp-std-divider" }));
-    labelLayer.append(
-        s("text", { x: LX, y: 42, "text-anchor": "middle", class: "mcp-std-panel-title" }, act.oldWorldLabel || "The Old World"),
-        s("text", { x: RX, y: 42, "text-anchor": "middle", class: "mcp-std-panel-title mcp-std-panel-title--mcp" }, act.mcpWorldLabel || "The MCP World"),
-    );
+    const oldWorldTitle = s("text", { x: LX, y: 42, "text-anchor": "middle", class: "mcp-std-panel-title" }, act.oldWorldLabel || "The Old World");
+    const mcpWorldTitle = s("text", { x: RX, y: 42, "text-anchor": "middle", class: "mcp-std-panel-title mcp-std-panel-title--mcp" }, act.mcpWorldLabel || "The MCP World");
+    labelLayer.append(oldWorldTitle, mcpWorldTitle);
 
     // ── LEFT: the old world (glossy, fragile plumbing per service) ──
     const oldModel = deviceNode(LX, 110, "AI Model", "mcp-node--ai", 3);
     const oldNames = act.oldServices || ["Calendar", "Notion", "Gmail"];
-    const SVC_LOGOS = { Calendar: "assets/img/logo-google-calendar.svg", Notion: "assets/img/logo-notion.svg", Gmail: "assets/img/logo-gmail.svg" };
-    const logoFor = (name, i) => (act.oldServiceLogos && act.oldServiceLogos[i]) || SVC_LOGOS[name] || SVC_LOGOS.Gmail;
-    const oldSvcX = [110, 250, 390];                  // evenly spaced, centred under the model
-    const oldSvc = oldNames.map((l, i) => endpointNode(oldSvcX[i], 352, l, logoFor(l, i)));
+    const oldSvcX = [110, 250, 390];
+    const oldSvc = oldNames.map((l, i) => endpointNode(oldSvcX[i], 392, l));
     const ports = oldModel._portX, portY = oldModel._portY;
 
-    // three glossy "pipes" per service: dark edge + metallic gradient body + gloss
-    // highlight, with an amber flow line riding inside. The tube layers cast a soft
-    // shadow (depth); the flow stays crisp on top.
+    // thin crossing wires per service — left arcs right, right arcs left, they cross in the middle
     const pipeBodies = [], pipeFlows = [];
     oldSvc.forEach((svc, i) => {
-        const d = serpentinePath(ports[i], portY, svc._cx, svc._topY, 24, 2);
-        const edge = s("path", { d, class: "mcp-pipe-edge", fill: "none" });
-        const body = s("path", { d, class: "mcp-pipe-body", fill: "none" });
-        body.style.stroke = "url(#mcpPipeGrad)";
-        const gloss = s("path", { d, class: "mcp-pipe-gloss", fill: "none" });
+        const my = (portY + svc._topY) / 2;
+        let d;
+        if (i === 0) {
+            d = `M ${ports[i]} ${portY} C ${ports[i]} ${my - 40} 370 ${my - 40} 370 ${my} C 370 ${my + 40} ${svc._cx} ${my + 40} ${svc._cx} ${svc._topY}`;
+        } else if (i === 2) {
+            d = `M ${ports[i]} ${portY} C ${ports[i]} ${my - 40} 130 ${my - 40} 130 ${my} C 130 ${my + 40} ${svc._cx} ${my + 40} ${svc._cx} ${svc._topY}`;
+        } else {
+            d = `M ${ports[i]} ${portY} C ${ports[i]} ${my - 20} ${svc._cx - 60} ${my - 20} ${svc._cx - 60} ${my} C ${svc._cx - 60} ${my + 20} ${svc._cx} ${my + 20} ${svc._cx} ${svc._topY}`;
+        }
+        const wire = s("path", { d, class: "mcp-wire mcp-wire--old", fill: "none" });
         const flow = s("path", { d, class: "mcp-pipe-flow", fill: "none", "marker-end": "url(#mcpFlowArrow)" });
-        const tube = s("g", { filter: "url(#mcpSoftShadow)" });
-        tube.append(edge, body, gloss);
-        oldWireLayer.appendChild(tube);
+        oldWireLayer.appendChild(wire);
         oldFlowLayer.appendChild(flow);
-        pipeBodies.push(body); pipeFlows.push(flow);
-        // metallic coupling collars along each pipe
-        [0.42, 0.78].forEach(f => {
-            try { const pt = body.getPointAtLength(body.getTotalLength() * f);
-                oldWireLayer.appendChild(metalCollar(pt.x, pt.y));
-            } catch {}
-        });
+        pipeBodies.push(wire); pipeFlows.push(flow);
     });
-    const tangle = pipeBodies; // used by the entrance animation
+    const tangle = pipeBodies;
     // cracked / leaking joints on the pipes (fragile glue)
     const breakMarks = [];
     [[pipeBodies[0], 0.30], [pipeBodies[2], 0.30], [pipeBodies[1], 0.62]].forEach(([p, f]) => {
@@ -1014,11 +1003,20 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
     labelLayer.appendChild(scroll);
 
     // friction annotations
+    // index 1 (Rate limits): pill bg so it reads over wires; moved above arrow zone
+    // index 3 (Fragile prompts): small caption below the scroll icon
     const fr = act.frictions || ["OAuth", "Rate limits", "Edge cases", "Fragile prompts"];
-    const frPos = [[70, 250], [250, 312], [430, 250], [452, 120]];
+    const frPos = [[70, 268], [250, 316], [430, 268], [452, 158]];
     const frictionEls = fr.map((t, i) => {
-        const n = s("text", { x: frPos[i][0], y: frPos[i][1], "text-anchor": "middle", class: "mcp-friction-label" }, t);
-        labelLayer.appendChild(n); return n;
+        const grp = s("g", { class: "mcp-friction-grp" });
+        if (i === 1) {
+            const pad = 10, fh = 18;
+            const approxW = t.length * 7.8 + pad * 2;
+            grp.append(s("rect", { x: frPos[i][0] - approxW / 2, y: frPos[i][1] - fh + 4, width: approxW, height: fh, rx: 4, class: "mcp-friction-pill" }));
+        }
+        const cls = i === 3 ? "mcp-friction-label mcp-friction-label--caption" : "mcp-friction-label";
+        grp.append(s("text", { x: frPos[i][0], y: frPos[i][1], "text-anchor": "middle", class: cls }, t));
+        labelLayer.appendChild(grp); return grp;
     });
 
     const CAP_Y = 452, CAP_W = 440, CAP_H = 86;
@@ -1043,7 +1041,7 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
         s("text", { x: 0, y: 15, "text-anchor": "middle", class: "mcp-ring-sub" }, "standard"),
     );
 
-    const srvNames = act.mcpServers || ["Calendar Server", "Node Server", "Email Server"];
+    const srvNames = act.mcpServers || ["Calendar Server", "Notion Server", "Email Server"];
     const srvX = [615, 750, 885];
     const servers = srvNames.map((l, i) => {
         const n = nodeGroup(srvX[i], 392, l, "mcp-node--server");
@@ -1083,14 +1081,14 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
         g.set([oldModel, ...oldSvc, mcpModel, ...servers], { opacity: 0 });
         g.set(ring, { opacity: 0, scale: 0.6, transformOrigin: "center center" });
         g.set([oldWireLayer, oldFlowLayer, scroll], { opacity: 0 });
-        g.set([...frictionEls, ...breakMarks, oldCap, mcpCap], { opacity: 0 });
+        g.set([...frictionEls, ...breakMarks, oldCap, mcpCap, mcpWorldTitle], { opacity: 0 });
         g.set([httpFact, origin, adoption], { opacity: 0, y: 8 });
         [...cleanWires, ...cleanEdges].forEach(setDash);
         pipeFlows.forEach(f => { f.style.strokeDasharray = "6 12"; });
 
         tl = g.timeline();
 
-        // Left: model + services, the winding pipes + collars fade in, breaks crack, scroll
+        // Left: Old World — model + services, winding pipes, breaks, scroll, caption
         tl.to([oldModel, ...oldSvc], { opacity: 1, duration: 0.32, ease: "power2.out", stagger: 0.08 });
         tl.to([oldWireLayer, oldFlowLayer], { opacity: 1, duration: 0.55, ease: "power2.out" }, "-=0.05");
         tl.to(scroll, { opacity: 1, duration: 0.4 }, "-=0.35");
@@ -1098,15 +1096,22 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
         tl.to(breakMarks, { opacity: 1, duration: 0.12, ease: "back.out(2)", stagger: 0.1, repeat: 3, yoyo: true }, "-=0.2");
         tl.to(oldCap, { opacity: 1, duration: 0.4 }, "-=0.1");
 
-        // Right: model, ring scale-in + scramble, servers, clean wires, caption
-        tl.to(mcpModel, { opacity: 1, duration: 0.32, ease: "power2.out" }, "+=0.25");
+        // Pause — let Old World land before revealing MCP side
+        tl.to({}, { duration: 0.7 });
+
+        // Right: MCP World title, then model, ring, servers, wires, caption
+        tl.to(mcpWorldTitle, { opacity: 1, duration: 0.35, ease: "power2.out" });
+        tl.to(mcpModel, { opacity: 1, duration: 0.32, ease: "power2.out" }, "-=0.1");
         tl.to(ring, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.7)", transformOrigin: "center center" }, "-=0.1");
         tl.add(() => { const lab = ring.querySelector("[data-scramble]"); if (lab) glyphScramble(lab, "MCP", 0.4); }, "-=0.4");
         tl.to(servers, { opacity: 1, duration: 0.3, ease: "power2.out", stagger: 0.08 }, "-=0.15");
         tl.to([...cleanEdges, ...cleanWires], { strokeDashoffset: 0, duration: 0.45, ease: "power3.out", stagger: 0.06 }, "-=0.1");
         tl.to(mcpCap, { opacity: 1, duration: 0.4 }, "-=0.1");
 
-        tl.to([httpFact, origin, adoption], { opacity: 1, y: 0, duration: 0.4, ease: "power3.out", stagger: 0.1 }, "-=0.2");
+        // Text column: staggered, each item clearly after the previous
+        tl.to(httpFact, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, "+=0.5");
+        tl.to(origin, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, "+=0.5");
+        tl.to(adoption, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, "+=0.5");
         tl.add(() => ctl.signalReady?.());
 
         // loops: orange flow drifting down the fragile pipes + clean dots on the MCP side
@@ -1121,7 +1126,7 @@ function mountStandard({ stage, extra, act, ctl = {} }) {
         [oldModel, ...oldSvc, mcpModel, ...servers].forEach(n => n.style.opacity = "1");
         ring.style.opacity = "1";
         oldWireLayer.style.opacity = "1"; oldFlowLayer.style.opacity = "1"; scroll.style.opacity = "1";
-        [...frictionEls, ...breakMarks, oldCap, mcpCap, httpFact, origin, adoption].forEach(n => n.style.opacity = "1");
+        [...frictionEls, ...breakMarks, oldCap, mcpCap, oldWorldTitle, mcpWorldTitle, httpFact, origin, adoption].forEach(n => n.style.opacity = "1");
         [...cleanWires, ...cleanEdges].forEach(p => p.style.strokeDashoffset = "0");
         ctl.signalReady?.();
     }
@@ -1140,7 +1145,6 @@ function mountHumanApi({ stage, extra, act, ctl = {} }) {
     const g = gsap();
     const VB_W = 760, VB_H = 480;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
-    svg.append(s("title", {}, "A developer iterates on API docs, caches the work as deterministic code, and that code invokes the API flawlessly forever"));
     stage.appendChild(svg);
 
     const ringLayer = s("g", {});
@@ -1152,7 +1156,19 @@ function mountHumanApi({ stage, extra, act, ctl = {} }) {
     // ── nodes: the human integrator and the target API ──
     const dev = nodeGroup(108, 235, act.loop.actor, "mcp-node--biz mcp-node--human");
     const api = nodeGroup(650, 235, "API", "mcp-node--tool");
-    nodeLayer.append(dev, api);
+
+    // animated person figure above the Human Integrator box
+    const figX = 108, figY = 150;
+    const humanFig = s("g", { class: "mcp-human-fig", transform: `translate(${figX},${figY})` });
+    humanFig.append(
+        s("circle", { cx: 0, cy: -28, r: 11, class: "mcp-human-head" }),
+        s("line", { x1: 0, y1: -17, x2: 0, y2: 10, class: "mcp-human-body" }),
+        s("line", { x1: -14, y1: -5, x2: 14, y2: -5, class: "mcp-human-arms" }),
+        s("line", { x1: 0, y1: 10, x2: -11, y2: 30, class: "mcp-human-leg" }),
+        s("line", { x1: 0, y1: 10, x2: 11, y2: 30, class: "mcp-human-leg" }),
+        s("circle", { cx: 0, cy: -28, r: 16, class: "mcp-human-glow", fill: "none" }),
+    );
+    nodeLayer.append(dev, api, humanFig);
 
     // ── iteration ring (phase 1: the ~2-week struggle) ──
     const cx = 362, cy = 235, R = 118;
@@ -1246,7 +1262,7 @@ function mountHumanApi({ stage, extra, act, ctl = {} }) {
 
     let tl = null;
     if (g && !REDUCE_MOTION) {
-        g.set([dev, api], { opacity: 0 });
+        g.set([dev, api, humanFig], { opacity: 0 });
         g.set(stepEls, { opacity: 0 });
         g.set([token, effort], { opacity: 0 });
         g.set(codeBox, { opacity: 0, scale: 0.6, transformOrigin: "center center" });
@@ -1261,8 +1277,10 @@ function mountHumanApi({ stage, extra, act, ctl = {} }) {
 
         tl = g.timeline();
 
-        // Phase 1 — developer + ring + steps appear; narration line 1
-        tl.to(dev, { opacity: 1, duration: 0.4, ease: "power2.out" });
+        // Phase 1 — developer + human figure + ring + steps appear; narration line 1
+        tl.to(humanFig, { opacity: 1, duration: 0.5, ease: "power2.out" });
+        g.to(humanFig.querySelector(".mcp-human-glow"), { opacity: 0.15, duration: 1.2, ease: "sine.inOut", repeat: -1, yoyo: true, delay: 0.6 });
+        tl.to(dev, { opacity: 1, duration: 0.4, ease: "power2.out" }, "-=0.2");
         revealNarr(0, "-=0.1");
         tl.to(ring, { strokeDashoffset: 0, duration: 0.8, ease: "power2.out" }, "-=0.2");
         tl.to(stepEls, { opacity: 1, duration: 0.3, ease: "power2.out", stagger: 0.1 }, "-=0.4");
@@ -1331,7 +1349,7 @@ function mountHumanApi({ stage, extra, act, ctl = {} }) {
         });
     } else {
         // static end state
-        [dev, api].forEach(n => n.style.opacity = "1");
+        [dev, api, humanFig].forEach(n => n.style.opacity = "1");
         [ring, token, effort, ...stepEls].forEach(e => e.style.opacity = "0");
         runWire.style.strokeDashoffset = "0";
         codeBox.style.opacity = "1";
@@ -1352,7 +1370,6 @@ function mountUnderHood({ stage, extra, act, ctl = {} }) {
     const g = gsap();
     const VB_W = 820, VB_H = 470;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
-    svg.append(s("title", {}, "MCP client and server: the server advertises capabilities, the client discovers and calls them"));
     stage.appendChild(svg);
 
     const linkLayer = s("g", {});
@@ -1420,7 +1437,11 @@ function mountUnderHood({ stage, extra, act, ctl = {} }) {
 
     // copy column: narration + primitives legend (name + control + meaning) + insight
     const narration = el("ul", { class: "mcp-narration" });
-    const narrEls = (act.narration || []).map(line => { const li = el("li", { class: "mcp-narr", text: line }); narration.appendChild(li); return li; });
+    const narrEls = (act.narration || []).map(line => {
+        const li = el("li", { class: "mcp-narr" });
+        li.innerHTML = line.replace(/\*\*([^*]+)\*\*/g, '<span class="mcp-accent">$1</span>');
+        narration.appendChild(li); return li;
+    });
     const legend = el("div", { class: "mcp-prim-legend" });
     (act.primitives || []).forEach(p => legend.append(
         el("div", { class: "mcp-prim-legend-row" },
@@ -1526,7 +1547,6 @@ function mountHandshake({ stage, extra, act, ctl = {} }) {
     // channel rail (small SVG) with client + server endpoints
     const railW = 760, railH = 70;
     const svg = s("svg", { viewBox: `0 0 ${railW} ${railH}`, class: "mcp-hs-rail", role: "img" });
-    svg.append(s("title", {}, "JSON-RPC 2.0 messages travel between the MCP client and server"));
     const cy = 35, cX = 90, sX = 670;
     svg.append(
         s("line", { x1: cX, y1: cy, x2: sX, y2: cy, class: "mcp-rail-line" }),
@@ -1627,9 +1647,9 @@ function mountHandshake({ stage, extra, act, ctl = {} }) {
         act.messages.forEach((m, i) => {
             const pts = m.dir === "c2s" ? [{ x: cX, y: cy }, { x: sX, y: cy }] : [{ x: sX, y: cy }, { x: cX, y: cy }];
             tl.add(() => activate(i));
-            tl.add(() => travelDot(svg, pts, { speed: 440 }), "+=0.2");
-            tl.add(() => showCard(m), "+=1.0");
-            tl.to({}, { duration: 1.5 });
+            tl.add(() => travelDot(svg, pts, { speed: 280 }), "+=0.4");
+            tl.add(() => showCard(m), "+=1.6");
+            tl.to({}, { duration: 2.8 });
         });
         tl.add(() => { stepEls.forEach(r => r.classList.remove("is-active")); stepEls.at(-1).classList.add("is-done"); });
         tl.add(() => ctl.signalReady?.());
@@ -1822,7 +1842,6 @@ function mountVsApis({ stage, extra, act, ctl = {} }) {
     const g = gsap();
     const VB_W = 1040, VB_H = 760;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
-    svg.append(s("title", {}, "MCP is an isometric abstraction layer above your existing infrastructure"));
     stage.appendChild(svg);
 
     const flowLayer = s("g", {}); const stackLayer = s("g", {}); const labelLayer = s("g", {});
@@ -1972,11 +1991,19 @@ export function initMcpLab(rootEl, opts = {}) {
     rootEl.innerHTML = "";
     const lab = el("div", { class: "mcp-lab", tabindex: "-1" });
 
+    // Nav buttons — defined first so headerNav can be used inside actHeader
+    const prevBtn = el("button", { class: "mcp-stage-btn mcp-stage-nav mcp-nav-prev", type: "button", "aria-label": "Previous act" }, "‹");
+    const nextBtn = el("button", { class: "mcp-stage-btn mcp-stage-nav mcp-nav-next", type: "button", "aria-label": "Next act" }, "›");
+    const headerNav = el("div", { class: "mcp-header-nav" }, prevBtn, nextBtn);
+
     // Per-act heading + summary live in a full-width bar at the very top (replaces the hero)
     const eyebrow = el("p", { class: "mcp-eyebrow" });
     const title = el("h2", { class: "mcp-title" });
     const bodyText = el("p", { class: "mcp-body-text", "aria-live": "polite" });
-    const actHeader = el("header", { class: "mcp-actheader" }, eyebrow, title, bodyText);
+    const actHeader = el("header", { class: "mcp-actheader" },
+        el("div", { class: "mcp-actheader-text" }, eyebrow, title, bodyText),
+        headerNav,
+    );
 
     // body grid: the visualization (center stage) + the animation's supporting copy
     const extra = el("div", { class: "mcp-scene-extra" });
@@ -2016,20 +2043,17 @@ export function initMcpLab(rootEl, opts = {}) {
     expandBtn.addEventListener("click", (e) => { e.stopPropagation(); setExpanded(!backdrop); });
     replayBtn.addEventListener("click", (e) => { e.stopPropagation(); replay(); });
 
-    // nav pill: spans full grid width so it is centred under both columns
-    const prevBtn = el("button", { class: "mcp-nav-btn mcp-nav-prev", type: "button" }, "‹ " + ui.prev);
-    const nextBtn = el("button", { class: "mcp-nav-btn mcp-nav-next", type: "button" }, ui.next + " ›");
-    const dots = el("div", { class: "mcp-dots", role: "tablist", "aria-label": "Acts" });
+    // nav pill: dots only — prev/next live in stageTools (top-right of stage)
+    // dots kept as hidden aria tablist for keyboard/accessibility but not rendered in the UI
+    const dots = el("div", { class: "mcp-dots", role: "tablist", "aria-label": "Acts", style: "display:none" });
     const dotEls = acts.map((a, i) => {
         const d = el("button", { class: `mcp-dot${a.deeper ? " is-deeper" : ""}`, type: "button", role: "tab", "aria-label": `Act ${i + 1}: ${a.title}`, "aria-selected": "false" });
         dots.appendChild(d);
         return d;
     });
-    const navPill = el("div", { class: "mcp-nav-pill" }, prevBtn, dots, nextBtn);
-    const controls = el("div", { class: "mcp-controls" }, navPill);
 
     const stageCol = el("div", { class: "mcp-stage-col" }, stageWrap);
-    const bodyGrid = el("div", { class: "mcp-bodygrid" }, stageCol, copy, controls);
+    const bodyGrid = el("div", { class: "mcp-bodygrid" }, stageCol, copy, dots);
 
     lab.append(actHeader, bodyGrid);
     rootEl.appendChild(lab);
@@ -2077,9 +2101,11 @@ export function initMcpLab(rootEl, opts = {}) {
                 if (analogyReveal) { analogyReveal.kill ? analogyReveal.kill() : clearTimeout(analogyReveal); analogyReveal = null; }
                 analogyCard.classList.add("is-ready");
             };
+            // For the mess act the mounter calls signalReady only after all beats are done;
+            // skip the safety-net timer so it doesn't fire prematurely.
             const g2 = gsap();
-            if (!g2 || REDUCE_MOTION) signalReady();
-            else analogyReveal = g2.delayedCall(8, signalReady); // safety net; mounter fires earlier via ctl.signalReady
+            if (!g2 || REDUCE_MOTION) { if (act.id !== "mess") signalReady(); }
+            else if (act.id !== "mess") analogyReveal = g2.delayedCall(16, signalReady);
         }
 
         const mount = MOUNTERS[act.id];
@@ -2089,25 +2115,26 @@ export function initMcpLab(rootEl, opts = {}) {
         observeStage();
     }
 
-    // Apple-like crossfade between acts: the stage box stays a fixed size/position, only
-    // its contents (heading + visualization + copy) fade out → swap → fade in.
-    const fadeEls = () => [actHeader, stageWrap, copy];
+    // Slide transition: stage content and copy slide left/right; stage border stays fixed.
+    const slideEls = () => [actHeader, stage, copy];
     function goTo(i) {
         i = Math.max(0, Math.min(acts.length - 1, i));
         if (i === current) return;
-        setExpanded(false); // never carry the fullscreen overlay across acts
+        setExpanded(false);
 
         dotEls.forEach((d, k) => d.setAttribute("aria-selected", k === i ? "true" : "false"));
         prevBtn.disabled = i === 0;
-        nextBtn.textContent = i === acts.length - 1 ? (ui.restart + " ↺") : (ui.next + " ›");
+        nextBtn.textContent = i === acts.length - 1 ? "↺" : "›";
+        nextBtn.setAttribute("aria-label", i === acts.length - 1 ? "Restart" : "Next act");
 
         const g = gsap();
+        const dir = (current >= 0 && i > current) ? 1 : -1; // 1=forward slide-left, -1=back slide-right
         if (g && !REDUCE_MOTION && current >= 0) {
-            g.to(fadeEls(), {
-                opacity: 0, duration: 0.18, ease: "power1.in",
+            g.to(slideEls(), {
+                x: dir * -55, opacity: 0, duration: 0.22, ease: "power2.in",
                 onComplete() {
                     renderAct(i);
-                    g.fromTo(fadeEls(), { opacity: 0 }, { opacity: 1, duration: 0.34, ease: "power2.out" });
+                    g.fromTo(slideEls(), { x: dir * 55, opacity: 0 }, { x: 0, opacity: 1, duration: 0.32, ease: "power3.out" });
                 },
             });
         } else {
