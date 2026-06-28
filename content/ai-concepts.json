@@ -1,0 +1,34 @@
+{
+  "intro": {
+    "tag": "// interactive explainers",
+    "title": "AI Lab",
+    "sub": "Hard AI ideas, demystified. Each concept is a hands-on visual you can step through — built to make the abstract click in a couple of minutes."
+  },
+  "concepts": [
+    {
+      "id": "mcp",
+      "num": "01",
+      "status": "LIVE",
+      "title": "Model Context Protocol",
+      "tagline": "The USB-C port for AI",
+      "description": "Why agents needed a standard, how the handshake works, and whether MCP rewrites your backend — a guided six-act walkthrough.",
+      "tags": ["Protocol", "Agents", "Tooling"],
+      "href": "/mcp-lab/",
+      "internal": true,
+      "cta": "Open MCP Lab"
+    },
+    {
+      "id": "rag",
+      "num": "02",
+      "status": "LIVE",
+      "title": "Agentic RAG",
+      "tagline": "Watch retrieval happen in 3D",
+      "description": "Documents become vectors in space, a query lights up its nearest neighbours, hybrid search fuses results, and the model streams a grounded answer — every RAG stage, visualized.",
+      "tags": ["Retrieval", "Embeddings", "Vector space"],
+      "href": "/rag-lab/",
+      "internal": false,
+      "cta": "Open RAG Lab"
+    }
+  ],
+  "teaser": "// more concepts in flight — added as I find better ways to explain them"
+}
