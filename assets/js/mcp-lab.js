@@ -334,6 +334,10 @@ function buildMessIntro(introData, onProceed) {
 
 function mountMess({ stage, extra, act, ctl }) {
     const g = gsap();
+    // Header swap: the landing keeps the "Universal Adapter" heading; once the
+    // viewer clicks "See the sprawl" (or returns after the intro is done) the
+    // header becomes "01 · The Sprawl".
+    const showSprawlHeader = () => ctl.setHeader?.(act.sprawlEyebrow, act.sprawlTitle, act.sprawlBody);
     const VB_W = 760, VB_H = 470;
     const svg = s("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, class: "mcp-svg", role: "img" });
     stage.appendChild(svg);
@@ -852,6 +856,7 @@ function mountMess({ stage, extra, act, ctl }) {
 
         const overlay = buildMessIntro(act.intro, () => {
             messIntroSeen = true;
+            showSprawlHeader();
             const g2 = gsap();
 
             function afterOverlay() {
@@ -879,6 +884,9 @@ function mountMess({ stage, extra, act, ctl }) {
         });
         stage.appendChild(overlay);
     } else {
+        // Intro already seen (return visit): the landing heading is in the past,
+        // so show the sprawl heading right away.
+        showSprawlHeader();
         if (storyComplete) renderStoryComplete(); else {
             // No intro overlay, but story not yet complete: show the empty stage box.
             initStoryScene();
@@ -2613,8 +2621,16 @@ export function initMcpLab(rootEl, opts = {}) {
 
         stageWrap.classList.toggle("mcp-stagewrap--buildit", act.id === "buildit");
 
+        // Lets a mounter swap the header mid-act (Act 1 goes from the landing
+        // "Universal Adapter" heading to "01 · The Sprawl" once the intro is dismissed).
+        const setHeader = (eb, t, b) => {
+            eyebrow.textContent = eb;
+            glyphScramble(title, t, 0.4) || (title.textContent = t);
+            bodyText.textContent = b;
+        };
+
         const mount = MOUNTERS[act.id];
-        const doMount = () => { active = mount({ stage, extra, act, ctl: { ui, signalReady } }); };
+        const doMount = () => { active = mount({ stage, extra, act, ctl: { ui, signalReady, setHeader } }); };
         if (window.gsap || REDUCE_MOTION) doMount(); else whenGsap(doMount);
 
         observeStage();
