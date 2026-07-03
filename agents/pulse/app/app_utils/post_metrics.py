@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,14 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT_S = 12.0
 _PACING_S = 1.5
+
+# Retry policy for the embed fetch. LinkedIn rate-limits rapid embed requests
+# with 429s; without retries a single throttled response silently drops that
+# post's metrics. Retry 429 + transient 5xx with exponential backoff + jitter.
+_MAX_ATTEMPTS = 4          # 1 initial try + 3 retries
+_BACKOFF_BASE_S = 2.0      # first backoff window; doubles each retry
+_BACKOFF_CAP_S = 30.0      # ceiling on any single backoff
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 _EMBED_BASE = "https://www.linkedin.com/embed/feed/update/urn:li:"
 _SITE_POSTS_DEFAULT = "https://gauravlahoti.dev/content/posts.json"
 _CORPUS_POSTS = Path(__file__).parent.parent / "corpus" / "posts.json"
@@ -94,30 +103,75 @@ def _looks_like_auth_wall(html: str) -> bool:
     return not has_counts
 
 
+def _backoff_delay(attempt: int) -> float:
+    """Exponential backoff with full jitter for retry #attempt (0-indexed)."""
+    window = min(_BACKOFF_BASE_S * (2 ** attempt), _BACKOFF_CAP_S)
+    # Full jitter: sleep a random slice of the window to avoid thundering-herd.
+    return random.uniform(window / 2, window)
+
+
+def _retry_after_delay(resp: httpx.Response, attempt: int) -> float:
+    """Honour a Retry-After header if present, else fall back to backoff."""
+    raw = resp.headers.get("Retry-After", "").strip()
+    if raw:
+        try:
+            return min(float(raw), _BACKOFF_CAP_S)
+        except ValueError:
+            pass  # HTTP-date form is uncommon here; fall through to backoff
+    return _backoff_delay(attempt)
+
+
 async def _fetch_embed(urn_type: str, activity_id: str) -> str | None:
-    """Fetch the public LinkedIn embed HTML. Returns None on any failure."""
+    """Fetch the public LinkedIn embed HTML, retrying on 429/5xx.
+
+    Returns None once retries are exhausted or on a non-retryable failure.
+    """
     url = f"{_EMBED_BASE}{urn_type}:{activity_id}"
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_S, follow_redirects=True) as client:
-            r = await client.get(
-                url,
-                headers={
-                    "User-Agent": _BROWSER_UA,
-                    "Accept": "text/html,application/xhtml+xml",
-                    "Accept-Language": "en-US,en;q=0.9",
-                },
+    for attempt in range(_MAX_ATTEMPTS):
+        last = attempt == _MAX_ATTEMPTS - 1
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, follow_redirects=True) as client:
+                r = await client.get(
+                    url,
+                    headers={
+                        "User-Agent": _BROWSER_UA,
+                        "Accept": "text/html,application/xhtml+xml",
+                        "Accept-Language": "en-US,en;q=0.9",
+                    },
+                )
+            if r.status_code == 200:
+                html = r.text
+                if _looks_like_auth_wall(html):
+                    logger.warning("[post-metrics] auth wall for %s:%s", urn_type, activity_id)
+                    return None
+                return html
+            if r.status_code in _RETRY_STATUSES and not last:
+                delay = _retry_after_delay(r, attempt)
+                logger.warning(
+                    "[post-metrics] embed %s:%s → HTTP %s, retry %d/%d in %.1fs",
+                    urn_type, activity_id, r.status_code, attempt + 1, _MAX_ATTEMPTS - 1, delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+            logger.warning(
+                "[post-metrics] embed %s:%s → HTTP %s (giving up)",
+                urn_type, activity_id, r.status_code,
             )
-        if r.status_code != 200:
-            logger.warning("[post-metrics] embed %s:%s → HTTP %s", urn_type, activity_id, r.status_code)
             return None
-        html = r.text
-        if _looks_like_auth_wall(html):
-            logger.warning("[post-metrics] auth wall for %s:%s", urn_type, activity_id)
-            return None
-        return html
-    except Exception as exc:
-        logger.warning("[post-metrics] fetch error %s:%s: %s", urn_type, activity_id, exc)
-        return None
+        except Exception as exc:  # never let one post crash the batch
+            transient = isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
+            if last or not transient:
+                logger.warning(
+                    "[post-metrics] fetch error %s:%s: %s (giving up)", urn_type, activity_id, exc,
+                )
+                return None
+            delay = _backoff_delay(attempt)
+            logger.warning(
+                "[post-metrics] fetch error %s:%s: %s, retry %d/%d in %.1fs",
+                urn_type, activity_id, exc, attempt + 1, _MAX_ATTEMPTS - 1, delay,
+            )
+            await asyncio.sleep(delay)
+    return None
 
 
 async def _fetch_embed_with_fallback(urn_type: str, activity_id: str) -> str | None:
