@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<!--
+  Open Graph card template for gauravlahoti.dev (1200x630).
+  Rendered to assets/img/og-image.png by scripts/og-image/render.sh.
+  Design tokens mirror assets/css/base.css. Edit copy here, then re-render.
+  {{PORTRAIT}} is replaced with a base64 data URI at render time.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000000;
+    --bg-card: #111111;
+    --ink: #E5E5E5;
+    --ink-muted: #888888;
+    --accent: #00FFD1;
+    --accent-glow: rgba(0, 255, 209, 0.35);
+    --accent-soft: rgba(0, 255, 209, 0.12);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    background: var(--bg);
+    font-family: var(--font-sans);
+    color: var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+  /* subtle dot grid */
+  .grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to right, rgba(0,0,0,0.9), transparent 70%);
+  }
+  /* accent glow, top-left */
+  .glow {
+    position: absolute;
+    width: 620px; height: 620px;
+    top: -240px; left: -200px;
+    background: radial-gradient(circle, var(--accent-glow), transparent 62%);
+    filter: blur(20px);
+    opacity: 0.55;
+  }
+  .frame {
+    position: absolute; inset: 0;
+    display: flex; align-items: center;
+    padding: 0 76px;
+    gap: 56px;
+  }
+  .left { flex: 1; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    letter-spacing: 0.28em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 30px;
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .eyebrow::before {
+    content: ""; width: 34px; height: 2px; background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .name {
+    font-size: 96px;
+    font-weight: 800;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    color: #FFFFFF;
+    margin-bottom: 26px;
+  }
+  .title {
+    font-size: 34px;
+    font-weight: 600;
+    color: var(--ink);
+    padding-left: 20px;
+    border-left: 3px solid var(--accent);
+    line-height: 1.2;
+    margin-bottom: 26px;
+  }
+  .title b { color: var(--accent); font-weight: 600; }
+  .tagline {
+    font-size: 23px;
+    color: var(--ink-muted);
+    max-width: 560px;
+    line-height: 1.4;
+  }
+  .right {
+    position: relative;
+    width: 340px; height: 340px;
+    flex-shrink: 0;
+  }
+  .portrait-ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    padding: 5px;
+    background: linear-gradient(140deg, var(--accent), transparent 55%);
+    box-shadow: 0 0 60px rgba(0,255,209,0.28);
+  }
+  .portrait-ring img {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    background: var(--bg-card);
+    border: 2px solid var(--bg);
+  }
+  .domain {
+    position: absolute;
+    left: 76px; bottom: 54px;
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+  }
+  .domain b { color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="glow"></div>
+  <div class="frame">
+    <div class="left">
+      <div class="eyebrow">Portfolio</div>
+      <h1 class="name">Gaurav Lahoti</h1>
+      <div class="title">Cloud &amp; <b>AI-Native</b> Architect</div>
+      <p class="tagline">Bridging legacy enterprise stacks with production-grade AI.</p>
+    </div>
+    <div class="right">
+      <div class="portrait-ring">
+        <img src="{{PORTRAIT}}" alt="Gaurav Lahoti">
+      </div>
+    </div>
+  </div>
+  <div class="domain"><b>&gt;</b> gauravlahoti.dev</div>
+</body>
+</html>
