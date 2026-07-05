@@ -1674,11 +1674,16 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     background: linear-gradient(90deg, transparent, rgba(0, 255, 209, 0.06), transparent);
     pointer-events: none;
     z-index: 0;
+    /* Animate transform (GPU-composited) rather than `left` (layout/paint each
+       frame). translateX is relative to this element's own 30%-wide box, so
+       533.333% == 160% of the container — moving left:-30% → left:130%. */
+    transform: translateX(0);
+    will-change: transform;
     animation: console-sweep 6.5s var(--ease-out) infinite;
 }
 @keyframes console-sweep {
-    0%        { left: -30%; }
-    55%, 100% { left: 130%; }
+    0%        { transform: translateX(0); }
+    55%, 100% { transform: translateX(533.333%); }
 }
 
 .post-search-wrap {
@@ -3536,6 +3541,15 @@ sup.agent-cite a:focus-visible {
     width: calc(var(--hex-w) * 2.5);
     height: calc(var(--hex-h) * 4);
     margin: 0 auto;
+}
+
+/* Off-screen pause: the idle hex animations (aurora gradient + drop-shadow
+   pulse) are full-paint loops that otherwise repaint forever once the grid
+   has scrolled into view. Freezing them while the grid is off-screen stops
+   the wasted paint; they resume from the same offset on return. */
+.skills-hex-grid[data-paused="true"] .skills-hex,
+.skills-hex-grid[data-paused="true"] .skills-hex::before {
+    animation-play-state: paused;
 }
 
 .skills-hex-connections {

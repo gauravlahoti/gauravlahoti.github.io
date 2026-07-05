@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "220";
+const ASSET_VERSION = "221";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
@@ -779,23 +779,29 @@ function scrollToTarget(target, opts) {
 
     doScroll(duration);
 
-    const deadline = performance.now() + 2000;
+    // Correct at most once. Posts (the biggest page-grower before Insights)
+    // now render before this scroll starts, so drift is small; the only
+    // remaining growth is the trajectory/cert-rail revealing as they pass.
+    // A single re-scroll on settle fixes the undershoot without stacking
+    // smooth animations that fight the still-moving layout.
+    const deadline = performance.now() + 800;
     let prevY = window.scrollY;
     let stable = 0;
+    let corrected = false;
     const check = () => {
         const y = window.scrollY;
         const moving = Math.abs(y - prevY) > 1;
         prevY = y;
         const drift = expectedY() - y;
-        if (Math.abs(drift) <= 4) return; // on target — stop polling
+        if (Math.abs(drift) <= 8) return; // on target — stop polling
         if (moving) {
             stable = 0;
-        } else if (++stable >= 2) {
-            // Settled short of the (re-measured) target — correct.
+        } else if (++stable >= 2 && !corrected) {
+            // Settled short of the (re-measured) target — correct once.
+            corrected = true;
             doScroll(0.3);
-            stable = 0;
         }
-        if (performance.now() < deadline) setTimeout(check, 90);
+        if (!corrected && performance.now() < deadline) setTimeout(check, 90);
     };
     setTimeout(check, 150);
 }
@@ -1120,6 +1126,7 @@ function initOffscreenAnimationPause() {
     const targets = [
         document.getElementById("top"),
         document.querySelector(".cert-rail"),
+        document.querySelector(".skills-hex-grid"),
     ].filter(Boolean);
     if (!targets.length || !("IntersectionObserver" in window)) return;
 

@@ -41,10 +41,19 @@ export function initCursor(opts = {}) {
     }
 
     // The element under the (stationary) cursor changes during scroll, so
-    // a wheel tick must retarget the brackets even if the mouse didn't move.
+    // the brackets must retarget once the scroll lands. We deliberately do
+    // NOT re-hit-test on every scroll frame: elementFromPoint + getBoundingClientRect
+    // each force a synchronous layout, and firing them per frame is what made
+    // a programmatic scroll (e.g. clicking "Insights") stutter. Instead we wait
+    // for the scroll to settle, then retarget once. The brackets simply hold on
+    // their last magnet mid-scroll, which is imperceptible at scroll speed.
+    let scrollIdleTimer = 0;
     function onScroll() {
-        needsHitTest = true;
-        ensureRunning();
+        clearTimeout(scrollIdleTimer);
+        scrollIdleTimer = setTimeout(() => {
+            needsHitTest = true;
+            ensureRunning();
+        }, 120);
     }
 
     function findMagnet(x, y) {

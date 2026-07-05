@@ -61,12 +61,13 @@ function sortNewestFirst(posts) {
 export async function initPostsList(root, opts = {}) {
     if (!root) return { destroy() {} };
 
-    let posts, metricsMap;
+    // Render from the local posts.json only. The live engagement metrics are a
+    // remote fetch — awaiting it here would block the first paint (and, when a
+    // nav click scrolls to Insights, block the scroll itself). Instead we render
+    // rows immediately and patch the metric chips in once getMetrics resolves.
+    let posts;
     try {
-        [posts, metricsMap] = await Promise.all([
-            getPosts(),
-            getMetrics(opts?.metricsApi),
-        ]);
+        posts = await getPosts();
     } catch (err) {
         console.warn("[posts] failed to load posts.json", err);
         return { destroy() {} };
@@ -74,13 +75,6 @@ export async function initPostsList(root, opts = {}) {
 
     if (!Array.isArray(posts) || posts.length === 0) {
         return { destroy() {} };
-    }
-
-    if (metricsMap && typeof metricsMap === "object") {
-        for (const post of posts) {
-            const id = deriveActivityId(post.url);
-            if (id && metricsMap[id]) post.metrics = metricsMap[id];
-        }
     }
 
     const frag = document.createDocumentFragment();
@@ -96,6 +90,13 @@ export async function initPostsList(root, opts = {}) {
     }
     root.replaceChildren(frag);
     buildSearchAndFilter(root, allRows, posts.length);
+
+    // Fetch live metrics without blocking; patch the chips onto rendered rows.
+    if (opts?.metricsApi) {
+        getMetrics(opts.metricsApi)
+            .then(metricsMap => applyMetrics(allRows, metricsMap))
+            .catch(() => {});
+    }
 
     return {
         destroy() {
@@ -443,6 +444,23 @@ function clearHighlight(row) {
 
 // ─── Metrics renderer ────────────────────────────────────────────────────────
 
+// Patch engagement chips onto already-rendered rows once the live metrics
+// fetch resolves. Runs off the render/scroll critical path.
+function applyMetrics(rows, metricsMap) {
+    if (!metricsMap || typeof metricsMap !== "object") return;
+    for (const row of rows) {
+        const id = row.dataset.activityId;
+        if (!id || !metricsMap[id]) continue;
+        const metricsEl = renderMetrics(metricsMap[id]);
+        if (!metricsEl) continue;
+        const leftCluster = row.querySelector(".post-row-foot-left");
+        if (!leftCluster) continue;
+        const existing = leftCluster.querySelector(".post-row-metrics");
+        if (existing) existing.replaceWith(metricsEl);
+        else leftCluster.appendChild(metricsEl);
+    }
+}
+
 function renderMetrics(metrics) {
     if (!metrics || typeof metrics !== "object") return null;
     const defs = [
@@ -493,6 +511,9 @@ function renderPost(post) {
     // Store originals for search + highlight
     a.dataset.originalTitle = post.firstLine;
     a.dataset.originalExcerpt = post.excerpt || "";
+    // Let applyMetrics() find this row once live metrics arrive.
+    const activityId = deriveActivityId(post.url);
+    if (activityId) a.dataset.activityId = activityId;
 
     const titleEl = document.createElement("span");
     titleEl.className = "post-row-title";
