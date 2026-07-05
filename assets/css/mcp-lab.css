@@ -179,6 +179,14 @@
     border-color: var(--accent);
     box-shadow: 0 0 12px var(--accent-glow);
 }
+.mcp-voice-btn {
+    margin-left: var(--space-2);
+}
+.mcp-voice-btn.is-on {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
 
 /* Stage-embedded nav buttons (prev / next) */
 @keyframes mcp-next-pulse {

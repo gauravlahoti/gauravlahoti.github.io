@@ -11,7 +11,11 @@
     "faqLabel": "Common questions",
     "deeperLabel": "deeper",
     "addTool": "Add a tool",
-    "reset": "Reset"
+    "reset": "Reset",
+    "pause": "Pause",
+    "play": "Play",
+    "voiceOn": "Narrate",
+    "voiceOff": "Mute narration"
   },
   "acts": [
     {
@@ -32,6 +36,14 @@
         "hint": "click to continue"
       },
       "body": "Inside the Model Context Protocol (MCP) and the structural shift in agent architecture.",
+      "voiceLines": [
+        {"text": "Everyone's talking about MCP. But here's the thing: to get it, you have to feel the problem first. Hit Begin when you're ready.", "delay": 0}
+      ],
+      "beatLines": {
+        "beat1": "Four services. GitHub, Postgres, Slack, and Drive. Each one speaks a completely different API language. Different auth, different schemas, different pagination. Nothing is compatible.",
+        "beat2": "Now wire a model in. Claude connects to all four. But every one of those wires is hand-written glue code. Each diamond on the wire is a bespoke integration you built and now have to maintain.",
+        "beat3": "Swap Claude for DeepSeek. Claude uses Anthropic's tool-use schema. DeepSeek uses OpenAI-style functions. Different schema, so every single integration breaks. You rebuild from scratch. Three models, four services, that is twelve connectors. This is the M times N problem."
+      },
       "reducedMotionNote": "Start with one model wired to 4 services: 4 bespoke integrations. Swap that model for one that speaks a different tool-calling format (Claude uses Anthropic's tool-use schema; OpenAI, DeepSeek and others use the function-calling schema) and all 4 break, because the schemas aren't interchangeable. Now multiply by every model your team runs: 3 models × 4 services = 12 hand-written integrations to build and maintain.",
       "apps": [
         { "name": "Claude", "schema": "Anthropic tool-use" },
@@ -64,6 +76,11 @@
       "eyebrow": "// 02 · the fix",
       "title": "The Standard",
       "body": "One open standard that every app and service speaks, so the M×N tangle of bespoke glue collapses to a clean M+N.",
+      "voiceLines": [
+        {"text": "So here's the old world. An AI model wiring up to Calendar, Notion, and Gmail — but through OAuth juggling, rate limits, edge cases, and fragile prompts. Every service speaks a different language.", "delay": 0},
+        {"text": "Now watch this. MCP drops a standard layer in the middle. The model talks to one protocol. Every service runs an MCP server that speaks it. No glue code. No rewiring.", "delay": 3100},
+        {"text": "Think of USB-C. One port replaced an entire drawer full of chargers. That is exactly what MCP did for AI. One plug, any service.", "delay": 5900}
+      ],
       "oldWorldLabel": "The Old World",
       "mcpWorldLabel": "The MCP World",
       "oldServices": ["Calendar", "Notion", "Gmail"],
@@ -83,6 +100,12 @@
       "eyebrow": "// 03 · the mismatch",
       "title": "APIs Were Never Built for AI Models",
       "body": "APIs were built for a human integrator. Watch how a person actually wires one up.",
+      "voiceLines": [
+        {"text": "A developer opens the API docs and starts reading.", "delay": 600},
+        {"text": "They experiment, hit edge cases, and have to re-read. Weeks go by.", "delay": 3400},
+        {"text": "Finally, they write the one correct call and freeze it as code.", "delay": 10400},
+        {"text": "That code runs a million times, flawlessly. Think of a chef perfecting a recipe. The AI? It is the home cook improvising every single time, from scratch.", "delay": 11600}
+      ],
       "loop": {
         "actor": "Human Integrator",
         "source": "API docs",
@@ -106,6 +129,12 @@
       "eyebrow": "// 04 · under the hood",
       "title": "Under the Hood",
       "body": "MCP is a simple client-server model. Your host app runs a client; each service runs a server that exposes what the model can use.",
+      "voiceLines": [
+        {"text": "Your app runs an MCP client. Each service runs an MCP server.", "delay": 750},
+        {"text": "The server exposes three primitives: tools to act, resources to read, and prompts to reuse. Think of a restaurant menu.", "delay": 1580},
+        {"text": "On connect, the server advertises everything it can do. Discovered at runtime. Nothing hardcoded.", "delay": 2880},
+        {"text": "The client calls a tool, the server runs it, and returns the result. That loop repeats for every action.", "delay": 3330}
+      ],
       "clientLabel": "MCP Client",
       "clientSub": "host app or agent",
       "clientParts": ["Model", "Instruction", "Tools"],
@@ -130,6 +159,15 @@
       "eyebrow": "// 05 · the wire",
       "title": "The Handshake",
       "body": "The MCP client and server talk over JSON-RPC 2.0. The client doesn't hardcode endpoints. It asks the server what it can do at runtime, then calls it.",
+      "voiceLines": [
+        {"text": "Step one: the client sends initialize, offering its protocol version.", "delay": 2000},
+        {"text": "The server replies with its identity and capabilities. Handshake in progress.", "delay": 6800},
+        {"text": "Client confirms: handshake complete. The wire is live.", "delay": 11600},
+        {"text": "Now the key moment: tools/list. The client asks, what can you actually do right now? This is dynamic discovery.", "delay": 16400},
+        {"text": "The server responds with its full tool catalog and JSON schemas. The model now knows exactly what it can call.", "delay": 21200},
+        {"text": "The model picks a tool and fills in the arguments. tools/call fires.", "delay": 26000},
+        {"text": "The server runs it and returns structured content. Like ordering through a waiter: greet, discover the menu, order, and receive on your ticket number.", "delay": 30800}
+      ],
       "keyPoint": "tools/list is dynamic discovery. That's the real difference from a hardcoded API.",
       "analogy": { "glyph": "≈", "lead": "Like ordering through a waiter.", "points": ["Greet, agree on a language, ask what's on today", "Then place your order", "Every dish returns on your ticket number, so replies never get mixed up"] },
       "jsonrpcNote": "JSON-RPC 2.0 is a tiny request/response format. The client sends a method name, params, and an id; the server replies with the same id and a result. Every MCP message is just one of these. Watch one full exchange, step by step:",
@@ -198,6 +236,10 @@
       "eyebrow": "// 06 · mcp vs apis",
       "title": "MCP is an Abstraction, Not a Replacement",
       "body": "APIs still exist and do the heavy lifting. MCP makes them model-friendly.",
+      "voiceLines": [
+        {"text": "Important one: MCP does not replace your REST APIs or databases. It sits on top as a thin abstraction layer.", "delay": 0},
+        {"text": "The model only talks to MCP. MCP talks to your existing infrastructure. Like a translator at an embassy. You speak your language, they handle everything underneath. Same systems. They just now speak the model's language.", "delay": 1600}
+      ],
       "layers": [
         { "name": "AI Models / Agents", "kind": "model" },
         { "name": "MCP Server", "sub": "abstraction layer", "kind": "mcp" },
@@ -212,6 +254,10 @@
       "eyebrow": "// 07 · hands on",
       "title": "Wire It Yourself: API vs MCP",
       "body": "Every provider needs different code. MCP writes it once. Pick a model, run it, then swap and watch the left side rewrite.",
+      "voiceLines": [
+        {"text": "Let's make this tangible. Pick a model and run a weather tool call. Without MCP, every provider swap rewrites three stages: define the tool, make the call, parse the result. The friction piles up fast.", "delay": 0},
+        {"text": "With MCP? The server defines it once. Every model calls it the same way. Every result comes back in the same shape. Swap freely. The MCP side never changes.", "delay": 8000}
+      ],
       "api": {
         "name": "Weather API",
         "method": "GET",

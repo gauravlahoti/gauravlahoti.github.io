@@ -777,6 +777,8 @@ function mountMess({ stage, extra, act, ctl }) {
             beat++;
             const gx = gsap();
             if (beat < BEAT_LABELS.length) cBtn.textContent = BEAT_LABELS[beat] + " →";
+            // Beat-driven narration: fire the matching line when each visualization appears
+            ctl.speakLine?.(act.beatLines?.["beat" + beat]);
 
             // ── VISUALIZATION ────────────────────────────────────────────────────
             if (beat === 1) {
@@ -1667,7 +1669,7 @@ function mountHandshake({ stage, extra, act, ctl = {} }) {
         ctl.signalReady?.();
     }
 
-    return { destroy() { tl?.kill(); } };
+    return { get tl() { return tl; }, destroy() { tl?.kill(); } };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2505,7 +2507,8 @@ export function initMcpLab(rootEl, opts = {}) {
     // Nav buttons — defined first so headerNav can be used inside actHeader
     const prevBtn = el("button", { class: "mcp-stage-btn mcp-stage-nav mcp-nav-prev", type: "button", "aria-label": "Previous act" }, "‹");
     const nextBtn = el("button", { class: "mcp-stage-btn mcp-stage-nav mcp-nav-next", type: "button", "aria-label": "Next act" }, "›");
-    const headerNav = el("div", { class: "mcp-header-nav" }, prevBtn, nextBtn);
+    const voiceBtn  = el("button", { class: "mcp-stage-btn mcp-voice-btn", type: "button", "aria-label": "Narrate", title: "Narrate" }, "🔊");
+    const headerNav = el("div", { class: "mcp-header-nav" }, prevBtn, nextBtn, voiceBtn);
 
     // Per-act heading + summary live in a full-width bar at the very top (replaces the hero)
     const eyebrow = el("p", { class: "mcp-eyebrow" });
@@ -2526,8 +2529,9 @@ export function initMcpLab(rootEl, opts = {}) {
     const stage = el("div", { class: "mcp-stage" });
     const wipe = el("div", { class: "mcp-wipe", "aria-hidden": "true" });
     const replayBtn = el("button", { class: "mcp-stage-btn mcp-replay-btn", type: "button", "aria-label": "Replay animation", title: "Replay" }, "↻");
+    const pauseBtn  = el("button", { class: "mcp-stage-btn mcp-pause-btn", type: "button", "aria-label": "Pause animation", title: "Pause" }, "⏸");
     const expandBtn = el("button", { class: "mcp-stage-btn mcp-expand-btn", type: "button", "aria-label": "Expand visualization", title: "Expand" }, "⤢");
-    const stageTools = el("div", { class: "mcp-stage-tools" }, replayBtn, expandBtn);
+    const stageTools = el("div", { class: "mcp-stage-tools" }, replayBtn, pauseBtn, expandBtn);
     const stageWrap = el("div", { class: "mcp-stagewrap" }, stage, wipe, stageTools);
 
     // ── expand / collapse the visual box into a fullscreen overlay ──────────────
@@ -2553,6 +2557,30 @@ export function initMcpLab(rootEl, opts = {}) {
     }
     expandBtn.addEventListener("click", (e) => { e.stopPropagation(); setExpanded(!backdrop); });
     replayBtn.addEventListener("click", (e) => { e.stopPropagation(); replay(); });
+    pauseBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        userPaused = !userPaused;
+        pauseBtn.textContent = userPaused ? "▶" : "⏸";
+        pauseBtn.setAttribute("aria-label", userPaused ? (ui.play || "Play") : (ui.pause || "Pause"));
+        pauseBtn.title = userPaused ? (ui.play || "Play") : (ui.pause || "Pause");
+        const tl = active && active.tl;
+        if (userPaused) { tl?.pause?.(); clearVoiceTimers(); }
+        else { tl?.play?.(); speakAct(acts[current]); }
+    });
+    voiceBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        voiceOn = !voiceOn;
+        voiceBtn.classList.toggle("is-on", voiceOn);
+        voiceBtn.setAttribute("aria-label", voiceOn ? (ui.voiceOff || "Mute narration") : (ui.voiceOn || "Narrate"));
+        voiceBtn.title = voiceOn ? (ui.voiceOff || "Mute narration") : (ui.voiceOn || "Narrate");
+        if (voiceOn && current >= 0) speakAct(acts[current]); else clearVoiceTimers();
+    });
+    if (!window.speechSynthesis) { voiceBtn.style.display = "none"; }
+    else {
+        voiceBtn.classList.add("is-on");
+        voiceBtn.setAttribute("aria-label", ui.voiceOff || "Mute narration");
+        voiceBtn.title = ui.voiceOff || "Mute narration";
+    }
 
     // nav pill: dots only — prev/next live in stageTools (top-right of stage)
     // dots kept as hidden aria tablist for keyboard/accessibility but not rendered in the UI
@@ -2574,6 +2602,9 @@ export function initMcpLab(rootEl, opts = {}) {
     let active = null;
     let io = null;
     let analogyReveal = null; // pending delayedCall/timeout that fades in the analogy toggle
+    let userPaused = false;
+    let voiceOn = true;
+    let voiceTimers = [];
 
     function playWipe() {
         const g = gsap();
@@ -2589,6 +2620,13 @@ export function initMcpLab(rootEl, opts = {}) {
     // (re)build the visualization + copy for a given act index
     function renderAct(i) {
         const act = acts[i];
+        clearVoiceTimers();
+        if (userPaused) {
+            userPaused = false;
+            pauseBtn.textContent = "⏸";
+            pauseBtn.setAttribute("aria-label", ui.pause || "Pause");
+            pauseBtn.title = ui.pause || "Pause";
+        }
         active?.destroy?.();
         active = null;
         stage.innerHTML = "";
@@ -2630,10 +2668,20 @@ export function initMcpLab(rootEl, opts = {}) {
         };
 
         const mount = MOUNTERS[act.id];
-        const doMount = () => { active = mount({ stage, extra, act, ctl: { ui, signalReady, setHeader } }); };
+        const speakLine = (text) => {
+            if (!window.speechSynthesis || !voiceOn || userPaused) return;
+            voiceTimers.forEach(id => clearTimeout(id)); voiceTimers.length = 0;
+            window.speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            utt.rate = 1.1; utt.pitch = 1.08;
+            window.speechSynthesis.speak(utt);
+        };
+        const doMount = () => { active = mount({ stage, extra, act, ctl: { ui, signalReady, setHeader, speakLine } }); };
         if (window.gsap || REDUCE_MOTION) doMount(); else whenGsap(doMount);
 
         observeStage();
+        // Skip auto-speak on initial boot (current === -1) and for mess (beat-driven via ctl.speakLine)
+        if (current >= 0 && act.id !== "mess") speakAct(act);
     }
 
     // Slide transition: stage content and copy slide left/right; stage border stays fixed.
@@ -2676,10 +2724,34 @@ export function initMcpLab(rootEl, opts = {}) {
             entries.forEach(e => {
                 const tl = active && active.tl;
                 if (!tl) return;
-                if (e.isIntersecting) tl.play?.(); else tl.pause?.();
+                if (e.isIntersecting) { if (!userPaused) tl.play?.(); } else tl.pause?.();
             });
         }, { threshold: 0.1 });
         io.observe(stage);
+    }
+
+    function clearVoiceTimers() {
+        voiceTimers.forEach(id => clearTimeout(id));
+        voiceTimers.length = 0;
+        window.speechSynthesis?.cancel();
+    }
+
+    function speakAct(act) {
+        clearVoiceTimers();
+        if (!window.speechSynthesis || !voiceOn || userPaused) return;
+        const lines = act.voiceLines;
+        if (!lines?.length) return;
+        lines.forEach(({ text, delay }) => {
+            const id = setTimeout(() => {
+                if (!voiceOn || userPaused) return;
+                window.speechSynthesis.cancel();
+                const utt = new SpeechSynthesisUtterance(text);
+                utt.rate = 1.1;
+                utt.pitch = 1.08;
+                window.speechSynthesis.speak(utt);
+            }, delay || 0);
+            voiceTimers.push(id);
+        });
     }
 
     // ── wiring ──
@@ -2694,14 +2766,26 @@ export function initMcpLab(rootEl, opts = {}) {
     };
     lab.addEventListener("keydown", onKey);
 
-    const onVis = () => { const tl = active && active.tl; if (!tl) return; document.hidden ? tl.pause?.() : tl.play?.(); };
+    const onVis = () => { const tl = active && active.tl; if (!tl) return; document.hidden ? tl.pause?.() : (userPaused ? null : tl.play?.()); };
     document.addEventListener("visibilitychange", onVis);
 
     // boot
     goTo(0);
 
+    // Auto-start voice on first user gesture (browsers block speechSynthesis without one)
+    let gestureReceived = false;
+    function onFirstGesture() {
+        if (gestureReceived) return;
+        gestureReceived = true;
+        lab.removeEventListener("pointerdown", onFirstGesture);
+        if (voiceOn) speakAct(acts[current]);
+    }
+    lab.addEventListener("pointerdown", onFirstGesture);
+
     return {
         destroy() {
+            clearVoiceTimers();
+            lab.removeEventListener("pointerdown", onFirstGesture);
             active?.destroy?.();
             if (analogyReveal) { analogyReveal.kill ? analogyReveal.kill() : clearTimeout(analogyReveal); analogyReveal = null; }
             io?.disconnect();
