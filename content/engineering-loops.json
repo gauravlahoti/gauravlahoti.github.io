@@ -1,0 +1,187 @@
+{
+  "intro": {
+    "tag": "// how agents grew up",
+    "title": "Engineering Loops",
+    "sub": "Prompt, context, harness, loop. Four ways to steer an AI, and each one wraps the last in a bigger loop. Focus a ring, or take the tour from the center out."
+  },
+  "ui": {
+    "prev": "Prev",
+    "next": "Next",
+    "restart": "Restart",
+    "tour": "Tour",
+    "pause": "Pause",
+    "readout": "Read from the center outward",
+    "detailLabel": "// the layer",
+    "expand": "Expand diagram",
+    "close": "Close"
+  },
+  "diagram": {
+    "loopFrame": "04 · LOOP ENGINEERING",
+    "loopGuide": "self-guided ↺",
+    "harnessFrame": "03 · HARNESS ENGINEERING",
+    "harnessGuide": "hybrid ↺",
+    "contextFrame": "02 · CONTEXT ENGINEERING",
+    "promptFrame": "01 · PROMPT ENGINEERING",
+    "modelNode": "Model",
+    "modelSub": "the LLM",
+    "promptNode": "Prompt",
+    "contextNode": "Context",
+    "selfGuided": "self-guided",
+    "humanGuided": "human-guided",
+    "humanLabel": "human",
+    "youLabel": "human",
+    "promptSend": "prompt",
+    "promptReturn": "output",
+    "manualLoop": "a loop",
+    "retryBad": "not what you wanted",
+    "retryAction": "tweak & send again",
+    "contextWindowLabel": "context window",
+    "contextFullLabel": "FULL!",
+    "contextDrift": "context rot → goal drifts",
+    "contextSummarize": "summarize → detail lost",
+    "promptDiscipline": "prompt engineering",
+    "contextDiscipline": "context engineering",
+    "goalLabel": "the goal",
+    "contextUnbroken": "edits code that was never broken",
+    "promptLoop": "reword & retry",
+    "harnessLoop": "one at a time",
+    "steerLabel": "who's steering?",
+    "humanSteer": "human-guided · you steer it",
+    "selfSteer": "self-guided · it steers itself",
+    "taskListLabel": "task list on disk",
+    "memoryLabel": "memory on disk",
+    "freshContext2": "into a fresh context",
+    "schedulerLabel": "a trigger wakes it up",
+    "growsLabel": "it grows itself",
+    "toolLabel": "tools + resources",
+    "contextLoop": "gather context",
+    "cycleLabel": "reason → act → check → repeat",
+    "feedbackLabel": "feedback loop"
+  },
+  "layers": [
+    {
+      "id": "prompt",
+      "n": "01",
+      "color": "prompt",
+      "eyebrow": "// 01 · prompt engineering",
+      "title": "Prompt Engineering",
+      "ringLabel": "PROMPT",
+      "tagline": "a loop you run by hand.",
+      "era": "2022 – 2024",
+      "guidance": "human-guided",
+      "guidanceNote": "you type every step",
+      "hook": "Just tell it what to do.",
+      "definition": "You shape the words. Give it a role, break the task into steps, add an example, ask it to think out loud. One instruction goes in, one answer comes back. The whole craft is phrasing.",
+      "insightLabel": "the ceiling",
+      "insight": "A perfectly worded prompt still can't hand the model facts it never received. Phrasing alone runs out of road.",
+      "caption": "\"just tell it what to do\"",
+      "actor": "you",
+      "target": "model",
+      "analogy": {
+        "glyph": "≈",
+        "lead": "Like briefing a brilliant stranger.",
+        "points": [
+          "They're sharp, but they know nothing about your world",
+          "So how you word the ask is everything",
+          "Say it vaguely and you get a confident wrong answer"
+        ]
+      }
+    },
+    {
+      "id": "context",
+      "n": "02",
+      "color": "context",
+      "eyebrow": "// 02 · context engineering",
+      "title": "Context Engineering",
+      "ringLabel": "CONTEXT",
+      "era": "2025",
+      "guidance": "human-assembled",
+      "guidanceNote": "the agent starts fetching",
+      "hook": "Give it what it needs to know.",
+      "definition": "Now you curate everything the model sees before it answers: chat history, retrieved docs, tool output, live state. The prompt becomes one stream inside a much richer context. The agent even starts reading files and calling tools to gather that context itself.",
+      "insightLabel": "the ceiling",
+      "insight": "There is only so much room. Pack in too much and a long task fills the context window and chokes.",
+      "caption": "reads files, calls tools",
+      "flow": ["tool", "read", "tool"],
+      "analogy": {
+        "glyph": "≈",
+        "lead": "Like handing someone the right case file.",
+        "points": [
+          "Same sharp person, but now they hold the documents",
+          "The answer is only as good as what's in the folder",
+          "Make the folder too thick and they lose the thread"
+        ]
+      }
+    },
+    {
+      "id": "harness",
+      "n": "03",
+      "color": "harness",
+      "eyebrow": "// 03 · harness engineering",
+      "title": "Harness Engineering",
+      "ringLabel": "HARNESS",
+      "era": "2026",
+      "guidance": "hybrid",
+      "guidanceNote": "you design it, the agent runs inside it",
+      "hook": "Build the world it runs in.",
+      "definition": "Everything around the agent except the model itself. Agent equals model plus harness. You give it real tools, a sandboxed worktree, memory on disk, and a task list it works one item at a time into a fresh context. Verifiers like tests and type checks feed results back so it can self-correct.",
+      "insightLabel": "the shift",
+      "insight": "Most \"prompt failures\" in production are really harness failures. Fix the scaffolding, not the wording.",
+      "caption": "one task at a time, into a fresh context",
+      "tasks": ["1.", "2.", "3.", "4.", "5."],
+      "memoryLabel": "memory on disk",
+      "taskListLabel": "task list on disk",
+      "analogy": {
+        "glyph": "≈",
+        "lead": "Like a workshop, not just a worker.",
+        "points": [
+          "A bench, the right tools, notes on the wall, a checklist",
+          "The room is what makes the work reliable",
+          "Swap the worker and the room still holds"
+        ]
+      }
+    },
+    {
+      "id": "loop",
+      "n": "04",
+      "color": "loop",
+      "eyebrow": "// 04 · loop engineering",
+      "title": "Loop Engineering",
+      "ringLabel": "LOOP",
+      "era": "2026 +",
+      "guidance": "self-guided",
+      "guidanceNote": "it iterates on its own",
+      "hook": "Set a goal, let it run.",
+      "definition": "Now you put the harness in motion. Give it a goal and a stopping rule, then let it cycle: reason, act, check the result, decide, repeat. A scheduler wakes it on its own. It grows itself with new skills, spins up subagents to check its work, and runs jobs in parallel.",
+      "insightLabel": "the shift",
+      "insight": "You stop being the person in the chat box and become the person who builds the machine that runs it.",
+      "caption": "goal → act → check → repeat",
+      "schedulerLabel": "scheduler wakes it up",
+      "growsLabel": "it grows itself",
+      "cycle": ["reason", "act", "observe", "decide"],
+      "chips": ["skills + plugins", "subagents verify work", "parallel worktrees"],
+      "analogy": {
+        "glyph": "≈",
+        "lead": "Like hiring a team, not doing the task.",
+        "points": [
+          "You set the goal and the guardrails",
+          "The team runs the cycle without you in the room",
+          "You review the result, not every keystroke"
+        ]
+      }
+    }
+  ],
+  "chart": {
+    "eyebrow": "// why the outer loop wins",
+    "title": "One shot gets you partway. A loop gets you further, faster.",
+    "sub": "Quality against attempt number: you checking in yourself versus the loop checking itself on every single pass.",
+    "yLabels": ["100%", "50%", "0%"],
+    "xLabel": "attempt number →",
+    "series": [
+      { "id": "looped", "label": "Looped (checks itself)", "kind": "hi", "points": [43, 60, 72, 82, 88, 92, 94, 95, 96, 97] },
+      { "id": "manual", "label": "Manual (you check in)", "kind": "lo", "points": [30, 34, 36, 55, 57, 58, 71, 72, 73, 74] }
+    ],
+    "takeaway": "A self-checking loop climbs faster and lands higher, because it catches its own misses instead of waiting for you to."
+  },
+  "closing": "prompt → context → harness → loop · each ring adds a loop around the last"
+}

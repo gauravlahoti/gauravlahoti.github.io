@@ -1,0 +1,338 @@
+/* engineering-loops.css — "Engineering Loops" interactive AI Lab explainer.
+   Tokens only (base.css :root). Everything is loops- prefixed. Section-commented. */
+
+:root {
+    --loops-prompt:  #F2B138;
+    --loops-context: var(--accent);
+    --loops-harness: var(--axis-biz);
+    --loops-loop:    #4ADE80;
+}
+
+/* ─── page frame ─────────────────────────────────────────────────────────────── */
+
+.loops-lab-page {
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+}
+
+#loops-main {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: calc(var(--nav-h) + var(--space-6)) var(--space-6) var(--space-12);
+}
+
+.loops-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-16);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+.loops-footer-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--accent);
+    text-decoration: none;
+    transition: gap var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-footer-back:hover { gap: var(--space-3); }
+
+/* ─── header ─────────────────────────────────────────────────────────────────── */
+
+.loops-header { margin-bottom: var(--space-6); }
+.loops-tag {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--space-2);
+}
+.loops-h1 {
+    font-family: var(--font-sans);
+    font-size: clamp(1.8rem, 4vw, var(--text-3xl));
+    font-weight: 700;
+    line-height: 1.05;
+    margin: 0;
+}
+.loops-sub {
+    margin: var(--space-3) 0 0;
+    max-width: 74ch;
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    line-height: 1.55;
+}
+
+/* ─── body: diagram takes centre stage, detail reads below ───────────────────── */
+
+.loops-stagewrap {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    padding: var(--space-5);
+}
+.loops-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+/* max-mode toggle (expand → full-viewport overlay) */
+.loops-max {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card);
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: border-color var(--dur-fast, 0.15s) var(--ease-out, ease), color var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-max:hover { border-color: var(--accent); color: var(--accent); }
+.loops-max-glyph { font-size: var(--text-lg); line-height: 1; }
+
+.loops-stagewrap.is-max {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    padding: clamp(var(--space-6), 4vw, var(--space-12));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.96);
+}
+.loops-stagewrap.is-max .loops-svg {
+    width: auto;
+    height: auto;
+    max-width: 96vw;
+    max-height: 90vh;
+}
+.loops-stagewrap.is-max .loops-max {
+    top: var(--space-5);
+    right: var(--space-5);
+    z-index: 210;
+}
+
+/* ─── per-layer scenes ───────────────────────────────────────────────────────── */
+
+.loops-scene text { pointer-events: none; }
+.loops-glyph { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.loops-figure { stroke-width: 2.6; }
+.loops-dot { pointer-events: none; }
+
+/* additive layers: each fades in/out as a whole; steps stagger inside it */
+.loops-layer { transition: opacity var(--dur-med, 0.35s) var(--ease-out, ease); }
+.loops-loop-frame { stroke-width: 2; fill: none; opacity: 0.6; }
+.loops-feedback { stroke-width: 2; fill: none; stroke-linecap: round; }
+
+/* captions + mono labels */
+.loops-cap { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 15px; }
+.loops-cap-strong { fill: var(--ink); }
+.loops-node-mono { fill: var(--ink); font-family: var(--font-mono); font-size: 15px; }
+
+/* connectors + arrowheads */
+.loops-conn-line {
+    stroke: var(--ink-muted);
+    stroke-width: 1.8;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* the LLM panel (Claude + Gemini) */
+.loops-llm-rect { stroke-width: 2.4; fill: none; transition: filter var(--dur-fast, 0.15s) var(--ease-out, ease); }
+.loops-llm.is-lit .loops-llm-rect { filter: drop-shadow(0 0 9px var(--accent-glow)); }
+.loops-llm-title { fill: var(--ink); font-family: var(--font-sans); font-weight: 700; font-size: 26px; }
+.loops-brand { overflow: visible; }
+
+/* MCP badge on the gather-context arrow — subtle, monochrome, annotates without competing */
+.loops-mcp-badge { color: var(--ink-muted); opacity: 0.65; }
+
+/* tagline under a scene */
+.loops-tagline { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 16px; font-style: italic; }
+
+/* prompt: retry note */
+.loops-retry-x { fill: var(--danger); font-weight: 700; }
+.loops-retry-loop { fill: var(--accent); font-weight: 700; }
+.loops-hand-loop { stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+/* context: the window, its fill, docs, drift */
+.loops-ctx-win { stroke-width: 2.2; fill: none; }
+.loops-ctx-fill { fill: rgba(199, 166, 255, 0.14); }
+.loops-ctx-full { fill: var(--danger); font-family: var(--font-mono); font-weight: 700; font-size: 22px; letter-spacing: 0.04em; }
+.loops-doc { stroke-width: 1.8; }
+.loops-doc.is-red { stroke: var(--danger); }
+.loops-doc-label { fill: var(--ink-subtle); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; }
+.loops-ctx-dash { stroke: var(--ink-subtle); stroke-width: 1.6; stroke-dasharray: 7 7; }
+.loops-ctx-cap { fill: var(--ink-subtle); }
+
+/* the "loop" keyword — always the loop-green so it stands out wherever it appears */
+.loops-kw { fill: var(--loops-loop); font-weight: 700; }
+.loops-agentloop { fill: var(--ink); }
+
+/* discipline boundaries: soft, solid-edged highlighted regions that name each
+   territory — a dim colour wash (inline fill) inside a dim solid border, so
+   additive layers read as gentle highlighted zones rather than busy wireframes. */
+.loops-bound { stroke-width: 1.5; stroke-opacity: 0.45; }
+.loops-bound-label {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+/* context: the summarize + drift steps, made prominent */
+.loops-ctx-step { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; }
+.loops-ctx-summ { fill: var(--loops-prompt); }
+.loops-ctx-drift { fill: var(--danger); }
+
+/* harness + loop scenes */
+.loops-taskbar { stroke-width: 1.8; fill: none; }
+.loops-toolgrid rect { stroke-width: 1.8; }
+.loops-cycle-ring { stroke-width: 2.4; fill: none; opacity: 0.55; }
+.loops-chip-rect { stroke-width: 1.8; fill: none; }
+.loops-chip-svg-label { fill: var(--ink); font-family: var(--font-mono); font-size: 14px; }
+
+/* ─── controls ───────────────────────────────────────────────────────────────── */
+
+.loops-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+.loops-btn {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    transition: border-color var(--dur-fast, 0.15s) var(--ease-out, ease), color var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-btn:hover { border-color: var(--accent); color: var(--accent); }
+.loops-tour { color: var(--accent); border-color: var(--accent); }
+.loops-tour.is-playing { background: var(--accent-soft); }
+
+.loops-dots { display: inline-flex; gap: var(--space-2); }
+.loops-dot-btn {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    cursor: pointer;
+    transition: background var(--dur-fast, 0.15s) var(--ease-out, ease), border-color var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-dot-btn.is-active { background: var(--accent); border-color: var(--accent); }
+
+.loops-closing {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+    margin: var(--space-6) 0 0;
+}
+
+/* ─── coda chart: "why the outer loop wins" ──────────────────────────────────── */
+
+.loops-chart { margin-top: var(--space-16); }
+.loops-chart-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--loops-loop);
+    margin: 0 0 var(--space-2);
+}
+.loops-chart-title {
+    font-family: var(--font-sans);
+    font-size: clamp(1.4rem, 3vw, var(--text-2xl));
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0 var(--space-2);
+    max-width: 30ch;
+}
+.loops-chart-sub {
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    max-width: 62ch;
+    margin: 0 0 var(--space-4);
+}
+.loops-chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-5); margin-bottom: var(--space-3); }
+.loops-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+.loops-legend-swatch { width: 22px; height: 3px; border-radius: 2px; }
+.loops-legend--hi .loops-legend-swatch { background: var(--loops-loop); }
+.loops-legend--lo .loops-legend-swatch { background: var(--ink-muted); }
+.loops-legend--hi { color: var(--ink); }
+
+.loops-chart-plot {
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    padding: var(--space-4);
+}
+.loops-chart-svg { width: 100%; height: auto; display: block; }
+.loops-chart-grid { stroke: var(--border); stroke-width: 1; }
+.loops-chart-axis { stroke: var(--border-strong); stroke-width: 1; }
+.loops-chart-ytick, .loops-chart-xlabel {
+    fill: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 15px;
+}
+.loops-chart-line { stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.loops-line--hi { stroke: var(--loops-loop); filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.4)); }
+.loops-line--lo { stroke: var(--ink-muted); }
+.loops-chart-pt { r: 5; }
+.loops-pt--hi { fill: var(--loops-loop); }
+.loops-pt--lo { fill: var(--ink-muted); }
+.loops-chart-take {
+    margin: var(--space-4) 0 0;
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    font-style: italic;
+    line-height: 1.55;
+    max-width: 70ch;
+}
+
+/* ─── responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+    #loops-main { padding: calc(var(--nav-h) + var(--space-6)) var(--space-4) var(--space-12); }
+    .loops-stagewrap { padding: var(--space-3); }
+    .loops-controls { gap: var(--space-2); }
+    .loops-btn { padding: var(--space-2) var(--space-3); }
+}
+
+/* ─── reduced motion ─────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .loops-btn, .loops-dot-btn, .loops-llm-rect { transition: none; }
+}
