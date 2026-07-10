@@ -176,7 +176,7 @@
 .loops-ctx-full { fill: var(--danger); font-family: var(--font-mono); font-weight: 700; font-size: 22px; letter-spacing: 0.04em; }
 .loops-doc { stroke-width: 1.8; }
 .loops-doc.is-red { stroke: var(--danger); }
-.loops-doc-label { fill: var(--ink-subtle); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.01em; }
+.loops-doc-label { fill: var(--ink-subtle); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; }
 .loops-ctx-dash { stroke: var(--ink-subtle); stroke-width: 1.6; stroke-dasharray: 7 7; }
 .loops-ctx-cap { fill: var(--ink-subtle); }
 

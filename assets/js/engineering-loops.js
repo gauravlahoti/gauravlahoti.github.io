@@ -496,10 +496,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const ww = 340, wh = 120, wx = M.cx - ww / 2, wy = 84, wb = wy + wh;   // small, centred above the Model — a bit taller so each tile can carry its own label
         // 1) the tools the model calls appear FIRST — this is how context gets gathered
         // (kept well clear of the Model so the "gather context" label has breathing room)
-        const tx = 820, ty = M.cy;
+        const tx = 880, ty = M.cy;
         const tiles = s("g", {});
         [-30, 0, 30].forEach(ox => tiles.append(s("rect", { x: tx + ox - 13, y: ty - 13, width: 26, height: 26, rx: 5, fill: "none", stroke: cc })));
-        put(gc, "context", s("text", { x: tx, y: ty + 40, "text-anchor": "middle", class: "loops-cap" }, dg.toolLabel || "tools + resources"), tiles);
+        put(gc, "context", s("text", { x: tx, y: ty + 56, "text-anchor": "middle", class: "loops-cap" }, dg.toolLabel || "tools + resources"), tiles);
         // 2) the context window, sitting right above the Model
         const clip = s("clipPath", { id: "loops-ctx-clip" });
         clip.append(s("rect", { x: wx + 2, y: wy + 2, width: ww - 4, height: wh - 4, rx: 6 }));
@@ -513,13 +513,13 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         put(gc, "context",
             connector(mR + 10, ty - 4, tx - 48, ty - 4, ""),                               // Model → tools (call): straight
             mcpMark((mR + tx - 38) / 2, ty - 20, 26, "loops-mcp-badge"),                    // MCP badge, centred on the arrow, sitting just above it
-            s("text", { x: (mR + tx) / 2 + 6, y: ty + 98, "text-anchor": "middle", class: "loops-cap" }, dg.contextLoop || "gather context"));
+            s("text", { x: (mR + tx - 38) / 2, y: ty + 30, "text-anchor": "middle", class: "loops-cap" }, dg.contextLoop || "gather context"));  // directly below the arrow's midpoint, clear of "tools + resources"
         put(gc, "context", elbowUpThenLeft(tx, ty - 20, wx + ww, wy + wh / 2, 22, ""));  // tools → window (append result): straight up (centred on the tiles), then into the middle of the window's right edge
         put(gc, "context", connector(M.cx, wb + 4, M.cx, mT - 4, ""));                      // window → Model (read, then loop)
         // "context loop" names the whole pattern (gather → fill → summarize → drift → reset),
         // so it only appears once the tool-gather and summarize steps have already played —
         // revealed by the animation timeline below, not the static step reveal.
-        const loopLabel = s("text", { x: 740, y: 300, "text-anchor": "middle", class: "loops-cap loops-cap-strong loops-agentloop" }, "↻ context ", s("tspan", { class: "loops-kw" }, "loop"));
+        const loopLabel = s("text", { x: 760, y: 300, "text-anchor": "middle", class: "loops-cap loops-cap-strong loops-agentloop" }, "↻ context ", s("tspan", { class: "loops-kw" }, "loop"));
         loopLabel.style.opacity = REDUCE_MOTION ? "1" : "0";
         gc.append(loopLabel);
         // labels brought in by the animation phases, placed to the RIGHT of the tools →
@@ -543,7 +543,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             const dx = wx + 40 + i * ((ww - 80) / (nD - 1)), ov = i >= nD - 2;
             const d = docGlyph(dx, docY, ov ? red : cc, ov ? "is-red" : "", 0.8);
             d.style.opacity = REDUCE_MOTION ? "1" : "0";
-            const lbl = svgLines(dx, docY + 20, DOC_KINDS[i], "loops-doc-label", 10, "middle");
+            const lbl = svgLines(dx, docY + 30, DOC_KINDS[i], "loops-doc-label", 12, "middle");
             lbl.style.opacity = REDUCE_MOTION ? "1" : "0";
             gc.append(d, lbl); docs.push(d); docLabels.push(lbl); docXs.push(dx);
         }
