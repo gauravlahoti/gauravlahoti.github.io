@@ -28,6 +28,18 @@
       "href": "/rag-lab/",
       "internal": false,
       "cta": "Open RAG Lab"
+    },
+    {
+      "id": "loops",
+      "num": "03",
+      "status": "LIVE",
+      "title": "Engineering Loops",
+      "tagline": "How agents grew up, in four nested loops",
+      "description": "Prompt, context, harness, loop. Four ways to steer an AI, each one wrapping the last in a bigger loop. Focus a ring or take the guided tour from the center out.",
+      "tags": ["Agents", "Prompting", "Harness"],
+      "href": "/engineering-loops/",
+      "internal": true,
+      "cta": "Open Engineering Loops"
     }
   ],
   "teaser": "// more concepts in flight — added as I find better ways to explain them"

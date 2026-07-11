@@ -41,6 +41,7 @@
     "contextSummarize": "summarize → detail lost",
     "promptDiscipline": "prompt engineering",
     "contextDiscipline": "context engineering",
+    "harnessDiscipline": "harness engineering",
     "goalLabel": "the goal",
     "contextUnbroken": "edits code that was never broken",
     "promptLoop": "reword & retry",
@@ -128,7 +129,7 @@
       "insightLabel": "the shift",
       "insight": "Most \"prompt failures\" in production are really harness failures. Fix the scaffolding, not the wording.",
       "caption": "one task at a time, into a fresh context",
-      "tasks": ["1.", "2.", "3.", "4.", "5."],
+      "tasks": ["frontend", "backend", "database", "qa", "deploy"],
       "memoryLabel": "memory on disk",
       "taskListLabel": "task list on disk",
       "analogy": {
