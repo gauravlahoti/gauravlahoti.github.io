@@ -362,6 +362,41 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     let tourTimer = null;
     let tourPlaying = false;
 
+    // ── dynamic canvas: the viewBox tracks how much is actually on screen, so the
+    // scene starts small (just the prompt ring) and visibly grows as each layer adds
+    // its territory — instead of rendering the full 1440×1080 canvas from step one
+    // with the early rings floating in a mostly-empty frame. Each box is [x,y,w,h],
+    // padded a little past that layer's own DEMARCATION rect. Since .loops-svg is
+    // `height: auto` off a fixed width, animating the viewBox also animates the
+    // rendered height — the container itself grows/shrinks, not just an inner zoom.
+    const STAGE_VB = {
+        prompt: [36, 220, 666, 316],    // prompt DEMARCATION rect: x76 y260 w586 h236, +40 pad
+        context: [18, 26, 1088, 550],   // context DEMARCATION rect: x58 y66 w968 h470, +40 pad
+        harness: [8, 0, 1404, 920],     // harness DEMARCATION rect: x28 y14 w1362 h894, +~14 pad
+        loop: [0, 0, 1440, 1080],       // full canvas — the loop frame fills nearly all of it
+    };
+    let vbTween = null; // in-flight viewBox tween, if any — killed before starting a new one
+    function setViewBox(id, animate) {
+        const target = STAGE_VB[id] || STAGE_VB.loop;
+        const g = gsap();
+        if (vbTween) { try { vbTween.kill(); } catch {} vbTween = null; }
+        if (!g || REDUCE_MOTION || !animate) {
+            svg.setAttribute("viewBox", target.join(" "));
+            return;
+        }
+        // read the LIVE attribute (not a remembered "last target") so a tween started
+        // mid-flight through a previous transition picks up from wherever it actually
+        // is on screen right now, instead of snapping from a stale value
+        const current = (svg.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
+        const from = current.length === 4 && current.every(n => !Number.isNaN(n)) ? current : target;
+        const proxy = { x: from[0], y: from[1], w: from[2], h: from[3] };
+        vbTween = g.to(proxy, {
+            x: target[0], y: target[1], w: target[2], h: target[3],
+            duration: 0.9, ease: "power2.inOut",
+            onUpdate: () => svg.setAttribute("viewBox", `${proxy.x} ${proxy.y} ${proxy.w} ${proxy.h}`),
+        });
+    }
+
     // Stop one layer's loop (if running) and clean up any dot it left mid-flight —
     // other layers' timelines and dots are untouched, so they keep animating.
     function stopLayerAnim(id) {
@@ -369,12 +404,40 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         if (tl) { try { tl.kill(); } catch {} delete activeAnims[id]; }
         svg.querySelectorAll(`.loops-dot-${id}`).forEach(d => d.remove());
     }
+
+    // Each layer's own outer boundary/title (its DEMARCATION) is held back from the
+    // normal step reveal — it only fades in once that layer's own animation has played
+    // through one full cycle, so the "container" only closes around the mechanism
+    // after you've watched it actually work, instead of announcing the discipline's
+    // name before anything inside it has happened. A one-time flag per layer: once
+    // shown, it stays shown (revisiting a layer never hides it again or makes you wait
+    // a second time).
+    const demarcationShown = {};
+    function revealDemarcation(id, animate) {
+        if (demarcationShown[id]) return;
+        demarcationShown[id] = true;
+        const node = refs.demarcation[id];
+        if (!node) return;
+        const g = gsap();
+        if (!g || REDUCE_MOTION || !animate) { node.style.opacity = "1"; return; }
+        g.to(node, { opacity: 1, duration: 0.6, ease: "power2.out" });
+    }
+
     // Start one layer's loop if it isn't already running.
     function startLayerAnim(id) {
         if (activeAnims[id]) return;
         const animate = refs.anims[id];
-        if (!animate || REDUCE_MOTION || !gsap()) return;
-        activeAnims[id] = animate();
+        if (!animate || REDUCE_MOTION || !gsap()) { revealDemarcation(id, false); return; }
+        const tl = animate();
+        activeAnims[id] = tl;
+        // fires once the timeline completes its first full pass and loops back to
+        // start — exactly "one full animation of this layer is complete"
+        if (!demarcationShown[id] && tl && typeof tl.eventCallback === "function") {
+            tl.eventCallback("onRepeat", () => {
+                revealDemarcation(id, true);
+                tl.eventCallback("onRepeat", null); // one-shot
+            });
+        }
     }
 
     // ── focus ────────────────────────────────────────────────────────────────────
@@ -398,20 +461,31 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             if (!grp) return;
             if (k < i) {
                 grp.style.opacity = "1";
+                grp.style.pointerEvents = "";
                 (refs.steps[id] || []).forEach(st => (st.style.opacity = ""));
                 // the context loop is the centrepiece of this whole explainer — once it's
                 // been reached, keep it running no matter which later stage is focused.
                 // (idempotent: a no-op if it's already mid-loop, so it's never interrupted.)
                 if (id === "context") startLayerAnim(id);
                 else stopLayerAnim(id); // other prior stages stay visible, but go still
+                // safety net: a layer you've already moved past must never be left with
+                // its outer boundary permanently missing just because you clicked away
+                // before its first animation cycle finished
+                revealDemarcation(id, false);
             } else if (k > i) {
                 grp.style.opacity = "0";
+                // opacity:0 elements are still hit-tested by default. Since the SVG's
+                // viewBox now shrinks for early stages (dynamic canvas), these still-
+                // invisible later-stage groups sit at absolute coordinates far outside
+                // the shrunk box; with `overflow: visible` they'd otherwise still catch
+                // clicks well past the diagram — including the Prev/Next controls below.
+                grp.style.pointerEvents = "none";
                 stopLayerAnim(id);
             }
         });
         const curId = LAYER_ORDER[i];
         const grp = refs.groups[curId];
-        if (grp) grp.style.opacity = "1";
+        if (grp) { grp.style.opacity = "1"; grp.style.pointerEvents = ""; }
         stopLayerAnim(curId); // restart the focused layer's loop fresh each time it's (re)focused
         const flat = (refs.steps[curId] || []).filter(Boolean);
         const startAnim = () => startLayerAnim(curId);
@@ -431,6 +505,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         pendingStart = g.delayedCall(revealDur, startAnim);
     }
 
+    let hasFocusedOnce = false;
     function focusLayer(i) {
         focus = (i + layers.length) % layers.length;
         const layer = layers[focus];
@@ -441,6 +516,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         nextBtn.textContent = focus === layers.length - 1 ? `↺ ${ui.restart || "Restart"}` : `${ui.next || "Next"} ›`;
         clearAnim();
         scene.setAttribute("class", `loops-scene loops-scene-${layer.id}`);
+        // snap on the very first render (page load / deep-link) — nothing to animate
+        // from yet; every navigation after that animates the canvas growing/shrinking
+        setViewBox(layer.id, hasFocusedOnce);
+        hasFocusedOnce = true;
         playAdditive(focus);
     }
 
@@ -467,12 +546,23 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     }
 
     function buildAll() {
-        const groups = {}, steps = {}, anims = {};
-        const layerG = id => { const g = s("g", { class: `loops-layer m-${id}` }); g.style.opacity = "0"; scene.append(g); groups[id] = g; steps[id] = []; return g; };
+        const groups = {}, steps = {}, anims = {}, demarcation = {};
+        const layerG = id => { const g = s("g", { class: `loops-layer m-${id}` }); g.style.opacity = "0"; g.style.pointerEvents = "none"; scene.append(g); groups[id] = g; steps[id] = []; return g; };
         const put = (g, id, ...nodes) => {
             const st = s("g", { class: "loops-step" });
             nodes.filter(Boolean).forEach(n => st.append(n));
             g.append(st); steps[id].push(st); return st;
+        };
+        // a layer's own outer boundary/title — excluded from the normal step stagger;
+        // starts invisible and is only faded in once that layer's animation has played
+        // through one full cycle (see revealDemarcation in the outer scope)
+        const putDemarcation = (g, id, ...nodes) => {
+            const wrap = s("g", {});
+            nodes.filter(Boolean).forEach(n => wrap.append(n));
+            wrap.style.opacity = "0";
+            g.append(wrap);
+            demarcation[id] = wrap;
+            return wrap;
         };
 
         const M = { cx: 545, cy: 372, w: 178, h: 104 };
@@ -501,7 +591,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // DEMARCATION — prompt engineering encloses the human loop AND the Model (the
         // discipline reaches as far as the Model it's steering), with real breathing
         // room between the box border and its content on every side.
-        put(gp, "prompt",
+        putDemarcation(gp, "prompt",
             s("rect", { x: 76, y: 260, width: mR + 28 - 76, height: 236, rx: 18, class: "loops-bound", stroke: cp, fill: hexToRgba(cp, 0.055) }),
             s("text", { x: 88, y: 289, "text-anchor": "start", class: "loops-bound-label", fill: cp }, dg.promptDiscipline || "prompt engineering"));
         anims.prompt = () => {
@@ -525,20 +615,24 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const tiles = s("g", {});
         [-30, 0, 30].forEach(ox => tiles.append(s("rect", { x: tx + ox - 13, y: ty - 13, width: 26, height: 26, rx: 5, fill: "none", stroke: COLORS.harness })));  // durable resources — harness-owned, so purple even while positioned here
         put(gc, "context", s("text", { x: tx, y: ty + 56, "text-anchor": "middle", class: "loops-cap" }, dg.toolLabel || "tools + resources"), tiles);
-        // 2) the context window, sitting right above the Model
+        // 2) Model → tools (the "gather context" call) — appears next, BEFORE the window
+        // itself, so the reveal reads in cause-then-effect order: tools exist, the Model
+        // reaches for them, and only THEN does the window that receives their results
+        // show up. (Previously the window box appeared before this arrow did.)
+        put(gc, "context",
+            connector(mR + 10, ty - 4, tx - 48, ty - 4, ""),                               // Model → tools (call): straight
+            mcpMark((mR + tx - 38) / 2, ty - 20, 26, "loops-mcp-badge"),                    // MCP badge, centred on the arrow, sitting just above it
+            s("text", { x: (mR + tx - 38) / 2, y: ty + 30, "text-anchor": "middle", class: "loops-cap" }, dg.contextLoop || "gather context"));  // directly below the arrow's midpoint, clear of "tools + resources"
+        // 3) the context window, sitting right above the Model
         const clip = s("clipPath", { id: "loops-ctx-clip" });
         clip.append(s("rect", { x: wx + 2, y: wy + 2, width: ww - 4, height: wh - 4, rx: 6 }));
         gc.append(clip);
         const fill = s("rect", { x: wx + 2, y: wb - 2, width: ww - 4, height: 0, class: "loops-ctx-fill", "clip-path": "url(#loops-ctx-clip)" });
         const win = s("rect", { x: wx, y: wy, width: ww, height: wh, rx: 8, fill: "none", stroke: cc, class: "loops-ctx-win" });
         put(gc, "context", fill, win, s("text", { x: wx + 20, y: wy + 26, "text-anchor": "start", class: "loops-cap" }, dg.contextWindowLabel || "context window"));
-        // 3) the INNER AGENTIC LOOP — the engine of context engineering, distinct from the
+        // 4) the INNER AGENTIC LOOP — the engine of context engineering, distinct from the
         //    human loop: Model → calls a tool → result appended to the window → Model reads
         //    it → calls again. This is what grows the window turn over turn.
-        put(gc, "context",
-            connector(mR + 10, ty - 4, tx - 48, ty - 4, ""),                               // Model → tools (call): straight
-            mcpMark((mR + tx - 38) / 2, ty - 20, 26, "loops-mcp-badge"),                    // MCP badge, centred on the arrow, sitting just above it
-            s("text", { x: (mR + tx - 38) / 2, y: ty + 30, "text-anchor": "middle", class: "loops-cap" }, dg.contextLoop || "gather context"));  // directly below the arrow's midpoint, clear of "tools + resources"
         put(gc, "context", elbowUpThenLeft(tx, ty - 20, wx + ww, wy + wh / 2, 22, ""));  // tools → window (append result): straight up (centred on the tiles), then into the middle of the window's right edge
         put(gc, "context", connector(M.cx, wb + 4, M.cx, mT - 4, ""));                      // window → Model (read, then loop)
         // "context loop" names the whole pattern (gather → fill → summarize → drift → reset),
@@ -547,13 +641,14 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const loopLabel = s("text", { x: 760, y: 300, "text-anchor": "middle", class: "loops-cap loops-cap-strong loops-agentloop" }, "↻ agent ", s("tspan", { class: "loops-kw" }, "loop"));
         loopLabel.style.opacity = REDUCE_MOTION ? "1" : "0";
         gc.append(loopLabel);
-        // labels brought in by the animation phases, placed to the RIGHT of the tools →
-        // window arrow's vertical run (not between it and the window), so the arrow is
-        // free to land on the window's top-middle instead of being routed around text.
-        const lx = tx + 16, lcy = wy + wh / 2;
+        // "summarize"/"drift" sit to the LEFT of the window instead — the right side is
+        // where the tools→window arrow, the compaction loop's write/rehydrate legs, and
+        // "tools + resources" all converge, so text there just adds to the clutter. The
+        // left side (above the prompt box, which only starts at y260) is open space.
+        const lcy = wy + wh / 2;
         const full = s("text", { x: wx + ww - 18, y: wy + 30, "text-anchor": "end", class: "loops-ctx-full" }, dg.contextFullLabel || "FULL!");
-        const summ = svgLines(lx, lcy - 18, splitAtArrow(dg.contextSummarize || "summarize → detail lost"), "loops-ctx-step loops-ctx-summ", 15, "start");
-        const drift = svgLines(lx, lcy + 20, splitAtArrow(dg.contextDrift || "context rot → goal drifts"), "loops-ctx-step loops-ctx-drift", 15, "start");
+        const summ = svgLines(wx - 16, lcy - 18, splitAtArrow(dg.contextSummarize || "summarize → detail lost"), "loops-ctx-step loops-ctx-summ", 15, "end");
+        const drift = svgLines(wx - 16, lcy + 20, splitAtArrow(dg.contextDrift || "context rot → goal drifts"), "loops-ctx-step loops-ctx-drift", 15, "end");
         full.style.opacity = "0";
         summ.style.opacity = REDUCE_MOTION ? "1" : "0";
         drift.style.opacity = REDUCE_MOTION ? "1" : "0";
@@ -576,9 +671,12 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // 5) DEMARCATION — additive layers nest: context engineering fully encloses
         //    prompt engineering (a bigger territory wrapping the last, same pattern
         //    the harness/loop frames use), not a separate adjacent box.
-        put(gc, "context",
-            s("rect", { x: 58, y: 48, width: 968, height: 488, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
-            s("text", { x: 88, y: 70, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
+        // top edge pulled down from 48→66 (bottom held at 536, height trimmed to match)
+        // so there's real breathing room between this border and the harness border
+        // above it, instead of the two titles almost touching
+        putDemarcation(gc, "context",
+            s("rect", { x: 58, y: 66, width: 968, height: 470, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
+            s("text", { x: 88, y: 88, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
         anims.context = () => {
             const g = gsap(), tl = g.timeline({ repeat: -1 });
             const step = 1.5, gather = nD * step;
@@ -619,6 +717,20 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             tl.set(win, { stroke: cc });
             tl.set(fill, { attr: { y: wb - 2, height: 0, fill: "rgba(199,166,255,0.14)" } });
             tl.to({}, { duration: 1.2 });
+            // hard safety-net reset on every repeat: each doc/label fade-in is a travelDot
+            // onArrive callback, which spawns its OWN independent tween outside this
+            // timeline — if one hasn't finished by the time this timeline wraps, the doc
+            // it belongs to (and any leftover dot) could bleed into round 2, showing the
+            // window as already full instead of starting clean. Force everything back and
+            // sweep any stray context-layer dots the instant GSAP fires the repeat.
+            tl.eventCallback("onRepeat", () => {
+                g.set([...docs, ...docLabels], { opacity: 0 });
+                g.set(win, { stroke: cc });
+                g.set(fill, { attr: { y: wb - 2, height: 0, fill: "rgba(199,166,255,0.14)" } });
+                g.set(full, { opacity: 0 });
+                g.set([summ, drift, loopLabel], { opacity: 0 });
+                svg.querySelectorAll(".loops-dot-context").forEach(d => d.remove());
+            });
             return tl;
         };
 
@@ -627,18 +739,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // window, so the harness band holds what's left when the window resets.
         const gh = layerG("harness"), ch = COLORS.harness;
 
-        // tag the Model with the outer agent loop — purple base, shared green "loop" accent
-        // sits to the RIGHT of M.cx (not centred on it) so the task-list connector below
-        // can run exactly down M.cx, and clear of "not what you wanted" / "tweak & send
-        // again" (x238–560 at y452/480), which it used to crowd once shifted off-centre
-        // pushed below the teal box's own bottom (536), so it sits in the harness's own
-        // purple territory instead of crowding the yellow PROMPT ENGINEERING border
-        put(gh, "harness", s("text", { x: M.cx + 12, y: 560, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
-
         // task list — its own lane, left side. Pushed down from the teal box's bottom
         // (536) with real clearance, since the right-side label stack now lives in the
         // gap between them (536–694) and must never cross into the teal box itself.
-        const rowLabelY = 694, rowTop = 714;
+        const rowLabelY = 610, rowTop = 630;
         // box column centred EXACTLY on M.cx, so the task list sits directly under the
         // Model, not offset to one side of it
         const listX = M.cx;
@@ -658,7 +762,6 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             taskNodes.push(gg);
             taskGroups.push(gg);
         });
-        put(gh, "harness", ...taskNodes);
         // wired to the Model: ONE dead-straight drop down M.cx — the Model's own exact
         // centre — no bend at all, landing right on the label's top edge, centred on it.
         // "read next / mark done" sits to the left, clear of the line the whole way down.
@@ -667,8 +770,6 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             { x: M.cx, y: mB },              // leave the Model, dead straight down its own centre
             { x: M.cx, y: rowLabelY - 14 },  // straight down, landing on the label's top edge — no bend
         ];
-        put(gh, "harness", orthoConnector(taskConnPath, ""));
-        put(gh, "harness", svgLines(M.cx - 18, rowLabelY - 60, ["read next / mark done"], "loops-harness-note", 14, "end"));
 
         // memory on disk + fresh context — moved UP beside the context window (same
         // neighbourhood as its height) instead of down in the bottom row. Both arrows
@@ -681,8 +782,17 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const memX = 1110, freshX = 1290, memY = 420;
         const memTop = memY - 15, memBase = memY + 15;   // memoryGlyph is 30 tall, cy-centred
         const freshTop = memY - 13, freshBase = memY + 13; // fresh-context rect is 26 tall, cy-centred
-        put(gh, "harness", memoryGlyph(memX, memY, ch, ""), s("text", { x: memX, y: memBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.memoryLabel || "memory on disk"));
+
+        // the three durable-state artifacts — task list, memory, fresh context — read as
+        // ONE beat: they're the whole point of "harness engineering" (state that survives
+        // past any one context window), so they appear together in a single reveal step
+        // instead of trickling in one at a time across several separate steps.
         put(gh, "harness",
+            ...taskNodes,
+            orthoConnector(taskConnPath, ""),
+            svgLines(M.cx - 18, rowLabelY - 60, ["read next / mark done"], "loops-harness-note", 14, "end"),
+            memoryGlyph(memX, memY, ch, ""),
+            s("text", { x: memX, y: memBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.memoryLabel || "memory on disk"),
             s("rect", { x: freshX - 55, y: freshTop, width: 110, height: 26, rx: 6, fill: "none", stroke: ch, class: "loops-taskbar" }),
             s("text", { x: freshX, y: freshBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.freshContext2 || "into a fresh context"));
 
@@ -722,17 +832,26 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const midX = (memX + freshX) / 2; // 1200
         put(gh, "harness", svgLines(midX, 210, ["write"], "loops-harness-note", 14, "middle"));
         put(gh, "harness", svgLines(midX, 250, ["full / rotting? →", "compact"], "loops-harness-note", 14, "middle"));
-        // static red failure label — NOT the animated context-layer "drift" (that one
-        // still fades in/out on its own cycle and stays put in the context section);
-        // this is a permanent harness-owned duplicate so the pairing with the purple
-        // "offload" answer below it never disappears when context's cycle resets it.
-        put(gh, "harness", svgLines(midX, 296, ["context rot →", "goal drifts"], "loops-ctx-step loops-ctx-drift", 14, "middle"));
-        put(gh, "harness", svgLines(midX, 342, ["↳ offload to disk,", "run survives"], "loops-harness-note", 14, "middle"));
-        put(gh, "harness", svgLines(midX, 388, ["rehydrate"], "loops-harness-note", 14, "middle"));
+        // "context rot → goal drifts" does NOT belong here — it's a property of the live
+        // context window, not data at rest on disk. That copy lives once, near the
+        // context window itself (the `drift` element above); no duplicate in this column.
+        put(gh, "harness", svgLines(midX, 296, ["↳ offload to disk,", "run survives"], "loops-harness-note", 14, "middle"));
+        put(gh, "harness", svgLines(midX, 342, ["rehydrate"], "loops-harness-note", 14, "middle"));
+
+        // tag the Model with the outer agent loop — purple base, shared green "loop" accent.
+        // Deliberately the LAST content step (right before the bounding box), so it only
+        // appears once every other harness primitive — task list, memory, compaction loop —
+        // has already staggered in, instead of showing up before the picture exists.
+        // Sits to the RIGHT of M.cx (not centred on it) so the task-list connector above
+        // can run exactly down M.cx, and clear of "not what you wanted" / "tweak & send
+        // again" (x238–560 at y452/480). Pushed below the teal box's own bottom (536), so
+        // it sits in the harness's own purple territory instead of crowding the yellow
+        // PROMPT ENGINEERING border.
+        put(gh, "harness", s("text", { x: M.cx + 12, y: 560, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
 
         // DEMARCATION — harness engineering is the outermost discipline: it wraps context
         // engineering (and everything nested inside it) entirely, with generous padding.
-        put(gh, "harness",
+        putDemarcation(gh, "harness",
             s("rect", { x: 28, y: 14, width: 1362, height: 894, rx: 26, class: "loops-bound", stroke: ch, fill: hexToRgba(ch, 0.045) }),
             // label sits tight against the harness box's OWN top edge (not centred in the
             // 18–48 gap) so the remaining space reads as clear breathing room before the
@@ -750,16 +869,20 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 doneCount = (doneCount + 1) % (taskGroups.length + 1);
                 taskGroups.forEach((g, i) => g.classList.toggle("is-done", i < doneCount));
             }, 1.0);
-            // the compaction loop is long (~2200px) and reads fine as a static path + label —
-            // no travelling dot here, so there's no risk of a second dot spawning mid-journey
-            // and appearing to sit stray at some junction along the way.
-            tl.to({}, { duration: 2.6 });
+            // compaction loop dot — three separate legs (the connecting points on memory/
+            // fresh don't line up into one straight path, so one travelDot per leg, timed
+            // back-to-back at a faster speed so the whole window→memory→fresh→window trip
+            // reads as one continuous journey rather than three disconnected hops).
+            tl.add(() => travelDot(svg, compactToMem, { color: ch, glow: GLOW.harness, speed: 500, layer: "harness" }), 0);
+            tl.add(() => travelDot(svg, memToFresh, { color: ch, glow: GLOW.harness, speed: 500, layer: "harness" }), 1.6);
+            tl.add(() => travelDot(svg, freshToWindow, { color: ch, glow: GLOW.harness, speed: 500, layer: "harness" }), 2.0);
+            tl.to({}, { duration: 4.2 });
             return tl;
         };
 
         // ── LOOP: an outer loop wraps it all — scheduler, cycle, self-growth ──────
         const gl = layerG("loop"), cll = COLORS.loop;
-        put(gl, "loop", s("rect", { x: 10, y: 10, width: 1420, height: 1060, rx: 22, fill: "none", stroke: cll, class: "loops-loop-frame" }));
+        putDemarcation(gl, "loop", s("rect", { x: 10, y: 10, width: 1420, height: 1060, rx: 22, fill: "none", stroke: cll, class: "loops-loop-frame" }));
         put(gl, "loop", s("text", { x: M.cx, y: 50, "text-anchor": "middle", class: "loops-cap loops-cap-strong" }, dg.cycleLabel || "reason → act → check → repeat"));
         const fb = s("path", { d: `M ${mR} ${mB - 8} C ${mR + 110} ${mB + 96}, 300 648, 128 ${hy + 74} L 128 ${hy + 54}`, fill: "none", stroke: cll, class: "loops-feedback" });
         put(gl, "loop", fb, s("path", { d: `M 128 ${hy + 54} l -6 10 M 128 ${hy + 54} l 6 10`, fill: "none", stroke: cll, "stroke-width": 2, "stroke-linecap": "round" }));
@@ -783,7 +906,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             return tl;
         };
 
-        return { groups, steps, anims };
+        return { groups, steps, anims, demarcation };
     }
 
     // ── coda chart (unchanged): "why the outer loop wins" ────────────────────────
