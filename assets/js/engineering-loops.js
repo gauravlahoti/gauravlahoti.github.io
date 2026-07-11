@@ -14,9 +14,9 @@
 // buildAll() draws every layer once into its own <g class="m-<id>"> (each split into
 // step groups); focusLayer()→playAdditive(i) shows layers 0..i (staying static), hides
 // the rest, and staggers in the just-activated layer's steps before starting its loop —
-// only the focused stage animates, so attention stays there. Exception: the CONTEXT
-// loop is the centrepiece of the whole explainer, so once reached it keeps running no
-// matter which later stage is focused.
+// only the focused stage animates, so attention stays there. Exception: PROMPT and
+// CONTEXT are the throughline of the whole explainer, so once either is reached it
+// keeps running no matter which later stage is focused.
 // Reuses the site's motion DNA and degrades to a static render when GSAP is missing
 // or prefers-reduced-motion is set.
 
@@ -452,8 +452,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     // `i` hide entirely; only the just-activated layer's step groups fade in (step by
     // step) and starts looping. Prior layers keep their static art on screen — the
     // picture still grows outward — but only the focused stage animates, so attention
-    // stays there. The one exception is CONTEXT: it's the centrepiece of the explainer,
-    // so its loop keeps running for as long as it's on screen, regardless of focus.
+    // stays there. The exception is PROMPT and CONTEXT: they're the throughline of the
+    // explainer, so their loops keep running for as long as they're on screen, regardless
+    // of focus.
     function playAdditive(i) {
         const g = gsap();
         LAYER_ORDER.forEach((id, k) => {
@@ -463,10 +464,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 grp.style.opacity = "1";
                 grp.style.pointerEvents = "";
                 (refs.steps[id] || []).forEach(st => (st.style.opacity = ""));
-                // the context loop is the centrepiece of this whole explainer — once it's
-                // been reached, keep it running no matter which later stage is focused.
-                // (idempotent: a no-op if it's already mid-loop, so it's never interrupted.)
-                if (id === "context") startLayerAnim(id);
+                // prompt and context are the throughline of this whole explainer — once
+                // either has been reached, keep it running no matter which later stage is
+                // focused. (idempotent: a no-op if it's already mid-loop, so it's never
+                // interrupted.)
+                if (id === "context" || id === "prompt") startLayerAnim(id);
                 else stopLayerAnim(id); // other prior stages stay visible, but go still
                 // safety net: a layer you've already moved past must never be left with
                 // its outer boundary permanently missing just because you clicked away
@@ -688,7 +690,18 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 const at = i * step;
                 // Model → tool (call), then tool → window (result appended): the agent loop
                 tl.add(() => travelDot(svg, [{ x: mR, y: ty }, { x: tx - 30, y: ty }], { color: cc, glow: GLOW.context, speed: 220, layer: "context" }), at);
-                tl.add(() => travelDot(svg, [{ x: tx, y: ty - 30 }, { x: docXs[i], y: docY }], { color: cc, glow: GLOW.context, speed: 200, layer: "context", onArrive: () => { g.to(d, { opacity: 1, duration: 0.3 }); g.to(docLabels[i], { opacity: 1, duration: 0.3 }); } }), at + 0.6);
+                const leg2 = [{ x: tx, y: ty - 30 }, { x: docXs[i], y: docY }];
+                tl.add(() => travelDot(svg, leg2, { color: cc, glow: GLOW.context, speed: 200, layer: "context" }), at + 0.6);
+                // the doc's fade-in lives ON the main timeline itself, timed to land right
+                // as the dot arrives — NOT inside travelDot's onArrive as an independent
+                // tween. onArrive spawns a tween outside this timeline, which is what made
+                // "docs already visible" and "docs just pop in with no flying dot" possible
+                // on later repeats (a stale/still-resolving async tween racing the next
+                // cycle). Living on `tl` ties it to the exact same repeat mechanics as
+                // everything else, so every single cycle looks identical.
+                const travel = Math.hypot(leg2[1].x - leg2[0].x, leg2[1].y - leg2[0].y) / 200;
+                tl.to(d, { opacity: 1, duration: 0.3 }, at + 0.6 + travel);
+                tl.to(docLabels[i], { opacity: 1, duration: 0.3 }, at + 0.6 + travel);
             });
             // Phase B — FULL (pause so it lands and can be read)
             tl.to(full, { opacity: 1, duration: 0.3 }, gather + 0.2);
@@ -859,7 +872,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // again" (x238–560 at y452/480). Pushed below the teal box's own bottom (536), so
         // it sits in the harness's own purple territory instead of crowding the yellow
         // PROMPT ENGINEERING border.
-        put(gh, "harness", s("text", { x: M.cx + 12, y: 600, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
+        put(gh, "harness", s("text", { x: M.cx + 12, y: rowLabelY - 60, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
 
         // DEMARCATION — harness engineering is the outermost discipline: it wraps context
         // engineering (and everything nested inside it) entirely, with generous padding.
