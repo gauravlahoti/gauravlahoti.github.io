@@ -1,0 +1,212 @@
+# CLAUDE.md — Engineering Loops
+
+Guidance for working on **Engineering Loops**: a single-page interactive explainer of
+prompt → context → harness → loop engineering, told as four additive layers on one shared
+SVG canvas. This file is scoped to the lab; the repo-wide rules in the root `CLAUDE.md`
+(design tokens, voice, no-build-step) still apply and win on any conflict.
+
+## What it is
+
+Four disciplines, each wrapping the last in a bigger loop, drawn once onto **one shared
+canvas** and revealed additively — advancing a layer keeps everything before it on screen
+and grows the picture outward around a shared **Model** anchor. No backend; content lives
+in `content/engineering-loops.json`, geometry and animation in `assets/js/engineering-loops.js`.
+
+## File map
+
+| Concern | File | Notes |
+|---------|------|-------|
+| Page shell | `ai-labs/engineering-loops/index.html` | Chrome, CSP, font/GSAP CDN, mounts `engineering-loops-page.js` |
+| Page boot | `assets/js/engineering-loops-page.js` | Year/nav/flyout chrome; fetches JSON; lazy-imports the lab |
+| Lab engine | `assets/js/engineering-loops.js` | All geometry, staging, and animation. Contract: `initEngineeringLoops(rootEl, { content }) → { destroy() }` |
+| Content | `content/engineering-loops.json` | Copy for every label, plus the `layers[]` array (one entry per discipline) and the coda chart data |
+| Styles | `assets/css/engineering-loops.css` | Section-commented; `:root` block holds the four discipline colors |
+
+**Cache-bust rule:** bump `?v=` in `ai-labs/engineering-loops/index.html` (both the CSS link
+and the page script tag) after editing `engineering-loops.js`, `.css`, or `.json`. The page
+script's `?v` also cache-busts the dynamic `import("./engineering-loops.js")` and the JSON
+fetch — same one-version-drives-everything pattern as MCP Lab.
+
+## Architecture: additive layers on a shared canvas
+
+`buildAll()` draws **every** layer once, each into its own `<g class="m-<id>">`
+(`LAYER_ORDER = ["prompt", "context", "harness", "loop"]`), further split into
+`<g class="loops-step">` groups via the `put(g, id, ...nodes)` helper — every `put()` call
+becomes one step in that layer's reveal stagger, **in call order**. If something reads as
+appearing "too early" or "before its cause," the fix is almost always reordering `put()`
+calls, not touching geometry (see "Reveal ordering matters" below).
+
+`focusLayer(i)` → `playAdditive(i)`:
+- Layers `k < i` (already passed): shown statically at full opacity, steps not staggered.
+- Layer `k === i` (current focus): its steps fade in via a GSAP stagger (`revealTl`), then
+  its own loop animation starts (`startLayerAnim`).
+- Layers `k > i` (not reached yet): hidden (`opacity: 0`) **and** `pointer-events: none`
+  (see gotcha below).
+
+**Every layer keeps animating once reached, regardless of focus** — `playAdditive`'s
+`k < i` branch calls `startLayerAnim(id)` unconditionally for every prior layer. This used
+to be a prompt/context-only exception (everything else went still via `stopLayerAnim` the
+moment you moved past it), but that made harness/loop read as "broken": their own reveal
+has enough steps that the delayed dot-animation start (see below) could take several
+seconds, and if you navigated away before it fired, `clearAnim()` would kill the pending
+start and the layer would sit there having never animated at all. Making every layer
+throughline fixes this for free — moving to the next layer makes the previous one fully
+visible immediately (no stagger) and calls `startLayerAnim` synchronously in that same
+branch, so a layer you've passed always starts (or keeps running) the instant you leave it,
+independent of whether its own delayed start got a chance to fire while it was focused.
+
+The reveal-then-start delay (`revealDur` in `playAdditive`) is capped at 3.2s regardless of
+how many `put()` steps a layer has — it scales with step count otherwise (`stagger *
+(flat.length - 1)`), and harness/loop's stories have grown to 8 steps each, which pushed
+it past 6-7s uncapped. The currently-focused layer (no "moved past it" fallback yet) needs
+this bounded so its own animation reliably starts within a normal viewing window.
+
+### The Model anchor
+
+`M = { cx: 545, cy: 372, w: 178, h: 104 }` is the one fixed point every layer's geometry is
+positioned relative to. Prompt orbits it, context sits above it, harness wraps around it,
+loop frames the whole thing. If you ever need to shift the whole composition, `M.cx`/`M.cy`
+is the place to start, not each layer's individual coordinates.
+
+### Dynamic viewBox (the canvas grows with you)
+
+The SVG's `viewBox` is **not fixed** — `STAGE_VB` maps each layer id to `[x, y, w, h]`,
+padded a little past that layer's own DEMARCATION rect. `setViewBox(id, animate)` tweens
+the live `viewBox` attribute via GSAP (reading the box straight off the DOM attribute as the
+tween's start point, not a remembered value, so a tween interrupted mid-flight by rapid
+navigation picks up from wherever it visually is). Because `.loops-svg` is `height: auto`
+off a fixed width, animating `viewBox` **also animates the rendered height** — the container
+itself grows and shrinks, not just an internal zoom. First render (page load or a deep link
+like `#harness`) snaps instantly; every navigation after that animates.
+
+If you add geometry to a layer that extends past its current `STAGE_VB` box, widen that
+box — don't assume the canvas is big enough just because the old fixed `1440×1080` viewBox
+used to cover everything.
+
+### Reveal ordering matters (deferred DEMARCATION reveal)
+
+Each layer's own outer boundary/title (its "DEMARCATION" — the big rounded rect + discipline
+name) is built via `putDemarcation()`, not `put()`. It starts at `opacity: 0` and is
+**excluded from the normal step stagger** — it only fades in once that layer's own animation
+completes one full cycle (`tl.eventCallback("onRepeat", ...)`), so the "container" only
+closes around the mechanism after you've watched it work, not before anything inside it has
+happened. `demarcationShown[id]` is a one-time-ever flag (module-level state): once shown,
+it never hides again, even on replay. A safety net in `playAdditive`'s `k < i` branch
+force-reveals it immediately if you navigate away before the first cycle finishes — a layer
+you've already passed must never be left with its boundary permanently missing.
+
+Context's boundary is tied to a *specific moment* inside its cycle rather than the end of
+it: it reveals in the same `tl.add()` callback that names the pattern ("↻ agent loop"), on
+the theory that once the mechanism has earned its name it's earned its container too. If you
+add this pattern to harness/loop, prefer tying the reveal to a similarly meaningful beat in
+that layer's own animation rather than defaulting to "whenever the cycle happens to end."
+
+## Style guidelines
+
+- **Content in JSON, not JS/HTML.** All copy comes from `content/engineering-loops.json`
+  (`diagram.*` keys plus `layers[]`). Geometry/animation is generic; only redraw
+  by-hand strings as a last resort (a few short static labels are inline literals with a
+  JSON fallback — grep `dg\.` to find the pattern already in use before adding new copy).
+- **One color per discipline, never mixed:** `COLORS = { prompt: "#F2B138", context:
+  "#00FFD1", harness: "#a78bfa", loop: "#4ADE80" }`. Red (`var(--danger)`) is reserved for
+  actual failure modes (context rot, drift) — anything that just *accumulates* (like
+  "tool result" doc tiles filling the window) uses amber, not red, since red reads as
+  "this is broken," not "this is building up."
+- **Connectors are orthogonal only, sharp corners.** `orthoConnector(pts, cls)` draws
+  straight `M`/`L` segments with a single end arrowhead; the shared `.loops-conn-line` CSS
+  uses `stroke-linejoin: miter` (not `round`) so bends are crisp right angles, matching the
+  "harness/task-list/pipeline" visual language everywhere else on the canvas. Never route a
+  connector diagonally, and never let two connectors' lines coincide/overlap for a stretch —
+  offset them (even a few px) so they read as distinct paths.
+- **"Station on path," not "box beside a line."** When a connector's purpose is "this data
+  goes INTO that box," route it to genuinely terminate on the box's edge (with the box's own
+  edge as the path's actual endpoint, arrowhead touching), not just pass near it. The
+  memory-on-disk / fresh-context compaction loop is the reference example: three separate
+  `orthoConnector()` calls (not one continuous path), each with its own arrowhead, because
+  the entry/exit points on each shape don't sit on a single straight line.
+- **Tokens only.** Never hardcode hex/px outside `COLORS`/`GLOW` (JS) and the `:root` block
+  (CSS) — both already centralize every color this lab uses. GSAP tweens that need a literal
+  hex (can't read CSS vars mid-tween) should pull from `COLORS`/`GLOW`, not a fresh literal.
+- **Fonts follow the repo rule:** `--font-mono` for eyebrows, technical labels, code-like
+  captions; `--font-sans` for headings/body. This lab is almost entirely mono labels by
+  design (`loops-cap`, `loops-harness-cap`, `loops-node-mono`, etc.) since it's meant to read
+  as a technical diagram, not prose.
+
+## Animation guidelines
+
+GSAP is loaded `defer` from CDN; the engine must render correctly even if it never arrives
+or `prefers-reduced-motion` is set (`REDUCE_MOTION` gates every motion helper — check it
+before adding a new one). `travelDot(svg, pts, opts)` is the shared "glowing dot rides a
+polyline" primitive; pass `layer: "<id>"` so its dot gets a `.loops-dot-<id>` class, which
+lets `stopLayerAnim`/`onRepeat` sweep any stray dot left mid-flight when a layer's timeline
+is killed or repeats.
+
+**Two hard-won rules, both from real bugs this lab shipped and then fixed:**
+
+1. **A hidden (`opacity: 0`) layer group must also get `pointer-events: none`.** Opacity
+   alone doesn't stop hit-testing. Once the canvas started dynamically shrinking per stage
+   (see viewBox section above), still-present-but-invisible later-stage groups — sitting at
+   their absolute full-canvas coordinates, painted via `overflow: visible` — extended past
+   the now-much-smaller visible box and silently blocked clicks on the Prev/Next controls
+   below the diagram. Any new opacity-based show/hide must toggle `pointer-events` in step.
+2. **A repeating opacity/state change must live on the layer's own GSAP timeline (`tl.to(...,
+   pos)`), not inside an independently-spawned tween** (e.g. `gsap.to(...)` called from a
+   `travelDot` `onArrive` callback, detached from `tl`). An independent tween has no relationship
+   to the parent timeline's repeat cycle — if it's still resolving (or hasn't fired yet) right
+   as `tl` wraps into its next repeat, the element it controls can end up in a stale state:
+   docs already visible before their dot arrives, or a doc popping straight to full opacity
+   with no visible travel. Every one-shot "fires once as this timeline loops" idempotent
+   effect (like `revealDemarcation`) should still route through a callback added at a fixed
+   `tl` position, guarded by a plain closure flag, exactly like `anims.context`'s
+   `loopLabelShown` pattern — not `if (!shown) gsap.to(...)` fired from an unrelated event.
+   When in doubt, add a hard `tl.eventCallback("onRepeat", () => { ...forcibly reset every
+   opacity/attr this cycle touches... })` safety net, the same way `anims.context` does.
+
+## Layer-by-layer notes
+
+- **Prompt:** stick-figure `human` ⇄ the `Model` box (official Claude + OpenAI + Gemini
+  marks via `brandLogo()`), `prompt` out / `output` back, the retry loop
+  (`✗ not what you wanted` / `↻ tweak & send again`) and a hand-drawn arc back to a fresh
+  prompt. Simplest layer; mostly a reference for the `travelDot`/step patterns used
+  everywhere else.
+- **Context:** the Model calls `tools + resources` in a `↻ agent loop` (gather → append →
+  read → repeat); each call drops a `docGlyph` into the `context window` (6 tiles: system
+  prompt, history, 2×docs, 2×tool result). The two "tool result" tiles are **amber**, not
+  red (see style guidelines). Window fills → `FULL!` → `summarize → detail lost` (amber) /
+  `context rot → goal drifts` (red) — these two labels live to the **left** of the window,
+  deliberately, since the right side is already crowded with the harness layer's
+  write/rehydrate compaction-loop legs once that layer is reached. `"↻ agent loop"` names
+  the whole pattern partway through the cycle and, once shown, **stays visible permanently**
+  across every later repeat (guarded by the `loopLabelShown` closure flag) — it doesn't fade
+  out and pop back in each cycle the way `summ`/`drift` do.
+- **Harness:** purple outermost ring wrapping the teal context box. `tools + resources`
+  stays in the context layer's own gather lane (it's visually harness-purple but positioned
+  there since it's a harness-owned durable resource, appearing early). Task list, memory on
+  disk, and fresh context reveal **as one combined step** (single `put()` call) since
+  they're the point of the whole layer — durable state that survives past any one context
+  window — and should read as one beat, not trickle in separately. The task-list connector
+  drops **dead straight down `M.cx`** (the Model's own exact horizontal center) with no bend
+  at all, landing on the label's top edge; memory/fresh context sit beside the context
+  window (not down in a bottom row) as real stations on a 3-leg compaction loop
+  (`write` → `rehydrate`), each leg its own `orthoConnector()` with its own arrowhead. The
+  `"↻ orchestration loop"` label is deliberately the **last** content step (right before the
+  bounding box) so it only appears once every other harness primitive has already staggered
+  in.
+- **Loop:** outer feedback arc back to the human, a scheduler clock, "it grows itself" chips
+  (skills+plugins / subagents verify work / parallel worktrees). Functional and comparatively
+  simple — most of the layer's job is visually closing the loop around everything built so
+  far, not introducing new mechanics.
+
+## Verify
+
+```bash
+python3 -m http.server 5173   # then open /ai-labs/engineering-loops/
+```
+
+Step every layer (← / → or the dot tablist): confirm the canvas visibly grows/shrinks
+between stages, each layer's boundary only appears after its own animation has run once
+(not immediately), prompt + context keep animating no matter which later stage you're on,
+and no connector crosses another line or a label. Check `#prompt/#context/#harness/#loop`
+deep links (should snap instantly, no zoom-in animation on first paint), the Expand
+(`⤢`) overlay, and `prefers-reduced-motion` (everything lands static and fully revealed,
+including every layer's boundary — no permanently-invisible elements).

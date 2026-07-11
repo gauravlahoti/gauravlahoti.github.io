@@ -42,6 +42,8 @@
     "promptDiscipline": "prompt engineering",
     "contextDiscipline": "context engineering",
     "harnessDiscipline": "harness engineering",
+    "loopDiscipline": "loop engineering",
+    "loopCaption": "the open-ended outer loop: no fixed \"done\". self-triggered, self-verifying, self-improving. inner loops terminate, this one doesn't.",
     "goalLabel": "the goal",
     "contextUnbroken": "edits code that was never broken",
     "promptLoop": "reword & retry",
@@ -51,12 +53,15 @@
     "selfSteer": "self-guided · it steers itself",
     "taskListLabel": "task list on disk",
     "memoryLabel": "memory on disk",
-    "freshContext2": "into a fresh context",
-    "schedulerLabel": "a trigger wakes it up",
+    "freshContext2": "fresh context",
+    "schedulerLabel": "a trigger starts the run: no human turn",
+    "loopProblem": "harness alone: idle until a human prompts, · cold-starts every run",
+    "loopSupervisorLabel": "human designs the loop:",
+    "loopSupervisorRole": "sets policy once, then steps out",
     "growsLabel": "it grows itself",
     "toolLabel": "tools + resources",
     "contextLoop": "gather context",
-    "cycleLabel": "reason → act → check → repeat",
+    "cycleLabel": "trigger → run → verify → persist → repeat",
     "feedbackLabel": "feedback loop"
   },
   "layers": [
@@ -160,7 +165,11 @@
       "schedulerLabel": "scheduler wakes it up",
       "growsLabel": "it grows itself",
       "cycle": ["reason", "act", "observe", "decide"],
-      "chips": ["skills + plugins", "subagents verify work", "parallel worktrees"],
+      "chips": [
+        { "label": "skills + plugins", "role": "extends itself" },
+        { "label": "subagents verify work", "role": "checks itself" },
+        { "label": "parallel worktrees", "role": "scales itself" }
+      ],
       "analogy": {
         "glyph": "≈",
         "lead": "Like hiring a team, not doing the task.",

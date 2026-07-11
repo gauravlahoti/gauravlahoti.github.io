@@ -25,13 +25,15 @@ const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Per-layer accent (hex literals mirror the CSS custom props; GSAP can't read CSS
 // vars mid-tween, so keep literals here — same pattern as mcp-lab.js).
-const COLORS = { prompt: "#F2B138", context: "#00FFD1", harness: "#a78bfa", loop: "#4ADE80" };
+// loop = a clean blue — distinct from prompt's amber, context's teal, and harness's
+// purple (the old loop green sat too close to context's teal at a glance)
+const COLORS = { prompt: "#F2B138", context: "#00FFD1", harness: "#a78bfa", loop: "#4F9CFF" };
 const MODEL_COLOR = "#E5E5E5"; // the Model anchor reads as neutral ink, distinct from any layer
 const GLOW = {
     prompt: "rgba(242,177,56,0.9)",
     context: "rgba(0,255,209,0.95)",
     harness: "rgba(167,139,250,0.9)",
-    loop: "rgba(74,222,128,0.9)",
+    loop: "rgba(79,156,255,0.9)",
 };
 const LAYER_ORDER = ["prompt", "context", "harness", "loop"];
 const CLAUDE_LOGO = "/assets/img/logo-claude.svg";
@@ -373,7 +375,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         prompt: [36, 220, 666, 316],    // prompt DEMARCATION rect: x76 y260 w586 h236, +40 pad
         context: [18, 26, 1088, 550],   // context DEMARCATION rect: x58 y66 w968 h470, +40 pad
         harness: [8, 0, 1404, 920],     // harness DEMARCATION rect: x28 y14 w1362 h894, +~14 pad
-        loop: [0, 0, 1440, 1080],       // full canvas — the loop frame fills nearly all of it
+        loop: [-30, -98, 1478, 1167],   // loop DEMARCATION rect: x-16 y-84 w1450 h1139, +14 pad — canvas grew up/right/down to fit the new outer frame around harness
     };
     let vbTween = null; // in-flight viewBox tween, if any — killed before starting a new one
     function setViewBox(id, animate) {
@@ -448,13 +450,13 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         if (pendingStart) { try { pendingStart.kill(); } catch {} pendingStart = null; }
     }
 
-    // Additive reveal: every layer up to `i` stays visible but goes still; layers past
-    // `i` hide entirely; only the just-activated layer's step groups fade in (step by
-    // step) and starts looping. Prior layers keep their static art on screen — the
-    // picture still grows outward — but only the focused stage animates, so attention
-    // stays there. The exception is PROMPT and CONTEXT: they're the throughline of the
-    // explainer, so their loops keep running for as long as they're on screen, regardless
-    // of focus.
+    // Additive reveal: every layer up to `i` stays visible AND KEEPS ANIMATING; layers
+    // past `i` hide entirely; the just-activated layer's step groups fade in (step by
+    // step) and starts looping. Every prior stage's loop keeps running no matter which
+    // later stage is focused — harness and loop used to go still the moment you moved
+    // past them (only prompt/context were exempted as "the throughline"), which read as
+    // "the animation doesn't work" since two of the four layers would visibly freeze as
+    // soon as you advanced. Now the whole picture stays alive as it grows outward.
     function playAdditive(i) {
         const g = gsap();
         LAYER_ORDER.forEach((id, k) => {
@@ -464,12 +466,8 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 grp.style.opacity = "1";
                 grp.style.pointerEvents = "";
                 (refs.steps[id] || []).forEach(st => (st.style.opacity = ""));
-                // prompt and context are the throughline of this whole explainer — once
-                // either has been reached, keep it running no matter which later stage is
-                // focused. (idempotent: a no-op if it's already mid-loop, so it's never
-                // interrupted.)
-                if (id === "context" || id === "prompt") startLayerAnim(id);
-                else stopLayerAnim(id); // other prior stages stay visible, but go still
+                // idempotent: a no-op if it's already mid-loop, so it's never interrupted
+                startLayerAnim(id);
                 // safety net: a layer you've already moved past must never be left with
                 // its outer boundary permanently missing just because you clicked away
                 // before its first animation cycle finished
@@ -503,7 +501,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             opacity: 1, duration: dur, stagger, ease: "power2.out",
             onComplete() { flat.forEach(st => (st.style.opacity = "")); },
         });
-        const revealDur = stagger * (flat.length - 1) + dur + 0.25;
+        // capped — with more reveal steps (harness/loop grew to 8 as their stories were
+        // added) this uncapped would stretch past 6-7s before the loop animation ever
+        // started; the LAST layer has no "moved past it" fallback to catch a start that
+        // never fired, so keep this bounded regardless of how many steps a layer has
+        const revealDur = Math.min(stagger * (flat.length - 1) + dur + 0.25, 3.2);
         pendingStart = g.delayedCall(revealDur, startAnim);
     }
 
@@ -595,7 +597,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // room between the box border and its content on every side.
         putDemarcation(gp, "prompt",
             s("rect", { x: 76, y: 260, width: mR + 28 - 76, height: 236, rx: 18, class: "loops-bound", stroke: cp, fill: hexToRgba(cp, 0.055) }),
-            s("text", { x: 88, y: 289, "text-anchor": "start", class: "loops-bound-label", fill: cp }, dg.promptDiscipline || "prompt engineering"));
+            // label offset from the box's own top-left corner: +12/+28, same as every
+            // other discipline label (context/harness/loop) — keeps the four nested
+            // titles visually aligned/symmetric instead of each sitting at its own
+            // ad-hoc indent
+            s("text", { x: 76 + 12, y: 260 + 28, "text-anchor": "start", class: "loops-bound-label", fill: cp }, dg.promptDiscipline || "prompt engineering"));
         anims.prompt = () => {
             const tl = gsap().timeline({ repeat: -1, repeatDelay: 1.3 });
             tl.add(() => travelDot(svg, [{ x: 244, y: yTop }, { x: mL - 12, y: yTop }], { color: cp, glow: GLOW.prompt, speed: 150, layer: "prompt" }), 0);
@@ -678,7 +684,8 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // above it, instead of the two titles almost touching
         putDemarcation(gc, "context",
             s("rect", { x: 58, y: 66, width: 968, height: 470, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
-            s("text", { x: 88, y: 88, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
+            // same +12/+28 offset from the box's own corner as every other discipline label
+            s("text", { x: 58 + 12, y: 66 + 28, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
         let loopLabelShown = false; // "↻ agent loop" — once it's named, it stays named
         anims.context = () => {
             const g = gsap(), tl = g.timeline({ repeat: -1 });
@@ -808,33 +815,43 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const memTop = memY - 15, memBase = memY + 15;   // memoryGlyph is 30 tall, cy-centred
         const freshTop = memY - 13, freshBase = memY + 13; // fresh-context rect is 26 tall, cy-centred
 
-        // the three durable-state artifacts — task list, memory, fresh context — read as
-        // ONE beat: they're the whole point of "harness engineering" (state that survives
-        // past any one context window), so they appear together in a single reveal step
-        // instead of trickling in one at a time across several separate steps.
+        // the durable-state artifacts reveal ONE AT A TIME, in the order a reader should
+        // actually follow them — not all three bundled into a single step (which was the
+        // bug: everything popped in at once with no sense of sequence). Each put() call
+        // below is its own stagger beat: 1) the task list exists  2) the Model drives it
+        // 3) memory on disk  4) fresh context — then the compaction loop's three edges
+        // (write / rehydrate / close) each get their own beat further down, so the whole
+        // layer reads as a story instead of a snapshot.
+        put(gh, "harness", ...taskNodes);
         put(gh, "harness",
-            ...taskNodes,
             orthoConnector(taskConnPath, ""),
-            svgLines(M.cx - 18, rowLabelY - 60, ["read next / mark done"], "loops-harness-note", 14, "end"),
+            svgLines(M.cx - 18, rowLabelY - 60, ["read next / mark done"], "loops-harness-note", 14, "end"));
+        put(gh, "harness",
             memoryGlyph(memX, memY, ch, ""),
             s("text", { x: memX, y: memBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.memoryLabel || "memory on disk"),
+            // small muted caption directly under the node — what the write buys you
+            svgLines(memX, memBase + 46, ["persists across runs"], "loops-harness-caption", 12, "middle"));
+        put(gh, "harness",
             s("rect", { x: freshX - 55, y: freshTop, width: 110, height: 26, rx: 6, fill: "none", stroke: ch, class: "loops-taskbar" }),
-            s("text", { x: freshX, y: freshBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.freshContext2 || "into a fresh context"));
+            s("text", { x: freshX, y: freshBase + 30, "text-anchor": "middle", class: "loops-harness-cap" }, dg.freshContext2 || "fresh context"));
 
-        // compaction loop — THREE separate orthogonal legs, each ending with its own
-        // arrowhead, so memory and fresh-context read as real stations ON the path
-        // (a line actually entering/exiting each shape) rather than boxes sitting beside
-        // a line that merely passes their column. Flow: window's right edge → down into
-        // memory's LID (write) → straight across, icon-height, into fresh context's SIDE
-        // → out fresh context's LID → back into the window's right edge (rehydrate), a
-        // little higher up. Both window-side jogs (95/112) sit ABOVE the existing tools→
-        // window arrow's vertical run (x880, y166–352), so neither one crosses it —
-        // that's what made the old route look tangled. Memory/fresh sit well below the
-        // teal box's own "summarize/drift" labels (which end around y179), so the whole
-        // write/rehydrate label column in between has a clean, uncontested lane.
+        // compaction loop — a CLOSED three-station cycle, routed as three NON-CROSSING
+        // vertical lanes on the right side (innermost to outermost):
+        //   Lane A — the agent loop's own tool-result return (elbowUpThenLeft above,
+        //            landing at y144 / running at x880) — untouched, just kept clear of.
+        //   Lane B — the WRITE edge: window → memory. Its jog off the window (y104) sits
+        //            BELOW Lane C's, and its vertical descent runs at x=memX.
+        //   Lane C — the "becomes the next window" RETURN edge: fresh context → window.
+        //            Its jog off the window (y88) sits ABOVE Lane B's, and its vertical
+        //            run climbs at x=freshX — one column further out than Lane B's, so
+        //            the two verticals never share an x, and Lane C's horizontal (y88)
+        //            passes OVER Lane B's vertical (which only starts at y104) instead of
+        //            cutting through it. That ordering — C's jog above B's — is what
+        //            actually prevents the crossing; swap it back and they tangle again.
+        // Both jogs (88/104) still sit well above Lane A's vertical run (x880, y166–352).
         const compactToMem = [
-            { x: winRX, y: 95 },     // leave the context window's right edge
-            { x: memX, y: 95 },      // jog right, clear of the tools→window arrow above it
+            { x: winRX, y: 104 },    // leave the context window's right edge (Lane B)
+            { x: memX, y: 104 },     // jog right — BELOW Lane C's jog, so C's horizontal clears this vertical
             { x: memX, y: memTop },  // down, landing INTO memory's lid — a real arrival
         ];
         // ONE straight horizontal arrow, icon-height, memory's right edge → fresh context's
@@ -845,23 +862,33 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         ];
         const freshToWindow = [
             { x: freshX, y: freshTop },  // exit fresh context's lid
-            { x: freshX, y: 112 },       // up, clear of the tools→window arrow, just below compactToMem's jog
-            { x: winRX, y: 112 },        // jog left, landing back on the window's right edge
+            { x: freshX, y: 88 },        // up — ABOVE Lane B's jog (104), so this horizontal never crosses Lane B's vertical
+            { x: winRX, y: 88 },         // jog left, landing back on the window's right edge — closes the loop
         ];
-        put(gh, "harness", orthoConnector(compactToMem, ""), orthoConnector(memToFresh, ""), orthoConnector(freshToWindow, ""));
-
-        // one clean column between the two verticals (x1110/x1290), running top to
-        // bottom: write → failure/answer stack → rehydrate. Generous vertical gaps
-        // throughout so nothing here ever touches the teal box's own labels above it
-        // (end ~179) or the memory/fresh icons below it (start at memTop=405).
-        const midX = (memX + freshX) / 2; // 1200
-        put(gh, "harness", svgLines(midX, 210, ["write"], "loops-harness-note", 14, "middle"));
-        put(gh, "harness", svgLines(midX, 250, ["full / rotting? →", "compact"], "loops-harness-note", 14, "middle"));
-        // "context rot → goal drifts" does NOT belong here — it's a property of the live
-        // context window, not data at rest on disk. That copy lives once, near the
-        // context window itself (the `drift` element above); no duplicate in this column.
-        put(gh, "harness", svgLines(midX, 296, ["↳ offload to disk,", "run survives"], "loops-harness-note", 14, "middle"));
-        put(gh, "harness", svgLines(midX, 342, ["rehydrate"], "loops-harness-note", 14, "middle"));
+        // write — its own beat: the edge, its guard, and its verb land together (they're
+        // one idea: WHEN it writes and the fact that it writes), but separately from
+        // rehydrate/close below so the compaction loop reads left-to-right in order.
+        put(gh, "harness",
+            orthoConnector(compactToMem, ""),
+            // guard, pinned tight to the write edge's tail (winRX,104 — the exact point
+            // the line leaves the window) — 16px directly below that point, hugging the
+            // short horizontal jog itself rather than floating up near Lane C (y88). One
+            // line (fits well inside the 395px run to memX) so it reads as a single note
+            // sitting ON that jog, not a separate block drifting away from it.
+            svgLines(winRX + 10, 120, ["full / rotting? → compact"], "loops-harness-guard", 13, "start"),
+            // "write" — the verb, ON the edge (its long vertical leg down into memory's lid)
+            svgLines(memX + 14, 254, ["write"], "loops-harness-note", 14, "start"));
+        // rehydrate — memory feeds the fresh context
+        put(gh, "harness",
+            orthoConnector(memToFresh, ""),
+            svgLines((memX + 19 + freshX - 55) / 2, memY - 12, ["rehydrate"], "loops-harness-note", 14, "middle"));
+        // close — the return leg, last of the three edges, since it's the one that makes
+        // the other two read as a LOOP instead of a one-way trip
+        put(gh, "harness",
+            orthoConnector(freshToWindow, "loops-return-dash"),  // dashed — the "silent" leg made visible as the loop's own close
+            // muted caption ON Lane C's own vertical run (not the horizontal jog it shares
+            // visual space with near the window), so it unambiguously belongs to that arrow
+            svgLines(freshX - 14, 170, ["becomes the next", "window"], "loops-harness-caption", 13, "end"));
 
         // tag the Model with the outer agent loop — purple base, shared green "loop" accent.
         // Deliberately the LAST content step (right before the bounding box), so it only
@@ -878,10 +905,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // engineering (and everything nested inside it) entirely, with generous padding.
         putDemarcation(gh, "harness",
             s("rect", { x: 28, y: 14, width: 1362, height: 894, rx: 26, class: "loops-bound", stroke: ch, fill: hexToRgba(ch, 0.045) }),
-            // label sits tight against the harness box's OWN top edge (not centred in the
-            // 18–48 gap) so the remaining space reads as clear breathing room before the
-            // teal box's border, instead of the two titles crowding each other
-            s("text", { x: 38, y: 34, "text-anchor": "start", class: "loops-bound-label", fill: ch }, dg.harnessDiscipline || "harness engineering"));
+            // same +12/+28 offset from the box's own corner as every other discipline
+            // label — was 10/20 here, close but not identical, which is exactly what
+            // made the four titles read as unaligned against each other
+            s("text", { x: 28 + 12, y: 14 + 28, "text-anchor": "start", class: "loops-bound-label", fill: ch }, dg.harnessDiscipline || "harness engineering"));
 
         anims.harness = () => {
             const tl = gsap().timeline({ repeat: -1 });
@@ -905,32 +932,101 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             return tl;
         };
 
-        // ── LOOP: an outer loop wraps it all — scheduler, cycle, self-growth ──────
+        // ── LOOP: the outermost discipline — wraps harness (and everything nested
+        // inside it) entirely. Where harness/context/prompt loops all TERMINATE (a
+        // task list empties, a context window resets, a human stops retrying), this
+        // one doesn't: an autonomous trigger starts a run, harness executes it, and
+        // finishing feeds back around to the next trigger — open-ended by design.
         const gl = layerG("loop"), cll = COLORS.loop;
-        putDemarcation(gl, "loop", s("rect", { x: 10, y: 10, width: 1420, height: 1060, rx: 22, fill: "none", stroke: cll, class: "loops-loop-frame" }));
-        put(gl, "loop", s("text", { x: M.cx, y: 50, "text-anchor": "middle", class: "loops-cap loops-cap-strong" }, dg.cycleLabel || "reason → act → check → repeat"));
-        const fb = s("path", { d: `M ${mR} ${mB - 8} C ${mR + 110} ${mB + 96}, 300 648, 128 ${hy + 74} L 128 ${hy + 54}`, fill: "none", stroke: cll, class: "loops-feedback" });
-        put(gl, "loop", fb, s("path", { d: `M 128 ${hy + 54} l -6 10 M 128 ${hy + 54} l 6 10`, fill: "none", stroke: cll, "stroke-width": 2, "stroke-linecap": "round" }));
-        // scheduler + self-growth chips live below the harness band, in the newly grown canvas
-        put(gl, "loop", clockGlyph(70, 980, cll, ""), s("text", { x: 70, y: 1016, "text-anchor": "middle", class: "loops-cap" }, dg.schedulerLabel || "a trigger wakes it up"));
+        // encloses harness (28,14)–(1390,908) with an even ~44px margin on the sides,
+        // extra room at the top for the discipline label + its subtitle, and a bottom
+        // band for the self-improvement chips. Canvas grows to fit this (see
+        // STAGE_VB.loop) rather than shrinking the harness box.
+        const lf = { x: -16, y: -84, w: 1450, h: 1139 };
+        // operating cadence, as the outer loop's own subtitle — directly under its name.
+        // NOT "reason → act → check → repeat" (that's the ReAct/agent-loop pattern,
+        // already drawn one level in as harness's own "↻ agent loop") — this outer
+        // cycle is distinct: a trigger fires a run, harness executes it, the result
+        // gets verified and persisted (memory on disk / task list), then the next
+        // trigger fires. Wrapped to two lines (split on " → ") since it's noticeably
+        // longer than the old text and would otherwise crowd the supervisor glyph
+        // sitting just to its right.
+        const cycleParts = (dg.cycleLabel || "trigger → run → verify → persist → repeat").split(" → ");
+        const cycleMid = Math.ceil(cycleParts.length / 2);
+        const cycleLines = [
+            cycleParts.slice(0, cycleMid).join(" → ") + " →",
+            cycleParts.slice(cycleMid).join(" → "),
+        ];
+        putDemarcation(gl, "loop",
+            s("rect", { x: lf.x, y: lf.y, width: lf.w, height: lf.h, rx: 28, class: "loops-bound", stroke: cll, fill: hexToRgba(cll, 0.035) }),
+            s("text", { x: lf.x + 12, y: lf.y + 28, "text-anchor": "start", class: "loops-bound-label", fill: cll }, dg.loopDiscipline || "loop engineering"),
+            svgLines(lf.x + 12, lf.y + 50, cycleLines, "loops-cap loops-loop-tagline", 14, "start"),
+            // disambiguation, expert defense: names exactly what makes THIS loop different
+            // from the prompt/agent/orchestration loops nested inside it — split on ". "
+            // into short lines rather than one sprawling run of text
+            svgLines(lf.x + 12, 990, (dg.loopCaption || "the open-ended outer loop: no fixed \"done\". self-triggered, self-verifying, self-improving. inner loops terminate, this one doesn't.").split(". "), "loops-loop-note", 14, "start"));
+        // the organizing axis for this whole band is HUMAN-INITIATED → SELF-INITIATED
+        // (not "guided vs autonomous" — the inner agent/orchestration loops are already
+        // autonomous within a run). Left to right: the human moves OUTSIDE the loop to
+        // supervise, the problem this layer solves, then the trigger that replaces the
+        // human as initiator.
+
+        // supervisor — a small, simple glyph (not the full stick figure PROMPT ENGINEERING
+        // uses for the human IN the loop) sitting outside harness in the top band, tethered
+        // by a thin DASHED line with no arrowhead — reads as watching, not driving. This is
+        // the deliberate visual contrast: human IN the loop (prompt, deep inside, drives
+        // every turn) vs human ON the loop (out here, sets policy and gets alerted).
+        const roleParts = (dg.loopSupervisorRole || "sets policy, reviews, gets alerted").split(", ");
+        const supLines = [
+            dg.loopSupervisorLabel || "human on the loop:",
+            roleParts.slice(0, -1).join(", ") + ",",  // "sets policy, reviews,"
+            roleParts[roleParts.length - 1],          // "gets alerted"
+        ];
+        put(gl, "loop",
+            personGlyph(300, -46, cll, ""),
+            s("line", { x1: 300, y1: -15, x2: 300, y2: 14, class: "loops-supervise-line" }),
+            svgLines(325, -58, supLines, "loops-cap", 14, "start"));
+        // entry point — the autonomous trigger that starts a run WITHOUT a human. Sits
+        // close to and right of the supervisor (the two are read together: who used to
+        // initiate vs what initiates now), not stranded alone at the far top-right corner
+        // with a long isolated drop to harness — that read as an arrow to nowhere. The
+        // clock→harness edge is a short, direct arrival on harness's own top edge (a real
+        // arrival, not a line that merely points near the box).
+        const clockCx = 580, clockCy = -40, clockR = 15;
+        const [trigLine1, trigLine2] = (dg.schedulerLabel || "a trigger starts the run: no human turn").split(": ");
+        put(gl, "loop",
+            clockGlyph(clockCx, clockCy, cll, ""),
+            svgLines(clockCx + 25, clockCy, [trigLine1 + ":", trigLine2], "loops-cap", 16, "start"),
+            connector(clockCx, clockCy + clockR, clockCx, 14, ""));  // clock's bottom → harness's top edge: the "fires the run" edge — short and direct
+        // the problem this layer removes — same visual grammar as every inner layer's own
+        // failure annotation (red ✗, prompt's "not what you wanted" / context's "goal
+        // drifts"), framed in the loop accent so it reads as THIS layer's gap, not a stray
+        // note floating in the shared margin. Sits in the SAME top row as the discipline
+        // title / supervisor / trigger (all roughly y-56 to y-36) rather than dropped down
+        // to harness's own border — that read as a different row entirely. Placed right
+        // after the trigger's label so problem and fix still read left-to-right adjacent.
+        const [probLine1, probLine2] = (dg.loopProblem || "harness alone: idle until a human prompts, · cold-starts every run").split(" · ");
+        const probText = s("text", { x: 890, y: -36, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        probText.append(s("tspan", { class: "loops-retry-x" }, "✗  "), probLine1);
+        put(gl, "loop",
+            s("rect", { x: 880, y: -50, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
+            probText,
+            s("text", { x: 890, y: -18, "text-anchor": "start", class: "loops-cap" }, probLine2));
+        // self-improvement band — bottom of the outer margin, recoloured to the loop
+        // accent (was green, which read as a stray context/teal element; now the same
+        // blue as the frame and the loop-back arrow below). Each pill carries a one-word
+        // role tying it back to "self-triggered, self-verifying, self-improving" in the
+        // subtitle above — these are WHY the loop never terminates, not a flat feature list.
         put(gl, "loop", s("text", { x: 470, y: 930, "text-anchor": "start", class: "loops-cap loops-cap-strong" }, (dg.growsLabel || "it grows itself") + ":"));
         const chips = (layers.find(l => l.id === "loop")?.chips) || [];
         let cxp = 470;
-        chips.forEach(label => {
-            const w = Math.max(120, label.length * 7.6 + 24), gg = s("g", {});
+        chips.forEach(chip => {
+            const { label, role } = chip, w = Math.max(120, label.length * 7.6 + 24), gg = s("g", {});
             gg.append(s("rect", { x: cxp, y: 946, width: w, height: 28, rx: 14, fill: "none", stroke: cll, class: "loops-chip-rect" }));
             gg.append(s("text", { x: cxp + w / 2, y: 965, "text-anchor": "middle", class: "loops-chip-svg-label" }, label));
+            if (role) gg.append(s("text", { x: cxp + w / 2, y: 988, "text-anchor": "middle", class: "loops-loop-subrole" }, role));
             put(gl, "loop", gg); cxp += w + 14;
         });
-        anims.loop = () => {
-            const g = gsap(), tl = g.timeline({ repeat: -1 });
-            let len = 1400; try { len = fb.getTotalLength(); } catch {}
-            fb.style.strokeDasharray = "10 8";
-            tl.fromTo(fb, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: 4.2, ease: "none" }, 0);
-            tl.to({}, { duration: 2.0 });
-            return tl;
-        };
-
         return { groups, steps, anims, demarcation };
     }
 

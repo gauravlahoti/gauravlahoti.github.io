@@ -5,7 +5,10 @@
     --loops-prompt:  #F2B138;
     --loops-context: var(--accent);
     --loops-harness: #a78bfa;
-    --loops-loop:    #4ADE80;
+    --loops-harness-light: #c9bbfd; /* lighter than --loops-harness — small connector labels ("write", "rehydrate")
+        need more contrast than the base accent gives them to survive lossy re-compression (e.g. LinkedIn) */
+    --loops-caption-light: #a3a3a3; /* lighter than --ink-muted, same reason, for gray (non-accent) captions */
+    --loops-loop:    #4F9CFF; /* blue — distinct from prompt/context/harness; old green sat too close to context's teal */
     --loops-result:  #F59E0B; /* "tool result" docs — accumulation/rot warning, not failure red */
 }
 
@@ -114,7 +117,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.96);
+    background: var(--bg); /* fully opaque — a translucent backdrop here let the page's
+        header/chart/controls bleed through faintly behind the expanded diagram */
 }
 .loops-stagewrap.is-max .loops-svg {
     width: auto;
@@ -138,14 +142,36 @@
 /* additive layers: each fades in/out as a whole; steps stagger inside it */
 .loops-layer { transition: opacity var(--dur-med, 0.35s) var(--ease-out, ease); }
 .loops-loop-frame { stroke-width: 2; fill: none; opacity: 0.6; }
-.loops-feedback { stroke-width: 2; fill: none; stroke-linecap: round; }
 
 /* captions + mono labels */
 .loops-cap { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 15px; }
 .loops-cap-strong { fill: var(--ink); }
 .loops-node-mono { fill: var(--ink); font-family: var(--font-mono); font-size: 15px; }
 .loops-harness-cap { fill: var(--loops-harness); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
-.loops-harness-note { fill: var(--loops-harness); font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; }
+/* lighter than the base harness accent — small edge verbs ("write", "rehydrate",
+   "read next / mark done") need more contrast than a big discipline title does */
+.loops-harness-note { fill: var(--loops-harness-light); font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; }
+/* trigger/guard on an edge (e.g. "full / rotting? → compact") — same colour family as the
+   verb it gates (loops-harness purple), just dimmed + smaller, so it reads as belonging to
+   that edge rather than a disconnected grey note. ink-muted/ink-subtle read as ghosted here. */
+.loops-harness-guard { fill: var(--loops-harness); opacity: 0.72; font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
+/* muted caption on or beside an edge/node (e.g. "persists across runs", "becomes the next
+   window") — lighter than the base ink-muted so it survives lossy re-compression */
+.loops-harness-caption { fill: var(--loops-caption-light); font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
+/* the loop discipline's own subtitle — its operating cadence, directly under its name.
+   ink at reduced opacity (not the default ink-muted from .loops-cap) — legible on its
+   own read, still secondary to the bold uppercase discipline title above it */
+.loops-loop-tagline { font-size: 13px; fill: var(--ink); opacity: 0.72; }
+/* disambiguation caption inside the loop band — muted but legible, not ghosted */
+.loops-loop-note { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em; }
+/* supervisor's tether to harness — thin + dashed + no arrowhead, reading as watching,
+   not driving (contrast with the trigger's solid connector, which does drive a run) */
+.loops-supervise-line { stroke: var(--ink-subtle); stroke-width: 1.2; stroke-dasharray: 3 4; fill: none; }
+/* frame around the loop layer's own problem annotation — loop-accent stroke marks it as
+   this layer's gap, distinct from a stray note floating in the shared margin */
+.loops-loop-problem-frame { stroke-width: 1.5; fill: none; opacity: 0.6; }
+/* one-word role under each "it grows itself" pill, in the loop accent */
+.loops-loop-subrole { fill: var(--loops-loop); font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.01em; }
 
 /* task list — done state */
 .loops-task-rect, .loops-task-label { transition: opacity 0.25s ease; }
@@ -162,6 +188,10 @@
     stroke-linecap: round;
     stroke-linejoin: miter; /* sharp right-angle bends — these are orthogonal connectors, not curves */
 }
+/* the compaction loop's return leg (fresh context → context window) — dashed so the
+   closed cycle reads as a "becomes the next window" hand-off, not a fourth solid arrow.
+   :first-child scopes the dash to the main line only, leaving its arrowhead solid. */
+.loops-return-dash .loops-conn-line:first-child { stroke-dasharray: 6 5; }
 
 /* the LLM panel (Claude + Gemini) */
 .loops-llm-rect { stroke-width: 2.4; fill: none; transition: filter var(--dur-fast, 0.15s) var(--ease-out, ease); }
