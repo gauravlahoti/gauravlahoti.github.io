@@ -7,13 +7,13 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' https://storage.googleapis.com; connect-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
     <base href="/">
     <script src="assets/js/scroll-restore.js?v=227"></script>
-    <title>MCP Lab — Demystifying the Model Context Protocol | Gaurav Lahoti</title>
-    <meta name="description" content="An interactive, six-act visual demo that demystifies MCP — the Model Context Protocol. Why it exists, how agents connect, and whether it rewrites your backend. By Gaurav Lahoti.">
-    <link rel="canonical" href="https://gauravlahoti.dev/mcp-lab/">
-    <meta property="og:title" content="MCP Lab — Demystifying the Model Context Protocol">
-    <meta property="og:description" content="An interactive, six-act visual demo that demystifies MCP — why it exists, how agents connect, and whether it rewrites your backend.">
+    <title>Engineering Loops — How Agents Grew Up | Gaurav Lahoti</title>
+    <meta name="description" content="An interactive explainer of the four ways to steer an AI: prompt, context, harness, and loop engineering, each nested inside the next. Focus a ring or take the guided tour. By Gaurav Lahoti.">
+    <link rel="canonical" href="https://gauravlahoti.dev/ai-labs/engineering-loops/">
+    <meta property="og:title" content="Engineering Loops — How Agents Grew Up">
+    <meta property="og:description" content="Prompt, context, harness, loop. Four ways to steer an AI, each wrapping the last in a bigger loop. An interactive, single-page explainer.">
     <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
-    <meta property="og:url" content="https://gauravlahoti.dev/mcp-lab/">
+    <meta property="og:url" content="https://gauravlahoti.dev/ai-labs/engineering-loops/">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
@@ -26,14 +26,14 @@
     <link rel="stylesheet" href="assets/css/base.css?v=227">
     <link rel="stylesheet" href="assets/css/layout.css?v=227">
     <link rel="stylesheet" href="assets/css/components.css?v=227">
-    <link rel="stylesheet" href="assets/css/mcp-lab.css?v=230">
+    <link rel="stylesheet" href="assets/css/engineering-loops.css?v=27">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
             crossorigin="anonymous" defer></script>
 </head>
-<body class="mcp-lab-page">
-    <a class="skip-link" href="#mcp-main">Skip to content</a>
+<body class="loops-lab-page">
+    <a class="skip-link" href="#loops-main">Skip to content</a>
 
     <!-- Shared header — mirrors index.html structure -->
     <header class="nav" role="banner">
@@ -52,7 +52,7 @@
                     <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent insights" hidden></div>
                 </div>
                 <a href="/live-agents/" class="nav-live-link" data-page-link>Live Agents</a>
-                <a href="/ai-concepts/" class="nav-link-active nav-live-link" data-page-link aria-current="page">AI Lab</a>
+                <a href="/ai-labs/" class="nav-link-active nav-live-link" data-page-link aria-current="page">AI Lab</a>
                 <a href="/#" data-resume-trigger-agents>Resume</a>
             </nav>
             <div class="nav-actions">
@@ -99,7 +99,7 @@
                 <a href="/#about">About</a>
                 <a href="/#insights">Insights</a>
                 <a href="/live-agents/" class="nav-live-link" data-page-link>Live Agents</a>
-                <a href="/ai-concepts/" class="nav-live-link" data-page-link aria-current="page">AI Lab</a>
+                <a href="/ai-labs/" class="nav-live-link" data-page-link aria-current="page">AI Lab</a>
                 <a href="/#" data-resume-trigger-agents>Resume</a>
             </nav>
             <hr class="nav-drawer-divider" aria-hidden="true">
@@ -132,20 +132,20 @@
         </div>
     </aside>
 
-    <main id="mcp-main">
-        <section class="mcp-section" aria-label="MCP Lab — demystifying the Model Context Protocol">
-            <div data-mcp-root></div>
+    <main id="loops-main">
+        <section class="loops-section" aria-label="Engineering Loops — prompt, context, harness, loop">
+            <div data-loops-root></div>
         </section>
 
-        <footer class="mcp-footer" role="contentinfo">
-            <p class="mcp-footer-copy">© <span id="mcp-year">2026</span> Gaurav Lahoti</p>
-            <a href="/ai-concepts/" class="mcp-footer-back" data-page-link>
+        <footer class="loops-footer" role="contentinfo">
+            <p class="loops-footer-copy">© <span id="loops-year">2026</span> Gaurav Lahoti</p>
+            <a href="/ai-labs/" class="loops-footer-back" data-page-link>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
                 All AI Lab
             </a>
         </footer>
     </main>
 
-    <script type="module" src="assets/js/mcp-lab-page.js?v=230"></script>
+    <script type="module" src="assets/js/engineering-loops-page.js?v=82"></script>
 </body>
 </html>

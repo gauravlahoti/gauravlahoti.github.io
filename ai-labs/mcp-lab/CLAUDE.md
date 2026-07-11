@@ -11,14 +11,14 @@ JSON-RPC message and metric is scripted in `content/mcp-lab.json`. It reuses the
 SVG + GSAP, cyan accent-glow, glyph-scramble headings, traveling dots, scan-line wipe.
 
 The same lab renders on two pages:
-- `/mcp-lab/` — the standalone lab (`mcp-lab/index.html`).
-- `/ai-concepts/` — the AI Concepts hub embeds it (`ai-concepts/index.html`).
+- `/ai-labs/mcp-lab/` — the standalone lab (`ai-labs/mcp-lab/index.html`).
+- `/ai-labs/` — the AI Lab hub embeds it (`ai-labs/index.html`).
 
 ## File map
 
 | Concern | File | Notes |
 |---------|------|-------|
-| Page shell | `mcp-lab/index.html` | Chrome, CSP, font/GSAP CDN, mounts `mcp-lab-page.js` |
+| Page shell | `ai-labs/mcp-lab/index.html` | Chrome, CSP, font/GSAP CDN, mounts `mcp-lab-page.js` |
 | Page boot | `assets/js/mcp-lab-page.js` | Year/nav/flyout chrome; fetches JSON; lazy-imports the lab |
 | Lab engine | `assets/js/mcp-lab.js` | All visualization + animation. Contract: `initMcpLab(rootEl, { content }) → { destroy() }` |
 | Content | `content/mcp-lab.json` | Source of truth for every act's copy, data, and scripted JSON-RPC |
@@ -30,8 +30,8 @@ cache-bust both `content/mcp-lab.json` and the dynamic `import("./mcp-lab.js")` 
 `_selfV` in `mcp-lab-page.js`). **So the JSON and the engine always load at the same version.**
 
 > **Cache-bust rule:** after editing `mcp-lab.js`, `mcp-lab.css`, or `mcp-lab.json`, bump `?v=`
-> in **both** `mcp-lab/index.html` and `ai-concepts/index.html`. Forgetting this serves a stale
-> engine against fresh JSON (the classic `[object Object]` / broken-render symptom).
+> in **both** `ai-labs/mcp-lab/index.html` and `ai-labs/index.html`. Forgetting this serves a
+> stale engine against fresh JSON (the classic `[object Object]` / broken-render symptom).
 
 ## Style guidelines
 
@@ -130,13 +130,13 @@ Read the act's mounter before adding keys — the engine only renders what the m
 2. If structure changes, update the matching `mountX` in `mcp-lab.js` and its CSS section.
 3. Keep it accurate: this lab makes dated protocol claims (spec version, governance, adoption).
    Verify against `modelcontextprotocol.io` before changing facts.
-4. **Bump `?v=`** in `mcp-lab/index.html` **and** `ai-concepts/index.html`.
+4. **Bump `?v=`** in `ai-labs/mcp-lab/index.html` **and** `ai-labs/index.html`.
 5. `python3 -m json.tool content/mcp-lab.json` and `node --check assets/js/mcp-lab.js`.
 
 ## Verify
 
 ```bash
-python3 -m http.server 5173   # then open /mcp-lab/ and /ai-concepts/
+python3 -m http.server 5173   # then open /ai-labs/mcp-lab/ and /ai-labs/
 ```
 
 Step every act (← / →): heading scrambles in, the visualization plays, the analogy card sits at

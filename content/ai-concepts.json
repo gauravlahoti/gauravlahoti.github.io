@@ -13,7 +13,7 @@
       "tagline": "The USB-C port for AI",
       "description": "Why agents needed a standard, how the handshake works, and whether MCP rewrites your backend — a guided six-act walkthrough.",
       "tags": ["Protocol", "Agents", "Tooling"],
-      "href": "/mcp-lab/",
+      "href": "/ai-labs/mcp-lab/",
       "internal": true,
       "cta": "Open MCP Lab"
     },
@@ -25,7 +25,7 @@
       "tagline": "Watch retrieval happen in 3D",
       "description": "Documents become vectors in space, a query lights up its nearest neighbours, hybrid search fuses results, and the model streams a grounded answer — every RAG stage, visualized.",
       "tags": ["Retrieval", "Embeddings", "Vector space"],
-      "href": "/rag-lab/",
+      "href": "/ai-labs/rag-lab/",
       "internal": false,
       "cta": "Open RAG Lab"
     },
@@ -37,7 +37,7 @@
       "tagline": "How agents grew up, in four nested loops",
       "description": "Prompt, context, harness, loop. Four ways to steer an AI, each one wrapping the last in a bigger loop. Focus a ring or take the guided tour from the center out.",
       "tags": ["Agents", "Prompting", "Harness"],
-      "href": "/engineering-loops/",
+      "href": "/ai-labs/engineering-loops/",
       "internal": true,
       "cta": "Open Engineering Loops"
     }
