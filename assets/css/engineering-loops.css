@@ -4,8 +4,9 @@
 :root {
     --loops-prompt:  #F2B138;
     --loops-context: var(--accent);
-    --loops-harness: var(--axis-biz);
+    --loops-harness: #a78bfa;
     --loops-loop:    #4ADE80;
+    --loops-result:  #F59E0B; /* "tool result" docs — accumulation/rot warning, not failure red */
 }
 
 /* ─── page frame ─────────────────────────────────────────────────────────────── */
@@ -143,6 +144,15 @@
 .loops-cap { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 15px; }
 .loops-cap-strong { fill: var(--ink); }
 .loops-node-mono { fill: var(--ink); font-family: var(--font-mono); font-size: 15px; }
+.loops-harness-cap { fill: var(--loops-harness); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+.loops-harness-note { fill: var(--loops-harness); font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; }
+
+/* task list — done state */
+.loops-task-rect, .loops-task-label { transition: opacity 0.25s ease; }
+.loops-task-check { fill: var(--loops-loop); font-family: var(--font-mono); font-size: 14px; opacity: 0; transition: opacity 0.25s ease; }
+.loops-task.is-done .loops-task-label { text-decoration: line-through; opacity: 0.55; }
+.loops-task.is-done .loops-task-rect { opacity: 0.55; }
+.loops-task.is-done .loops-task-check { opacity: 1; }
 
 /* connectors + arrowheads */
 .loops-conn-line {
@@ -150,7 +160,7 @@
     stroke-width: 1.8;
     fill: none;
     stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-linejoin: miter; /* sharp right-angle bends — these are orthogonal connectors, not curves */
 }
 
 /* the LLM panel (Claude + Gemini) */
@@ -175,7 +185,7 @@
 .loops-ctx-fill { fill: rgba(199, 166, 255, 0.14); }
 .loops-ctx-full { fill: var(--danger); font-family: var(--font-mono); font-weight: 700; font-size: 22px; letter-spacing: 0.04em; }
 .loops-doc { stroke-width: 1.8; }
-.loops-doc.is-red { stroke: var(--danger); }
+.loops-doc.is-result { stroke: var(--loops-result); }
 .loops-doc-label { fill: var(--ink-subtle); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; }
 .loops-ctx-dash { stroke: var(--ink-subtle); stroke-width: 1.6; stroke-dasharray: 7 7; }
 .loops-ctx-cap { fill: var(--ink-subtle); }
