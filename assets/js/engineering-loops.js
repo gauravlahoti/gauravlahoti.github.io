@@ -677,6 +677,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         putDemarcation(gc, "context",
             s("rect", { x: 58, y: 66, width: 968, height: 470, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
             s("text", { x: 88, y: 88, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
+        let loopLabelShown = false; // "↻ agent loop" — once it's named, it stays named
         anims.context = () => {
             const g = gsap(), tl = g.timeline({ repeat: -1 });
             const step = 1.5, gather = nD * step;
@@ -703,15 +704,26 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             tl.to(fill, { attr: { y: wb - 32, height: 30, fill: "rgba(255,92,92,0.12)" }, duration: 0.7 }, "<");
             tl.to({}, { duration: 2.6 });
             // now that gathering and summarizing have both played out, name the pattern:
-            // this whole cycle is "the context loop" — appears here, not at the start
-            tl.fromTo(loopLabel, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)" });
+            // this whole cycle is "the context loop" — appears here, not at the start.
+            // Only animates in ONCE, ever — once "agent loop" has been named, it stays
+            // on screen permanently instead of fading out and popping back in every
+            // repeat. The outer CONTEXT ENGINEERING boundary clicks into place at the
+            // same moment it's first named — once the mechanism has earned its name,
+            // it's earned its container too.
+            tl.add(() => {
+                if (!loopLabelShown) {
+                    loopLabelShown = true;
+                    g.fromTo(loopLabel, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)" });
+                }
+                revealDemarcation("context", true);
+            });
             tl.to({}, { duration: 0.6 });
             // Phase D — drift: with the detail gone, it loses the goal
             tl.fromTo(drift, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(2.2)" });
             tl.to({}, { duration: 2.6 });
             // reset & loop — Model reads the window (window → Model), then the agent loop runs again
             tl.add(() => travelDot(svg, [{ x: M.cx, y: wb + 2 }, { x: M.cx, y: mT }], { color: cc, glow: GLOW.context, speed: 200, layer: "context" }), ">-0.2");
-            tl.to([summ, drift, loopLabel, ...docs, ...docLabels], { opacity: 0, duration: 0.5 });
+            tl.to([summ, drift, ...docs, ...docLabels], { opacity: 0, duration: 0.5 }); // loopLabel stays — see above
             tl.set(docs, { opacity: 0 });
             tl.set(docLabels, { opacity: 0 });
             tl.set(win, { stroke: cc });
@@ -728,7 +740,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 g.set(win, { stroke: cc });
                 g.set(fill, { attr: { y: wb - 2, height: 0, fill: "rgba(199,166,255,0.14)" } });
                 g.set(full, { opacity: 0 });
-                g.set([summ, drift, loopLabel], { opacity: 0 });
+                g.set([summ, drift], { opacity: 0 }); // loopLabel stays — see above
                 svg.querySelectorAll(".loops-dot-context").forEach(d => d.remove());
             });
             return tl;
@@ -742,7 +754,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // task list — its own lane, left side. Pushed down from the teal box's bottom
         // (536) with real clearance, since the right-side label stack now lives in the
         // gap between them (536–694) and must never cross into the teal box itself.
-        const rowLabelY = 610, rowTop = 630;
+        const rowLabelY = 650, rowTop = 670;
         // box column centred EXACTLY on M.cx, so the task list sits directly under the
         // Model, not offset to one side of it
         const listX = M.cx;
@@ -847,7 +859,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // again" (x238–560 at y452/480). Pushed below the teal box's own bottom (536), so
         // it sits in the harness's own purple territory instead of crowding the yellow
         // PROMPT ENGINEERING border.
-        put(gh, "harness", s("text", { x: M.cx + 12, y: 560, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
+        put(gh, "harness", s("text", { x: M.cx + 12, y: 600, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
 
         // DEMARCATION — harness engineering is the outermost discipline: it wraps context
         // engineering (and everything nested inside it) entirely, with generous padding.
