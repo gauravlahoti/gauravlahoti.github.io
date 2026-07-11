@@ -1,0 +1,238 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <!-- Caption -->
+  <text x="40" y="52" class="caption">// warden · site-manager team · coordinator + 3 specialists · PR-for-approval</text>
+
+  <!-- GCP outer boundary -->
+  <rect x="20" y="66" width="920" height="496" rx="16" fill="none" stroke="#4285F4" stroke-width="1" opacity="0.35"/>
+  <rect x="427" y="55" width="106" height="22" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/google-cloud.png" x="431" y="57" width="18" height="18"/>
+  <text x="453" y="70" class="caption">Google Cloud</text>
+
+  <!-- ═══ NODES ═══ -->
+
+  <!-- Cloud Scheduler — x=40 y=92 200×72 (center x=140) -->
+  <rect x="40" y="92" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/cloud-scheduler.svg" x="50" y="114" width="28" height="28"/>
+  <text x="86" y="120" class="node-title">Cloud Scheduler</text>
+  <text x="86" y="136" class="node-sub">weekly · portfolio-warden</text>
+  <text x="86" y="150" class="node-sub">POST /api/warden/run</text>
+
+  <!-- Summary Email — x=720 y=92 200×72 (center x=820) -->
+  <rect x="720" y="92" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/gmail.png" x="730" y="114" width="28" height="28"/>
+  <text x="766" y="120" class="node-title">Summary Email</text>
+  <text x="766" y="136" class="node-sub">Gaurav's inbox</text>
+  <text x="766" y="150" class="node-sub">scoreboard + PR links</text>
+
+  <!-- Warden Cloud Run boundary (hub + specialists) — x=300 y=196 360×184 (center x=480) -->
+  <rect x="300" y="196" width="360" height="184" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="432" y="186" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="436" y="188" width="14" height="14"/>
+  <text x="453" y="200" class="caption">Cloud Run</text>
+
+  <!-- Warden hub (coordinator) — x=380 y=210 200×72 (center x=480) -->
+  <rect x="380" y="210" width="200" height="72" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="390" y="234" width="24" height="24"/>
+  <text x="422" y="236" class="node-title">Warden</text>
+  <image href="/diagram-icons/gemini.png" x="422" y="243" width="11" height="11"/>
+  <text x="436" y="252" class="node-sub">FallbackGemini 3.5</text>
+  <text x="422" y="270" class="node-sub">coordinator · AgentTool</text>
+
+  <!-- Scribe — x=312 y=300 104×64 (center x=364) -->
+  <rect x="312" y="300" width="104" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="364" y="326" class="node-title" text-anchor="middle">Scribe</text>
+  <text x="364" y="343" class="node-sub" text-anchor="middle">content</text>
+  <text x="364" y="356" class="node-sub" text-anchor="middle">freshness</text>
+
+  <!-- Sentinel — x=428 y=300 104×64 (center x=480) -->
+  <rect x="428" y="300" width="104" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="480" y="326" class="node-title" text-anchor="middle">Sentinel</text>
+  <text x="480" y="343" class="node-sub" text-anchor="middle">health</text>
+  <text x="480" y="356" class="node-sub" text-anchor="middle">+ perf</text>
+
+  <!-- Scout — x=544 y=300 104×64 (center x=596) -->
+  <rect x="544" y="300" width="104" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <text x="596" y="326" class="node-title" text-anchor="middle">Scout</text>
+  <text x="596" y="343" class="node-sub" text-anchor="middle">trends</text>
+  <text x="596" y="356" class="node-sub" text-anchor="middle">+ ideas</text>
+
+  <!-- Cloudflare Worker + D1 — x=40 y=250 200×72 (center x=140) -->
+  <rect x="40" y="250" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/cloudflare.png" x="50" y="272" width="28" height="28"/>
+  <text x="86" y="278" class="node-title">Worker + D1</text>
+  <text x="86" y="294" class="node-sub">data gateway</text>
+  <text x="86" y="308" class="node-sub">metrics · cost · stats</text>
+
+  <!-- PageSpeed Insights — x=40 y=400 200×72 (center x=140) -->
+  <rect x="40" y="400" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/google-cloud.png" x="50" y="422" width="28" height="28"/>
+  <text x="86" y="428" class="node-title">PageSpeed API</text>
+  <text x="86" y="444" class="node-sub">Lighthouse synth</text>
+  <text x="86" y="458" class="node-sub">perf budget</text>
+
+  <!-- google_search — x=300 y=470 160×60 (center x=380) -->
+  <rect x="300" y="470" width="160" height="60" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/google-search.png" x="312" y="488" width="24" height="24"/>
+  <text x="344" y="496" class="node-title">google_search</text>
+  <text x="344" y="512" class="node-sub">grounded trends</text>
+
+  <!-- Remote member: Atlas (Cloud Run) — boundary x=690 y=222 230×64 (center x=805) -->
+  <rect x="690" y="222" width="230" height="64" rx="10" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="757" y="212" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="761" y="214" width="14" height="14"/>
+  <text x="778" y="226" class="caption">Cloud Run</text>
+  <rect x="702" y="232" width="206" height="44" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="712" y="243" width="22" height="22"/>
+  <text x="742" y="250" class="node-title">Atlas</text>
+  <text x="742" y="266" class="node-sub">chat · ask_atlas() A2A</text>
+
+  <!-- Remote member: Pulse (Cloud Run) — boundary x=690 y=316 230×64 (center x=805) -->
+  <rect x="690" y="316" width="230" height="64" rx="10" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="757" y="306" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="761" y="308" width="14" height="14"/>
+  <text x="778" y="320" class="caption">Cloud Run</text>
+  <rect x="702" y="326" width="206" height="44" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <image href="/diagram-icons/adk.png" x="712" y="337" width="22" height="22"/>
+  <text x="742" y="344" class="node-title">Pulse</text>
+  <text x="742" y="360" class="node-sub">metrics scrape · A2A</text>
+
+  <!-- GitHub (open PR + issues) — x=490 y=430 200×72 (center x=590) -->
+  <rect x="490" y="430" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="500" y="452" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <circle cx="514" cy="466" r="8" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M514 462 v6 M511 466 h6" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="536" y="458" class="node-title">GitHub</text>
+  <text x="536" y="474" class="node-sub">open PR + issues</text>
+  <text x="536" y="488" class="node-sub">fine-grained PAT</text>
+
+  <!-- Resend MCP (Cloud Run) — boundary x=720 y=430 200×88 (center x=820) -->
+  <rect x="720" y="440" width="200" height="88" rx="10" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="772" y="430" width="96" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="776" y="432" width="14" height="14"/>
+  <text x="793" y="444" class="caption">Cloud Run</text>
+  <rect x="730" y="456" width="180" height="62" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="740" y="474" width="26" height="26" rx="6" fill="rgba(136,136,136,0.18)"/>
+  <rect x="745" y="480" width="16" height="12" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M745 481 l8 6 l8 -6" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <text x="776" y="482" class="node-title">Resend MCP</text>
+  <text x="776" y="498" class="node-sub">Remote MCP</text>
+
+  <!-- ═══ EDGES ═══ -->
+
+  <!-- ① Cloud Scheduler → Warden boundary top (boundary top y=196, back off 7 → 189) -->
+  <line x1="140" y1="164" x2="140" y2="188" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="140" y1="188" x2="480" y2="188" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="480" y1="188" x2="480" y2="189" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="256" y="170" width="88" height="14" rx="3" fill="#000"/>
+  <text x="300" y="181" class="edge-label" text-anchor="middle">HTTP trigger</text>
+
+  <!-- ② Warden → Pulse (trigger metrics). Warden right x=580 y=246 → Pulse boundary left x=690 (back off 7 → 683) -->
+  <line x1="580" y1="246" x2="640" y2="246" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="640" y1="246" x2="640" y2="348" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="640" y1="348" x2="683" y2="348" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="586" y="222" width="118" height="14" rx="3" fill="#000"/>
+  <text x="645" y="233" class="edge-label" text-anchor="middle">trigger metrics</text>
+
+  <!-- ③ Warden → Atlas (ask_atlas). Warden top-right x=580 y=232 up to y=254 then right into Atlas left x=690 (683) -->
+  <line x1="580" y1="230" x2="660" y2="230" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="660" y1="230" x2="660" y2="254" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="660" y1="254" x2="683" y2="254" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+
+  <!-- ④ Scribe → Worker + D1. Scribe left x=312 y=332 → left to x=140 → up to Worker bottom y=322 (315) -->
+  <line x1="312" y1="332" x2="140" y2="332" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="140" y1="332" x2="140" y2="315" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="150" y="336" width="120" height="14" rx="3" fill="#000"/>
+  <text x="210" y="347" class="edge-label" text-anchor="middle">read content data</text>
+
+  <!-- ⑤ Sentinel → PageSpeed API. Sentinel bottom x=460 y=364 → down y=436 → left to PSI right x=240 (247) -->
+  <line x1="460" y1="364" x2="460" y2="436" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="460" y1="436" x2="247" y2="436" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="300" y="412" width="130" height="14" rx="3" fill="#000"/>
+  <text x="365" y="423" class="edge-label" text-anchor="middle">synthetic audit</text>
+
+  <!-- ⑥ Scout → google_search. Scout bottom x=580 y=364 → down y=490 → left to search right x=460 (467) -->
+  <line x1="580" y1="364" x2="580" y2="490" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="580" y1="490" x2="467" y2="490" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="490" y="466" width="112" height="14" rx="3" fill="#000"/>
+  <text x="546" y="477" class="edge-label" text-anchor="middle">grounded search</text>
+
+  <!-- ⑦ Warden → GitHub (open PR). Warden bottom x=520 y=282 → down y=410 → to GitHub top x=590 (back off 7 → 423) -->
+  <line x1="520" y1="282" x2="520" y2="410" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="520" y1="410" x2="590" y2="410" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="590" y1="410" x2="590" y2="423" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="526" y="386" width="98" height="14" rx="3" fill="#000"/>
+  <text x="575" y="397" class="edge-label" text-anchor="middle">open PR / issue</text>
+
+  <!-- ⑧ Warden → Resend MCP boundary. Warden bottom x=545 y=282 → down y=418 → right to x=820 → down to MCP boundary top y=440 (433) -->
+  <line x1="545" y1="282" x2="545" y2="418" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="545" y1="418" x2="820" y2="418" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="820" y1="418" x2="820" y2="433" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="700" y="400" width="66" height="14" rx="3" fill="#000"/>
+  <text x="733" y="411" class="edge-label" text-anchor="middle">MCP call</text>
+
+  <!-- ⑨ Resend MCP → Summary Email. MCP top x=820 y=440 up ... route via right edge x=930 → Email bottom (820,171) -->
+  <line x1="900" y1="480" x2="930" y2="480" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="930" y1="480" x2="930" y2="171" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="930" y1="171" x2="820" y2="171" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="852" y="300" width="90" height="14" rx="3" fill="#000"/>
+  <text x="897" y="311" class="edge-label" text-anchor="middle">one summary</text>
+
+  <!-- ═══ STEP CIRCLES ═══ -->
+
+  <!-- ① horizontal (140,188)→(480,188) midpoint (310,188) -->
+  <circle cx="310" cy="188" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="310" y="193" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="1">1</text>
+
+  <!-- ② vertical (640,246)→(640,348) midpoint (640,297) -->
+  <circle cx="640" cy="297" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="640" y="302" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="2">2</text>
+
+  <!-- ③ horizontal (312,332)→(140,332) midpoint (226,332) -->
+  <circle cx="226" cy="332" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="226" y="337" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="3">3</text>
+
+  <!-- ④ horizontal (460,436)→(247,436) midpoint (353,436) -->
+  <circle cx="353" cy="436" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="353" y="441" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="4">4</text>
+
+  <!-- ⑤ horizontal (580,490)→(467,490) midpoint (523,490) -->
+  <circle cx="523" cy="490" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5"/>
+  <text x="523" y="495" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="5">5</text>
+
+  <!-- ⑥ vertical (520,282)→(520,410) midpoint (520,346) -->
+  <circle cx="520" cy="346" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
+  <text x="520" y="351" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="6">6</text>
+
+  <!-- ⑦ vertical (930,480)→(930,171) midpoint (930,325) -->
+  <circle cx="930" cy="325" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="7"/>
+  <text x="930" y="330" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="7">7</text>
+
+  <!-- ═══ Animation flow data ═══ -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="140,164 140,188 480,188 480,189" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-traveler-path="580,246 640,246 640,348 683,348" data-color="#00FFD1" data-step="2" data-delay="0.7"/>
+    <g data-traveler-path="312,332 140,332 140,315" data-color="#00FFD1" data-step="3" data-delay="1.4"/>
+    <g data-traveler-path="460,364 460,436 247,436" data-color="#00FFD1" data-step="4" data-delay="2.1"/>
+    <g data-traveler-path="580,364 580,490 467,490" data-color="#00FFD1" data-step="5" data-delay="2.8"/>
+    <g data-traveler-path="520,282 520,410 590,410 590,423" data-color="#00FFD1" data-step="6" data-delay="3.5"/>
+    <g data-traveler-path="545,282 545,418 820,418 820,433" data-color="#00FFD1" data-step="7" data-delay="4.2"/>
+    <g data-traveler-path="900,480 930,480 930,171 820,171" data-color="#00FFD1" data-step="8" data-delay="4.9"/>
+  </g>
+</svg>
