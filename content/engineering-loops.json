@@ -2,7 +2,7 @@
   "intro": {
     "tag": "// how agents grew up",
     "title": "Engineering Loops",
-    "sub": "Prompt, context, harness, loop. Four ways to steer an AI, and each one wraps the last in a bigger loop. Focus a ring, or take the tour from the center out."
+    "sub": "Progressing from turn-based to goal-based, proactive loops. Focus a ring, or take the tour."
   },
   "ui": {
     "prev": "Prev",
@@ -36,14 +36,15 @@
     "retryBad": "not what you wanted",
     "retryAction": "tweak & send again",
     "contextWindowLabel": "context window",
-    "contextFullLabel": "FULL!",
-    "contextDrift": "context rot → goal drifts",
-    "contextSummarize": "summarize → detail lost",
+    "contextFullLabel": "Context Rot",
+    "contextSummarize": "summarize → lost in the middle",
     "promptDiscipline": "prompt engineering",
+    "promptCycleLabel": "ask → observe → judge → refine",
     "contextDiscipline": "context engineering",
+    "contextCycleLabel": "select → structure → inject → compact",
     "harnessDiscipline": "harness engineering",
+    "harnessCycleLabel": "orchestrate → execute → evaluate → recover",
     "loopDiscipline": "loop engineering",
-    "loopCaption": "the open-ended outer loop: no fixed \"done\". self-triggered, self-verifying, self-improving. inner loops terminate, this one doesn't.",
     "goalLabel": "the goal",
     "contextUnbroken": "edits code that was never broken",
     "promptLoop": "reword & retry",

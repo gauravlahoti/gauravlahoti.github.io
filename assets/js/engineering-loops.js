@@ -225,6 +225,15 @@ function targetGlyph(cx, cy, color, cls) {
 // the one piece of new animation lifecycle this feature introduces that isn't already
 // covered by stopLayerAnim/activeAnims.
 const LOOP_GLYPH_ADVANCE = 20; // x-distance from a loopGlyph's start x to where the caller's trailing label text should begin
+
+// Single source of truth for every discipline title + tagline pair (prompt/context/harness/
+// loop) — each DEMARCATION box positions its title and tagline relative to its own top-left
+// corner using these, instead of each layer repeating its own "+12"/"+28"/"+50" literals.
+// That repetition is exactly what let prompt's numbers drift out of sync with the other
+// three in the past; pulling from one constant makes that class of bug impossible.
+const SECTION_LABEL_PAD_X = 12;  // left inset of the title (and tagline, same x) from the box's own left border
+const SECTION_LABEL_Y = 28;      // title baseline, down from the box's own top border
+const SECTION_TAGLINE_Y = 50;    // tagline baseline, down from the box's own top border (22px under the title)
 function loopGlyph(x, y, { fontSize = 15, cls = "", ringColor } = {}) {
     const g = s("g", { class: "loops-loop-glyph-wrap" });
     const ringCx = x + fontSize * 0.32;
@@ -380,8 +389,106 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         document.body.style.overflow = on ? "hidden" : "";
         maxBtn.querySelector(".loops-max-glyph").textContent = on ? "✕" : "⤢";
         maxBtn.setAttribute("aria-label", on ? (ui.close || "Close") : (ui.expand || "Expand diagram"));
+        resetZoom(); // fresh 1x every time the overlay opens or closes
     }
     maxBtn.addEventListener("click", () => toggleMax());
+
+    // zoom + pan — layered on TOP of the Expand overlay's existing fit-to-viewport
+    // scaling (max-width/max-height in CSS), so this zooms INTO that fitted view rather
+    // than replacing it. Only active while .is-max — the small inline diagram doesn't
+    // need it. transform (not viewBox) so it's independent of the per-layer viewBox
+    // animation `setViewBox()` already runs.
+    const ZOOM_MIN = 1, ZOOM_MAX = 4;
+    let zoom = { scale: 1, tx: 0, ty: 0 };
+    function applyZoom() {
+        svg.style.transform = `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})`;
+        stageWrap.classList.toggle("is-zoomed", zoom.scale > 1.001);
+    }
+    function clampPan() {
+        // bound tx/ty so the content can't be dragged/pinched fully out of view —
+        // derive the pre-transform box size from the live (already-scaled) rect
+        const rect = svg.getBoundingClientRect();
+        const baseW = rect.width / zoom.scale, baseH = rect.height / zoom.scale;
+        const maxX = (baseW * (zoom.scale - 1)) / 2, maxY = (baseH * (zoom.scale - 1)) / 2;
+        zoom.tx = Math.max(-maxX, Math.min(maxX, zoom.tx));
+        zoom.ty = Math.max(-maxY, Math.min(maxY, zoom.ty));
+    }
+    function resetZoom() {
+        zoom = { scale: 1, tx: 0, ty: 0 };
+        applyZoom();
+    }
+    // cx/cy: viewport coords of the point that should stay visually fixed while zooming
+    // (cursor position for wheel, box center for the +/- buttons)
+    function zoomBy(factor, cx, cy) {
+        const rect = stageWrap.getBoundingClientRect();
+        const prevScale = zoom.scale;
+        const nextScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prevScale * factor));
+        if (nextScale === prevScale) return;
+        const originX = cx - (rect.left + rect.width / 2), originY = cy - (rect.top + rect.height / 2);
+        const ratio = nextScale / prevScale;
+        zoom.tx = originX - (originX - zoom.tx) * ratio;
+        zoom.ty = originY - (originY - zoom.ty) * ratio;
+        zoom.scale = nextScale;
+        clampPan();
+        applyZoom();
+    }
+    stageWrap.addEventListener("wheel", e => {
+        if (!stageWrap.classList.contains("is-max")) return;
+        e.preventDefault();
+        zoomBy(Math.exp(-e.deltaY * 0.0018), e.clientX, e.clientY);
+    }, { passive: false });
+
+    // single-pointer drag pans (once zoomed in); two-pointer pinch zooms — one Map of
+    // active pointers backs both gestures, matching the shared vanilla pointer-events
+    // pattern (no library) rather than separate mouse/touch code paths
+    const activePointers = new Map();
+    let dragState = null, pinchState = null;
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    stageWrap.addEventListener("pointerdown", e => {
+        if (!stageWrap.classList.contains("is-max") || e.target.closest("button")) return;
+        stageWrap.setPointerCapture(e.pointerId);
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (activePointers.size === 2) {
+            const [a, b] = [...activePointers.values()];
+            pinchState = { startDist: dist(a, b), startScale: zoom.scale, startTx: zoom.tx, startTy: zoom.ty };
+            dragState = null;
+        } else if (activePointers.size === 1 && zoom.scale > 1.001) {
+            dragState = { startX: e.clientX, startY: e.clientY, startTx: zoom.tx, startTy: zoom.ty };
+            stageWrap.classList.add("is-dragging");
+        }
+    });
+    stageWrap.addEventListener("pointermove", e => {
+        if (!activePointers.has(e.pointerId)) return;
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinchState && activePointers.size === 2) {
+            const [a, b] = [...activePointers.values()];
+            zoom.scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinchState.startScale * (dist(a, b) / pinchState.startDist)));
+            zoom.tx = pinchState.startTx; zoom.ty = pinchState.startTy;
+            clampPan(); applyZoom();
+        } else if (dragState && activePointers.size === 1) {
+            zoom.tx = dragState.startTx + (e.clientX - dragState.startX);
+            zoom.ty = dragState.startTy + (e.clientY - dragState.startY);
+            clampPan(); applyZoom();
+        }
+    });
+    function releasePointer(e) {
+        activePointers.delete(e.pointerId);
+        if (activePointers.size < 2) pinchState = null;
+        if (activePointers.size === 0) { dragState = null; stageWrap.classList.remove("is-dragging"); }
+    }
+    stageWrap.addEventListener("pointerup", releasePointer);
+    stageWrap.addEventListener("pointercancel", releasePointer);
+
+    // +/-/reset buttons — wheel/pinch alone is easy to miss, especially for
+    // keyboard/non-pointer users
+    const zoomInBtn = el("button", { class: "loops-zoom-btn loops-zoom-in", type: "button", "aria-label": "Zoom in" }, "+");
+    const zoomOutBtn = el("button", { class: "loops-zoom-btn loops-zoom-out", type: "button", "aria-label": "Zoom out" }, "−");
+    const zoomResetBtn = el("button", { class: "loops-zoom-btn loops-zoom-reset", type: "button", "aria-label": "Reset zoom" }, "⟲");
+    stageWrap.append(el("div", { class: "loops-zoom-controls" }, zoomOutBtn, zoomResetBtn, zoomInBtn));
+    const centerOf = () => { const r = stageWrap.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+    zoomInBtn.addEventListener("click", () => zoomBy(1.4, ...centerOf()));
+    zoomOutBtn.addEventListener("click", () => zoomBy(1 / 1.4, ...centerOf()));
+    zoomResetBtn.addEventListener("click", resetZoom);
 
     // controls --------------------------------------------------------------------
     const prevBtn = el("button", { class: "loops-btn loops-prev", type: "button" }, "‹ " + (ui.prev || "Prev"));
@@ -426,10 +533,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     // `height: auto` off a fixed width, animating the viewBox also animates the
     // rendered height — the container itself grows/shrinks, not just an inner zoom.
     const STAGE_VB = {
-        prompt: [36, 220, 666, 316],    // prompt DEMARCATION rect: x76 y260 w586 h236, +40 pad
-        context: [18, 26, 1088, 550],   // context DEMARCATION rect: x58 y66 w968 h470, +40 pad
-        harness: [8, 0, 1404, 920],     // harness DEMARCATION rect: x28 y14 w1362 h894, +~14 pad
-        loop: [-30, -98, 1478, 1167],   // loop DEMARCATION rect: x-16 y-84 w1450 h1139, +14 pad — canvas grew up/right/down to fit the new outer frame around harness
+        prompt: [36, 196, 666, 340],    // prompt DEMARCATION rect: x76 y236 w586 h260, +40 pad
+        context: [18, 50, 1088, 526],   // context DEMARCATION rect: x58 y90 w968 h446, +40 pad
+        harness: [8, 0, 1404, 864],     // harness DEMARCATION rect: x28 y14 w1362 h838, +~14 pad
+        loop: [-30, -98, 1478, 1072],   // loop DEMARCATION rect: x-16 y-84 w1450 h1044, +14 pad — canvas grew up/right/down to fit the new outer frame around harness
     };
     let vbTween = null; // in-flight viewBox tween, if any — killed before starting a new one
     function setViewBox(id, animate) {
@@ -472,6 +579,12 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     function revealDemarcation(id, animate) {
         if (demarcationShown[id]) return;
         demarcationShown[id] = true;
+        // loop is the last layer — there's no "layer you've passed" case for it, so this
+        // only ever fires once its own animation has genuinely played through one full
+        // cycle while focused (never force-revealed early, unlike the other three). That's
+        // exactly the gate the coda chart below wants: don't show it until the loop stage
+        // itself is done, not just scrolled past.
+        if (id === "loop") chartSection?._reveal?.();
         const node = refs.demarcation[id];
         if (!node) return;
         const g = gsap();
@@ -524,8 +637,13 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 startLayerAnim(id);
                 // safety net: a layer you've already moved past must never be left with
                 // its outer boundary permanently missing just because you clicked away
-                // before its first animation cycle finished
-                revealDemarcation(id, false);
+                // before its first animation cycle finished — EXCEPT harness, which should
+                // only close its box around the mechanism once you've actually watched it
+                // run at least once (task list / memory / write-rehydrate / orchestration
+                // loop). harness's timeline keeps running in the background regardless (see
+                // startLayerAnim above), so its own onRepeat callback still fires and reveals
+                // it a few seconds later — it just isn't forced instantly like the others.
+                if (id !== "harness") revealDemarcation(id, false);
             } else if (k > i) {
                 grp.style.opacity = "0";
                 // opacity:0 elements are still hit-tested by default. Since the SVG's
@@ -573,6 +691,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         });
         nextBtn.textContent = focus === layers.length - 1 ? `↺ ${ui.restart || "Restart"}` : `${ui.next || "Next"} ›`;
         clearAnim();
+        resetZoom(); // a stale pan/zoom offset from the previous layer's geometry would look wrong once the viewBox below changes
         scene.setAttribute("class", `loops-scene loops-scene-${layer.id}`);
         // snap on the very first render (page load / deep-link) — nothing to animate
         // from yet; every navigation after that animates the canvas growing/shrinking
@@ -648,17 +767,23 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         put(gp, "prompt",
             arc,
             loopGlyph(150, yTop - 16, { cls: "loops-cap", ringColor: GLOW.prompt }),
-            s("text", { x: 150 + LOOP_GLYPH_ADVANCE, y: yTop - 16, "text-anchor": "start", class: "loops-cap" }, "prompt ", s("tspan", { class: "loops-kw" }, "loop")));
+            s("text", { x: 150 + LOOP_GLYPH_ADVANCE, y: yTop - 16, "text-anchor": "start", class: "loops-cap" }, s("tspan", { class: "loops-cap-strong" }, "prompt "), s("tspan", { class: "loops-kw" }, "loop")));
         // DEMARCATION — prompt engineering encloses the human loop AND the Model (the
         // discipline reaches as far as the Model it's steering), with real breathing
-        // room between the box border and its content on every side.
+        // room between the box border and its content on every side. Top edge raised
+        // from 260→236 (bottom held at 496, height grown to match) so the title+tagline
+        // block gets more clearance above the Model box (mT=320) and the "prompt loop"
+        // label row below it, instead of nearly touching them.
+        const pBoxY = 236;
         putDemarcation(gp, "prompt",
-            s("rect", { x: 76, y: 260, width: mR + 28 - 76, height: 236, rx: 18, class: "loops-bound", stroke: cp, fill: hexToRgba(cp, 0.055) }),
+            s("rect", { x: 76, y: pBoxY, width: mR + 28 - 76, height: 496 - pBoxY, rx: 18, class: "loops-bound", stroke: cp, fill: hexToRgba(cp, 0.055) }),
             // label offset from the box's own top-left corner: +12/+28, same as every
             // other discipline label (context/harness/loop) — keeps the four nested
             // titles visually aligned/symmetric instead of each sitting at its own
             // ad-hoc indent
-            s("text", { x: 76 + 12, y: 260 + 28, "text-anchor": "start", class: "loops-bound-label", fill: cp }, dg.promptDiscipline || "prompt engineering"));
+            s("text", { x: 76 + SECTION_LABEL_PAD_X, y: pBoxY + SECTION_LABEL_Y, "text-anchor": "start", class: "loops-bound-label", fill: cp }, dg.promptDiscipline || "prompt engineering"),
+            // 4-step cadence, same style/position/format as the loop layer's own tagline
+            s("text", { x: 76 + SECTION_LABEL_PAD_X, y: pBoxY + SECTION_TAGLINE_Y, "text-anchor": "start", class: "loops-layer-tagline", fill: cp }, dg.promptCycleLabel || "ask → observe → judge → refine"));
         anims.prompt = () => {
             const tl = gsap().timeline({ repeat: -1, repeatDelay: 1.3 });
             tl.add(() => travelDot(svg, [{ x: 244, y: yTop }, { x: mL - 12, y: yTop }], { color: cp, glow: GLOW.prompt, speed: 150, layer: "prompt" }), 0);
@@ -673,7 +798,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
 
         // ── CONTEXT: tools gather → small window above the Model → summarize → drift
         const gc = layerG("context"), cc = COLORS.context, resultAmber = "#F59E0B";
-        const ww = 340, wh = 120, wx = M.cx - ww / 2, wy = 84, wb = wy + wh;   // small, centred above the Model — a bit taller so each tile can carry its own label
+        const ww = 340, wh = 120, wx = M.cx - ww / 2, wy = 100, wb = wy + wh;   // small, centred above the Model — a bit taller so each tile can carry its own label. wy moved 84→100 alongside cBoxY below, in lockstep, so the window keeps the same ~10px gap from the box's own top border while that border itself gains room from harness above it
         // 1) the tools the model calls appear FIRST — this is how context gets gathered
         // (kept well clear of the Model so the "gather context" label has breathing room)
         const tx = 880, ty = M.cy;
@@ -708,18 +833,22 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const loopLabel = s("text", { x: 704 + LOOP_GLYPH_ADVANCE, y: 300, "text-anchor": "start", class: "loops-cap loops-cap-strong loops-agentloop" }, "agent ", s("tspan", { class: "loops-kw" }, "loop"));
         loopLabel.style.opacity = REDUCE_MOTION ? "1" : "0";
         gc.append(loopLabelGlyph, loopLabel);
-        // "summarize"/"drift" sit to the LEFT of the window instead — the right side is
+        // "summarize" sits to the LEFT of the window instead — the right side is
         // where the tools→window arrow, the compaction loop's write/rehydrate legs, and
         // "tools + resources" all converge, so text there just adds to the clutter. The
-        // left side (above the prompt box, which only starts at y260) is open space.
+        // left side (above the prompt box, which only starts at y236) is open space.
         const lcy = wy + wh / 2;
-        const full = s("text", { x: wx + ww - 18, y: wy + 30, "text-anchor": "end", class: "loops-ctx-full" }, dg.contextFullLabel || "FULL!");
-        const summ = svgLines(wx - 16, lcy - 18, splitAtArrow(dg.contextSummarize || "summarize → detail lost"), "loops-ctx-step loops-ctx-summ", 15, "end");
-        const drift = svgLines(wx - 16, lcy + 20, splitAtArrow(dg.contextDrift || "context rot → goal drifts"), "loops-ctx-step loops-ctx-drift", 15, "end");
+        // window flashes "Context Rot" (not "FULL!") when it fills — the alarm itself now
+        // names the actual failure mode directly, so the separate "context rot → goal
+        // drifts" caption underneath was redundant and has been removed.
+        const full = s("text", { x: wx + ww - 18, y: wy + 30, "text-anchor": "end", class: "loops-ctx-full" }, dg.contextFullLabel || "Context Rot");
+        // pushed down from lcy-18 to lcy+6 — with the discipline tagline now sitting at
+        // the box's own y+50 (see cBoxY below), the old position sat only ~10px under it
+        // and horizontally overlapped its tail end ("...inject → compact"); this clears both.
+        const summ = svgLines(wx - 16, lcy + 6, splitAtArrow(dg.contextSummarize || "summarize → lost in the middle"), "loops-ctx-step loops-ctx-summ", 15, "end");
         full.style.opacity = "0";
         summ.style.opacity = REDUCE_MOTION ? "1" : "0";
-        drift.style.opacity = REDUCE_MOTION ? "1" : "0";
-        gc.append(full, summ, drift);
+        gc.append(full, summ);
         // documents fill in as tool calls return — driven by the animation. Each tile is
         // labelled with what actually lives in a context window: the system prompt (set
         // once), conversation history, retrieved docs, then tool results (the freshest —
@@ -738,13 +867,18 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // 5) DEMARCATION — additive layers nest: context engineering fully encloses
         //    prompt engineering (a bigger territory wrapping the last, same pattern
         //    the harness/loop frames use), not a separate adjacent box.
-        // top edge pulled down from 48→66 (bottom held at 536, height trimmed to match)
-        // so there's real breathing room between this border and the harness border
-        // above it, instead of the two titles almost touching
+        // top edge pulled down again, 74→90 (bottom held at 536, height trimmed to
+        // match) — the previous ~10px gap from harness's tagline above still read as
+        // too tight in practice. wy (the context window's own top, above) moved down
+        // by the same 16px so its ~10px gap from THIS border is preserved rather than
+        // traded away; the harness-side gap is now ~26px.
+        const cBoxY = 90;
         putDemarcation(gc, "context",
-            s("rect", { x: 58, y: 66, width: 968, height: 470, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
+            s("rect", { x: 58, y: cBoxY, width: 968, height: 536 - cBoxY, rx: 22, class: "loops-bound", stroke: cc, fill: hexToRgba(cc, 0.055) }),
             // same +12/+28 offset from the box's own corner as every other discipline label
-            s("text", { x: 58 + 12, y: 66 + 28, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"));
+            s("text", { x: 58 + SECTION_LABEL_PAD_X, y: cBoxY + SECTION_LABEL_Y, "text-anchor": "start", class: "loops-bound-label", fill: cc }, dg.contextDiscipline || "context engineering"),
+            // 4-step cadence, same style/position/format as the loop layer's own tagline
+            s("text", { x: 58 + SECTION_LABEL_PAD_X, y: cBoxY + SECTION_TAGLINE_Y, "text-anchor": "start", class: "loops-layer-tagline", fill: cc }, dg.contextCycleLabel || "select → structure → inject → compact"));
         let loopLabelShown = false; // "↻ agent loop" — once it's named, it stays named
         anims.context = () => {
             const g = gsap(), tl = g.timeline({ repeat: -1 });
@@ -797,13 +931,12 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 }
                 revealDemarcation("context", true);
             });
-            tl.to({}, { duration: 0.6 });
-            // Phase D — drift: with the detail gone, it loses the goal
-            tl.fromTo(drift, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(2.2)" });
-            tl.to({}, { duration: 2.6 });
+            // dwell so "summarize → detail lost" and the window's own "Context Rot" flash
+            // both actually get read before reset — no separate drift phase anymore
+            tl.to({}, { duration: 1.8 });
             // reset & loop — Model reads the window (window → Model), then the agent loop runs again
             tl.add(() => travelDot(svg, [{ x: M.cx, y: wb + 2 }, { x: M.cx, y: mT }], { color: cc, glow: GLOW.context, speed: 200, layer: "context" }), ">-0.2");
-            tl.to([summ, drift, ...docs, ...docLabels], { opacity: 0, duration: 0.5 }); // loopLabel stays — see above
+            tl.to([summ, ...docs, ...docLabels], { opacity: 0, duration: 0.5 }); // loopLabel stays — see above
             tl.set(docs, { opacity: 0 });
             tl.set(docLabels, { opacity: 0 });
             tl.set(win, { stroke: cc });
@@ -820,7 +953,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 g.set(win, { stroke: cc });
                 g.set(fill, { attr: { y: wb - 2, height: 0, fill: "rgba(199,166,255,0.14)" } });
                 g.set(full, { opacity: 0 });
-                g.set([summ, drift], { opacity: 0 }); // loopLabel stays — see above
+                g.set(summ, { opacity: 0 }); // loopLabel stays — see above
                 svg.querySelectorAll(".loops-dot-context").forEach(d => d.remove());
             });
             return tl;
@@ -898,20 +1031,24 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // compaction loop — a CLOSED three-station cycle, routed as three NON-CROSSING
         // vertical lanes on the right side (innermost to outermost):
         //   Lane A — the agent loop's own tool-result return (elbowUpThenLeft above,
-        //            landing at y144 / running at x880) — untouched, just kept clear of.
-        //   Lane B — the WRITE edge: window → memory. Its jog off the window (y104) sits
+        //            landing at wy+wh/2 / running at x880) — untouched, just kept clear of.
+        //   Lane B — the WRITE edge: window → memory. Its jog off the window (y120) sits
         //            BELOW Lane C's, and its vertical descent runs at x=memX.
         //   Lane C — the "becomes the next window" RETURN edge: fresh context → window.
-        //            Its jog off the window (y88) sits ABOVE Lane B's, and its vertical
+        //            Its jog off the window (y104) sits ABOVE Lane B's, and its vertical
         //            run climbs at x=freshX — one column further out than Lane B's, so
-        //            the two verticals never share an x, and Lane C's horizontal (y88)
-        //            passes OVER Lane B's vertical (which only starts at y104) instead of
+        //            the two verticals never share an x, and Lane C's horizontal (y104)
+        //            passes OVER Lane B's vertical (which only starts at y120) instead of
         //            cutting through it. That ordering — C's jog above B's — is what
         //            actually prevents the crossing; swap it back and they tangle again.
-        // Both jogs (88/104) still sit well above Lane A's vertical run (x880, y166–352).
+        // Both jogs (104/120) still sit well above Lane A's vertical run (x880, y166–352).
+        // Lane B/C jogs (120/104 below) sit just inside the window's own top edge (wy=100)
+        // — they're +16 from their original 104/88, matching wy's own 84→100 move earlier
+        // (context box gained breathing room from harness above it). Without this they'd
+        // land 12-16px ABOVE the window's new top edge instead of on its right edge.
         const compactToMem = [
-            { x: winRX, y: 104 },    // leave the context window's right edge (Lane B)
-            { x: memX, y: 104 },     // jog right — BELOW Lane C's jog, so C's horizontal clears this vertical
+            { x: winRX, y: 120 },    // leave the context window's right edge (Lane B)
+            { x: memX, y: 120 },     // jog right — BELOW Lane C's jog, so C's horizontal clears this vertical
             { x: memX, y: memTop },  // down, landing INTO memory's lid — a real arrival
         ];
         // ONE straight horizontal arrow, icon-height, memory's right edge → fresh context's
@@ -922,20 +1059,20 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         ];
         const freshToWindow = [
             { x: freshX, y: freshTop },  // exit fresh context's lid
-            { x: freshX, y: 88 },        // up — ABOVE Lane B's jog (104), so this horizontal never crosses Lane B's vertical
-            { x: winRX, y: 88 },         // jog left, landing back on the window's right edge — closes the loop
+            { x: freshX, y: 104 },       // up — ABOVE Lane B's jog (120), so this horizontal never crosses Lane B's vertical
+            { x: winRX, y: 104 },        // jog left, landing back on the window's right edge — closes the loop
         ];
         // write — its own beat: the edge, its guard, and its verb land together (they're
         // one idea: WHEN it writes and the fact that it writes), but separately from
         // rehydrate/close below so the compaction loop reads left-to-right in order.
         put(gh, "harness",
             orthoConnector(compactToMem, ""),
-            // guard, pinned tight to the write edge's tail (winRX,104 — the exact point
+            // guard, pinned tight to the write edge's tail (winRX,120 — the exact point
             // the line leaves the window) — 16px directly below that point, hugging the
-            // short horizontal jog itself rather than floating up near Lane C (y88). One
+            // short horizontal jog itself rather than floating up near Lane C (y104). One
             // line (fits well inside the 395px run to memX) so it reads as a single note
             // sitting ON that jog, not a separate block drifting away from it.
-            svgLines(winRX + 10, 120, ["full / rotting? → compact"], "loops-harness-guard", 13, "start"),
+            svgLines(winRX + 10, 136, ["full / rotting? → compact"], "loops-harness-guard", 13, "start"),
             // "write" — the verb, ON the edge (its long vertical leg down into memory's lid)
             svgLines(memX + 14, 254, ["write"], "loops-harness-note", 14, "start"));
         // rehydrate — memory feeds the fresh context
@@ -945,10 +1082,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // close — the return leg, last of the three edges, since it's the one that makes
         // the other two read as a LOOP instead of a one-way trip
         put(gh, "harness",
-            orthoConnector(freshToWindow, "loops-return-dash"),  // dashed — the "silent" leg made visible as the loop's own close
+            orthoConnector(freshToWindow, "loops-return-dash"),  // solid, like every other connector — the "silent" leg made visible as the loop's own close
             // muted caption ON Lane C's own vertical run (not the horizontal jog it shares
             // visual space with near the window), so it unambiguously belongs to that arrow
-            svgLines(freshX - 14, 170, ["becomes the next", "window"], "loops-harness-caption", 13, "end"));
+            svgLines(freshX - 14, 170, ["becomes the next", "window"], "loops-harness-caption", 15, "end"));
 
         // tag the Model with the outer agent loop — purple base, shared green "loop" accent.
         // Deliberately the LAST content step (right before the bounding box), so it only
@@ -963,16 +1100,21 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             loopGlyph(M.cx + 12, rowLabelY - 60, { cls: "loops-harness-cap", ringColor: GLOW.harness }),
             // tighter advance than LOOP_GLYPH_ADVANCE (14 vs 20) — the default gap read as
             // too wide once seen rendered next to "orchestration loop"
-            s("text", { x: M.cx + 12 + 14, y: rowLabelY - 60, "text-anchor": "start", class: "loops-harness-cap" }, "orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
+            s("text", { x: M.cx + 12 + 14, y: rowLabelY - 60, "text-anchor": "start", class: "loops-harness-cap" }, s("tspan", { class: "loops-cap-strong" }, "orchestration "), s("tspan", { class: "loops-kw" }, "loop")));
 
         // DEMARCATION — harness engineering is the outermost discipline: it wraps context
         // engineering (and everything nested inside it) entirely, with generous padding.
+        // Height trimmed from 894 to 838 — the old bottom edge left ~84px of dead space
+        // below the last task row (deploy, bottom at y824); now ~28px, in line with the
+        // paddings used elsewhere in this diagram.
         putDemarcation(gh, "harness",
-            s("rect", { x: 28, y: 14, width: 1362, height: 894, rx: 26, class: "loops-bound", stroke: ch, fill: hexToRgba(ch, 0.045) }),
+            s("rect", { x: 28, y: 14, width: 1362, height: 838, rx: 26, class: "loops-bound", stroke: ch, fill: hexToRgba(ch, 0.045) }),
             // same +12/+28 offset from the box's own corner as every other discipline
             // label — was 10/20 here, close but not identical, which is exactly what
             // made the four titles read as unaligned against each other
-            s("text", { x: 28 + 12, y: 14 + 28, "text-anchor": "start", class: "loops-bound-label", fill: ch }, dg.harnessDiscipline || "harness engineering"));
+            s("text", { x: 28 + SECTION_LABEL_PAD_X, y: 14 + SECTION_LABEL_Y, "text-anchor": "start", class: "loops-bound-label", fill: ch }, dg.harnessDiscipline || "harness engineering"),
+            // 4-step cadence, same style/position/format as the loop layer's own tagline
+            s("text", { x: 28 + SECTION_LABEL_PAD_X, y: 14 + SECTION_TAGLINE_Y, "text-anchor": "start", class: "loops-layer-tagline", fill: ch }, dg.harnessCycleLabel || "orchestrate → execute → evaluate → recover"));
 
         anims.harness = () => {
             const tl = gsap().timeline({ repeat: -1 });
@@ -1002,33 +1144,40 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // one doesn't: an autonomous trigger starts a run, harness executes it, and
         // finishing feeds back around to the next trigger — open-ended by design.
         const gl = layerG("loop"), cll = COLORS.loop;
-        // encloses harness (28,14)–(1390,908) with an even ~44px margin on the sides,
+        // encloses harness (28,14)–(1390,852) with an even ~44px margin on the sides,
         // extra room at the top for the discipline label + its subtitle, and a bottom
         // band for the self-improvement chips. Canvas grows to fit this (see
-        // STAGE_VB.loop) rather than shrinking the harness box.
-        const lf = { x: -16, y: -84, w: 1450, h: 1139 };
+        // STAGE_VB.loop) rather than shrinking the harness box. Height trimmed again,
+        // 1100 → 1044, following harness's own bottom edge moving up by the same 56px
+        // (the chip row above shifted up to match, so the gap below it is unchanged).
+        const lf = { x: -16, y: -84, w: 1450, h: 1044 };
         // operating cadence, as the outer loop's own subtitle — directly under its name.
         // NOT "reason → act → check → repeat" (that's the ReAct/agent-loop pattern,
         // already drawn one level in as harness's own "↻ agent loop") — this outer
         // cycle is distinct: a trigger fires a run, harness executes it, the result
         // gets verified and persisted (memory on disk / task list), then the next
-        // trigger fires. Wrapped to two lines (split on " → ") since it's noticeably
-        // longer than the old text and would otherwise crowd the supervisor glyph
-        // sitting just to its right.
-        const cycleParts = (dg.cycleLabel || "trigger → run → verify → persist → repeat").split(" → ");
-        const cycleMid = Math.ceil(cycleParts.length / 2);
-        const cycleLines = [
-            cycleParts.slice(0, cycleMid).join(" → ") + " →",
-            cycleParts.slice(cycleMid).join(" → "),
-        ];
+        // trigger fires. Single line, matching the other three disciplines' own taglines
+        // (harness's "orchestrate → execute → evaluate → recover" is comparably long and
+        // already fits on one line at this same size) — the old two-line wrap predates
+        // that consistency pass and just left this one tagline looking mismatched.
+        const cycleLabel = dg.cycleLabel || "trigger → run → verify → persist → repeat";
+        const cycleText = s("text", { x: lf.x + SECTION_LABEL_PAD_X, y: lf.y + SECTION_TAGLINE_Y, "text-anchor": "start", class: "loops-layer-tagline", fill: cll }, cycleLabel);
         putDemarcation(gl, "loop",
             s("rect", { x: lf.x, y: lf.y, width: lf.w, height: lf.h, rx: 28, class: "loops-bound", stroke: cll, fill: hexToRgba(cll, 0.035) }),
-            s("text", { x: lf.x + 12, y: lf.y + 28, "text-anchor": "start", class: "loops-bound-label", fill: cll }, dg.loopDiscipline || "loop engineering"),
-            svgLines(lf.x + 12, lf.y + 50, cycleLines, "loops-cap loops-loop-tagline", 14, "start"),
-            // disambiguation, expert defense: names exactly what makes THIS loop different
-            // from the prompt/agent/orchestration loops nested inside it — split on ". "
-            // into short lines rather than one sprawling run of text
-            svgLines(lf.x + 12, 990, (dg.loopCaption || "the open-ended outer loop: no fixed \"done\". self-triggered, self-verifying, self-improving. inner loops terminate, this one doesn't.").split(". "), "loops-loop-note", 14, "start"));
+            s("text", { x: lf.x + SECTION_LABEL_PAD_X, y: lf.y + SECTION_LABEL_Y, "text-anchor": "start", class: "loops-bound-label", fill: cll }, dg.loopDiscipline || "loop engineering"),
+            cycleText);
+        // the top band (supervisor/trigger/problem row below) used to start at a fixed
+        // x=300 — fine while the tagline above wrapped to 2 short lines, but now that it's
+        // single-line (see above) a long cycleLabel can run right under the supervisor's
+        // icon. Measure the tagline's REAL rendered width (not a guessed pixel count — see
+        // the hint-arrow measurement below for why guessing here has already gone wrong
+        // twice) and push the whole row right only as far as actually needed to clear it.
+        const cycleTextEndX = (lf.x + SECTION_LABEL_PAD_X) + cycleText.getComputedTextLength();
+        // clamped at 100 — the problem callout (below) sits at the right end of this same
+        // row and must stay inside the loop box's right edge (lf.x+lf.w=1434); its rect
+        // currently ends at x1320, so 100 is the most it can shift without crowding that
+        // border, regardless of how long the tagline turns out to be.
+        const rowShift = Math.min(100, Math.max(0, (cycleTextEndX + 40) - 300));
         // the organizing axis for this whole band is HUMAN-INITIATED → SELF-INITIATED
         // (not "guided vs autonomous" — the inner agent/orchestration loops are already
         // autonomous within a run). Left to right: the human moves OUTSIDE the loop to
@@ -1053,22 +1202,37 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             roleParts.slice(0, -1).join(", ") + ",",  // "sets policy, reviews,"
             roleParts[roleParts.length - 1],          // "gets alerted"
         ];
+        const supCx = 300 + rowShift, supTextX = 325 + rowShift;
+        const supText = svgLines(supTextX, ROW_Y, supLines, "loops-cap", 14, "start");
         put(gl, "loop",
-            personGlyph(300, ROW_Y, cll, ""),
-            s("line", { x1: 300, y1: ROW_Y + 29, x2: 300, y2: 14, class: "loops-supervise-line" }),
-            svgLines(325, ROW_Y, supLines, "loops-cap", 14, "start"));
+            personGlyph(supCx, ROW_Y, cll, ""),
+            s("line", { x1: supCx, y1: ROW_Y + 29, x2: supCx, y2: 14, class: "loops-supervise-line" }),
+            supText);
         // entry point — the autonomous trigger that starts a run WITHOUT a human. Sits
         // close to and right of the supervisor (the two are read together: who used to
         // initiate vs what initiates now), not stranded alone at the far top-right corner
         // with a long isolated drop to harness — that read as an arrow to nowhere. The
         // clock→harness edge is a short, direct arrival on harness's own top edge (a real
         // arrival, not a line that merely points near the box).
-        const clockCx = 580, clockCy = ROW_Y, clockR = 15;
+        const clockCx = 580 + rowShift, clockCy = ROW_Y, clockR = 15;
         const [trigLine1, trigLine2] = (dg.schedulerLabel || "a trigger starts the run: no human turn").split(": ");
+        // supervisor → trigger hint arrow's start x: measured off the supervisor's actual
+        // rendered first line (not a hand-guessed pixel width) — two guesses in a row landed
+        // short and drove the arrow straight through "loop:". getComputedTextLength() is
+        // exact regardless of font metrics or copy length; supText is already attached to
+        // the live SVG by this point (rootEl.replaceChildren(lab) runs before buildAll()).
+        // hintEndX is pulled back 8px off the clock's true edge — arriving flush against the
+        // circle read as the arrowhead merging into it with no breathing room.
+        const hintEndX = clockCx - clockR - 8;
+        const supLine1Len = supText.querySelector("tspan")?.getComputedTextLength() || 0;
+        const hintStartX = Math.min(supTextX + supLine1Len + 12, hintEndX - 10); // +12 clearance past the text; never shorter than a 10px stub
         put(gl, "loop",
             clockGlyph(clockCx, clockCy, cll, ""),
             svgLines(clockCx + 25, clockCy, [trigLine1 + ":", trigLine2], "loops-cap", 16, "start"),
-            connector(clockCx, clockCy + clockR, clockCx, 14, ""));  // clock's bottom → harness's top edge: the "fires the run" edge — short and direct
+            connector(clockCx, clockCy + clockR, clockCx, 14, ""),  // clock's bottom → harness's top edge: the "fires the run" edge — short and direct
+            // supervisor → trigger: a "reading order" hint (one-time setup, then the
+            // recurring trigger) — solid, matching every other connector in this diagram.
+            connector(hintStartX, ROW_Y, hintEndX, ROW_Y, "loops-order-hint"));
         // the problem this layer removes — same visual grammar as every inner layer's own
         // failure annotation (red ✗, prompt's "not what you wanted" / context's "goal
         // drifts"), framed in the loop accent so it reads as THIS layer's gap, not a stray
@@ -1076,25 +1240,28 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // three pieces, so the whole band reads as one aligned row. Placed right after the
         // trigger's label so problem and fix still read left-to-right adjacent.
         const [probLine1, probLine2] = (dg.loopProblem || "harness alone: idle until a human prompts, · cold-starts every run").split(" · ");
-        const probText = s("text", { x: 890, y: ROW_Y, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        const probBoxX = 880 + rowShift;
+        const probText = s("text", { x: probBoxX + 10, y: ROW_Y, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
         probText.append(s("tspan", { class: "loops-retry-x" }, "✗  "), probLine1);
         put(gl, "loop",
-            s("rect", { x: 880, y: ROW_Y - 14, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
+            s("rect", { x: probBoxX, y: ROW_Y - 14, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
             probText,
-            s("text", { x: 890, y: ROW_Y + 18, "text-anchor": "start", class: "loops-cap" }, probLine2));
+            s("text", { x: probBoxX + 10, y: ROW_Y + 18, "text-anchor": "start", class: "loops-cap" }, probLine2));
         // self-improvement band — bottom of the outer margin, recoloured to the loop
         // accent (was green, which read as a stray context/teal element; now the same
         // blue as the frame and the loop-back arrow below). Each pill carries a one-word
         // role tying it back to "self-triggered, self-verifying, self-improving" in the
         // subtitle above — these are WHY the loop never terminates, not a flat feature list.
-        put(gl, "loop", s("text", { x: 470, y: 930, "text-anchor": "start", class: "loops-cap loops-cap-strong" }, (dg.growsLabel || "it grows itself") + ":"));
+        // Whole row shifted up 56px (930→874 etc.) to follow harness's own bottom edge,
+        // which moved up by the same amount when its dead bottom space was trimmed.
+        put(gl, "loop", s("text", { x: 470, y: 874, "text-anchor": "start", class: "loops-cap loops-cap-strong" }, (dg.growsLabel || "it grows itself") + ":"));
         const chips = (layers.find(l => l.id === "loop")?.chips) || [];
         let cxp = 470;
         chips.forEach(chip => {
             const { label, role } = chip, w = Math.max(120, label.length * 7.6 + 24), gg = s("g", {});
-            gg.append(s("rect", { x: cxp, y: 946, width: w, height: 28, rx: 14, fill: "none", stroke: cll, class: "loops-chip-rect" }));
-            gg.append(s("text", { x: cxp + w / 2, y: 965, "text-anchor": "middle", class: "loops-chip-svg-label" }, label));
-            if (role) gg.append(s("text", { x: cxp + w / 2, y: 988, "text-anchor": "middle", class: "loops-loop-subrole" }, role));
+            gg.append(s("rect", { x: cxp, y: 890, width: w, height: 28, rx: 14, fill: "none", stroke: cll, class: "loops-chip-rect" }));
+            gg.append(s("text", { x: cxp + w / 2, y: 909, "text-anchor": "middle", class: "loops-chip-svg-label" }, label));
+            if (role) gg.append(s("text", { x: cxp + w / 2, y: 932, "text-anchor": "middle", class: "loops-loop-subrole" }, role));
             put(gl, "loop", gg); cxp += w + 14;
         });
         return { groups, steps, anims, demarcation };
@@ -1155,6 +1322,20 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { play(); io.disconnect(); } }), { threshold: 0.3 });
             io.observe(sec); observers.push(io);
         } else { play(); }
+        // hidden (not just faded — display:none, so it takes no layout space and the
+        // IntersectionObserver above can't fire early) until the loop layer's own
+        // animation completes; _reveal() is called from revealDemarcation("loop", ...).
+        // display:none also means a curious scroller who reaches the bottom before
+        // finishing the diagram sees the closing line right after Prev/Next controls,
+        // not a mysterious empty gap where the chart will eventually appear.
+        sec.style.display = "none";
+        let revealed = false;
+        sec._reveal = () => {
+            if (revealed) return; revealed = true;
+            sec.style.display = "";
+            const g = gsap();
+            if (g && !REDUCE_MOTION) g.fromTo(sec, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" });
+        };
         return sec;
     }
 

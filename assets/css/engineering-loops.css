@@ -69,7 +69,9 @@
 }
 .loops-sub {
     margin: var(--space-3) 0 0;
-    max-width: 74ch;
+    /* wide enough to keep the shortened intro.sub copy on one line at the page's normal
+       content width (--max-w: 1200px); still wraps gracefully on narrow viewports */
+    max-width: 100ch;
     color: var(--ink-muted);
     font-size: var(--text-base);
     line-height: 1.55;
@@ -79,7 +81,9 @@
 
 .loops-stagewrap {
     position: relative;
-    background: var(--bg-card);
+    /* pure black, same as the Expand overlay — --bg-card (a lighter charcoal) gave the
+       inline diagram a slight "glaze" next to the fullscreen view's cleaner true black */
+    background: var(--bg);
     border: 1px solid var(--border-strong);
     border-radius: 16px;
     padding: var(--space-5);
@@ -122,17 +126,55 @@
     background: var(--bg); /* fully opaque — a translucent backdrop here let the page's
         header/chart/controls bleed through faintly behind the expanded diagram */
 }
+.loops-stagewrap.is-max {
+    touch-action: none; /* pointer events below own pinch/pan — don't let the browser's
+        native touch scroll/zoom fight with it */
+}
 .loops-stagewrap.is-max .loops-svg {
     width: auto;
     height: auto;
     max-width: 96vw;
     max-height: 90vh;
+    transform-origin: center center;
+    transition: transform 0.15s ease; /* smooths wheel/button zoom steps; skipped for
+        active dragging below so panning tracks the pointer with no lag */
 }
 .loops-stagewrap.is-max .loops-max {
     top: var(--space-5);
     right: var(--space-5);
     z-index: 210;
 }
+.loops-stagewrap.is-max.is-zoomed .loops-svg { cursor: grab; }
+.loops-stagewrap.is-max.is-dragging .loops-svg { cursor: grabbing; transition: none; }
+
+/* zoom controls — only meaningful inside the Expand overlay; wheel/pinch alone is easy
+   to miss, so this is the discoverable/keyboard-reachable equivalent */
+.loops-zoom-controls {
+    display: none;
+    position: absolute;
+    bottom: var(--space-5);
+    right: var(--space-5);
+    z-index: 210;
+    gap: var(--space-2);
+}
+.loops-stagewrap.is-max .loops-zoom-controls { display: flex; }
+.loops-zoom-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    cursor: pointer;
+    transition: border-color var(--dur-fast, 0.15s) var(--ease-out, ease), color var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ─── per-layer scenes ───────────────────────────────────────────────────────── */
 
@@ -156,16 +198,16 @@
 /* trigger/guard on an edge (e.g. "full / rotting? → compact") — same colour family as the
    verb it gates (loops-harness purple), just dimmed + smaller, so it reads as belonging to
    that edge rather than a disconnected grey note. ink-muted/ink-subtle read as ghosted here. */
-.loops-harness-guard { fill: var(--loops-harness); opacity: 0.72; font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
+.loops-harness-guard { fill: var(--loops-harness); opacity: 0.9; font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; letter-spacing: 0.01em; }
 /* muted caption on or beside an edge/node (e.g. "persists across runs", "becomes the next
    window") — lighter than the base ink-muted so it survives lossy re-compression */
-.loops-harness-caption { fill: var(--loops-caption-light); font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
-/* the loop discipline's own subtitle — its operating cadence, directly under its name.
-   ink at reduced opacity (not the default ink-muted from .loops-cap) — legible on its
-   own read, still secondary to the bold uppercase discipline title above it */
-.loops-loop-tagline { font-size: 13px; fill: var(--ink); opacity: 0.72; }
-/* disambiguation caption inside the loop band — muted but legible, not ghosted */
-.loops-loop-note { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em; }
+.loops-harness-caption { fill: var(--loops-caption-light); font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; letter-spacing: 0.01em; }
+/* every discipline's own subtitle — its operating cadence, directly under its name. fill is
+   left unset here so each usage's inline `fill` attribute (that layer's own accent color)
+   applies, rather than a single shared color; opacity keeps it secondary to the bold
+   uppercase discipline title above it. Shared by all four layers (prompt/context/harness/
+   loop) so none of them can drift out of sync with the others' size/spacing/format. */
+.loops-layer-tagline { font-family: var(--font-mono); font-size: 13px; font-weight: 400; opacity: 0.72; }
 /* supervisor's tether to harness — thin + dashed + no arrowhead, reading as watching,
    not driving (contrast with the trigger's solid connector, which does drive a run) */
 .loops-supervise-line { stroke: var(--ink-subtle); stroke-width: 1.2; stroke-dasharray: 3 4; fill: none; }
@@ -190,11 +232,6 @@
     stroke-linecap: round;
     stroke-linejoin: miter; /* sharp right-angle bends — these are orthogonal connectors, not curves */
 }
-/* the compaction loop's return leg (fresh context → context window) — dashed so the
-   closed cycle reads as a "becomes the next window" hand-off, not a fourth solid arrow.
-   :first-child scopes the dash to the main line only, leaving its arrowhead solid. */
-.loops-return-dash .loops-conn-line:first-child { stroke-dasharray: 6 5; }
-
 /* the LLM panel (Claude + Gemini) */
 .loops-llm-rect { stroke-width: 2.4; fill: none; transition: filter var(--dur-fast, 0.15s) var(--ease-out, ease); }
 .loops-llm.is-lit .loops-llm-rect { filter: drop-shadow(0 0 9px var(--accent-glow)); }
@@ -216,7 +253,7 @@
 /* context: the window, its fill, docs, drift */
 .loops-ctx-win { stroke-width: 2.2; fill: none; }
 .loops-ctx-fill { fill: rgba(199, 166, 255, 0.14); }
-.loops-ctx-full { fill: var(--danger); font-family: var(--font-mono); font-weight: 700; font-size: 22px; letter-spacing: 0.04em; }
+.loops-ctx-full { fill: var(--danger); font-family: var(--font-mono); font-weight: 700; font-size: 18px; letter-spacing: 0.04em; }
 .loops-doc { stroke-width: 1.8; }
 .loops-doc.is-result { stroke: var(--loops-result); }
 .loops-doc-label { fill: var(--ink-subtle); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; }
@@ -225,7 +262,9 @@
 
 /* the "loop" keyword — always the loop-blue so it stands out wherever it appears, plus a
    persistent soft glow (same drop-shadow technique .loops-llm.is-lit uses, just always-on
-   rather than class-toggled, since this word is meant to read as "lit" everywhere) */
+   rather than class-toggled, since this word is meant to read as "lit" everywhere). The
+   word BEFORE it ("prompt"/"agent"/"orchestration") is handled separately at each call
+   site — white, so it reads clearly against its own layer's accent instead of blending in. */
 .loops-kw { fill: var(--loops-loop); font-weight: 700; filter: drop-shadow(0 0 3px var(--loops-loop-glow)); }
 .loops-agentloop { fill: var(--ink); }
 
@@ -249,10 +288,9 @@
     opacity: 0.9;
 }
 
-/* context: the summarize + drift steps, made prominent */
+/* context: the summarize step, made prominent */
 .loops-ctx-step { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; }
 .loops-ctx-summ { fill: var(--loops-prompt); }
-.loops-ctx-drift { fill: var(--danger); }
 
 /* harness + loop scenes */
 .loops-taskbar { stroke-width: 1.8; fill: none; }
@@ -387,4 +425,6 @@
 
 @media (prefers-reduced-motion: reduce) {
     .loops-btn, .loops-dot-btn, .loops-llm-rect { transition: none; }
+    .loops-stagewrap.is-max .loops-svg { transition: none; } /* zoom/pan itself is an interaction,
+        not decorative motion, so it stays available — only the smoothing tween is dropped */
 }
