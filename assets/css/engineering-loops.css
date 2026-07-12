@@ -9,6 +9,8 @@
         need more contrast than the base accent gives them to survive lossy re-compression (e.g. LinkedIn) */
     --loops-caption-light: #a3a3a3; /* lighter than --ink-muted, same reason, for gray (non-accent) captions */
     --loops-loop:    #4F9CFF; /* blue — distinct from prompt/context/harness; old green sat too close to context's teal */
+    --loops-loop-glow: rgba(79, 156, 255, 0.45); /* toned-down, ALWAYS-ON version of the loop accent —
+        unlike GLOW.loop (a travelDot's transient drop-shadow), this one never turns off */
     --loops-result:  #F59E0B; /* "tool result" docs — accumulation/rot warning, not failure red */
 }
 
@@ -221,9 +223,18 @@
 .loops-ctx-dash { stroke: var(--ink-subtle); stroke-width: 1.6; stroke-dasharray: 7 7; }
 .loops-ctx-cap { fill: var(--ink-subtle); }
 
-/* the "loop" keyword — always the loop-green so it stands out wherever it appears */
-.loops-kw { fill: var(--loops-loop); font-weight: 700; }
+/* the "loop" keyword — always the loop-blue so it stands out wherever it appears, plus a
+   persistent soft glow (same drop-shadow technique .loops-llm.is-lit uses, just always-on
+   rather than class-toggled, since this word is meant to read as "lit" everywhere) */
+.loops-kw { fill: var(--loops-loop); font-weight: 700; filter: drop-shadow(0 0 3px var(--loops-loop-glow)); }
 .loops-agentloop { fill: var(--ink); }
+
+/* the standalone "↻" glyph + its ping rings — see loopGlyph() in engineering-loops.js.
+   transform-box/-origin set defensively; GSAP computes SVG transform-origin off getBBox()
+   internally and doesn't strictly require this, but it costs nothing to be explicit. */
+.loops-loop-glyph-wrap { pointer-events: none; }
+.loops-loop-glyph { transform-box: fill-box; transform-origin: center; }
+.loops-loop-ring { fill: none; stroke-width: 1.4; opacity: 0; transform-box: fill-box; transform-origin: center; }
 
 /* discipline boundaries: soft, solid-edged highlighted regions that name each
    territory — a dim colour wash (inline fill) inside a dim solid border, so

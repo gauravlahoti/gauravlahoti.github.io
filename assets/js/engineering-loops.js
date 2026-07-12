@@ -193,6 +193,60 @@ function targetGlyph(cx, cy, color, cls) {
     );
 }
 
+// A self-contained "↻" glyph for the three "loop" labels (prompt/agent/orchestration).
+// Renders "↻" as its OWN <text> sibling — not a <tspan> nested in the bigger label —
+// because <tspan> doesn't reliably support transforms across engines (Firefox in
+// particular); a standalone <text> is universally transformable, same as every other
+// glyph in this file (clockGlyph/personGlyph/targetGlyph are never inline embellishments).
+// Also draws two small staggered "ping" rings around it, colored to that label's own
+// layer accent — reinforces both "this repeats" and "draws the eye" without borrowing
+// the loop layer's own blue, which is reserved for that layer specifically.
+//
+// Both effects are self-contained, infinite GSAP tweens started ONCE here and never
+// touched again — deliberately NOT nested inside any layer's own anims.<id> timeline.
+// Every anims.<id> timeline is already repeat:-1 itself, and an infinite child tween
+// living inside an infinite parent gets reset every time the PARENT wraps back to its
+// own start (GSAP re-syncs child tween position to the parent's playhead on repeat) —
+// that would make the glyph visibly snap/jump once per layer cycle. Living outside
+// that lifecycle entirely (independent of startLayerAnim/stopLayerAnim/playAdditive)
+// avoids that, at the cost of the tweens ticking even while hidden behind a parent
+// step group's opacity:0 — cheap, and no different from how travelDot already runs
+// happily under REDUCE_MOTION/no-gsap guards.
+//
+// Always start-anchored internally (regardless of how the caller's own trailing label
+// text is anchored) so callers can reason about a single fixed advance — see
+// LOOP_GLYPH_ADVANCE below — instead of the anchor-dependent math that caused the
+// glyph and label to overlap when both were centre-anchored near each other. The ring
+// is centred on the glyph's approximate visual midpoint (x + fontSize*0.32), not on
+// the raw start-anchor x itself, so it hugs the character instead of sitting shifted
+// to its left.
+//
+// Tweens are stashed on the returned node (`g._tweens`) so destroy() can kill them —
+// the one piece of new animation lifecycle this feature introduces that isn't already
+// covered by stopLayerAnim/activeAnims.
+const LOOP_GLYPH_ADVANCE = 20; // x-distance from a loopGlyph's start x to where the caller's trailing label text should begin
+function loopGlyph(x, y, { fontSize = 15, cls = "", ringColor } = {}) {
+    const g = s("g", { class: "loops-loop-glyph-wrap" });
+    const ringCx = x + fontSize * 0.32;
+    const ring1 = s("circle", { cx: ringCx, cy: y - fontSize * 0.32, r: fontSize * 0.5, class: "loops-loop-ring" });
+    const ring2 = ring1.cloneNode(true);
+    if (ringColor) { ring1.style.stroke = ringColor; ring2.style.stroke = ringColor; }
+    const glyph = s("text", { x, y, "text-anchor": "start", class: `loops-loop-glyph ${cls}`, "font-size": fontSize }, "↻");
+    g.append(ring1, ring2, glyph);
+    g._tweens = [];
+    const gsp = gsap();
+    if (!gsp || REDUCE_MOTION) return g; // static: rings never appear, glyph sits still — same no-motion contract as travelDot/drawOn
+    g._tweens.push(gsp.to(glyph, {
+        rotation: "+=360", duration: 3.4, ease: "none", repeat: -1, transformOrigin: "50% 50%",
+    }));
+    [ring1, ring2].forEach((ring, i) => {
+        g._tweens.push(gsp.fromTo(ring,
+            { scale: 0.6, opacity: 0.5, transformOrigin: "center center" },
+            { scale: 1.6, opacity: 0, duration: 2.2, ease: "power1.out", repeat: -1, delay: i * 1.1, repeatDelay: 0.3 }));
+    });
+    return g;
+}
+
 // An official brand mark loaded from a same-origin SVG (Claude, Gemini).
 function brandLogo(href, x, y, size, cls) {
     const im = s("image", { x, y, width: size, height: size, class: `loops-brand ${cls || ""}`, preserveAspectRatio: "xMidYMid meet" });
@@ -591,7 +645,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const arc = s("g", { class: "loops-hand-loop", stroke: cp, fill: "none" });
         arc.append(s("path", { d: `M 238 ${yBot - 4} C 186 ${yBot - 6}, 186 ${yTop + 6}, 236 ${yTop + 4}` }));
         arc.append(s("path", { d: `M 236 ${yTop + 4} l 9 -2 M 236 ${yTop + 4} l -3 -8` }));
-        put(gp, "prompt", arc, s("text", { x: 210, y: yTop - 16, "text-anchor": "middle", class: "loops-cap" }, "↻ prompt ", s("tspan", { class: "loops-kw" }, "loop")));
+        put(gp, "prompt",
+            arc,
+            loopGlyph(150, yTop - 16, { cls: "loops-cap", ringColor: GLOW.prompt }),
+            s("text", { x: 150 + LOOP_GLYPH_ADVANCE, y: yTop - 16, "text-anchor": "start", class: "loops-cap" }, "prompt ", s("tspan", { class: "loops-kw" }, "loop")));
         // DEMARCATION — prompt engineering encloses the human loop AND the Model (the
         // discipline reaches as far as the Model it's steering), with real breathing
         // room between the box border and its content on every side.
@@ -646,9 +703,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // "context loop" names the whole pattern (gather → fill → summarize → drift → reset),
         // so it only appears once the tool-gather and summarize steps have already played —
         // revealed by the animation timeline below, not the static step reveal.
-        const loopLabel = s("text", { x: 760, y: 300, "text-anchor": "middle", class: "loops-cap loops-cap-strong loops-agentloop" }, "↻ agent ", s("tspan", { class: "loops-kw" }, "loop"));
+        const loopLabelGlyph = loopGlyph(704, 300, { cls: "loops-cap loops-cap-strong loops-agentloop", ringColor: GLOW.context });
+        loopLabelGlyph.style.opacity = REDUCE_MOTION ? "1" : "0";
+        const loopLabel = s("text", { x: 704 + LOOP_GLYPH_ADVANCE, y: 300, "text-anchor": "start", class: "loops-cap loops-cap-strong loops-agentloop" }, "agent ", s("tspan", { class: "loops-kw" }, "loop"));
         loopLabel.style.opacity = REDUCE_MOTION ? "1" : "0";
-        gc.append(loopLabel);
+        gc.append(loopLabelGlyph, loopLabel);
         // "summarize"/"drift" sit to the LEFT of the window instead — the right side is
         // where the tools→window arrow, the compaction loop's write/rehydrate legs, and
         // "tools + resources" all converge, so text there just adds to the clutter. The
@@ -734,6 +793,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
                 if (!loopLabelShown) {
                     loopLabelShown = true;
                     g.fromTo(loopLabel, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)" });
+                    g.fromTo(loopLabelGlyph, { opacity: 0, scale: 0.6, transformOrigin: "left center" }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)" });
                 }
                 revealDemarcation("context", true);
             });
@@ -899,7 +959,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // again" (x238–560 at y452/480). Pushed below the teal box's own bottom (536), so
         // it sits in the harness's own purple territory instead of crowding the yellow
         // PROMPT ENGINEERING border.
-        put(gh, "harness", s("text", { x: M.cx + 12, y: rowLabelY - 60, "text-anchor": "start", class: "loops-harness-cap" }, "↻ orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
+        put(gh, "harness",
+            loopGlyph(M.cx + 12, rowLabelY - 60, { cls: "loops-harness-cap", ringColor: GLOW.harness }),
+            // tighter advance than LOOP_GLYPH_ADVANCE (14 vs 20) — the default gap read as
+            // too wide once seen rendered next to "orchestration loop"
+            s("text", { x: M.cx + 12 + 14, y: rowLabelY - 60, "text-anchor": "start", class: "loops-harness-cap" }, "orchestration ", s("tspan", { class: "loops-kw" }, "loop")));
 
         // DEMARCATION — harness engineering is the outermost discipline: it wraps context
         // engineering (and everything nested inside it) entirely, with generous padding.
@@ -971,6 +1035,13 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // supervise, the problem this layer solves, then the trigger that replaces the
         // human as initiator.
 
+        // ROW_Y anchors all four top-band pieces (discipline title, supervisor, trigger,
+        // problem callout) on the SAME horizontal line — matches the title's own baseline
+        // (lf.y+28) exactly, so the row reads as one aligned line instead of each piece
+        // sitting at its own ad-hoc height. Icons are vertically CENTRED on it; each
+        // block's own first text line SITS on it (same convention the title itself uses).
+        const ROW_Y = lf.y + 28;
+
         // supervisor — a small, simple glyph (not the full stick figure PROMPT ENGINEERING
         // uses for the human IN the loop) sitting outside harness in the top band, tethered
         // by a thin DASHED line with no arrowhead — reads as watching, not driving. This is
@@ -983,16 +1054,16 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             roleParts[roleParts.length - 1],          // "gets alerted"
         ];
         put(gl, "loop",
-            personGlyph(300, -46, cll, ""),
-            s("line", { x1: 300, y1: -15, x2: 300, y2: 14, class: "loops-supervise-line" }),
-            svgLines(325, -58, supLines, "loops-cap", 14, "start"));
+            personGlyph(300, ROW_Y, cll, ""),
+            s("line", { x1: 300, y1: ROW_Y + 29, x2: 300, y2: 14, class: "loops-supervise-line" }),
+            svgLines(325, ROW_Y, supLines, "loops-cap", 14, "start"));
         // entry point — the autonomous trigger that starts a run WITHOUT a human. Sits
         // close to and right of the supervisor (the two are read together: who used to
         // initiate vs what initiates now), not stranded alone at the far top-right corner
         // with a long isolated drop to harness — that read as an arrow to nowhere. The
         // clock→harness edge is a short, direct arrival on harness's own top edge (a real
         // arrival, not a line that merely points near the box).
-        const clockCx = 580, clockCy = -40, clockR = 15;
+        const clockCx = 580, clockCy = ROW_Y, clockR = 15;
         const [trigLine1, trigLine2] = (dg.schedulerLabel || "a trigger starts the run: no human turn").split(": ");
         put(gl, "loop",
             clockGlyph(clockCx, clockCy, cll, ""),
@@ -1001,17 +1072,16 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // the problem this layer removes — same visual grammar as every inner layer's own
         // failure annotation (red ✗, prompt's "not what you wanted" / context's "goal
         // drifts"), framed in the loop accent so it reads as THIS layer's gap, not a stray
-        // note floating in the shared margin. Sits in the SAME top row as the discipline
-        // title / supervisor / trigger (all roughly y-56 to y-36) rather than dropped down
-        // to harness's own border — that read as a different row entirely. Placed right
-        // after the trigger's label so problem and fix still read left-to-right adjacent.
+        // note floating in the shared margin. First line sits on ROW_Y, same as the other
+        // three pieces, so the whole band reads as one aligned row. Placed right after the
+        // trigger's label so problem and fix still read left-to-right adjacent.
         const [probLine1, probLine2] = (dg.loopProblem || "harness alone: idle until a human prompts, · cold-starts every run").split(" · ");
-        const probText = s("text", { x: 890, y: -36, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        const probText = s("text", { x: 890, y: ROW_Y, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
         probText.append(s("tspan", { class: "loops-retry-x" }, "✗  "), probLine1);
         put(gl, "loop",
-            s("rect", { x: 880, y: -50, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
+            s("rect", { x: 880, y: ROW_Y - 14, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
             probText,
-            s("text", { x: 890, y: -18, "text-anchor": "start", class: "loops-cap" }, probLine2));
+            s("text", { x: 890, y: ROW_Y + 18, "text-anchor": "start", class: "loops-cap" }, probLine2));
         // self-improvement band — bottom of the outer margin, recoloured to the loop
         // accent (was green, which read as a stray context/teal element; now the same
         // blue as the frame and the loop-back arrow below). Each pill carries a one-word
@@ -1141,6 +1211,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             stopTour();
             clearAnim();
             LAYER_ORDER.forEach(stopLayerAnim);
+            // loopGlyph()'s rotation/ping tweens live outside activeAnims (deliberately —
+            // see its own comment), so they're the one bit of decorative motion this file
+            // doesn't already tear down above; kill them explicitly here.
+            svg.querySelectorAll(".loops-loop-glyph-wrap").forEach(n => n._tweens?.forEach(t => t.kill()));
             svg.querySelectorAll(".loops-dot").forEach(d => d.remove());
             document.body.style.overflow = "";
             observers.forEach(io => { try { io.disconnect(); } catch {} });
