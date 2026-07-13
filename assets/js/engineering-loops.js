@@ -393,6 +393,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         maxBtn.querySelector(".loops-max-glyph").textContent = on ? "✕" : "⤢";
         maxBtn.setAttribute("aria-label", on ? (ui.close || "Close") : (ui.expand || "Expand diagram"));
         resetZoom(); // fresh 1x every time the overlay opens or closes
+        // Show the mobile HUD only while fullscreen on narrow viewports
+        if (mobileHud) mobileHud.style.display =
+            on && matchMedia("(max-width: 768px)").matches ? "flex" : "none";
     }
     maxBtn.addEventListener("click", () => toggleMax());
 
@@ -507,6 +510,25 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     });
     const controls = el("div", { class: "loops-controls" }, prevBtn, dots, nextBtn, pauseBtn, tourBtn);
 
+    // Mobile HUD — positioned at the bottom of the fullscreen overlay on narrow viewports.
+    // JS toggles display:flex when is-max is active on ≤768px; hidden at all other times.
+    const hudText = el("p", { class: "loops-hud-text", "aria-live": "polite" });
+    const hudPrevBtn = el("button", { class: "loops-hud-btn loops-hud-prev", type: "button", "aria-label": ui.prev || "Previous" }, "‹");
+    const hudNextBtn = el("button", { class: "loops-hud-btn loops-hud-next", type: "button", "aria-label": ui.next || "Next" }, "›");
+    const hudDotEls = layers.map((l, i) => {
+        const d = el("button", { class: "loops-dot-btn", type: "button", role: "tab", "aria-label": l.title });
+        d.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(i); });
+        return d;
+    });
+    const hudDotsWrap = el("div", { class: "loops-hud-dots loops-dots", role: "tablist", "aria-label": "Layers" });
+    hudDotEls.forEach(d => hudDotsWrap.append(d));
+    hudPrevBtn.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(focus - 1); });
+    hudNextBtn.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(focus + 1); });
+    const mobileHud = el("div", { class: "loops-mobile-hud" },
+        hudText,
+        el("div", { class: "loops-hud-nav" }, hudPrevBtn, hudDotsWrap, hudNextBtn));
+    stageWrap.append(mobileHud);
+
     const observers = [];
     const chartSection = content.chart ? buildChart(content.chart) : null;
     const closing = content.closing && el("p", { class: "loops-closing", text: content.closing });
@@ -538,6 +560,18 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         import(_p).then(({ createNarration }) => {
             narration = createNarration({ content, ui });
             narration.mount(controls);
+            // Mirror the running subtitle into the mobile HUD via MutationObserver so the
+            // HUD text stays in sync without the narration module needing to know about it.
+            // mount() inserts narrPanel as the element immediately before controls in the DOM.
+            const np = controls.previousElementSibling;
+            if (np?.classList.contains("loops-narr")) {
+                const nc = np.querySelector(".loops-narr-cur");
+                if (nc) {
+                    const obs = new MutationObserver(() => { hudText.textContent = nc.textContent; });
+                    obs.observe(nc, { childList: true, characterData: true, subtree: true });
+                    observers.push(obs); // cleaned up in destroy() via .disconnect()
+                }
+            }
         }).catch(err => console.warn("[engineering-loops] narration load failed", err));
     }
 
@@ -733,6 +767,14 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             d.setAttribute("aria-selected", k === focus ? "true" : "false");
         });
         nextBtn.textContent = focus === layers.length - 1 ? `↺ ${ui.restart || "Restart"}` : `${ui.next || "Next"} ›`;
+        // Sync mobile HUD dots and next-button label
+        hudDotEls.forEach((d, k) => {
+            d.classList.toggle("is-active", k === focus);
+            d.setAttribute("aria-selected", k === focus ? "true" : "false");
+        });
+        hudNextBtn.textContent = focus === layers.length - 1 ? "↺" : "›";
+        hudNextBtn.setAttribute("aria-label",
+            focus === layers.length - 1 ? (ui.restart || "Restart") : (ui.next || "Next"));
         clearAnim();
         resetZoom(); // a stale pan/zoom offset from the previous layer's geometry would look wrong once the viewBox below changes
         scene.setAttribute("class", `loops-scene loops-scene-${layer.id}`);
@@ -1499,7 +1541,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // call stack). Until then the first layer is caption-only. Mirrors MCP Lab's
         // onFirstGesture.
         lab.addEventListener("pointerdown", onFirstGesture);
-        whenGsap(() => focusLayer(si));
+        whenGsap(() => {
+            focusLayer(si);
+            if (matchMedia("(max-width: 768px)").matches) toggleMax(true);
+        });
     } else {
         // default landing: hold on a plain black stage (sized to the prompt scene's
         // aspect ratio) behind a Begin button instead of animating the instant the page
@@ -1518,7 +1563,10 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             started = true;
             beginOverlay.remove();
             controls.style.visibility = "";
-            whenGsap(() => focusLayer(0));
+            whenGsap(() => {
+                focusLayer(0);
+                if (matchMedia("(max-width: 768px)").matches) toggleMax(true);
+            });
         }, { once: true });
     }
 

@@ -591,18 +591,137 @@
 /* ─── responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-    #loops-main { padding: calc(var(--nav-h) + var(--space-6)) var(--space-4) var(--space-12); }
-    .loops-stagewrap { padding: var(--space-3); }
+    #loops-main {
+        padding: calc(var(--nav-h) + var(--space-4)) var(--space-4) var(--space-10);
+    }
+    .loops-header { margin-bottom: var(--space-4); }
+    .loops-h1     { font-size: clamp(1.4rem, 6vw, 1.8rem); }
+    .loops-sub    { font-size: var(--text-sm); }
+    .loops-stagewrap { padding: var(--space-2); }
+
+    /* Touch targets */
+    .loops-btn     { padding: var(--space-2) var(--space-3); min-height: 44px; }
+    .loops-dot-btn { width: 18px; height: 18px; }
+    .loops-max     { width: 48px; height: 48px; }
+    .loops-max-glyph { font-size: var(--text-xl); }
+
+    /* Narration: larger + left-aligned for easier reading */
     .loops-controls { gap: var(--space-2); }
-    .loops-btn { padding: var(--space-2) var(--space-3); }
-    .loops-narr { padding: var(--space-2) var(--space-3); }
+    .loops-narr { padding: var(--space-3) var(--space-4); }
     .loops-narr-line { font-size: var(--text-xs); }
-    .loops-narr-cur { font-size: var(--text-xs); min-height: 3.2em; }
+    .loops-narr-cur {
+        font-size: var(--text-sm);
+        min-height: 3.6em;
+        text-align: left;
+        justify-content: flex-start;
+    }
+    .loops-chart-title { font-size: clamp(1.2rem, 5vw, 1.6rem); }
+}
+
+/* ─── mobile fullscreen + HUD (≤ 768px) ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    /* In fullscreen: pin SVG to top, leave the HUD room at the bottom */
+    .loops-stagewrap.is-max {
+        align-items: flex-start;
+        padding: 60px var(--space-3) 0;
+        overflow: hidden;
+    }
+    .loops-stagewrap.is-max .loops-svg {
+        max-height: calc(100vh - 60px - 170px);
+        max-width: calc(100vw - var(--space-6));
+    }
+    .loops-stagewrap.is-max .loops-max {
+        top: var(--space-3);
+        right: var(--space-3);
+    }
+    .loops-stagewrap.is-max .loops-zoom-controls {
+        bottom: 175px;
+        right: var(--space-3);
+    }
+}
+
+/* Mobile HUD — nav + narration inside the fullscreen overlay.
+   JS sets display:flex on narrow viewports when is-max is active. */
+.loops-mobile-hud {
+    display: none;
+    flex-direction: column;
+    gap: var(--space-2);
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 212;
+    padding: var(--space-3) var(--space-4)
+             calc(var(--space-4) + env(safe-area-inset-bottom));
+    background: rgba(0, 0, 0, 0.90);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-strong);
+}
+
+.loops-hud-text {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    line-height: 1.5;
+    min-height: 2.8em;
+    text-align: center;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loops-hud-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+}
+
+.loops-hud-btn {
+    font-family: var(--font-mono);
+    font-size: var(--text-xl);
+    color: var(--ink);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color var(--dur-fast, 0.15s) var(--ease-out, ease),
+                color var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-hud-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Landscape: side-by-side layout saves vertical space */
+@media (max-width: 768px) and (orientation: landscape) {
+    .loops-mobile-hud {
+        flex-direction: row;
+        align-items: center;
+        padding: var(--space-2) var(--space-4);
+    }
+    .loops-hud-text {
+        flex: 1;
+        text-align: left;
+        font-size: var(--text-xs);
+        min-height: 0;
+    }
+    .loops-hud-nav { flex-shrink: 0; }
+    .loops-stagewrap.is-max .loops-svg {
+        max-height: calc(100vh - 60px - 100px);
+    }
+    .loops-stagewrap.is-max .loops-zoom-controls { bottom: 110px; }
 }
 
 /* ─── reduced motion ─────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
+    .loops-mobile-hud { backdrop-filter: none; -webkit-backdrop-filter: none; }
     .loops-btn, .loops-dot-btn, .loops-llm-rect { transition: none; }
     .loops-stagewrap.is-max .loops-svg { transition: none; } /* zoom/pan itself is an interaction,
         not decorative motion, so it stays available — only the smoothing tween is dropped */
