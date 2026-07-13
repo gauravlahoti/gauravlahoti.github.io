@@ -1351,10 +1351,16 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const gateCx = 1150, gateCy = 900, gateW = 240, gateH = 40;
         const gateL = gateCx - gateW / 2, gateR = gateCx + gateW / 2, gateT = gateCy - gateH / 2, gateB = gateCy + gateH / 2;
         const outPts = [{ x: gateCx, y: 852 }, { x: gateCx, y: gateT - 1 }];
-        const noPts = [{ x: gateR, y: gateCy }, { x: 1410, y: gateCy }, { x: 1410, y: 300 }, { x: 1390, y: 300 }];
+        // no-arc exits from the gate's TOP-RIGHT corner (not the right-middle) so it
+        // rises clear of the gate question text inside the box. The label then sits
+        // 14px ABOVE the gate top, giving 39px of vertical clearance from the gate
+        // question at y=gateCy+5 — enough that they never visually cross at any scale.
+        const noPts = [{ x: gateR, y: gateT }, { x: 1410, y: gateT }, { x: 1410, y: 300 }, { x: 1390, y: 300 }];
         const yesPts = [{ x: gateCx, y: gateB }, { x: gateCx, y: gateB + 22 }];
         const gateRect = s("rect", { x: gateL, y: gateT, width: gateW, height: gateH, rx: 10, fill: "none", stroke: cll, class: "loops-done-gate" });
-        const noLabel = s("text", { x: gateR + 14, y: gateCy - 4, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        // noLabel sits above the gate box (y < gateT), to the right of the gate (x > gateR),
+        // anchored at its left so it extends rightward into empty space
+        const noLabel = s("text", { x: gateR + 14, y: gateT - 14, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
         noLabel.append(s("tspan", { class: "loops-retry-x" }, "✗  "), dg.doneNo || "not yet, loop again");
         const yesLabel = s("text", { x: gateCx, y: gateB + 30, "text-anchor": "middle", class: "loops-cap loops-cap-strong" });
         yesLabel.append(s("tspan", { class: "loops-done-yes" }, "✓  "), dg.doneYes || "done, ship it");
