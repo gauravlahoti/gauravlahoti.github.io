@@ -43,10 +43,11 @@ export function createNarration({ content, ui }) {
     const audioEl = document.createElement("audio");
     audioEl.preload = "none";
 
-    const narrList = h("ol", { class: "loops-narr-list" });
-    const narrPanel = h("div", { class: "loops-narr" }, narrList);
+    // Running-subtitle line: one caption shows at a time and fades in as narration
+    // advances — not the whole script pre-listed and dimmed, which reads like a teleprompter.
+    const narrCur = h("p", { class: "loops-narr-cur", "aria-live": "polite" });
+    const narrPanel = h("div", { class: "loops-narr" }, narrCur);
     let voiceBtn = null;
-    let captionEls = [];
 
     // In-flight playback state
     let curId = null;
@@ -54,6 +55,7 @@ export function createNarration({ content, ui }) {
     let curStep = -1;
     let onStepStartCb = null;
     let onDoneCb = null;
+    let hideWhenDone = false; // set per-layer; collapses the panel once this layer's narration finishes
     let paused = false;
 
     // Pausable timers: each tracks its own remaining time so the Pause button can freeze
@@ -82,18 +84,15 @@ export function createNarration({ content, ui }) {
         return Math.min(1.3, Math.max(0.85, 7 / len));
     }
 
+    // Swap in caption i as a running subtitle: update the text, retrigger the fade-in.
     function setActive(i) {
-        captionEls.forEach((li, k) => li.classList.toggle("is-active", k === i));
-    }
-
-    function buildCaptions(id) {
-        narrList.innerHTML = "";
-        const lines = narrMap[id] || [];
-        return lines.map((line) => {
-            const li = h("li", { class: "loops-narr-line" }, line.text || line);
-            narrList.append(li);
-            return li;
-        });
+        const lines = narrMap[curId] || [];
+        const line = lines[i];
+        if (line == null) return; // visual step with no matching narration line — keep current text
+        narrCur.textContent = line.text || line;
+        narrCur.classList.remove("is-in");
+        void narrCur.offsetWidth; // force reflow so the enter animation restarts for each line
+        narrCur.classList.add("is-in");
     }
 
     function advanceStep() {
@@ -105,8 +104,10 @@ export function createNarration({ content, ui }) {
             audioEl.currentTime = 0;
             // Reset before callback so a stopLayer() call inside onDone doesn't double-fire
             const cb = onDoneCb;
-            curId = null; curFlat = null; curStep = -1; onStepStartCb = null; onDoneCb = null;
+            const hide = hideWhenDone;
+            curId = null; curFlat = null; curStep = -1; onStepStartCb = null; onDoneCb = null; hideWhenDone = false;
             if (cb) cb();
+            if (hide) narrPanel.classList.add("is-hidden"); // lab complete: clear the running subtitle
             return;
         }
         playStep(next);
@@ -151,6 +152,7 @@ export function createNarration({ content, ui }) {
 
     function syncVoiceBtn() {
         if (!voiceBtn) return;
+        voiceBtn.textContent = voiceOn ? "🔊" : "🔇";
         voiceBtn.classList.toggle("is-on", voiceOn);
         voiceBtn.setAttribute("aria-label", voiceOn ? (ui.voiceOff || "Mute narration") : (ui.voiceOn || "Narrate"));
         voiceBtn.title = voiceOn ? (ui.voiceOff || "Mute narration") : (ui.voiceOn || "Narrate");
@@ -194,7 +196,7 @@ export function createNarration({ content, ui }) {
             return narrPanel;
         },
 
-        playLayer(id, flat, { onStepStart, onDone } = {}) {
+        playLayer(id, flat, { onStepStart, onDone, hideOnDone } = {}) {
             this.stopLayer();
             if (!flat?.length) { if (onDone) onDone(); return; }
             const lines = narrMap[id] || [];
@@ -208,7 +210,12 @@ export function createNarration({ content, ui }) {
             curFlat = flat;
             onStepStartCb = onStepStart;
             onDoneCb = onDone;
-            captionEls = buildCaptions(id);
+            hideWhenDone = !!hideOnDone;
+            narrPanel.classList.remove("is-hidden"); // re-entry (restart / fresh start / nav) brings the panel back
+            // Restore running-subtitle DOM (showAllCaptions may have swapped in a static list) and clear it
+            if (narrPanel.firstChild !== narrCur) { narrPanel.replaceChildren(narrCur); }
+            narrCur.textContent = "";
+            narrCur.classList.remove("is-in");
             playStep(0);
         },
 
@@ -218,7 +225,7 @@ export function createNarration({ content, ui }) {
             audioEl.onended = null;
             audioEl.onerror = null;
             try { audioEl.currentTime = 0; } catch {}
-            curId = null; curFlat = null; curStep = -1; onStepStartCb = null; onDoneCb = null;
+            curId = null; curFlat = null; curStep = -1; onStepStartCb = null; onDoneCb = null; hideWhenDone = false;
             paused = false;
         },
 
@@ -239,9 +246,20 @@ export function createNarration({ content, ui }) {
             }
         },
 
-        showAllCaptions(id, flat) {
-            captionEls = buildCaptions(id);
-            captionEls.forEach(li => li.classList.add("is-active"));
+        // Reduced-motion fallback: no audio, no stepping — show every line at once as a
+        // static list so all the content stays readable.
+        showAllCaptions(id) {
+            narrPanel.classList.remove("is-hidden");
+            const lines = narrMap[id] || [];
+            const ol = h("ol", { class: "loops-narr-list" });
+            lines.forEach(l => ol.append(h("li", { class: "loops-narr-line is-active" }, l.text || l)));
+            narrPanel.replaceChildren(ol);
+        },
+
+        // Collapse the caption panel out of view — used once the guided tour plays
+        // all the way through. Any subsequent playLayer()/showAllCaptions() un-hides it.
+        hidePanel() {
+            narrPanel.classList.add("is-hidden");
         },
 
         unlock() {

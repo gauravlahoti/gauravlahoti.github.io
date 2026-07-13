@@ -375,6 +375,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     const stageWrap = el("div", { class: "loops-stagewrap" });
     const svg = s("svg", {
         class: "loops-svg", viewBox: "0 0 1440 1080",
+        // Explicit so the height-capped inline stage (see .loops-svg max-height) always
+        // scales the drawing to fit and centres it, rather than clipping/overflowing.
+        preserveAspectRatio: "xMidYMid meet",
         role: "img", "aria-label": "A step-by-step scene for each way to steer an AI: a human prompting an LLM, a context window filling up, a harness of tools, and an autonomous loop",
     });
     stageWrap.append(svg);
@@ -684,17 +687,12 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         g.set(flat, { opacity: 0 });
         const dur = 0.6;
         const stagger = Math.min(1.3, Math.max(0.85, 7 / flat.length));
-        // With narration loaded, the spoken lines drive the step cadence: each line fades
-        // in its own step (same 0.6s/power2.out as the stagger below) and the layer's loop
-        // starts once the last line finishes — replacing the fixed delayedCall. Without it,
-        // fall back to today's time-based stagger, unchanged.
-        if (narration) {
-            narration.playLayer(curId, flat, {
-                onStepStart(idx) { const st = flat[idx]; if (st) g.to(st, { opacity: 1, duration: dur, ease: "power2.out" }); },
-                onDone() { startAnim(); const cb = tourOnLayerDone; tourOnLayerDone = null; cb?.(); },
-            });
-            return;
-        }
+        // Quick staggered reveal, then start the layer's mechanism loop right after it lands.
+        // This runs the same with or without narration: when narration is present it plays
+        // audio + running-subtitle captions OVER this reveal, so the diagram animates LIVE
+        // while the voice describes it. (Previously the mechanism only started after the
+        // voice finished, so the two felt out of sync.) Starting the loop after the reveal —
+        // not during — guarantees its travel-dot endpoints exist before any dots move.
         revealTl = g.to(flat, {
             opacity: 1, duration: dur, stagger, ease: "power2.out",
             onComplete() { flat.forEach(st => (st.style.opacity = "")); },
@@ -705,12 +703,31 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // never fired, so keep this bounded regardless of how many steps a layer has
         const revealDur = Math.min(stagger * (flat.length - 1) + dur + 0.25, 3.2);
         pendingStart = g.delayedCall(revealDur, startAnim);
+        // Narration (when present) rides on top: audio + running-subtitle captions only, no
+        // per-line visual gating. When the voice finishes, cue that the user can advance and
+        // let the tour advance if it's driving.
+        if (narration) {
+            narration.playLayer(curId, flat, {
+                onDone() { showReady(); const cb = tourOnLayerDone; tourOnLayerDone = null; cb?.(); },
+                // The final layer finishing = the whole lab is done, so clear the caption panel.
+                // Any restart / fresh start / navigation re-runs playLayer, which brings it back.
+                hideOnDone: i === LAYER_ORDER.length - 1,
+            });
+        }
+    }
+
+    // "You're caught up — advance when ready": pulse Next once a layer's narration finishes.
+    // Skipped during Tour (it auto-advances). Cleared by focusLayer on the next navigation.
+    function showReady() {
+        if (tourPlaying) return;
+        nextBtn.classList.add("is-ready");
     }
 
     let hasFocusedOnce = false;
     function focusLayer(i) {
         focus = (i + layers.length) % layers.length;
         const layer = layers[focus];
+        nextBtn.classList.remove("is-ready"); // clear any prior "ready to advance" cue
         dotEls.forEach((d, k) => {
             d.classList.toggle("is-active", k === focus);
             d.setAttribute("aria-selected", k === focus ? "true" : "false");
@@ -1376,6 +1393,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     const TOUR_HOLD = 3000;
     function tourAdvance() {
         if (!tourPlaying) return;
+        // Reaching the last layer ends the tour. The caption panel is cleared by the
+        // last layer's narration onDone (hideOnDone), not here — so manual completion
+        // hides it too, not just a guided-tour play-through.
         if (focus >= layers.length - 1) { stopTour(); return; }
         focusLayer(focus + 1);
         scheduleTour();
