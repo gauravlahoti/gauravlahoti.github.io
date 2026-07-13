@@ -87,12 +87,10 @@ python3 -m http.server 5173   # then open /ai-labs/engineering-loops/
 
 ## Status
 - [x] Narration content + `ui` labels written into `content/engineering-loops.json`
-- [ ] `assets/js/engineering-loops-narration.js` playback engine
-- [ ] Integration into `assets/js/engineering-loops.js`
-- [ ] CSS for caption panel + voice toggle
-- [ ] `scripts/generate-engineering-loops-narration.mjs` generation script
-- [ ] Generate audio via ElevenLabs (needs `ELEVENLABS_API_KEY`)
-- [ ] `?v=` bump + `ai-labs/engineering-loops/CLAUDE.md` update
-- [ ] End-to-end verification per checklist above
-
-Resume with `/implement-spec 43`.
+- [x] `assets/js/engineering-loops-narration.js` playback engine
+- [x] Integration into `assets/js/engineering-loops.js` (playAdditive, clearAnim, destroy, unlock, tour)
+- [x] CSS for caption panel + voice toggle
+- [x] `scripts/generate-engineering-loops-narration.mjs` generation script
+- [ ] Generate audio via ElevenLabs (needs `ELEVENLABS_API_KEY` — run the script when the key is available)
+- [x] `?v=` bump (css 52 / page-script 121) + `ai-labs/engineering-loops/CLAUDE.md` update
+- [ ] End-to-end verification per checklist above (caption-only fallback verified; audio-synced pass pending real mp3s)

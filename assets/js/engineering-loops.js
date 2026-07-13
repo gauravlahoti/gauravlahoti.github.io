@@ -236,23 +236,23 @@ const SECTION_LABEL_Y = 28;      // title baseline, down from the box's own top 
 const SECTION_TAGLINE_Y = 50;    // tagline baseline, down from the box's own top border (22px under the title)
 function loopGlyph(x, y, { fontSize = 15, cls = "", ringColor } = {}) {
     const g = s("g", { class: "loops-loop-glyph-wrap" });
-    const ringCx = x + fontSize * 0.32;
-    const ring1 = s("circle", { cx: ringCx, cy: y - fontSize * 0.32, r: fontSize * 0.5, class: "loops-loop-ring" });
+    const ringCx = x + fontSize * 0.32, ringCy = y - fontSize * 0.32;
+    const ring1 = s("circle", { cx: ringCx, cy: ringCy, r: fontSize * 0.5, class: "loops-loop-ring" });
     const ring2 = ring1.cloneNode(true);
+    ring2.style.animationDelay = "1.1s"; // stagger the two ping rings into a double-pulse
     if (ringColor) { ring1.style.stroke = ringColor; ring2.style.stroke = ringColor; }
     const glyph = s("text", { x, y, "text-anchor": "start", class: `loops-loop-glyph ${cls}`, "font-size": fontSize }, "↻");
     g.append(ring1, ring2, glyph);
+    // Motion is CSS-driven (see .loops-loop-glyph / .loops-loop-ring keyframes), NOT GSAP.
+    // GSAP writes an inline transform matrix that overrides the element's CSS
+    // transform-box/-origin, and its percentage transformOrigin measures getBBox() at
+    // init — which returns empty while the layer is still opacity:0, so the pivot fell
+    // back to the SVG origin (0,0) and the glyph orbited the whole canvas. A CSS animation
+    // with `transform-box: fill-box; transform-origin: center` resolves the pivot at paint
+    // time against the element's own box, so it always spins in place. It also lets the
+    // Pause button freeze it via `animation-play-state` (see .loops-lab.is-paused). Empty
+    // _tweens keeps destroy()'s `n._tweens?.forEach(t => t.kill())` a harmless no-op.
     g._tweens = [];
-    const gsp = gsap();
-    if (!gsp || REDUCE_MOTION) return g; // static: rings never appear, glyph sits still — same no-motion contract as travelDot/drawOn
-    g._tweens.push(gsp.to(glyph, {
-        rotation: "+=360", duration: 3.4, ease: "none", repeat: -1, transformOrigin: "50% 50%",
-    }));
-    [ring1, ring2].forEach((ring, i) => {
-        g._tweens.push(gsp.fromTo(ring,
-            { scale: 0.6, opacity: 0.5, transformOrigin: "center center" },
-            { scale: 1.6, opacity: 0, duration: 2.2, ease: "power1.out", repeat: -1, delay: i * 1.1, repeatDelay: 0.3 }));
-    });
     return g;
 }
 
@@ -493,15 +493,16 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     // controls --------------------------------------------------------------------
     const prevBtn = el("button", { class: "loops-btn loops-prev", type: "button" }, "‹ " + (ui.prev || "Prev"));
     const nextBtn = el("button", { class: "loops-btn loops-next", type: "button" });
+    const pauseBtn = el("button", { class: "loops-btn loops-pause", type: "button" }, `⏸ ${ui.pause || "Pause"}`);
     const tourBtn = el("button", { class: "loops-btn loops-tour", type: "button" });
     const dots = el("div", { class: "loops-dots", role: "tablist", "aria-label": "Layers" });
     const dotEls = layers.map((l, i) => {
         const d = el("button", { class: "loops-dot-btn", type: "button", role: "tab", "aria-label": `${l.n} · ${l.title}` });
-        d.addEventListener("click", () => { stopTour(); focusLayer(i); });
+        d.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(i); });
         dots.append(d);
         return d;
     });
-    const controls = el("div", { class: "loops-controls" }, prevBtn, dots, nextBtn, tourBtn);
+    const controls = el("div", { class: "loops-controls" }, prevBtn, dots, nextBtn, pauseBtn, tourBtn);
 
     const observers = [];
     const chartSection = content.chart ? buildChart(content.chart) : null;
@@ -524,7 +525,18 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     const activeAnims = {};   // id -> running gsap timeline; every VISIBLE layer keeps looping additively
     let tourTimer = null;
     let tourPlaying = false;
+    let tourOnLayerDone = null; // set by scheduleTour(); fired once by playAdditive's onDone when narration drives the tour
+    let paused = false; // global freeze: GSAP timeline + CSS glyph animations + narration audio/captions
     let started = false; // flips true on deep-link entry or the Begin click below — gates keyboard nav so ArrowRight/Left can't jump the gate
+    let narration = null;
+    if (content.layers.some(l => l.narration?.length)) {
+        const _v = new URL(import.meta.url).searchParams.get("v") || "";
+        const _p = `./engineering-loops-narration.js${_v ? `?v=${_v}` : ""}`;
+        import(_p).then(({ createNarration }) => {
+            narration = createNarration({ content, ui });
+            narration.mount(controls);
+        }).catch(err => console.warn("[engineering-loops] narration load failed", err));
+    }
 
     // ── dynamic canvas: the viewBox tracks how much is actually on screen, so the
     // scene starts small (just the prompt ring) and visibly grows as each layer adds
@@ -616,6 +628,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     function clearAnim() {
         if (revealTl) { try { revealTl.kill(); } catch {} revealTl = null; }
         if (pendingStart) { try { pendingStart.kill(); } catch {} pendingStart = null; }
+        narration?.stopLayer();
     }
 
     // Additive reveal: every layer up to `i` stays visible AND KEEPS ANIMATING; layers
@@ -664,12 +677,24 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const startAnim = () => startLayerAnim(curId);
         if (!g || REDUCE_MOTION || !flat.length) {
             flat.forEach(st => (st.style.opacity = ""));
+            narration?.showAllCaptions(curId, flat);
             startAnim();
             return;
         }
         g.set(flat, { opacity: 0 });
         const dur = 0.6;
         const stagger = Math.min(1.3, Math.max(0.85, 7 / flat.length));
+        // With narration loaded, the spoken lines drive the step cadence: each line fades
+        // in its own step (same 0.6s/power2.out as the stagger below) and the layer's loop
+        // starts once the last line finishes — replacing the fixed delayedCall. Without it,
+        // fall back to today's time-based stagger, unchanged.
+        if (narration) {
+            narration.playLayer(curId, flat, {
+                onStepStart(idx) { const st = flat[idx]; if (st) g.to(st, { opacity: 1, duration: dur, ease: "power2.out" }); },
+                onDone() { startAnim(); const cb = tourOnLayerDone; tourOnLayerDone = null; cb?.(); },
+            });
+            return;
+        }
         revealTl = g.to(flat, {
             opacity: 1, duration: dur, stagger, ease: "power2.out",
             onComplete() { flat.forEach(st => (st.style.opacity = "")); },
@@ -1345,17 +1370,40 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     // least once (not just the reveal) before auto-advancing — context is the richest
     // (gather → FULL → summarize → drift → reset) so it gets the longest dwell.
     const TOUR_DELAY = { prompt: 14000, context: 26000, harness: 16000, loop: 14000 };
-    function tourStep() {
+    // Hold before advancing once a layer's narration has finished — a short beat to let
+    // the last line and the layer's loop breathe. Only used when narration drives the
+    // walkthrough (onDone fires); layers with no narration fall back to TOUR_DELAY.
+    const TOUR_HOLD = 3000;
+    function tourAdvance() {
+        if (!tourPlaying) return;
         if (focus >= layers.length - 1) { stopTour(); return; }
         focusLayer(focus + 1);
-        tourTimer = setTimeout(tourStep, TOUR_DELAY[layers[focus].id] || 16000);
+        scheduleTour();
+    }
+    // Prefer narration-completion to drive the tour: onDone (wired in playAdditive's
+    // narration branch) fires once the focused layer's lines finish, then we hold briefly
+    // and advance. TOUR_DELAY is the fallback for any layer with no narration (or when
+    // narration isn't loaded), so the tour never stalls.
+    function scheduleTour() {
+        tourOnLayerDone = null;
+        if (narration && layers[focus]?.narration?.length) {
+            tourOnLayerDone = () => { if (tourPlaying) tourTimer = setTimeout(tourAdvance, TOUR_HOLD); };
+            return;
+        }
+        tourTimer = setTimeout(tourAdvance, TOUR_DELAY[layers[focus].id] || 16000);
     }
     function startTour() {
         tourPlaying = true;
         tourBtn.classList.add("is-playing");
-        tourBtn.textContent = `⏸ ${ui.pause || "Pause"}`;
+        tourBtn.textContent = `⏹ ${ui.stopTour || "Stop"}`;
+        // Restart from step 0 so narration's onDone reliably drives the first advance —
+        // otherwise a layer whose narration already finished (onDone fired) would never
+        // fire it again and the tour would stall. Wrap from the last layer back to 0;
+        // otherwise replay the current layer (only when narration will drive it — with no
+        // narration, keep the old "don't refocus, let TOUR_DELAY advance" behavior).
         if (focus === layers.length - 1) focusLayer(0);
-        tourTimer = setTimeout(tourStep, TOUR_DELAY[layers[focus].id] || 16000);
+        else if (narration && layers[focus]?.narration?.length) focusLayer(focus);
+        scheduleTour();
     }
     function stopTour() {
         tourPlaying = false;
@@ -1365,20 +1413,57 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     }
     tourBtn.addEventListener("click", () => (tourPlaying ? stopTour() : startTour()));
 
+    // ── global pause: freeze everything (GSAP anims + CSS glyph spin + narration
+    // audio/captions) in place, resume exactly where it left off ─────────────────────
+    function syncPauseBtn() {
+        pauseBtn.textContent = paused ? `▶ ${ui.resume || "Resume"}` : `⏸ ${ui.pause || "Pause"}`;
+        pauseBtn.classList.toggle("is-paused", paused);
+    }
+    function setPaused(on) {
+        if (paused === on) return;
+        paused = on;
+        const g = gsap();
+        if (g) { if (on) g.globalTimeline.pause(); else g.globalTimeline.resume(); }
+        lab.classList.toggle("is-paused", on); // drives CSS animation-play-state on the ↻ glyphs
+        if (on) narration?.pause(); else narration?.resume();
+        syncPauseBtn();
+    }
+    // Navigation while paused would otherwise land on a frozen scene; lift the freeze so
+    // the newly focused layer plays. Its own reveal/narration restarts cleanly via focusLayer.
+    function ensureResumed() {
+        if (!paused) return;
+        paused = false;
+        gsap()?.globalTimeline.resume();
+        lab.classList.remove("is-paused");
+        syncPauseBtn(); // narration is reset by the upcoming clearAnim()/stopLayer(), so don't resume it here
+    }
+    pauseBtn.addEventListener("click", () => setPaused(!paused));
+
     // ── manual controls ────────────────────────────────────────────────────────────
-    prevBtn.addEventListener("click", () => { stopTour(); focusLayer(focus - 1); });
-    nextBtn.addEventListener("click", () => { stopTour(); focusLayer(focus + 1); });
+    prevBtn.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(focus - 1); });
+    nextBtn.addEventListener("click", () => { ensureResumed(); stopTour(); focusLayer(focus + 1); });
     function onKey(e) {
         if (!lab.isConnected) return;
         if (!started && (e.key === "ArrowRight" || e.key === "ArrowLeft")) return;
-        if (e.key === "ArrowRight") { stopTour(); focusLayer(focus + 1); }
-        else if (e.key === "ArrowLeft") { stopTour(); focusLayer(focus - 1); }
+        if (e.key === "ArrowRight") { ensureResumed(); stopTour(); focusLayer(focus + 1); }
+        else if (e.key === "ArrowLeft") { ensureResumed(); stopTour(); focusLayer(focus - 1); }
         else if (e.key === "Escape") {
             if (stageWrap.classList.contains("is-max")) toggleMax(false);
+            else if (paused) setPaused(false);
             else if (tourPlaying) stopTour();
         }
     }
     document.addEventListener("keydown", onKey);
+
+    // First real gesture unlocks narration autoplay on deep-link entry (no Begin click
+    // to unlock it there). One-shot: removes itself once fired.
+    let gestureReceived = false;
+    function onFirstGesture() {
+        if (gestureReceived) return;
+        gestureReceived = true;
+        lab.removeEventListener("pointerdown", onFirstGesture);
+        narration?.unlock();
+    }
 
     // ── entrance: mount the first (or deep-linked) scene once GSAP is ready ───────
     stopTour();
@@ -1389,6 +1474,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // arriving via a specific-layer link is already an explicit choice — skip the
         // Begin gate below and jump straight in, same as before
         started = true;
+        // No Begin click on a deep-link entry, so narration autoplay stays locked until
+        // the first real gesture (Safari only permits play() inside the gesture's own
+        // call stack). Until then the first layer is caption-only. Mirrors MCP Lab's
+        // onFirstGesture.
+        lab.addEventListener("pointerdown", onFirstGesture);
         whenGsap(() => focusLayer(si));
     } else {
         // default landing: hold on a plain black stage (sized to the prompt scene's
@@ -1402,6 +1492,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const beginOverlay = el("div", { class: "loops-begin-overlay" }, beginBtn);
         stageWrap.append(beginOverlay);
         beginBtn.addEventListener("click", () => {
+            // unlock() must run synchronously inside the real gesture (not inside
+            // whenGsap's deferred callback) or Safari rejects the first play().
+            narration?.unlock();
             started = true;
             beginOverlay.remove();
             controls.style.visibility = "";
@@ -1422,6 +1515,9 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             document.body.style.overflow = "";
             observers.forEach(io => { try { io.disconnect(); } catch {} });
             document.removeEventListener("keydown", onKey);
+            lab.removeEventListener("pointerdown", onFirstGesture);
+            gsap()?.globalTimeline.resume(); // never leave GSAP globally paused if destroyed mid-pause
+            narration?.destroy();
             rootEl.replaceChildren();
         },
     };

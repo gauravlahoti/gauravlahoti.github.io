@@ -297,11 +297,33 @@
 .loops-agentloop { fill: var(--ink); }
 
 /* the standalone "↻" glyph + its ping rings — see loopGlyph() in engineering-loops.js.
-   transform-box/-origin set defensively; GSAP computes SVG transform-origin off getBBox()
-   internally and doesn't strictly require this, but it costs nothing to be explicit. */
+   Motion is CSS, NOT GSAP: `transform-box: fill-box` resolves the pivot at paint time
+   against the element's own box, so the glyph always spins in place (GSAP's inline
+   transform + getBBox-at-init pivoted on the SVG origin and orbited the whole canvas).
+   The Pause button freezes these via animation-play-state (.loops-lab.is-paused below). */
 .loops-loop-glyph-wrap { pointer-events: none; }
-.loops-loop-glyph { transform-box: fill-box; transform-origin: center; }
-.loops-loop-ring { fill: none; stroke-width: 1.4; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.loops-loop-glyph {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: loops-loop-spin 3.4s linear infinite;
+}
+.loops-loop-ring {
+    fill: none;
+    stroke-width: 1.4;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: loops-loop-ping 2.5s ease-out infinite;
+}
+@keyframes loops-loop-spin { to { transform: rotate(360deg); } }
+@keyframes loops-loop-ping {
+    0%   { transform: scale(0.6); opacity: 0.5; }
+    88%  { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+/* Pause button freezes every CSS-driven glyph/ring animation in step with GSAP + audio. */
+.loops-lab.is-paused .loops-loop-glyph,
+.loops-lab.is-paused .loops-loop-ring { animation-play-state: paused; }
 
 /* discipline boundaries: soft, solid-edged highlighted regions that name each
    territory — a dim colour wash (inline fill) inside a dim solid border, so
@@ -351,6 +373,7 @@
 .loops-btn:hover { border-color: var(--accent); color: var(--accent); }
 .loops-tour { color: var(--accent); border-color: var(--accent); }
 .loops-tour.is-playing { background: var(--accent-soft); }
+.loops-pause.is-paused { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 .loops-dots { display: inline-flex; gap: var(--space-2); }
 .loops-dot-btn {
@@ -364,6 +387,67 @@
     transition: background var(--dur-fast, 0.15s) var(--ease-out, ease), border-color var(--dur-fast, 0.15s) var(--ease-out, ease);
 }
 .loops-dot-btn.is-active { background: var(--accent); border-color: var(--accent); }
+
+/* ─── narration panel ────────────────────────────────────────────────────────── */
+
+.loops-narr {
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: var(--space-3) var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.loops-narr-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: narr-step;
+}
+
+.loops-narr-line {
+    counter-increment: narr-step;
+    display: flex;
+    gap: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+    padding: var(--space-1) 0;
+    opacity: 0.4;
+    transition: opacity 0.35s ease, color 0.35s ease;
+}
+
+.loops-narr-line::before {
+    content: counter(narr-step, decimal-leading-zero);
+    font-size: var(--text-xs);
+    color: inherit;
+    flex-shrink: 0;
+    min-width: 1.75em;
+    opacity: 0.6;
+}
+
+.loops-narr-line.is-active {
+    color: var(--ink);
+    opacity: 1;
+}
+
+.loops-voice-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--ink-muted);
+    font-size: var(--text-base);
+    cursor: pointer;
+    transition: border-color var(--dur-fast, 0.15s) var(--ease-out, ease), color var(--dur-fast, 0.15s) var(--ease-out, ease), background var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-voice-btn:hover { border-color: var(--accent); color: var(--accent); }
+.loops-voice-btn.is-on { background: var(--accent-soft); border-color: var(--accent); }
 
 .loops-closing {
     text-align: center;
@@ -447,6 +531,8 @@
     .loops-stagewrap { padding: var(--space-3); }
     .loops-controls { gap: var(--space-2); }
     .loops-btn { padding: var(--space-2) var(--space-3); }
+    .loops-narr { padding: var(--space-2) var(--space-3); }
+    .loops-narr-line { font-size: var(--text-xs); }
 }
 
 /* ─── reduced motion ─────────────────────────────────────────────────────────── */
@@ -455,4 +541,7 @@
     .loops-btn, .loops-dot-btn, .loops-llm-rect { transition: none; }
     .loops-stagewrap.is-max .loops-svg { transition: none; } /* zoom/pan itself is an interaction,
         not decorative motion, so it stays available — only the smoothing tween is dropped */
+    .loops-narr-line, .loops-voice-btn { transition: none; }
+    /* glyph spin/ping are decorative — drop them; rings stay invisible via their base opacity:0 */
+    .loops-loop-glyph, .loops-loop-ring { animation: none; }
 }
