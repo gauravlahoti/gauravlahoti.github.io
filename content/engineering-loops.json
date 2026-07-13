@@ -14,7 +14,9 @@
     "detailLabel": "// the layer",
     "expand": "Expand diagram",
     "close": "Close",
-    "begin": "Begin"
+    "begin": "Begin",
+    "voiceOn": "Narrate",
+    "voiceOff": "Mute narration"
   },
   "diagram": {
     "loopFrame": "04 · LOOP ENGINEERING",
@@ -93,7 +95,16 @@
           "So how you word the ask is everything",
           "Say it vaguely and you get a confident wrong answer"
         ]
-      }
+      },
+      "narration": [
+        { "text": "Here's you, the human, at the start of all of this." },
+        { "text": "And here's the model. Claude, GPT, Gemini, take your pick." },
+        { "text": "You send it a prompt." },
+        { "text": "It sends back an output." },
+        { "text": "Sometimes that's not what you wanted." },
+        { "text": "So you tweak the wording and send it again." },
+        { "text": "Do that enough times and congratulations, you've built a loop. You're just the one running it, by hand, every single time." }
+      ]
     },
     {
       "id": "context",
@@ -119,7 +130,14 @@
           "The answer is only as good as what's in the folder",
           "Make the folder too thick and they lose the thread"
         ]
-      }
+      },
+      "narration": [
+        { "text": "Now the model gets more than your words. It gets tools and resources it can reach for." },
+        { "text": "It calls out to gather context: a file, an API, whatever the task needs." },
+        { "text": "Everything it gathers lands in the context window, its short-term memory for this conversation." },
+        { "text": "Every result it pulls back gets appended right into that window." },
+        { "text": "Then it reads the window again before deciding what to do next, and the whole thing repeats." }
+      ]
     },
     {
       "id": "harness",
@@ -147,7 +165,17 @@
           "The room is what makes the work reliable",
           "Swap the worker and the room still holds"
         ]
-      }
+      },
+      "narration": [
+        { "text": "Zoom out further and there's a harness wrapped around all of this: durable state that outlives any one conversation. It starts with a task list on disk." },
+        { "text": "The model works through it one task at a time, reading what's next and marking each one done." },
+        { "text": "There's memory on disk too, so what it learns survives past this one session." },
+        { "text": "And a fresh context, sitting ready to be loaded the next time it's needed." },
+        { "text": "When the window gets too full, or starts rotting, it compacts by writing what matters out to memory." },
+        { "text": "That memory then rehydrates a new context, pulling back only what's still relevant." },
+        { "text": "That fresh context becomes the next window, and the loop closes." },
+        { "text": "One orchestration loop runs all of it, quietly keeping the model stocked with exactly what it needs." }
+      ]
     },
     {
       "id": "loop",
@@ -180,7 +208,16 @@
           "The team runs the cycle without you in the room",
           "You review the result, not every keystroke"
         ]
-      }
+      },
+      "narration": [
+        { "text": "Zoom out one more time and your role changes completely. You're not in the loop anymore, you're on it. You set policy once, then step out." },
+        { "text": "Something else starts each run now: a schedule, an event, a trigger. No human has to kick it off." },
+        { "text": "Without this, a harness just sits idle until someone prompts it, and cold-starts every single run." },
+        { "text": "With a real loop wrapped around it, the system starts to grow itself." },
+        { "text": "It extends itself, picking up new skills and plugins as it needs them." },
+        { "text": "It checks itself too, with subagents that verify the work instead of trusting it blindly." },
+        { "text": "And it scales itself, running parallel worktrees instead of one task at a time." }
+      ]
     }
   ],
   "chart": {
