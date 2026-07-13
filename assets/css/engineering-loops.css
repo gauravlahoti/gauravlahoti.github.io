@@ -257,6 +257,12 @@
 /* one-word role under each "it grows itself" pill, in the loop accent */
 .loops-loop-subrole { fill: var(--loops-loop); font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.01em; }
 
+/* done-gate node in the loop layer */
+.loops-done-gate { stroke-width: 1.6; fill: none; }
+.loops-feedback-arc .loops-conn-line,
+.loops-done-edge .loops-conn-line { stroke: var(--loops-loop); }
+.loops-done-yes { fill: var(--loops-loop); font-weight: 700; }
+
 /* task list — done state */
 .loops-task-rect, .loops-task-label { transition: opacity 0.25s ease; }
 .loops-task-check { fill: var(--loops-loop); font-family: var(--font-mono); font-size: 14px; opacity: 0; transition: opacity 0.25s ease; }

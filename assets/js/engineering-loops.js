@@ -1270,11 +1270,11 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // human as initiator.
 
         // ROW_Y anchors all four top-band pieces (discipline title, supervisor, trigger,
-        // problem callout) on the SAME horizontal line — matches the title's own baseline
-        // (lf.y+28) exactly, so the row reads as one aligned line instead of each piece
-        // sitting at its own ad-hoc height. Icons are vertically CENTRED on it; each
-        // block's own first text line SITS on it (same convention the title itself uses).
-        const ROW_Y = lf.y + 28;
+        // problem callout) on the SAME horizontal line. Sits 16px below the loop frame's
+        // own top edge (lf.y=-84) so the row lands at y=-68. The 12px pull up vs the
+        // original +28 opens room for the goal glyph hung on the supervisor's tether
+        // above the harness border (y=14) — without it the goal text clips into the band.
+        const ROW_Y = lf.y + 16;
 
         // supervisor — a small, simple glyph (not the full stick figure PROMPT ENGINEERING
         // uses for the human IN the loop) sitting outside harness in the top band, tethered
@@ -1293,6 +1293,14 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             personGlyph(supCx, ROW_Y, cll, ""),
             s("line", { x1: supCx, y1: ROW_Y + 29, x2: supCx, y2: 14, class: "loops-supervise-line" }),
             supText);
+        // the GOAL + definition of done — the policy the supervisor sets once, hung on
+        // the supervisor's own tether (the dashed line above runs person → harness through
+        // this point). The definition of done named here is exactly what the done-gate at
+        // the bottom-right checks each run against.
+        put(gl, "loop",
+            targetGlyph(supCx, -4, cll, ""),
+            s("text", { x: supCx + 24, y: -8, "text-anchor": "start", class: "loops-cap loops-cap-strong" }, dg.goalLabel || "the goal"),
+            s("text", { x: supCx + 24, y: 8, "text-anchor": "start", class: "loops-harness-caption" }, dg.goalDoneSub || "+ a definition of done"));
         // entry point — the autonomous trigger that starts a run WITHOUT a human. Sits
         // close to and right of the supervisor (the two are read together: who used to
         // initiate vs what initiates now), not stranded alone at the far top-right corner
@@ -1332,6 +1340,33 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             s("rect", { x: probBoxX, y: ROW_Y - 14, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
             probText,
             s("text", { x: probBoxX + 10, y: ROW_Y + 18, "text-anchor": "start", class: "loops-cap" }, probLine2));
+        // ── the DONE-GATE — the stopping rule made visible. A run's output drops out of
+        // the harness bottom and is checked against the definition of done. Two branches:
+        //   ✓ done  → "ship it" (the loop terminates for this goal)
+        //   ✗ not yet → loop again: a feedback arc up the right margin and back into the
+        //     harness, so the next run starts.
+        // noLabel sits to the RIGHT of the gate at mid-gate height (not below the gate
+        // bottom where it collides with the yes-path exit) — keeping the three labels
+        // separated so they never cross at any viewbox scale.
+        const gateCx = 1150, gateCy = 900, gateW = 240, gateH = 40;
+        const gateL = gateCx - gateW / 2, gateR = gateCx + gateW / 2, gateT = gateCy - gateH / 2, gateB = gateCy + gateH / 2;
+        const outPts = [{ x: gateCx, y: 852 }, { x: gateCx, y: gateT - 1 }];
+        const noPts = [{ x: gateR, y: gateCy }, { x: 1410, y: gateCy }, { x: 1410, y: 300 }, { x: 1390, y: 300 }];
+        const yesPts = [{ x: gateCx, y: gateB }, { x: gateCx, y: gateB + 22 }];
+        const gateRect = s("rect", { x: gateL, y: gateT, width: gateW, height: gateH, rx: 10, fill: "none", stroke: cll, class: "loops-done-gate" });
+        const noLabel = s("text", { x: gateR + 14, y: gateCy - 4, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        noLabel.append(s("tspan", { class: "loops-retry-x" }, "✗  "), dg.doneNo || "not yet, loop again");
+        const yesLabel = s("text", { x: gateCx, y: gateB + 30, "text-anchor": "middle", class: "loops-cap loops-cap-strong" });
+        yesLabel.append(s("tspan", { class: "loops-done-yes" }, "✓  "), dg.doneYes || "done, ship it");
+        put(gl, "loop",
+            connector(outPts[0].x, outPts[0].y, outPts[1].x, outPts[1].y, ""),
+            s("text", { x: gateCx + 14, y: 868, "text-anchor": "start", class: "loops-harness-caption" }, dg.promptReturn || "output"),
+            gateRect,
+            s("text", { x: gateCx, y: gateCy + 5, "text-anchor": "middle", class: "loops-cap loops-cap-strong" }, dg.doneGateLabel || "meets the definition of done?"),
+            orthoConnector(noPts, "loops-feedback-arc"),
+            noLabel,
+            connector(yesPts[0].x, yesPts[0].y, yesPts[1].x, yesPts[1].y, "loops-done-edge"),
+            yesLabel);
         // self-improvement band — bottom of the outer margin, recoloured to the loop
         // accent (was green, which read as a stray context/teal element; now the same
         // blue as the frame and the loop-back arrow below). Each pill carries a one-word
@@ -1349,6 +1384,31 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             if (role) gg.append(s("text", { x: cxp + w / 2, y: 932, "text-anchor": "middle", class: "loops-loop-subrole" }, role));
             put(gl, "loop", gg); cxp += w + 14;
         });
+        // outer feedback loop, animated: trigger fires a run, output reaches the gate,
+        // gate flashes as it checks; twice it doesn't pass and the dot travels the
+        // "not yet" arc back into harness to run again; third run passes → "ship it".
+        anims.loop = () => {
+            const g = gsap(), tl = g.timeline({ repeat: -1, repeatDelay: 1.4 });
+            const glow = GLOW.loop, spd = 300;
+            const trigPts = [{ x: clockCx, y: clockCy + clockR }, { x: clockCx, y: 14 }];
+            const flashGate = at => tl.fromTo(gateRect, { attr: { "stroke-width": 1.6 } }, { attr: { "stroke-width": 3.2 }, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut" }, at);
+            let t = 0;
+            const run = () => {
+                tl.add(() => travelDot(svg, trigPts, { color: cll, glow, speed: spd, layer: "loop" }), t);
+                tl.add(() => travelDot(svg, outPts, { color: cll, glow, speed: spd, layer: "loop" }), t + 0.9);
+                flashGate(t + 1.5);
+                t += 2.0;
+            };
+            for (let k = 0; k < 2; k++) {
+                run();
+                tl.add(() => travelDot(svg, noPts, { color: cll, glow, speed: 460, layer: "loop" }), t);
+                t += 1.9;
+            }
+            run();
+            tl.add(() => travelDot(svg, yesPts, { color: cll, glow, speed: spd, layer: "loop" }), t);
+            tl.to({}, { duration: 2.4 });
+            return tl;
+        };
         return { groups, steps, anims, demarcation };
     }
 
