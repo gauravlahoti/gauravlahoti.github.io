@@ -13,7 +13,8 @@
     "readout": "Read from the center outward",
     "detailLabel": "// the layer",
     "expand": "Expand diagram",
-    "close": "Close"
+    "close": "Close",
+    "begin": "Begin"
   },
   "diagram": {
     "loopFrame": "04 · LOOP ENGINEERING",

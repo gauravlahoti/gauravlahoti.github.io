@@ -524,6 +524,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     const activeAnims = {};   // id -> running gsap timeline; every VISIBLE layer keeps looping additively
     let tourTimer = null;
     let tourPlaying = false;
+    let started = false; // flips true on deep-link entry or the Begin click below — gates keyboard nav so ArrowRight/Left can't jump the gate
 
     // ── dynamic canvas: the viewBox tracks how much is actually on screen, so the
     // scene starts small (just the prompt ring) and visibly grows as each layer adds
@@ -1369,6 +1370,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
     nextBtn.addEventListener("click", () => { stopTour(); focusLayer(focus + 1); });
     function onKey(e) {
         if (!lab.isConnected) return;
+        if (!started && (e.key === "ArrowRight" || e.key === "ArrowLeft")) return;
         if (e.key === "ArrowRight") { stopTour(); focusLayer(focus + 1); }
         else if (e.key === "ArrowLeft") { stopTour(); focusLayer(focus - 1); }
         else if (e.key === "Escape") {
@@ -1380,12 +1382,32 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
 
     // ── entrance: mount the first (or deep-linked) scene once GSAP is ready ───────
     stopTour();
-    whenGsap(() => {
-        // deep-link: /engineering-loops/#context opens that scene on load
-        const hid = (location.hash || "").replace(/^#/, "");
-        const si = layers.findIndex(l => l.id === hid);
-        focusLayer(si >= 0 ? si : 0);
-    });
+    // deep-link: /engineering-loops/#context opens that scene on load
+    const hid = (location.hash || "").replace(/^#/, "");
+    const si = layers.findIndex(l => l.id === hid);
+    if (si >= 0) {
+        // arriving via a specific-layer link is already an explicit choice — skip the
+        // Begin gate below and jump straight in, same as before
+        started = true;
+        whenGsap(() => focusLayer(si));
+    } else {
+        // default landing: hold on a plain black stage (sized to the prompt scene's
+        // aspect ratio) behind a Begin button instead of animating the instant the page
+        // loads — starting is the visitor's call, not something that happens to them.
+        // No preview of the diagram is drawn underneath; the overlay is fully opaque so
+        // there's nothing bleeding through behind the button.
+        svg.setAttribute("viewBox", STAGE_VB.prompt.join(" "));
+        controls.style.visibility = "hidden";
+        const beginBtn = el("button", { class: "loops-begin-btn", type: "button" }, `▶ ${ui.begin || "Begin"}`);
+        const beginOverlay = el("div", { class: "loops-begin-overlay" }, beginBtn);
+        stageWrap.append(beginOverlay);
+        beginBtn.addEventListener("click", () => {
+            started = true;
+            beginOverlay.remove();
+            controls.style.visibility = "";
+            whenGsap(() => focusLayer(0));
+        }, { once: true });
+    }
 
     return {
         destroy() {

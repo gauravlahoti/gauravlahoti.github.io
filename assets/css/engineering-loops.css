@@ -112,6 +112,34 @@
 .loops-max:hover { border-color: var(--accent); color: var(--accent); }
 .loops-max-glyph { font-size: var(--text-lg); line-height: 1; }
 
+/* begin gate — default landing holds on a plain black stage until the visitor clicks;
+   nothing animates or even renders underneath, so the overlay is fully opaque (no
+   diagram bleeding through behind the button) rather than a translucent scrim. Skipped
+   entirely on a deep link (e.g. #context), where arriving is already the explicit
+   action. */
+.loops-begin-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border-radius: 16px;
+}
+.loops-begin-btn {
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    color: var(--accent);
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: var(--space-3) var(--space-6);
+    cursor: pointer;
+    transition: background var(--dur-fast, 0.15s) var(--ease-out, ease), box-shadow var(--dur-fast, 0.15s) var(--ease-out, ease), transform var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.loops-begin-btn:hover { background: var(--accent-soft); box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); }
+
 .loops-stagewrap.is-max {
     position: fixed;
     inset: 0;
