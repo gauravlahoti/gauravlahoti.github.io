@@ -256,6 +256,16 @@
 .loops-loop-problem-frame { stroke-width: 1.5; fill: none; opacity: 0.6; }
 /* one-word role under each "it grows itself" pill, in the loop accent */
 .loops-loop-subrole { fill: var(--loops-loop); font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.01em; }
+/* loop layer — the done-gate + its feedback arc (the "runs until done" stopping rule).
+   The rect carries its blue stroke inline (matches the animated flash's resting width). */
+.loops-done-gate { stroke-width: 1.6; fill: none; }
+/* the "not yet → loop again" return leg and the "done → ship it" exit, both recoloured to
+   the loop accent so the stopping rule reads as one blue circuit; the short "output" drop
+   off the harness stays neutral (it's just the run's result flowing out to be checked) */
+.loops-feedback-arc .loops-conn-line,
+.loops-done-edge .loops-conn-line { stroke: var(--loops-loop); }
+/* the ✓ on the "done, ship it" branch — loop-accent blue, mirroring the red ✗ on "not yet" */
+.loops-done-yes { fill: var(--loops-loop); font-weight: 700; }
 
 /* task list — done state */
 .loops-task-rect, .loops-task-label { transition: opacity 0.25s ease; }

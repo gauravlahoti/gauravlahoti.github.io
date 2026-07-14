@@ -552,7 +552,7 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         prompt: [36, 196, 666, 340],    // prompt DEMARCATION rect: x76 y236 w586 h260, +40 pad
         context: [18, 50, 1088, 526],   // context DEMARCATION rect: x58 y90 w968 h446, +40 pad
         harness: [8, 0, 1404, 864],     // harness DEMARCATION rect: x28 y14 w1362 h838, +~14 pad
-        loop: [-30, -98, 1478, 1072],   // loop DEMARCATION rect: x-16 y-84 w1450 h1044, +14 pad — canvas grew up/right/down to fit the new outer frame around harness
+        loop: [-30, -134, 1478, 1108],  // loop DEMARCATION rect: x-16 y-120 w1450 h1080, +14 pad — taller top band so the frame clears the story ribbon
     };
     let vbTween = null; // in-flight viewBox tween, if any — killed before starting a new one
     function setViewBox(id, animate) {
@@ -686,7 +686,24 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         }
         g.set(flat, { opacity: 0 });
         const dur = 0.6;
-        const stagger = Math.min(1.3, Math.max(0.85, 7 / flat.length));
+        // LOOP is the outermost layer and the one users read as a story (supervisor → goal →
+        // trigger → problem → done-gate → grows-itself → chips). Two loop-only adjustments give
+        // it a clear, followable build instead of the "everything's stray" pop the other layers
+        // can get away with:
+        //   1) reveal its OUTER FRAME first (below) so every piece lands inside a visible
+        //      container rather than floating in blank space, and
+        //   2) reveal the steps on an uncapped, deliberate cadence so they read one-at-a-time,
+        //      and only start the travel-dot mechanism once the whole picture exists.
+        // The other three layers keep their quick, capped stagger + frame-after-one-cycle reveal.
+        const isLoop = curId === "loop";
+        // frame first — a direct opacity tween on the demarcation node (NOT revealDemarcation),
+        // so demarcationShown.loop stays false and anims.loop's onRepeat still fires the coda-chart
+        // gate (chartSection._reveal) exactly once, later, unchanged.
+        if (isLoop && refs.demarcation.loop) {
+            g.to(refs.demarcation.loop, { opacity: 1, duration: 0.7, ease: "power2.out" });
+        }
+        const stagger = isLoop ? 1.0 : Math.min(1.3, Math.max(0.85, 7 / flat.length));
+        const frameLead = isLoop ? 0.5 : 0; // let the frame land before its contents begin
         // Quick staggered reveal, then start the layer's mechanism loop right after it lands.
         // This runs the same with or without narration: when narration is present it plays
         // audio + running-subtitle captions OVER this reveal, so the diagram animates LIVE
@@ -694,14 +711,17 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // voice finished, so the two felt out of sync.) Starting the loop after the reveal —
         // not during — guarantees its travel-dot endpoints exist before any dots move.
         revealTl = g.to(flat, {
-            opacity: 1, duration: dur, stagger, ease: "power2.out",
+            opacity: 1, duration: dur, stagger, ease: "power2.out", delay: frameLead,
             onComplete() { flat.forEach(st => (st.style.opacity = "")); },
         });
-        // capped — with more reveal steps (harness/loop grew to 8 as their stories were
-        // added) this uncapped would stretch past 6-7s before the loop animation ever
-        // started; the LAST layer has no "moved past it" fallback to catch a start that
-        // never fired, so keep this bounded regardless of how many steps a layer has
-        const revealDur = Math.min(stagger * (flat.length - 1) + dur + 0.25, 3.2);
+        // capped for the inner layers — with more reveal steps (harness/loop grew as their
+        // stories were added) an uncapped value would stretch past 6-7s before the loop
+        // animation ever started; the LAST layer has no "moved past it" fallback to catch a
+        // start that never fired, so keep those bounded. LOOP is intentionally uncapped: the
+        // whole point is to let all nine pieces land in order before the mechanism runs.
+        const revealDur = isLoop
+            ? frameLead + stagger * (flat.length - 1) + dur + 0.25
+            : Math.min(stagger * (flat.length - 1) + dur + 0.25, 3.2);
         pendingStart = g.delayedCall(revealDur, startAnim);
         // Narration (when present) rides on top: audio + running-subtitle captions only, no
         // per-line visual gating. When the voice finishes, cue that the user can advance and
@@ -1182,18 +1202,22 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         };
 
         // ── LOOP: the outermost discipline — wraps harness (and everything nested
-        // inside it) entirely. Where harness/context/prompt loops all TERMINATE (a
-        // task list empties, a context window resets, a human stops retrying), this
-        // one doesn't: an autonomous trigger starts a run, harness executes it, and
-        // finishing feeds back around to the next trigger — open-ended by design.
+        // inside it) entirely. The human sets a GOAL and a DEFINITION OF DONE once,
+        // then steps out; an autonomous trigger fires a run, the harness executes it,
+        // and the result is checked against that definition of done. If it doesn't pass
+        // yet, the loop feeds back and runs again — it keeps iterating UNTIL the
+        // definition of done is met, then stops for that goal. (The scheduler can later
+        // fire the next goal, so the system as a whole stays open-ended — but any single
+        // goal terminates on a clear stopping rule, unlike the "run forever" read the
+        // old framing gave.)
         const gl = layerG("loop"), cll = COLORS.loop;
-        // encloses harness (28,14)–(1390,852) with an even ~44px margin on the sides,
-        // extra room at the top for the discipline label + its subtitle, and a bottom
-        // band for the self-improvement chips. Canvas grows to fit this (see
-        // STAGE_VB.loop) rather than shrinking the harness box. Height trimmed again,
-        // 1100 → 1044, following harness's own bottom edge moving up by the same 56px
-        // (the chip row above shifted up to match, so the gap below it is unchanged).
-        const lf = { x: -16, y: -84, w: 1450, h: 1044 };
+        // encloses harness (28,14)–(1390,852) with an even ~44px margin on the sides, a tall
+        // top band for the discipline label + the whole left→right story ribbon (human designs
+        // the loop → trigger → done-gate), and a bottom band for the self-improvement chips.
+        // Top raised -84 → -120 (36px more headroom) so the border clears the gate box + labels
+        // that were being cut; bottom stays at 960 (h 1044 → 1080). Canvas grows to fit (see
+        // STAGE_VB.loop) rather than shrinking the harness box.
+        const lf = { x: -16, y: -120, w: 1450, h: 1080 };
         // operating cadence, as the outer loop's own subtitle — directly under its name.
         // NOT "reason → act → check → repeat" (that's the ReAct/agent-loop pattern,
         // already drawn one level in as harness's own "↻ agent loop") — this outer
@@ -1216,23 +1240,27 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         // the hint-arrow measurement below for why guessing here has already gone wrong
         // twice) and push the whole row right only as far as actually needed to clear it.
         const cycleTextEndX = (lf.x + SECTION_LABEL_PAD_X) + cycleText.getComputedTextLength();
-        // clamped at 100 — the problem callout (below) sits at the right end of this same
-        // row and must stay inside the loop box's right edge (lf.x+lf.w=1434); its rect
-        // currently ends at x1320, so 100 is the most it can shift without crowding that
-        // border, regardless of how long the tagline turns out to be.
-        const rowShift = Math.min(100, Math.max(0, (cycleTextEndX + 40) - 300));
-        // the organizing axis for this whole band is HUMAN-INITIATED → SELF-INITIATED
-        // (not "guided vs autonomous" — the inner agent/orchestration loops are already
-        // autonomous within a run). Left to right: the human moves OUTSIDE the loop to
-        // supervise, the problem this layer solves, then the trigger that replaces the
-        // human as initiator.
+        // clamped at 80 — the done-gate (moved up into this row) and its "✓ done, ship it"
+        // terminal are now the rightmost pieces and translate with rowShift; their right
+        // extent is ~1329+rowShift, so 80 keeps them 25px inside the loop box's right edge
+        // (lf.x+lf.w=1434). The shipped tagline needs rowShift≈16, so 80 only ever caps an
+        // unusually long custom tagline.
+        const rowShift = Math.min(80, Math.max(0, (cycleTextEndX + 40) - 300));
+        // the whole top band is now ONE left-to-right story: the human designs the loop (and
+        // sets the goal), a trigger calls the loop, and it runs until the definition of done
+        // is met (the done-gate). Left → right, that reads as a single sentence.
 
         // ROW_Y anchors all four top-band pieces (discipline title, supervisor, trigger,
-        // problem callout) on the SAME horizontal line — matches the title's own baseline
-        // (lf.y+28) exactly, so the row reads as one aligned line instead of each piece
-        // sitting at its own ad-hoc height. Icons are vertically CENTRED on it; each
-        // block's own first text line SITS on it (same convention the title itself uses).
-        const ROW_Y = lf.y + 28;
+        // problem callout) on the SAME horizontal line, so the row reads as one aligned
+        // line instead of each piece sitting at its own ad-hoc height. Icons are vertically
+        // CENTRED on it; each block's own first text line SITS on it (same convention the
+        // title itself uses). Sits 12px ABOVE the far-left discipline title's baseline
+        // (lf.y+28): the supervisor's 3-line block plus the goal callout hung beneath it
+        // need vertical room before harness's top edge (y=14), and lifting the row is the
+        // only way to open that gap (the row is horizontally full, so the goal can't move
+        // beside the supervisor). The 12px title offset is imperceptible — they're ~330px
+        // apart horizontally.
+        const ROW_Y = lf.y + 52;  // = -68 (kept constant as the frame top moved up, so no top-band content shifts)
 
         // supervisor — a small, simple glyph (not the full stick figure PROMPT ENGINEERING
         // uses for the human IN the loop) sitting outside harness in the top band, tethered
@@ -1251,6 +1279,15 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             personGlyph(supCx, ROW_Y, cll, ""),
             s("line", { x1: supCx, y1: ROW_Y + 29, x2: supCx, y2: 14, class: "loops-supervise-line" }),
             supText);
+        // the GOAL + definition of done — the policy the supervisor sets once. Hung on the
+        // supervisor's own tether (the dashed line above runs person → harness through this
+        // point), so "sets policy" reads concretely: the human drops in a goal, and the run
+        // pursues it. The definition of done named here is exactly what the done-gate at the
+        // bottom-right checks each run against — the two are the ends of one stopping rule.
+        put(gl, "loop",
+            targetGlyph(supCx, -4, cll, ""),
+            s("text", { x: supCx + 24, y: -8, "text-anchor": "start", class: "loops-cap loops-cap-strong" }, dg.goalLabel || "the goal"),
+            s("text", { x: supCx + 24, y: 8, "text-anchor": "start", class: "loops-harness-caption" }, dg.goalDoneSub || "+ a definition of done"));
         // entry point — the autonomous trigger that starts a run WITHOUT a human. Sits
         // close to and right of the supervisor (the two are read together: who used to
         // initiate vs what initiates now), not stranded alone at the far top-right corner
@@ -1271,25 +1308,48 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
         const hintStartX = Math.min(supTextX + supLine1Len + 12, hintEndX - 10); // +12 clearance past the text; never shorter than a 10px stub
         put(gl, "loop",
             clockGlyph(clockCx, clockCy, cll, ""),
-            svgLines(clockCx + 25, clockCy, [trigLine1 + ":", trigLine2], "loops-cap", 16, "start"),
-            connector(clockCx, clockCy + clockR, clockCx, 14, ""),  // clock's bottom → harness's top edge: the "fires the run" edge — short and direct
+            // label DROPPED below the clock's centreline so the ROW_Y (-68) lane stays empty for
+            // the straight trigger→gate spine below; the run reads as one unbroken horizontal line.
+            svgLines(clockCx + 25, -50, [trigLine1 + ":", trigLine2], "loops-cap", 16, "start"),
             // supervisor → trigger: a "reading order" hint (one-time setup, then the
             // recurring trigger) — solid, matching every other connector in this diagram.
+            // (The clock→harness "fires the run" edge is gone: the top band is a self-contained
+            // control ribbon now; the trigger→gate spine below carries "the loop runs".)
             connector(hintStartX, ROW_Y, hintEndX, ROW_Y, "loops-order-hint"));
-        // the problem this layer removes — same visual grammar as every inner layer's own
-        // failure annotation (red ✗, prompt's "not what you wanted" / context's "goal
-        // drifts"), framed in the loop accent so it reads as THIS layer's gap, not a stray
-        // note floating in the shared margin. First line sits on ROW_Y, same as the other
-        // three pieces, so the whole band reads as one aligned row. Placed right after the
-        // trigger's label so problem and fix still read left-to-right adjacent.
-        const [probLine1, probLine2] = (dg.loopProblem || "harness alone: idle until a human prompts, · cold-starts every run").split(" · ");
-        const probBoxX = 880 + rowShift;
-        const probText = s("text", { x: probBoxX + 10, y: ROW_Y, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
-        probText.append(s("tspan", { class: "loops-retry-x" }, "✗  "), probLine1);
+        // ── the DONE-GATE — moved UP beside the trigger so the whole top band reads as one
+        // left-to-right story: human designs the loop → a trigger calls the loop → it runs
+        // until the definition of done is met. It's a self-contained control ribbon now: the
+        // gate no longer wires to the harness's physical bottom output. The trigger→gate arrow
+        // is "the loop runs and gets checked"; ✗ not yet makes ONE compact loop-back (run
+        // again); ✓ done ships it. The gate is raised onto the clock's own centreline so the
+        // run reads as a single straight horizontal spine, clock → gate, crossed by nothing.
+        const gateCx = 1010 + rowShift, gateCy = -64, gateW = 286, gateH = 30;
+        const gateL = gateCx - gateW / 2, gateR = gateCx + gateW / 2, gateT = gateCy - gateH / 2, gateB = gateCy + gateH / 2;
+        const runPts = [{ x: clockCx + clockR, y: ROW_Y }, { x: gateL, y: ROW_Y }];                          // trigger → gate: the run, straight along ROW_Y
+        const noPts = [{ x: gateL + 28, y: gateB }, { x: gateL + 28, y: -16 }, { x: gateL - 32, y: -16 }, { x: gateL - 32, y: ROW_Y }]; // ✗ not yet → small loop → merge back onto the spine
+        const yesPts = [{ x: gateR, y: gateCy }, { x: gateR + 24, y: gateCy }];                              // ✓ done → ship it
+        const gateRect = s("rect", { x: gateL, y: gateT, width: gateW, height: gateH, rx: 10, fill: "none", stroke: cll, class: "loops-done-gate" });
+        // ✗ not yet — just below the gate, beside the loop-back's exit riser
+        const noLabel = s("text", { x: gateL + 32, y: -35, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        noLabel.append(s("tspan", { class: "loops-retry-x" }, "✗  "), dg.doneNo || "not yet");
+        // ✓ done, ship it — the terminal, just right of the gate on its own centreline
+        const yesLabel = s("text", { x: gateR + 32, y: -60, "text-anchor": "start", class: "loops-cap loops-cap-strong" });
+        yesLabel.append(s("tspan", { class: "loops-done-yes" }, "✓  "), dg.doneYes || "done, ship it");
         put(gl, "loop",
-            s("rect", { x: probBoxX, y: ROW_Y - 14, width: 440, height: 40, rx: 8, fill: "none", stroke: cll, class: "loops-loop-problem-frame" }),
-            probText,
-            s("text", { x: probBoxX + 10, y: ROW_Y + 18, "text-anchor": "start", class: "loops-cap" }, probLine2));
+            connector(runPts[0].x, runPts[0].y, runPts[1].x, runPts[1].y, ""), // trigger → gate: the run (straight spine)
+            gateRect,
+            s("text", { x: gateCx, y: gateCy + 5, "text-anchor": "middle", class: "loops-cap loops-cap-strong" }, dg.doneGateLabel || "meets the definition of done?"),
+            orthoConnector(noPts, "loops-feedback-arc"),                 // ✗ not yet → small loop back onto the run
+            noLabel,
+            connector(yesPts[0].x, yesPts[0].y, yesPts[1].x, yesPts[1].y, "loops-done-edge"),
+            yesLabel,
+            // "↻ self-guided loop" — names the whole feedback loop, built exactly like the
+            // inner "↻ prompt loop" / "↻ agent loop" labels: a rotating loopGlyph (CSS ping
+            // rings + spin) in the loop accent + a "self-guided loop" label ("loop" word blue).
+            // Sits just under the gate box, centred on it.
+            loopGlyph(gateCx - 48, 6, { cls: "loops-cap loops-cap-strong", ringColor: GLOW.loop }),
+            s("text", { x: gateCx - 48 + LOOP_GLYPH_ADVANCE, y: 6, "text-anchor": "start", class: "loops-cap loops-cap-strong" },
+                s("tspan", { class: "loops-cap-strong" }, "self-guided "), s("tspan", { class: "loops-kw" }, "loop")));
         // self-improvement band — bottom of the outer margin, recoloured to the loop
         // accent (was green, which read as a stray context/teal element; now the same
         // blue as the frame and the loop-back arrow below). Each pill carries a one-word
@@ -1307,6 +1367,35 @@ export function initEngineeringLoops(rootEl, { content } = {}) {
             if (role) gg.append(s("text", { x: cxp + w / 2, y: 932, "text-anchor": "middle", class: "loops-loop-subrole" }, role));
             put(gl, "loop", gg); cxp += w + 14;
         });
+
+        // ── the feedback loop, ANIMATED. One cycle: the trigger calls the loop, the run
+        // reaches the gate, the gate flashes as it checks; twice it doesn't pass and the dot
+        // rides the "not yet" arc back to the trigger to run again; on the third run it passes
+        // and the dot exits right to "ship it". This is the whole point of the layer — it loops
+        // until the definition of done is met — shown in motion, now along the top-band story.
+        anims.loop = () => {
+            const g = gsap(), tl = g.timeline({ repeat: -1, repeatDelay: 1.4 });
+            const glow = GLOW.loop, spd = 300;
+            const flashGate = at => tl.fromTo(gateRect, { attr: { "stroke-width": 1.6 } }, { attr: { "stroke-width": 3.2 }, duration: 0.22, yoyo: true, repeat: 1, ease: "power1.inOut" }, at);
+            let t = 0;
+            // one run: trigger calls the loop → the run reaches the gate → gate flashes as it checks
+            const run = () => {
+                tl.add(() => travelDot(svg, runPts, { color: cll, glow, speed: spd, layer: "loop" }), t);
+                flashGate(t + 0.8);
+                t += 1.4;
+            };
+            // two runs that don't pass — the dot loops back on the "not yet" arc to the trigger
+            for (let k = 0; k < 2; k++) {
+                run();
+                tl.add(() => travelDot(svg, noPts, { color: cll, glow, speed: 460, layer: "loop" }), t);
+                t += 1.6;
+            }
+            // final run — it passes: the dot exits right to "ship it"
+            run();
+            tl.add(() => travelDot(svg, yesPts, { color: cll, glow, speed: spd, layer: "loop" }), t);
+            tl.to({}, { duration: 2.4 });
+            return tl;
+        };
         return { groups, steps, anims, demarcation };
     }
 
