@@ -17,5 +17,6 @@ deploy: ## Deploy to Cloud Run (cpu-boost + gen2 + concurrency=20 for fast cold 
 		--execution-environment gen2 \
 		--concurrency 20 \
 		--min-instances 0 \
+		--max-instances 3 \
 		--update-secrets RESEND_API_KEY=resend-api-key:latest \
 		--update-secrets MCP_CALLER_TOKEN=resend-mcp-caller-token:latest
