@@ -56,21 +56,23 @@ def is_valid_email(email: str) -> bool:
     return bool(_EMAIL_RE.match(e))
 
 
-def _check_url() -> str:
+def _check_url(path: str = "resume-send-check") -> str:
     base = _env("AGENT_LOG_URL")
-    return base.replace("/api/agent-log", "/api/resume-send-check") if base else ""
+    return base.replace("/api/agent-log", f"/api/{path}") if base else ""
 
 
-def _record_url() -> str:
+def _record_url(path: str = "resume-send-record") -> str:
     base = _env("AGENT_LOG_URL")
-    return base.replace("/api/agent-log", "/api/resume-send-record") if base else ""
+    return base.replace("/api/agent-log", f"/api/{path}") if base else ""
 
 
-async def _check_rate_limit(email_hash: str, token: str) -> tuple[bool, str | None]:
-    url = _check_url()
+async def _check_rate_limit(
+    email_hash: str, token: str, *, path: str = "resume-send-check"
+) -> tuple[bool, str | None]:
+    url = _check_url(path)
     if not url or not token:
         # No Worker configured (local dev without backend) → permit but log.
-        logger.info("resume-send-check skipped: AGENT_LOG_URL/TOKEN unset")
+        logger.info("%s skipped: AGENT_LOG_URL/TOKEN unset", path)
         return True, None
     try:
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
@@ -84,12 +86,14 @@ async def _check_rate_limit(email_hash: str, token: str) -> tuple[bool, str | No
         data = r.json()
         return bool(data.get("allowed", False)), None
     except Exception as exc:
-        logger.warning("resume-send-check errored: %s", exc)
+        logger.warning("%s errored: %s", path, exc)
         return False, "check unavailable"
 
 
-async def _record_send(email_hash: str, token: str) -> None:
-    url = _record_url()
+async def _record_send(
+    email_hash: str, token: str, *, path: str = "resume-send-record"
+) -> None:
+    url = _record_url(path)
     if not url or not token:
         return
     try:
@@ -100,9 +104,9 @@ async def _record_send(email_hash: str, token: str) -> None:
                 headers={"X-Internal-Token": token, "Content-Type": "application/json"},
             )
             if r.status_code >= 400:
-                logger.warning("resume-send-record failed: %s %s", r.status_code, r.text[:200])
+                logger.warning("%s failed: %s %s", path, r.status_code, r.text[:200])
     except Exception as exc:
-        logger.warning("resume-send-record errored: %s", exc)
+        logger.warning("%s errored: %s", path, exc)
 
 
 def _email_html() -> str:

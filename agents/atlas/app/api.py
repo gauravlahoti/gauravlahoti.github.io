@@ -71,11 +71,15 @@ async def _ensure_session(session_id: str) -> str:
 
 
 def _client_ip(request: Request) -> str:
-    # Cloud Run forwards via X-Forwarded-For. Take the first entry (the
-    # original client). Fallback to the socket peer.
+    # Cloud Run's front end (GFE) appends the true client IP as the last
+    # hop in X-Forwarded-For rather than replacing client-supplied values;
+    # anything before that last entry is attacker-controlled and must not
+    # be trusted for rate-limiting.
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        return xff.split(",")[0].strip()
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
     return request.client.host if request.client else "0.0.0.0"
 
 

@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS resume_sends (
 CREATE INDEX IF NOT EXISTS idx_rs_hash ON resume_sends(email_hash);
 CREATE INDEX IF NOT EXISTS idx_rs_at   ON resume_sends(sent_at);
 
+-- Per-recipient rate-limit ledger for the agent's send_note_to_gaurav action.
+-- Same shape/salt scheme as resume_sends. Also shipped as migration
+-- 008-note-sends.sql for prod D1.
+CREATE TABLE IF NOT EXISTS note_sends (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  email_hash  TEXT    NOT NULL,
+  sent_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ns_hash ON note_sends(email_hash);
+CREATE INDEX IF NOT EXISTS idx_ns_at   ON note_sends(sent_at);
+
 -- Self-hosted, cookieless pageview analytics (Spec #33). One row per page load
 -- via POST /api/pageview. Geo from Cloudflare request.cf, and visitor_hash
 -- rotates daily (sha256 of ip + ua + UTC date, first 16 chars) so the raw IP is

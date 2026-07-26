@@ -26,6 +26,8 @@ const RETENTION_SECONDS = 365 * 24 * 60 * 60;       // 12 months (resume_downloa
 const AGENT_LOG_RETENTION_SECONDS = 90 * 24 * 60 * 60; // 90 days (agent_interactions, resume_sends)
 const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;         // 24 hours
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
+const SEND_AGGREGATE_WINDOW_SECONDS = 60 * 60;      // global cap window (resume_sends / note_sends)
+const SEND_AGGREGATE_LIMIT = 20;                    // max sends per table per window, across all recipients
 
 export default {
     async fetch(request, env) {
@@ -60,6 +62,14 @@ export default {
 
         if (url.pathname === "/api/resume-send-record" && request.method === "POST") {
             return handleResumeSendRecord(request, env);
+        }
+
+        if (url.pathname === "/api/note-send-check" && request.method === "POST") {
+            return handleNoteSendCheck(request, env);
+        }
+
+        if (url.pathname === "/api/note-send-record" && request.method === "POST") {
+            return handleNoteSendRecord(request, env);
         }
 
         if (url.pathname === "/api/gcp-cost" && request.method === "GET") {
@@ -139,6 +149,15 @@ export default {
             console.log(`[retention] resume_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
         } catch (err) {
             console.error("[retention] resume_sends cleanup failed", err);
+        }
+
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM note_sends WHERE sent_at < ?"
+            ).bind(cutoffAgent).run();
+            console.log(`[retention] note_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
+        } catch (err) {
+            console.error("[retention] note_sends cleanup failed", err);
         }
 
         // page_views share the 365-day window so "all-time" stats stay meaningful.
@@ -411,9 +430,24 @@ async function handleAgentLog(request, env) {
     }
 }
 
+// Shared global circuit-breaker: reject once a table has taken more than
+// `limit` sends in the trailing `windowSeconds`, regardless of per-recipient
+// dedupe. Bounds a distributed caller spreading requests across many IPs/
+// recipients (each individually within its own per-recipient allowance) from
+// still driving unbounded aggregate email volume/cost.
+async function checkGlobalSendCap(env, table, windowSeconds, limit) {
+    const cutoff = Math.floor(Date.now() / 1000) - windowSeconds;
+    const { results } = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM ${table} WHERE sent_at > ?`
+    ).bind(cutoff).all();
+    const count = results?.[0]?.n ?? 0;
+    return count < limit;
+}
+
 // POST /api/resume-send-check — pre-send rate-limit gate for the agent's send_resume tool.
 // Returns { allowed: boolean } based on whether the same email_hash has been
-// recorded in the last RESUME_SEND_WINDOW_SECONDS. No row is written here.
+// recorded in the last RESUME_SEND_WINDOW_SECONDS, and whether the table as a
+// whole is under the global aggregate cap. No row is written here.
 async function handleResumeSendCheck(request, env) {
     const token = env.AGENT_LOG_TOKEN;
     if (!token) {
@@ -434,6 +468,12 @@ async function handleResumeSendCheck(request, env) {
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     try {
+        const underGlobalCap = await checkGlobalSendCap(
+            env, "resume_sends", SEND_AGGREGATE_WINDOW_SECONDS, SEND_AGGREGATE_LIMIT
+        );
+        if (!underGlobalCap) {
+            return json({ ok: true, allowed: false }, 200, {});
+        }
         const { results } = await env.DB.prepare(
             "SELECT 1 FROM resume_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
         ).bind(emailHash, cutoff).all();
@@ -473,6 +513,77 @@ async function handleResumeSendRecord(request, env) {
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
         console.error("[resume-send-record] D1 insert failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// POST /api/note-send-check — pre-send rate-limit gate for the agent's
+// send_note_to_gaurav tool. Mirrors handleResumeSendCheck but against the
+// note_sends table, keyed on the visitor's email (used as CC + Reply-To).
+async function handleNoteSendCheck(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return json({ ok: false, error: "Invalid emailHash" }, 400, {});
+    }
+    const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
+    try {
+        const underGlobalCap = await checkGlobalSendCap(
+            env, "note_sends", SEND_AGGREGATE_WINDOW_SECONDS, SEND_AGGREGATE_LIMIT
+        );
+        if (!underGlobalCap) {
+            return json({ ok: true, allowed: false }, 200, {});
+        }
+        const { results } = await env.DB.prepare(
+            "SELECT 1 FROM note_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
+        ).bind(emailHash, cutoff).all();
+        return json({ ok: true, allowed: !(results && results.length > 0) }, 200, {});
+    } catch (err) {
+        console.error("[note-send-check] D1 read failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// POST /api/note-send-record — records a successful send. Only called by the
+// agent after the MCP/Resend send returned ok.
+async function handleNoteSendRecord(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return json({ ok: false, error: "Invalid emailHash" }, 400, {});
+    }
+    const sentAt = Math.floor(Date.now() / 1000);
+    try {
+        const { meta } = await env.DB.prepare(
+            "INSERT INTO note_sends (email_hash, sent_at) VALUES (?, ?)"
+        ).bind(emailHash, sentAt).run();
+        return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
+    } catch (err) {
+        console.error("[note-send-record] D1 insert failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});
     }
 }

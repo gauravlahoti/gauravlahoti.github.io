@@ -8,22 +8,36 @@ goes directly back to the visitor.
 Architecture:
   agent.send_note_to_gaurav(visitor_email, message)
     → validate inputs
+    → POST /api/note-send-check (Worker) → {allowed}
     → call MCP tool `send-email` on the resend-mcp-server
+    → POST /api/note-send-record (Worker) → row in note_sends
     → return {ok, message, code}
 
-No rate-limiting: contact messages are desirable behaviour.
-Resend's own send limits apply (emails/day on the free tier).
+No limit on how often Gaurav gets contacted, that's desirable
+behaviour, but the visitor's address (used as CC + Reply-To) is
+rate-limited per-recipient the same way send_resume rate-limits its
+recipient, so the same third-party inbox can't be spammed via a
+crafted CC. Resend's own send limits apply as a further backstop.
 """
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from app.app_utils.resume_send import _env, _send_via_mcp, is_valid_email
+from app.app_utils.resume_send import (
+    _check_rate_limit,
+    _env,
+    _record_send,
+    _send_via_mcp,
+    hash_email,
+    is_valid_email,
+)
 
 logger = logging.getLogger(__name__)
 
 _MIN_MESSAGE_LEN = 10
+_CHECK_PATH = "note-send-check"
+_RECORD_PATH = "note-send-record"
 
 
 def _note_html(visitor_email: str, message: str) -> str:
@@ -70,6 +84,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         invalid_email   — bad format; agent should ask for a valid address.
         empty_message   — message too short; agent should ask for more.
         not_configured  — server-side env vars missing (dev / misconfig).
+        rate_limited    — this recipient was already CC'd a note in the last 24h.
         send_failed     — MCP / Resend rejected or transport error.
         ok              — sent successfully.
     """
@@ -91,6 +106,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
     sender  = _env("NOTE_FROM_ADDRESS") or _env("RESEND_FROM_ADDRESS")
     mcp_url = _env("RESEND_MCP_URL")
     to_addr = _env("GAURAV_CONTACT_EMAIL")
+    log_tok = _env("AGENT_LOG_TOKEN")
 
     if not sender or not mcp_url or not to_addr:
         return {
@@ -103,6 +119,26 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         }
 
     visitor_clean = visitor_email.strip()
+    h = hash_email(visitor_clean)
+
+    allowed, err = await _check_rate_limit(h, log_tok, path=_CHECK_PATH)
+    if not allowed:
+        if err:
+            return {
+                "ok": False,
+                "code": "send_failed",
+                "message": "Couldn't reach the rate-limit service — try again in a minute.",
+            }
+        return {
+            "ok": False,
+            "code": "rate_limited",
+            "message": (
+                "A note was already sent to that address today — check the "
+                "inbox (and spam folder). You can also reach Gaurav directly "
+                "on LinkedIn: https://www.linkedin.com/in/glahoti/"
+            ),
+        }
+
     arguments = {
         "from":    sender,
         "to":      [to_addr],
@@ -124,6 +160,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
             ),
         }
 
+    await _record_send(h, log_tok, path=_RECORD_PATH)
     return {
         "ok": True,
         "code": "ok",

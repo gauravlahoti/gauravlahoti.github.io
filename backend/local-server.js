@@ -319,12 +319,32 @@ function handleAgentLogRead(req, res, cors) {
 // Per-recipient rate-limit gate for the agent's send_resume tool. Mirrors
 // handleResumeSendCheck / handleResumeSendRecord in src/index.js.
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;
+const SEND_AGGREGATE_WINDOW_SECONDS = 60 * 60;
+const SEND_AGGREGATE_LIMIT = 20;
 const recentResumeSendForHash = db.prepare(
     "SELECT 1 FROM resume_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
 );
 const insertResumeSend = db.prepare(
     "INSERT INTO resume_sends (email_hash, sent_at) VALUES (?, ?)"
 );
+const countRecentResumeSends = db.prepare(
+    "SELECT COUNT(*) AS n FROM resume_sends WHERE sent_at > ?"
+);
+const recentNoteSendForHash = db.prepare(
+    "SELECT 1 FROM note_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
+);
+const insertNoteSend = db.prepare(
+    "INSERT INTO note_sends (email_hash, sent_at) VALUES (?, ?)"
+);
+const countRecentNoteSends = db.prepare(
+    "SELECT COUNT(*) AS n FROM note_sends WHERE sent_at > ?"
+);
+
+function underGlobalSendCap(countStmt) {
+    const cutoff = Math.floor(Date.now() / 1000) - SEND_AGGREGATE_WINDOW_SECONDS;
+    const { n } = countStmt.get(cutoff);
+    return n < SEND_AGGREGATE_LIMIT;
+}
 
 async function handleResumeSendCheck(req, res) {
     if (!AGENT_LOG_TOKEN) {
@@ -339,6 +359,9 @@ async function handleResumeSendCheck(req, res) {
     const emailHash = body?.emailHash;
     if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
         return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
+    }
+    if (!underGlobalSendCap(countRecentResumeSends)) {
+        return sendJson(res, 200, { ok: true, allowed: false }, {});
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     const hit = recentResumeSendForHash.get(emailHash, cutoff);
@@ -361,6 +384,49 @@ async function handleResumeSendRecord(req, res) {
     }
     const sentAt = Math.floor(Date.now() / 1000);
     const result = insertResumeSend.run(emailHash, sentAt);
+    sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
+}
+
+// Per-recipient rate-limit gate for the agent's send_note_to_gaurav tool.
+// Mirrors handleNoteSendCheck / handleNoteSendRecord in src/index.js.
+async function handleNoteSendCheck(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
+    }
+    if (!underGlobalSendCap(countRecentNoteSends)) {
+        return sendJson(res, 200, { ok: true, allowed: false }, {});
+    }
+    const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
+    const hit = recentNoteSendForHash.get(emailHash, cutoff);
+    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+}
+
+async function handleNoteSendRecord(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const emailHash = body?.emailHash;
+    if (typeof emailHash !== "string" || emailHash.length < 8 || emailHash.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
+    }
+    const sentAt = Math.floor(Date.now() / 1000);
+    const result = insertNoteSend.run(emailHash, sentAt);
     sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
 }
 
@@ -648,6 +714,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/resume-send-record" && req.method === "POST") {
         return handleResumeSendRecord(req, res);
+    }
+    if (url.pathname === "/api/note-send-check" && req.method === "POST") {
+        return handleNoteSendCheck(req, res);
+    }
+    if (url.pathname === "/api/note-send-record" && req.method === "POST") {
+        return handleNoteSendRecord(req, res);
     }
     if (url.pathname === "/api/ambient/interactions" && req.method === "GET") {
         return handleAmbientInteractions(req, res, url);
