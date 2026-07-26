@@ -71,8 +71,8 @@ root_agent = Agent(
     # visitor. Keeps the widget on the AI Studio free tier (no Vertex/paid).
     # See app/fallback_model.py.
     model=FallbackGemini(
-        model="gemini-3.5-flash",
-        fallback_models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+        model="gemini-3.6-flash",
+        fallback_models=["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
         retry_options=types.HttpRetryOptions(attempts=1),
     ),
     instruction=SYSTEM_INSTRUCTION,

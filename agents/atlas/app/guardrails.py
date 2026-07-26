@@ -83,15 +83,24 @@ _MAX_USER_CHARS = 1000
 INJECTION_REPLY_PREFIX = "I'm an agent representing Gaurav and I only answer"
 TOO_LONG_REPLY_PREFIX  = "Your message is a bit long for me to handle"
 
+# Both canned replies short-circuit before the LLM runs (see _short_circuit
+# below), so they never go through the model's own [[META]] sentinel
+# generation. instruction.py's contract is "every reply, including
+# declines, must end with a [[META]] block" — append an empty one by hand
+# so these two match every other reply path.
+_EMPTY_META = '[[META]]\n{"citations":[],"suggestions":[],"cta":null}\n[[/META]]'
+
 INJECTION_REPLY = (
     "I'm an agent representing Gaurav and I only answer questions about his "
     "work, perspectives, and projects. If you'd like to chat directly, the "
-    "best place is LinkedIn: https://www.linkedin.com/in/glahoti/."
+    "best place is LinkedIn: https://www.linkedin.com/in/glahoti/.\n\n"
+    f"{_EMPTY_META}"
 )
 TOO_LONG_REPLY = (
     "Your message is a bit long for me to handle reliably. Could you keep it "
     "under ~1000 characters? Or reach Gaurav on LinkedIn for anything "
-    "involved: https://www.linkedin.com/in/glahoti/."
+    "involved: https://www.linkedin.com/in/glahoti/.\n\n"
+    f"{_EMPTY_META}"
 )
 _EMAIL_REDACT_REPLACEMENT = (
     "(reach Gaurav via LinkedIn https://www.linkedin.com/in/glahoti/ or "
