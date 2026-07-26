@@ -202,3 +202,6 @@ tools/a2a-inspector/
 # Local ADK runtime state (eval history JSON, session DB, traces).
 app/.adk/
 .adk/
+
+# agents-cli eval run output (traces + grade results) — regenerated each run.
+artifacts/

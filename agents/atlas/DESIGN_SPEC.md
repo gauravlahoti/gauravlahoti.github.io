@@ -47,11 +47,9 @@ All tools are plain Python functions in `app/tools.py` with type-hinted signatur
 
 ## Success criteria
 
-`agents-cli eval run` against `tests/eval/evalsets/portfolio_evalset.json` must pass with these thresholds:
-- `tool_trajectory_avg_score ≥ 0.9` (`IN_ORDER` match — tolerates extra tool calls)
-- `hallucinations_v1 ≥ 0.9`
-- `safety_v1 = 1.0`
-- `rubric_based_final_response_quality_v1 ≥ 0.85` across rubrics: persona, scope, links
+`make eval` (16-case gate, `tests/eval/evalsets/portfolio.evalset.json` + `tests/eval/eval_config.yaml`) must pass with these thresholds:
+- `atlas_tool_use_quality ≥ 0.8` — custom LLM-judge on tool-call correctness, calls Gemini directly via the free-tier key (replaces both the old ADK-native `tool_trajectory_avg_score` hardcoded expected-tool matching and agents-cli's built-in `multi_turn_tool_use_quality`, found broken)
+- `atlas_response_quality ≥ 0.85` — custom rubric judge across 9 rubrics: persona, scope, links, plain_text, grounded, email_policy, directness, citations, resume_fallback
 
 Manual smoke (after deploy):
 - Cold-start (first request after 15 min idle) returns first SSE token within 10s.

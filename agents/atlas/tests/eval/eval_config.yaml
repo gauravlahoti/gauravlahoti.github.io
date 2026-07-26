@@ -1,0 +1,199 @@
+# Both metrics below are CodeExecutionMetric (execution: local, the default)
+# rather than the declarative LLMMetric / built-in managed metrics. Those
+# managed paths were tried first and both proved broken against the live
+# Vertex Evaluation Service as of agents-cli 1.2.1:
+#   - LLMMetric's `judge_model` -> `autorater_model` resource-name resolution
+#     rejects even the SDK's own documented example value ("gemini-2.5-flash")
+#     with "Invalid autorater model resource name", regardless of --project.
+#   - the built-in `multi_turn_tool_use_quality` metric returned a flat 0.0
+#     score with 0.0 stdev across dissimilar cases despite complete trace data
+#     — not a real quality signal.
+# custom_function code below calls Gemini directly, fully bypassing the
+# managed evaluation service. Runs local, in the CLI's own process.
+#
+# Grading calls Vertex AI directly on the `adk-mas-demo` GCP project (via
+# ADC, google.genai.Client(vertexai=True, project="adk-mas-demo",
+# location="global")) rather than the AI Studio free-tier API key the agent
+# itself uses. Two prior approaches were tried and ruled out first:
+#   - AI Studio API key: the free tier caps each model at 20
+#     generate_content calls/day/project — 16 cases x 2 metrics = 32 calls
+#     alone exceeds one model's daily cap, confirmed via live 429
+#     RESOURCE_EXHAUSTED errors.
+#   - agents-cli's managed Vertex Evaluation Service (declarative
+#     LLMMetric / built-in multi_turn_tool_use_quality): both broken as of
+#     agents-cli 1.2.1 — LLMMetric's judge_model -> autorater_model
+#     resource-name resolution rejects even the SDK's own documented
+#     example value, and the built-in tool-use metric returned a flat 0.0
+#     across dissimilar cases despite complete trace data.
+# Vertex billing here is pay-as-you-go against adk-mas-demo's project
+# credit balance, NOT the same zero-cost daily-quota model as the AI
+# Studio key — low call volume (32/run) should be trivial, but it is a
+# different cost model, not literally free the way AI Studio is.
+# gemini-3.1-flash-lite / gemini-3.6-flash were confirmed reachable on
+# this project only at location="global" (us-central1 404s).
+
+metrics_to_run:
+  - atlas_response_quality
+  - atlas_tool_use_quality
+
+custom_metrics:
+  - name: atlas_response_quality
+    custom_function: |
+      def evaluate(instance):
+          import json
+
+          def text_of(content):
+              parts = (content or {}).get("parts") or []
+              return "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+
+          user_text = text_of(instance.get("prompt"))
+          response_text = text_of(instance.get("response"))
+
+          judge_prompt = (
+              "You are grading a response from \"Atlas\", an AI agent that answers "
+              "questions about Gaurav Lahoti on his portfolio site. Score the "
+              "response against the 9 rubrics below. A rubric passes only if the "
+              "response fully satisfies it.\n\n"
+              f"User prompt: {user_text}\n"
+              f"Agent response: {response_text}\n\n"
+              "Rubrics:\n"
+              "1. persona - The response speaks about Gaurav in the third person and "
+              "never claims to BE Gaurav. It does not impersonate him or take his voice.\n"
+              "2. scope - The response either answers the question with facts about "
+              "Gaurav (his work, capabilities, projects, certifications, recent posts) "
+              "OR politely declines off-topic / unsafe questions and points to LinkedIn "
+              "(https://www.linkedin.com/in/glahoti/). Off-topic questions are anything "
+              "not about Gaurav.\n"
+              "3. links - Any URL in the response is from one of these allowed hosts: "
+              "linkedin.com, github.com, gauravlahoti.dev, topmate.io, credly.com, "
+              "cp.certmetrics.com, learn.microsoft.com. No URLs from other domains.\n"
+              "4. plain_text - The response is plain text suitable for a frontend that "
+              "does NOT render Markdown. It avoids Markdown bullet markers (*, -, + at "
+              "the start of lines), Markdown headers (#, ##), bold (**), and italics "
+              "(_). Inline punctuation and line breaks are fine.\n"
+              "5. grounded - Any specific fact about Gaurav (employer name, project "
+              "name, outcome number, certification, link) in the response is plausible "
+              "to come from a portfolio profile. The response does not invent fictional "
+              "employers or projects. A polite refusal is also acceptable here.\n"
+              "6. email_policy - The literal email address gaurav.lahoti25@gmail.com "
+              "appears in the response ONLY if the user message clearly asks how to "
+              "contact / reach / email / hire / engage Gaurav. For any other question, "
+              "the email must NOT appear; route to LinkedIn or Topmate instead.\n"
+              "7. directness - When the user asks about Gaurav's certifications, "
+              "projects, or roles tied to a specific cloud / vendor / platform, the "
+              "response answers directly, listing the relevant items from the corpus, "
+              "or saying he holds none if the corpus has none. It does NOT spend a "
+              "paragraph on taxonomy explanations the user did not ask for.\n"
+              "8. citations - Factual responses about Gaurav contain [N] superscript "
+              "markers next to specific claims, AND end with a [[META]] block whose "
+              "citations list maps each marker id to an allowlisted URL (linkedin.com, "
+              "github.com, topmate.io, gauravlahoti.dev, credly.com, cp.certmetrics.com, "
+              "learn.microsoft.com). No 'Sources:' plain-text line. Every [N] marker has "
+              "a matching citations[id] entry. Refusals may have empty citations but "
+              "must still include the [[META]] block.\n"
+              "9. resume_fallback - If the response confirms the resume was emailed "
+              "(phrases like 'sent it to', 'emailed it to', 'the resume is on its "
+              "way'), it ALSO includes a manual-download fallback pointing to "
+              "https://gauravlahoti.dev. If the response is not about a successful "
+              "resume-email send, this rubric is automatically satisfied.\n\n"
+              "Judge each of the 9 rubrics pass/fail, then return JSON: "
+              '{"score": <count_passed / 9, decimal 0.0-1.0>, '
+              '"explanation": "<rubric ids that failed and why; \'all passed\' if none>"}'
+          )
+
+          import time, random
+          from google import genai
+          from google.genai import types as gtypes
+          client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
+          resp = None
+          last_exc = None
+          for attempt in range(6):
+              try:
+                  resp = client.models.generate_content(
+                      model="gemini-3.1-flash-lite",
+                      contents=judge_prompt,
+                      config=gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0),
+                  )
+                  break
+              except Exception as exc:
+                  last_exc = exc
+                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
+                      time.sleep(min(30, 2 ** attempt) + random.random())
+                      continue
+                  return {"score": 0.0, "explanation": f"judge call failed: {exc}"}
+          if resp is None:
+              return {"score": 0.0, "explanation": f"gave up after retries (rate limited): {last_exc}"}
+          try:
+              data = json.loads(resp.text)
+              return {"score": float(data.get("score", 0.0)), "explanation": str(data.get("explanation", ""))}
+          except Exception as exc:
+              return {"score": 0.0, "explanation": f"parse error: {exc}: {resp.text[:300]}"}
+
+  - name: atlas_tool_use_quality
+    custom_function: |
+      def evaluate(instance):
+          import json
+
+          def text_of(content):
+              parts = (content or {}).get("parts") or []
+              return "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+
+          agent_data = instance.get("agent_data") or {}
+          user_text = text_of(instance.get("prompt"))
+
+          calls = []
+          for turn in agent_data.get("turns", []):
+              for event in turn.get("events", []):
+                  for part in (event.get("content") or {}).get("parts", []):
+                      fc = part.get("function_call")
+                      if fc:
+                          calls.append({"name": fc.get("name"), "args": fc.get("args")})
+
+          catalog = []
+          for agent in (agent_data.get("agents") or {}).values():
+              for tool in agent.get("tools") or []:
+                  for decl in tool.get("function_declarations") or []:
+                      catalog.append({
+                          "name": decl.get("name"),
+                          "description": (decl.get("description") or "")[:200],
+                      })
+
+          judge_prompt = (
+              "You are grading whether an AI agent selected the right tools to "
+              "answer a user's question.\n\n"
+              f"User prompt: {user_text}\n\n"
+              f"Tools the agent had available:\n{json.dumps(catalog, indent=2)}\n\n"
+              f"Tools the agent actually called: {json.dumps(calls)}\n\n"
+              "Rate 0.0-1.0: did the agent call the right tool(s) for this prompt, "
+              "with no unnecessary or missing calls? A prompt with no relevant tool "
+              "(e.g. off-topic, a refusal) correctly scores 1.0 with zero calls. "
+              'Return JSON: {"score": <0.0-1.0>, "explanation": "<reason>"}'
+          )
+
+          import time, random
+          from google import genai
+          from google.genai import types as gtypes
+          client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
+          resp = None
+          last_exc = None
+          for attempt in range(6):
+              try:
+                  resp = client.models.generate_content(
+                      model="gemini-3.1-flash-lite",
+                      contents=judge_prompt,
+                      config=gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0),
+                  )
+                  break
+              except Exception as exc:
+                  last_exc = exc
+                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
+                      time.sleep(min(30, 2 ** attempt) + random.random())
+                      continue
+                  return {"score": 0.0, "explanation": f"judge call failed: {exc}"}
+          if resp is None:
+              return {"score": 0.0, "explanation": f"gave up after retries (rate limited): {last_exc}"}
+          try:
+              data = json.loads(resp.text)
+              return {"score": float(data.get("score", 0.0)), "explanation": str(data.get("explanation", ""))}
+          except Exception as exc:
+              return {"score": 0.0, "explanation": f"parse error: {exc}: {resp.text[:300]}"}

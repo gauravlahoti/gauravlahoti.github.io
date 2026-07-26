@@ -19,8 +19,10 @@ portfolio-agent/
 │       └── ambient_data.py    # visitor stats from Worker /api/ambient/stats
 ├── tests/
 │   ├── unit/                  # Pure unit tests (no network)
-│   └── integration/           # Live agent smoke tests
-│       └── evalsets/          # Eval set for agents-cli eval gate
+│   ├── integration/           # Live agent smoke tests
+│   └── eval/
+│       ├── evalsets/          # Eval datasets for agents-cli eval gate
+│       └── eval_config.yaml   # Metrics config (custom rubric + built-in tool-use quality)
 ├── .env.example               # All required env vars with docs
 ├── Makefile                   # dev, corpus, audit shortcuts
 └── pyproject.toml             # Dependencies (managed by agents-cli / uv)
@@ -41,7 +43,7 @@ agents-cli playground          # interactive web UI
 | `make dev` | FastAPI dev server on `:8000` |
 | `agents-cli playground` | Interactive ADK web UI |
 | `agents-cli run "prompt"` | One-shot smoke test |
-| `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` | Eval gate (required before deploy) |
+| `make eval` | Eval gate (required before deploy) |
 | `uv run pytest tests/unit tests/integration` | Unit + integration tests |
 | `make corpus` | Sync `content/*.json` → `app/corpus/` (run before every deploy) |
 | `make audit` | Smoke-test the audit log endpoint |
