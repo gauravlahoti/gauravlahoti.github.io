@@ -9,7 +9,7 @@ Google ADK Python agent powering the portfolio chat widget. Answers questions ab
 | `make dev` | FastAPI dev server on `:8000` |
 | `agents-cli playground` | Interactive ADK web UI |
 | `agents-cli run "prompt"` | One-shot smoke test |
-| `make eval` | Full 16-case eval gate — **free-tier key only, never Vertex** (no model charges) |
+| `make eval` | Full 16-case eval gate. Agent under test runs on the AI Studio free-tier key; the **grading judge runs on Vertex** (adk-mas-demo project, its own free-tier credit) |
 | `make eval-quick` | Cheap 2-case smoke eval (routine checks) |
 | `uv run pytest tests/unit tests/integration` | Unit + integration tests |
 | `agents-cli lint` | Code quality check |
@@ -19,7 +19,7 @@ Google ADK Python agent powering the portfolio chat widget. Answers questions ab
 ## Workflow
 
 1. Edit agent logic in `app/`
-2. Run `make eval` (free-tier key, no Vertex charges) — iterate until evals pass
+2. Run `make eval` (agent on AI Studio free tier; judge on adk-mas-demo Vertex) — iterate until evals pass
 3. Run `uv run pytest tests/unit tests/integration`
 4. Get explicit approval, then deploy
 

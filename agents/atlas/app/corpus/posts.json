@@ -1,5 +1,31 @@
 [
   {
+    "url": "https://www.linkedin.com/posts/glahoti_anthropic-claudecertifiedarchitect-certification-share-7478046003472896000-1s8j/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "I got Claude Certified by building, not cramming",
+    "excerpt": "Officially a Claude Certified Architect !!\n\nGlad to close this one out, and grateful for the road that got me here. Claude is moving fast in the enterprise, and this credential sits right at the center of it.\n\nWhat carried me through wasn't the reading. It was the building.\n\nI stood up my entire personal website and a working portfolio of agents from first principles, with Claude doing the heavy lifting alongside me. Every design tradeoff, every failed run, and every \"why on earth did the agent do that\" moment taught me more than any slide deck could.\n\nThanks to Deloitte for genuinely investing in this space: the certifications, the tooling, and a culture that encourages the people who like to build to push past the edge of the map.\n\nThe website is in the comments, and I'd love your feedback.\nIn an upcoming post, I'll share the hard-won lessons from my prep for anyone considering taking it on.\n\n#Anthropic #ClaudeCertifiedArchitect #Certification #Deloitte",
+    "date": "2026-07-01",
+    "tags": [
+      "anthropic",
+      "claudecertifiedarchitect",
+      "certification",
+      "deloitte"
+    ],
+    "slug": "i-got-claude-certified-by-building-not-cramming"
+  },
+  {
+    "url": "https://www.linkedin.com/posts/glahoti_anthropic-mcp-modelcontextprotocol-ugcPost-7477218610021572608-kB3A/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
+    "firstLine": "MCP explained by making it clickable, not readable",
+    "excerpt": "\"Isn't MCP just APIs with extra steps?\"\n\nI get some version of that question almost every week. From engineers, from leaders, from people already shipping agents. MCP is the most hyped protocol in AI and the most argued about.\n\nSo I did what I always do when a concept is too debated to settle in a sentence. I turned it into something you can click.\n\nMeet the MCP Lab. It's the newest edition in my AI Labs, the corner of my site where I take a hyped AI concept and make it click through interactive visuals. Last edition was a 3D RAG explorer.\n\nWhat it actually shows you:\n\n• The sprawl. 3 models × 4 tools = 12 hand-written integrations. Swap one model, they all break. That's the tax every AI team is quietly paying.\n• The real shift. The model asks the server what it can do at runtime, instead of you hardcoding it. Discovery, not glue code.\n• The fix. One open standard, and that M×N tangle collapses to a clean M+N. Expose your system once, any model can use it.\n• The debate, settled. MCP doesn't replace your APIs. It sits on top and teaches them to speak the model's language. Same infrastructure underneath.\n\nThe best way to learn a concept isn't to read about it. It's to play with it. Walkthrough below. Link in the comments and go break it yourself,\n\n#Anthropic #MCP #ModelContextProtocol #AgenticAI",
+    "date": "2026-06-29",
+    "tags": [
+      "anthropic",
+      "mcp",
+      "modelcontextprotocol",
+      "agenticai"
+    ],
+    "slug": "mcp-explained-by-making-it-clickable-not-readable"
+  },
+  {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloudsummitindia-agenticai-googlecloudindia-ugcPost-7469420652228268032-oMZL/",
     "firstLine": "I attended Google Cloud Summit India 2026 alongside 1000+ AI builders",
     "excerpt": "I attended Google Cloud Summit India 2026 at Yashobhoomi, Delhi alongside 1000+ AI builders.\n\nThe keynote raised the bar. suchit puri, Prashanth Subrahmanyam and Abirami Sukumaran, Ph.D unpacked the Gemini Enterprise Agent Platform and shipped working agents on stage. Live, not slideware.\n\nBut the beat that stuck with me was a 1:1 conversation with Romin Irani on Antigravity 2.0 and ADK 2.0. We skipped past \"what's new\" and got into \"why now\": the rationale behind a shift this big and what it actually takes for builders to adapt instead of chasing every release. The developer's job is shifting from code-first to AI-first. You stop living in an editor and start directing the agent that writes the code. That is not a tooling update, it is a new way of working.\n\nOne session that stood out was a preview of an unreleased AI-powered architecture diagramming tool for Google Cloud. Stenal P Jolly pulled back the curtain on its multi-agent architecture. The premise is hard to argue with if you design systems for a living: we lose hours hand-drawing the same diagrams over and over. An agentic system that generates them is not a nice-to-have. It is overdue.\n\nThis year I was not there solo. A few of my Deloitte colleagues came along, Lakshay Sharma, Akshay Goel, SAJAL KULSHRESHTHA, and having people from your own team in the room changes the dynamic. Every session turned into a quick huddle on how we can actually apply this to our work.\n\nLeft with a full notebook and a short list I actually intend to act on.\n\nP.S. The second photo was generated live at the event using Nano Banana 2! Pro-grade output at Flash speed, rendered in seconds while you watch.\n\n#GoogleCloudSummitIndia #AgenticAI #GoogleCloudIndia #ADK #Antigravity #GeminiEnterprise",
