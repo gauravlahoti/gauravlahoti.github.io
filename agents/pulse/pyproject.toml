@@ -13,7 +13,6 @@ dependencies = [
     "asyncpg>=0.30.0,<1.0.0",
     "fastapi>=0.115.8,<1.0.0",
     "httpx>=0.27,<1.0",
-    "google-cloud-aiplatform[evaluation]>=1.130.0",
     "uvicorn~=0.34.0",
 ]
 requires-python = ">=3.11,<3.14"
@@ -29,6 +28,9 @@ dev = [
 [project.optional-dependencies]
 eval = [
     "google-adk[eval]>=1.32.0,<2.0.0",
+    # Local-only eval grading SDK — kept out of [project].dependencies so it
+    # never ships into the deployed Cloud Run image (shrinks the AR layer).
+    "google-cloud-aiplatform[evaluation]>=1.130.0",
 ]
 lint = [
     "ruff>=0.4.6,<1.0.0",

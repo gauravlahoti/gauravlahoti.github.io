@@ -25,32 +25,36 @@ playground: ## Open the ADK web playground.
 smoke: ## One-shot smoke test against the local agent.
 	agents-cli run "What has Gaurav shipped in production with multi-agent systems?"
 
-# Both agent inference (`app/agent.py`) AND eval grading run on the AI
-# Studio free-tier key, never Vertex AI — zero model charges either way. We
-# reuse the same key prod uses (Secret Manager `gemini-api-key`), honoring
+# The AGENT under test (`app/agent.py`) runs on the AI Studio free-tier key:
+# we reuse the same key prod uses (Secret Manager `gemini-api-key`), honoring
 # an existing GEMINI_API_KEY in your env first. Forcing
-# GOOGLE_GENAI_USE_VERTEXAI=False pins agent generation to the free tier;
-# without this, missing creds fall through to paid Vertex AI.
+# GOOGLE_GENAI_USE_VERTEXAI=False pins the agent's own generation to the free
+# tier; without it, missing creds fall through to paid Vertex AI.
 #
-# Grading uses eval_config.yaml's two custom_function metrics
-# (atlas_response_quality, atlas_tool_use_quality), which call
-# google.genai directly with this same GEMINI_API_KEY rather than going
-# through agents-cli's managed Vertex evaluation service — that managed
-# path (both the declarative LLMMetric judge and the built-in
-# multi_turn_tool_use_quality metric) was tried first and found broken as
-# of agents-cli 1.2.1 (see the comment atop eval_config.yaml).
+# The GRADING judge is a DIFFERENT path. eval_config.yaml's two
+# custom_function metrics (atlas_response_quality, atlas_tool_use_quality)
+# call google.genai with Client(vertexai=True, project="adk-mas-demo"), i.e.
+# Vertex AI on the adk-mas-demo project via ADC — NOT the AI Studio key. The
+# free tier caps each model at 20 generate_content/day and 16 cases x 2
+# metrics = 32 calls/run exceeds that; agents-cli 1.2.1's managed Vertex eval
+# service was also tried and found broken (see the comment atop
+# eval_config.yaml). adk-mas-demo runs on its own free-tier credit, so grading
+# is not billed today, but it IS Vertex, not "no Vertex". Low volume (~32
+# calls/run).
 _FREE_KEY = KEY="$${GEMINI_API_KEY:-$$(gcloud secrets versions access latest --secret=gemini-api-key --project gcp-experiments-490306 2>/dev/null)}"; \
 	test -n "$$KEY" || { echo "ERROR: no free-tier key — set GEMINI_API_KEY or grant access to secret 'gemini-api-key'"; exit 1; }; \
-	echo ">> Eval on AI Studio FREE TIER (Vertex disabled — no model charges)";
+	echo ">> Agent on AI Studio free tier; judge on adk-mas-demo Vertex (~32 calls/run)";
 
-eval: ## Run the FULL 16-case eval gate on the free-tier key (no Vertex/paid usage). Use before deploy.
+eval: ## Run the FULL 16-case eval gate. Agent on AI Studio free tier; judge on adk-mas-demo Vertex. Use before deploy.
 	@$(_FREE_KEY) \
+	uv sync --frozen --extra eval && \
 	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
 		agents-cli eval run --dataset tests/eval/evalsets/portfolio.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/portfolio.evalset.json
 
 eval-quick: ## Cheap 2-case smoke eval on the free-tier key (routine checks; ~4 calls).
 	@$(_FREE_KEY) \
+	uv sync --frozen --extra eval && \
 	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
 		agents-cli eval run --dataset tests/eval/evalsets/basic.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/basic.evalset.json
