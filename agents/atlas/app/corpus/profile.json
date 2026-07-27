@@ -66,6 +66,14 @@
   },
   "certifications": [
     {
+      "name": "Claude Certified Architect — Foundations",
+      "issuer": "Anthropic",
+      "category": "ai",
+      "slug": "claude-certified-architect",
+      "badge": "assets/img/badges/claude-certified-architect.png",
+      "credlyUrl": "https://www.credly.com/badges/7b67699d-af26-4b77-8451-a6619f13a499/public_url"
+    },
+    {
       "name": "AWS Certified Machine Learning — Specialty",
       "issuer": "AWS",
       "category": "ai",
