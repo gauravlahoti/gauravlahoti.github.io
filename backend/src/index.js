@@ -72,6 +72,10 @@ export default {
             return handleNoteSendRecord(request, env);
         }
 
+        if (url.pathname === "/api/send-fail" && request.method === "POST") {
+            return handleSendFail(request, env);
+        }
+
         if (url.pathname === "/api/gcp-cost" && request.method === "GET") {
             return handleGcpCost(request, env, corsHeaders);
         }
@@ -445,9 +449,12 @@ async function checkGlobalSendCap(env, table, windowSeconds, limit) {
 }
 
 // POST /api/resume-send-check — pre-send rate-limit gate for the agent's send_resume tool.
-// Returns { allowed: boolean } based on whether the same email_hash has been
-// recorded in the last RESUME_SEND_WINDOW_SECONDS, and whether the table as a
-// whole is under the global aggregate cap. No row is written here.
+// Returns { allowed: boolean, reason?: string } based on whether the same
+// email_hash has been recorded in the last RESUME_SEND_WINDOW_SECONDS, and
+// whether the table as a whole is under the global aggregate cap. No row is
+// written here. `reason` distinguishes the two denial causes ("global_cap" vs
+// "recipient_recent") so the agent can tell the visitor something true — a
+// bare allowed:false made it report a global throttle as "already sent to you".
 async function handleResumeSendCheck(request, env) {
     const token = env.AGENT_LOG_TOKEN;
     if (!token) {
@@ -472,12 +479,19 @@ async function handleResumeSendCheck(request, env) {
             env, "resume_sends", SEND_AGGREGATE_WINDOW_SECONDS, SEND_AGGREGATE_LIMIT
         );
         if (!underGlobalCap) {
-            return json({ ok: true, allowed: false }, 200, {});
+            console.warn("[resume-send-check] global cap reached", SEND_AGGREGATE_LIMIT);
+            return json({ ok: true, allowed: false, reason: "global_cap" }, 200, {});
         }
         const { results } = await env.DB.prepare(
             "SELECT 1 FROM resume_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
         ).bind(emailHash, cutoff).all();
-        return json({ ok: true, allowed: !(results && results.length > 0) }, 200, {});
+        const recentlySent = !!(results && results.length > 0);
+        return json(
+            recentlySent
+                ? { ok: true, allowed: false, reason: "recipient_recent" }
+                : { ok: true, allowed: true },
+            200, {}
+        );
     } catch (err) {
         console.error("[resume-send-check] D1 read failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});
@@ -517,6 +531,52 @@ async function handleResumeSendRecord(request, env) {
     }
 }
 
+// POST /api/send-fail — records an outbound email that FAILED to send, so
+// failures are countable rather than inferred from a missing resume_sends row.
+// Deliberately separate from the agent_interactions audit log, which is written
+// fire-and-forget only after a chat turn finishes streaming: a turn that dies
+// mid-stream leaves no audit row, but the failure still happened.
+// Body: { kind: "resume"|"note", code: "<short-code>", emailHash?: "<hash>" }
+async function handleSendFail(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    let body;
+    try {
+        body = await request.json();
+    } catch (_) {
+        return json({ ok: false, error: "Invalid JSON" }, 400, {});
+    }
+    const kind = body?.kind;
+    if (kind !== "resume" && kind !== "note") {
+        return json({ ok: false, error: "Invalid kind" }, 400, {});
+    }
+    const code = body?.code;
+    if (typeof code !== "string" || code.length < 2 || code.length > 64) {
+        return json({ ok: false, error: "Invalid code" }, 400, {});
+    }
+    // Optional: a failure can predate having a usable hash.
+    const rawHash = body?.emailHash;
+    const emailHash =
+        typeof rawHash === "string" && rawHash.length >= 8 && rawHash.length <= 64
+            ? rawHash
+            : null;
+    const failedAt = Math.floor(Date.now() / 1000);
+    try {
+        const { meta } = await env.DB.prepare(
+            "INSERT INTO send_failures (kind, code, email_hash, failed_at) VALUES (?, ?, ?, ?)"
+        ).bind(kind, code, emailHash, failedAt).run();
+        return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
+    } catch (err) {
+        console.error("[send-fail] D1 insert failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
 // POST /api/note-send-check — pre-send rate-limit gate for the agent's
 // send_note_to_gaurav tool. Mirrors handleResumeSendCheck but against the
 // note_sends table, keyed on the visitor's email (used as CC + Reply-To).
@@ -544,12 +604,19 @@ async function handleNoteSendCheck(request, env) {
             env, "note_sends", SEND_AGGREGATE_WINDOW_SECONDS, SEND_AGGREGATE_LIMIT
         );
         if (!underGlobalCap) {
-            return json({ ok: true, allowed: false }, 200, {});
+            console.warn("[note-send-check] global cap reached", SEND_AGGREGATE_LIMIT);
+            return json({ ok: true, allowed: false, reason: "global_cap" }, 200, {});
         }
         const { results } = await env.DB.prepare(
             "SELECT 1 FROM note_sends WHERE email_hash = ? AND sent_at > ? LIMIT 1"
         ).bind(emailHash, cutoff).all();
-        return json({ ok: true, allowed: !(results && results.length > 0) }, 200, {});
+        const recentlySent = !!(results && results.length > 0);
+        return json(
+            recentlySent
+                ? { ok: true, allowed: false, reason: "recipient_recent" }
+                : { ok: true, allowed: true },
+            200, {}
+        );
     } catch (err) {
         console.error("[note-send-check] D1 read failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});

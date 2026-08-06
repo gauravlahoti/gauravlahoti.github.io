@@ -21,11 +21,12 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from google.genai import types
 from google.adk.runners import InMemoryRunner
+from google.genai import types
 
 from app.agent import root_agent
 from app.app_utils.post_metrics import refresh_post_metrics
+from app.app_utils.resume_send import warm_mcp_server
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +63,19 @@ async def _run_ambient_cycle() -> dict[str, Any]:
         parts=[types.Part.from_text(text="Run the twice-weekly ambient cycle now.")],
     )
 
+    # Wake the resend-mcp-server before the LLM cycle starts. It sits at
+    # min-instances=0, and the digest send at the end of the cycle is the whole
+    # point of this run — two of these runs already lost their email to that
+    # service's cold start.
+    await warm_mcp_server()
+
     interactions_seen = 0
     leads_processed = 0
     leads_seen = 0
     emails_sent = 0
     saw_mark_call = False
     drafts_sent_ok = False
+    email_failure: str | None = None
     call_trace: list[str] = []  # ordered tool calls the agent made
     finish_reasons: list[str] = []
 
@@ -110,7 +118,12 @@ async def _run_ambient_cycle() -> dict[str, Any]:
                     if leads_seen > 0:
                         drafts_sent_ok = True
                 else:
-                    logger.warning("[ambient] send_review_email returned not-ok: %s", value)
+                    email_failure = "send_failed"
+                    if isinstance(value, dict):
+                        email_failure = str(value.get("code") or "send_failed")[:64]
+                    logger.error(
+                        "EMAIL_SEND_FAILED [ambient] send_review_email returned not-ok: %s", value
+                    )
 
     truncated = any("MAX_TOKENS" in r for r in finish_reasons)
     leads_dropped = leads_seen > 0 and not drafts_sent_ok
@@ -131,6 +144,11 @@ async def _run_ambient_cycle() -> dict[str, Any]:
         "interactions_seen": interactions_seen,
         "leads_processed": leads_processed,
         "emails_sent": emails_sent,
+        # Set when the agent tried to send the digest and the send failed. The
+        # route turns this into a 500 so the Cloud Scheduler job goes red —
+        # otherwise a digest that never arrived reports as a successful run, and
+        # the only channel that would have told us is the email that just failed.
+        "email_failure": email_failure,
     }
 
 
@@ -158,6 +176,14 @@ def register_routes(app: FastAPI) -> None:
             logger.exception("ambient cycle failed")
             return JSONResponse(
                 status_code=500, content={"ok": False, "error": repr(exc)[:300]}
+            )
+        if result.get("email_failure"):
+            # Fail the request so the Cloud Scheduler job is marked failed. The
+            # cycle itself ran; it's the digest delivery that didn't happen, and
+            # that is exactly the thing we must not report as success.
+            return JSONResponse(
+                status_code=500,
+                content={**result, "ok": False, "error": f"digest email failed: {result['email_failure']}"},
             )
         return JSONResponse(status_code=200, content=result)
 

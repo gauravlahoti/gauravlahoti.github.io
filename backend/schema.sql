@@ -107,3 +107,17 @@ CREATE TABLE IF NOT EXISTS post_metrics (
   fetched_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pm_at ON post_metrics(fetched_at);
+
+-- Failed outbound email sends. Written at the moment of failure so a chat turn
+-- that dies mid-stream still leaves a trace (the agent_interactions row is
+-- fire-and-forget after streaming completes).
+-- Shipped as migration 009-send-failures.sql for prod D1.
+CREATE TABLE IF NOT EXISTS send_failures (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind        TEXT    NOT NULL,
+  code        TEXT    NOT NULL,
+  email_hash  TEXT,
+  failed_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sf_at   ON send_failures(failed_at);
+CREATE INDEX IF NOT EXISTS idx_sf_kind ON send_failures(kind);

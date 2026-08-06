@@ -1,0 +1,55 @@
+# Cloud Monitoring log-based alert: any failed outbound email from the agents.
+#
+# Why this exists: on 2026-08-05 a visitor asked Atlas to email the resume and it
+# failed twice (resend-mcp-server cold-start race). Nobody found out, because the
+# only notification channel was Pulse's digest email, which the same fault had
+# already killed on 07-30 and 08-03 while still returning 200 to Cloud Scheduler.
+# This alert is deliberately out-of-band: it goes through Cloud Monitoring, not
+# through Resend, so it survives the thing it is reporting on.
+#
+# Markers it matches (grep for them before renaming either one):
+#   EMAIL_SEND_FAILED         — agents/{atlas,pulse}/app/app_utils/resume_send.py,
+#                               agents/atlas/app/app_utils/note_send.py,
+#                               agents/pulse/app/api.py
+#   MCP_UPSTREAM_UNAVAILABLE  — resend_mcp_server/server.js
+#
+# Apply / update:
+#   gcloud alpha monitoring policies create \
+#     --policy-from-file=backend/monitoring/email-send-failure-policy.yaml \
+#     --project=gcp-experiments-490306
+#   # to update an existing one, add --policy=<POLICY_ID> to `policies update`
+#
+# Volume is ~6 events/month, so alerting on every occurrence is right; there is
+# no threshold to tune. notificationRateLimit collapses a retry storm into one
+# email every 5 minutes.
+displayName: "Email send failure — Atlas / Pulse / Resend MCP"
+documentation:
+  mimeType: text/markdown
+  content: |
+    An outbound email from the portfolio agents failed.
+
+    **First checks**
+    1. `gcloud logging read 'resource.labels.service_name="resend-mcp-server" AND textPayload:"MCP_UPSTREAM_UNAVAILABLE"' --freshness=1h`
+    2. `gcloud logging read 'textPayload:"EMAIL_SEND_FAILED"' --freshness=1h` to see which agent and which failure code.
+    3. `curl -s https://resend-mcp-server-lw4bt7nrba-uc.a.run.app/healthz` — 200 means the MCP server is up and the fault is downstream (Resend, the attachment URL, or the send arguments).
+
+    **Known causes**
+    - `send_failed` + `MCP_UPSTREAM_UNAVAILABLE` together: the MCP server's upstream died. It now exits so Cloud Run replaces the instance; check for a crash loop.
+    - `send_failed` alone with no MCP marker: Resend rejected the message. Check the `RESUME_PDF_URL` attachment is reachable and the sending domain is still verified.
+    - `not_configured`: an env var or secret went missing on the Cloud Run revision.
+combiner: OR
+enabled: true
+notificationChannels:
+  - projects/gcp-experiments-490306/notificationChannels/16636717936510693287
+alertStrategy:
+  # Required for log-based conditions.
+  notificationRateLimit:
+    period: 300s
+  autoClose: 604800s
+conditions:
+  - displayName: "EMAIL_SEND_FAILED or MCP_UPSTREAM_UNAVAILABLE in Cloud Run logs"
+    conditionMatchedLog:
+      filter: >-
+        resource.type="cloud_run_revision"
+        AND resource.labels.service_name=("atlas" OR "pulse" OR "resend-mcp-server")
+        AND ("EMAIL_SEND_FAILED" OR "MCP_UPSTREAM_UNAVAILABLE")

@@ -8,7 +8,26 @@ Three **independent** Google ADK (agents-cli) projects. Atlas and Pulse each dep
 - **`agents/pulse/`** — **Pulse**, the ambient weekly-digest agent (service `pulse`). Routes: `POST /api/ambient/run` and `POST /api/ambient/metrics` (gated by `AMBIENT_TRIGGER_TOKEN` via the `x-internal-token` header), plus `GET /healthz`, triggered by two Cloud Scheduler jobs (`portfolio-ambient-agent` Mon/Thu 08:00, `portfolio-ambient-metrics` every 2 days). Fetches visitor stats + LinkedIn post metrics, generates insights, drafts leads, sends one dashboard email via Resend MCP. Its Makefile has no `corpus`/`eval` targets (atlas-only).
 - **`agents/rag-lab/`** — **RAG Lab**, a standalone FastAPI agent for teaching agentic RAG with a 3D vector-space visualization (Spec 38). Deployed off-repo and reached via the `ai-labs/rag-lab/index.html` redirect to `https://agentic-rag.gauravlahoti.dev/`; not part of the Pages build.
 
-Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated into each project (no shared package).
+Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated into each project (no shared package). The two copies of `resume_send.py` have drifted: pulse's is older and its `send_resume_email` is vestigial (pulse only imports `_env`, `_send_via_mcp`, `warm_mcp_server`). **Keep `_send_via_mcp` and `warm_mcp_server` identical across both copies** — that is the shared send path.
+
+## Outbound email: retries, warming, and failure signals
+
+The `resend-mcp-server` runs at `min-instances=0`, so a send can land while it is cold. See the readiness contract in `.claude/docs/backend.md` for the server side. On the agent side:
+
+- **`_send_via_mcp` retries transport failures** — 3 attempts, ~1s/4s backoff, bounded by a hard `_MCP_TOTAL_BUDGET_S` (32s) because this runs inside a streaming chat turn with a visitor waiting.
+- **It does NOT retry a tool-level rejection** (`result.isError`). That is Resend refusing the message; re-sending could deliver the same email twice.
+- `_MCP_TIMEOUT_S` is now actually applied (passed to `streamablehttp_client(timeout=…)` and `ClientSession(read_timeout_seconds=…)`). It used to be declared and never referenced, leaving the MCP call with no timeout at all.
+- **`warm_mcp_server()`** wakes the MCP service ahead of need: Atlas from `/api/agent-chat/warm`, Pulse before its ambient cycle.
+- **Intermediate retries log at WARNING; only the final give-up logs `EMAIL_SEND_FAILED` at ERROR.** That marker is what the Cloud Monitoring alert policy matches, so a transient that recovers must not emit it.
+- Failures are recorded to D1 via `POST /api/send-fail` (`record_send_failure`).
+
+### A failed turn must not be logged as `ok`
+
+`agents/atlas/app/api.py` reads `function_response` parts and collects any action tool that returned `ok=false` into `tool_failures`, then sets the audit-log `status` to `"error"` with the tool's code in `errorMessage`.
+
+This matters more than it looks: the audit row previously recorded only tool *names and args*, never results, so a failed send was stored as `status = "ok"`. Pulse's digest counts errors with `WHERE status != 'ok'`, so it printed "✓ No errors this window" while sends were failing. The status is applied **after** the `[[META]]` block is parsed and emitted, so a failed send still gets its citations, chips, and CTA.
+
+Pulse's `/api/ambient/run` likewise returns **500** when the digest email failed, so the Cloud Scheduler job goes red instead of reporting a successful run that delivered nothing.
 
 ## ⚠️ Critical — do not hand-edit
 

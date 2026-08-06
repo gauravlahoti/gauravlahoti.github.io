@@ -31,6 +31,7 @@ from app.app_utils.resume_send import (
     _send_via_mcp,
     hash_email,
     is_valid_email,
+    record_send_failure,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,13 +122,24 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
     visitor_clean = visitor_email.strip()
     h = hash_email(visitor_clean)
 
-    allowed, err = await _check_rate_limit(h, log_tok, path=_CHECK_PATH)
+    allowed, err, reason = await _check_rate_limit(h, log_tok, path=_CHECK_PATH)
     if not allowed:
         if err:
+            logger.error("EMAIL_SEND_FAILED rate-limit service unreachable: %s", err)
             return {
                 "ok": False,
                 "code": "send_failed",
                 "message": "Couldn't reach the rate-limit service — try again in a minute.",
+            }
+        if reason == "global_cap":
+            return {
+                "ok": False,
+                "code": "rate_limited",
+                "message": (
+                    "I'm handling a lot of notes right now, so this one is "
+                    "throttled. Try again shortly, or reach Gaurav directly on "
+                    "LinkedIn: https://www.linkedin.com/in/glahoti/"
+                ),
             }
         return {
             "ok": False,
@@ -151,6 +163,7 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
 
     ok, _ = await _send_via_mcp(arguments)
     if not ok:
+        await record_send_failure("note", "send_failed", h)
         return {
             "ok": False,
             "code": "send_failed",

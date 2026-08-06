@@ -339,6 +339,9 @@ const insertNoteSend = db.prepare(
 const countRecentNoteSends = db.prepare(
     "SELECT COUNT(*) AS n FROM note_sends WHERE sent_at > ?"
 );
+const insertSendFailure = db.prepare(
+    "INSERT INTO send_failures (kind, code, email_hash, failed_at) VALUES (?, ?, ?, ?)"
+);
 
 function underGlobalSendCap(countStmt) {
     const cutoff = Math.floor(Date.now() / 1000) - SEND_AGGREGATE_WINDOW_SECONDS;
@@ -361,11 +364,15 @@ async function handleResumeSendCheck(req, res) {
         return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
     }
     if (!underGlobalSendCap(countRecentResumeSends)) {
-        return sendJson(res, 200, { ok: true, allowed: false }, {});
+        return sendJson(res, 200, { ok: true, allowed: false, reason: "global_cap" }, {});
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     const hit = recentResumeSendForHash.get(emailHash, cutoff);
-    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+    sendJson(
+        res, 200,
+        hit ? { ok: true, allowed: false, reason: "recipient_recent" } : { ok: true, allowed: true },
+        {}
+    );
 }
 
 async function handleResumeSendRecord(req, res) {
@@ -404,11 +411,15 @@ async function handleNoteSendCheck(req, res) {
         return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
     }
     if (!underGlobalSendCap(countRecentNoteSends)) {
-        return sendJson(res, 200, { ok: true, allowed: false }, {});
+        return sendJson(res, 200, { ok: true, allowed: false, reason: "global_cap" }, {});
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     const hit = recentNoteSendForHash.get(emailHash, cutoff);
-    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+    sendJson(
+        res, 200,
+        hit ? { ok: true, allowed: false, reason: "recipient_recent" } : { ok: true, allowed: true },
+        {}
+    );
 }
 
 async function handleNoteSendRecord(req, res) {
@@ -427,6 +438,36 @@ async function handleNoteSendRecord(req, res) {
     }
     const sentAt = Math.floor(Date.now() / 1000);
     const result = insertNoteSend.run(emailHash, sentAt);
+    sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
+}
+
+// Records an outbound email that failed to send. Mirrors handleSendFail in
+// src/index.js. Body: { kind: "resume"|"note", code, emailHash? }
+async function handleSendFail(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const kind = body?.kind;
+    if (kind !== "resume" && kind !== "note") {
+        return sendJson(res, 400, { ok: false, error: "Invalid kind" }, {});
+    }
+    const code = body?.code;
+    if (typeof code !== "string" || code.length < 2 || code.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid code" }, {});
+    }
+    const rawHash = body?.emailHash;
+    const emailHash =
+        typeof rawHash === "string" && rawHash.length >= 8 && rawHash.length <= 64
+            ? rawHash
+            : null;
+    const failedAt = Math.floor(Date.now() / 1000);
+    const result = insertSendFailure.run(kind, code, emailHash, failedAt);
     sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
 }
 
@@ -714,6 +755,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/resume-send-record" && req.method === "POST") {
         return handleResumeSendRecord(req, res);
+    }
+    if (url.pathname === "/api/send-fail" && req.method === "POST") {
+        return handleSendFail(req, res);
     }
     if (url.pathname === "/api/note-send-check" && req.method === "POST") {
         return handleNoteSendCheck(req, res);

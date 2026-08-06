@@ -15,12 +15,15 @@ hashed (sha256(email|UTC_DATE)[:16]) before any persistence.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
 import re
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from mcp import ClientSession
@@ -36,6 +39,16 @@ _MAX_EMAIL_LEN = 200
 _HTTP_TIMEOUT_S = 8.0
 _MCP_TIMEOUT_S = 15.0  # MCP initialize + tool call may legitimately take a few seconds
 
+# Retry budget for the MCP hop. Kept identical to the atlas copy of this file.
+# The resend-mcp-server runs at min-instances=0, so a send can arrive while it is
+# still cold. Its readiness gate makes Cloud Run queue the request rather than
+# refuse it, but the queue wait can outlast a single attempt's timeout, so one
+# transport failure is not evidence the send is impossible.
+_MCP_MAX_ATTEMPTS = 3
+_MCP_BACKOFF_S = (1.0, 4.0)  # sleep before attempts 2 and 3
+_MCP_TOTAL_BUDGET_S = 32.0
+_MCP_MIN_ATTEMPT_S = 3.0  # don't start an attempt that can't plausibly finish
+
 
 def _env(name: str) -> str:
     return os.environ.get(name, "").strip()
@@ -43,8 +56,8 @@ def _env(name: str) -> str:
 
 def hash_email(email: str) -> str:
     """sha256(email|UTC_DATE)[:16]. Daily-rotating salt, no manual rotation."""
-    salt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return hashlib.sha256(f"{email.lower()}|{salt}".encode("utf-8")).hexdigest()[:16]
+    salt = datetime.now(UTC).strftime("%Y-%m-%d")
+    return hashlib.sha256(f"{email.lower()}|{salt}".encode()).hexdigest()[:16]
 
 
 def is_valid_email(email: str) -> bool:
@@ -142,26 +155,108 @@ def _email_text() -> str:
     )
 
 
+def _mcp_health_url() -> str:
+    """Derive the MCP server's /healthz from RESEND_MCP_URL (which ends in /mcp)."""
+    url = _env("RESEND_MCP_URL")
+    if not url:
+        return ""
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        return ""
+    return urlunsplit((parts.scheme, parts.netloc, "/healthz", "", ""))
+
+
+async def warm_mcp_server(timeout_s: float = 3.0) -> bool:
+    """Nudge the resend-mcp-server awake. Best effort, never raises.
+
+    The service sits at min-instances=0 and takes several seconds to boot, so
+    waking it before the cycle needs it keeps the digest send off the cold path.
+    """
+    url = _mcp_health_url()
+    if not url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            r = await client.get(url)
+        return r.status_code == 200
+    except Exception as exc:
+        # A cold instance may not answer within the timeout; that is fine, the
+        # request still triggered the scale-up, which was the point.
+        logger.info("MCP warm ping did not complete: %s", exc)
+        return False
+
+
+async def _attempt_send_via_mcp(
+    mcp_url: str, mcp_headers: dict[str, str], arguments: dict[str, Any], timeout_s: float
+) -> tuple[bool, str | None]:
+    """One MCP `send-email` attempt.
+
+    Returns (ok, error_message). Raises on transport failure so the caller can
+    decide whether to retry; a tool-level rejection returns (False, msg) instead,
+    because that is Resend refusing the message and retrying would not help.
+    """
+    async with streamablehttp_client(mcp_url, headers=mcp_headers, timeout=timeout_s) as (
+        read,
+        write,
+        _,
+    ):
+        async with ClientSession(
+            read, write, read_timeout_seconds=timedelta(seconds=timeout_s)
+        ) as session:
+            await session.initialize()
+            result = await session.call_tool("send-email", arguments)
+    if getattr(result, "isError", False):
+        payload = getattr(result, "content", None)
+        logger.error("EMAIL_SEND_FAILED MCP send-email rejected the message: %r", payload)
+        return False, "MCP server returned error"
+    return True, None
+
+
 async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
-    """Call the resend-mcp-server's `send-email` tool. Returns (ok, error_message)."""
+    """Call the resend-mcp-server's `send-email` tool, retrying transport failures.
+
+    Returns (ok, error_message). Retries cover the cold-start window on the MCP
+    server; a tool-level rejection is returned immediately without retry, since
+    re-sending could deliver the same email twice.
+    """
     mcp_url = _env("RESEND_MCP_URL")
     if not mcp_url:
+        logger.error("EMAIL_SEND_FAILED RESEND_MCP_URL not configured")
         return False, "RESEND_MCP_URL not configured"
     caller_token = _env("MCP_CALLER_TOKEN")
     mcp_headers = {"Authorization": f"Bearer {caller_token}"} if caller_token else {}
-    try:
-        async with streamablehttp_client(mcp_url, headers=mcp_headers) as (read, write, _):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool("send-email", arguments)
-        if getattr(result, "isError", False):
-            payload = getattr(result, "content", None)
-            logger.warning("MCP send-email returned error: %r", payload)
-            return False, "MCP server returned error"
-        return True, None
-    except Exception as exc:
-        logger.warning("MCP send-email errored: %s", exc)
-        return False, "MCP transport error"
+
+    deadline = time.monotonic() + _MCP_TOTAL_BUDGET_S
+    last_exc: Exception | None = None
+
+    for attempt in range(1, _MCP_MAX_ATTEMPTS + 1):
+        remaining = deadline - time.monotonic()
+        if remaining < _MCP_MIN_ATTEMPT_S:
+            break
+        try:
+            return await _attempt_send_via_mcp(
+                mcp_url, mcp_headers, arguments, min(_MCP_TIMEOUT_S, remaining)
+            )
+        except Exception as exc:
+            last_exc = exc
+            # Intermediate attempts stay at WARNING on purpose: the alert policy
+            # matches EMAIL_SEND_FAILED, and a transient that we then recover
+            # from is not something to wake anyone up for.
+            logger.warning(
+                "MCP send-email attempt %d/%d failed: %s", attempt, _MCP_MAX_ATTEMPTS, exc
+            )
+            if attempt <= len(_MCP_BACKOFF_S):
+                backoff = _MCP_BACKOFF_S[attempt - 1]
+                if deadline - time.monotonic() > backoff + _MCP_MIN_ATTEMPT_S:
+                    await asyncio.sleep(backoff)
+
+    logger.error(
+        "EMAIL_SEND_FAILED MCP send-email exhausted %d attempts in %.0fs budget: %s",
+        _MCP_MAX_ATTEMPTS,
+        _MCP_TOTAL_BUDGET_S,
+        last_exc,
+    )
+    return False, "MCP transport error"
 
 
 async def send_resume_email(email: str) -> dict[str, Any]:

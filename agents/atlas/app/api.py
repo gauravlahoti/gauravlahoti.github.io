@@ -37,6 +37,7 @@ from google.genai import types
 from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
+from app.app_utils.resume_send import warm_mcp_server
 from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
 from app.rate_limit import limiter
 
@@ -200,6 +201,8 @@ async def _stream_agent(
     meta_open = False
     meta_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
+    # Action tools that returned ok=false this turn (e.g. "send_resume:send_failed").
+    tool_failures: list[str] = []
     usage: dict[str, int | None] = {"input": None, "output": None}
     status = "ok"
     error_message: str | None = None
@@ -272,6 +275,31 @@ async def _stream_agent(
                             tool_calls.append({"name": fc.name, "args": json.loads(args_repr)})
                         except Exception:
                             tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
+
+                    # Collect tool *outcomes*. Without this the audit row records
+                    # a failed send as a success: the turn streams fine, so
+                    # status stays "ok" and every downstream dashboard (including
+                    # Pulse's digest, which counts `status != 'ok'`) reports clean
+                    # while visitors are being told the email couldn't be sent.
+                    fr = getattr(part, "function_response", None)
+                    if fr is not None:
+                        fr_name = getattr(fr, "name", None) or "?"
+                        value = _fr_value(getattr(fr, "response", None))
+                        code = None
+                        if isinstance(value, dict):
+                            raw_code = value.get("code")
+                            code = str(raw_code)[:64] if raw_code is not None else None
+                            if value.get("ok") is False:
+                                # ADK can emit the same part across more than one
+                                # event, so guard against a repeated entry.
+                                failure = f"{fr_name}:{code or 'failed'}"
+                                if failure not in tool_failures:
+                                    tool_failures.append(failure)
+                        for entry in reversed(tool_calls):
+                            if entry.get("name") == fr_name and "code" not in entry:
+                                if code is not None:
+                                    entry["code"] = code
+                                break
 
             # Collect token usage from usage_metadata.
             um = getattr(event, "usage_metadata", None)
@@ -368,6 +396,15 @@ async def _stream_agent(
 
     yield _sse({"done": True})
 
+    # A turn where an action tool returned ok=false is not an "ok" turn, even
+    # though the stream itself succeeded. Recording it as ok is what let failed
+    # resume sends look healthy in the digest, which counts `status != 'ok'`.
+    # Applied only here, after the [[META]] block has been parsed and emitted, so
+    # a failed send still gets its citations, chips and CTA.
+    if status == "ok" and tool_failures:
+        status = "error"
+        error_message = ("tool failed: " + ", ".join(tool_failures))[:500]
+
     # Fire-and-forget audit log after the response is fully streamed.
     asyncio.create_task(
         log_interaction({
@@ -396,6 +433,13 @@ async def _stream_agent(
     )
 
 
+def _fr_value(resp: Any) -> Any:
+    """Unwrap an ADK function_response payload to the tool's return value."""
+    if isinstance(resp, dict) and "result" in resp:
+        return resp["result"]
+    return resp
+
+
 def register_routes(app: FastAPI) -> None:
     """Attach the portfolio chat routes to a FastAPI app."""
 
@@ -405,8 +449,12 @@ def register_routes(app: FastAPI) -> None:
 
     @app.get("/api/agent-chat/warm")
     async def warm() -> dict[str, bool]:
-        # Mere arrival of this request spins up Cloud Run if cold.
-        return {"ok": True}
+        # Mere arrival of this request spins up Cloud Run if cold. Also nudge the
+        # resend-mcp-server, which is a second min-instances=0 service on the
+        # send path: warming it here means an actual resume request later doesn't
+        # have to wait out its cold start.
+        mcp_ready = await warm_mcp_server()
+        return {"ok": True, "mcpReady": mcp_ready}
 
     @app.post("/api/agent-chat")
     async def agent_chat(request: Request) -> Any:
