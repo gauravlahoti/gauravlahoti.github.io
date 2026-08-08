@@ -99,7 +99,13 @@ async function waitForUpstream() {
 const server = http.createServer((req, res) => {
   // Readiness probe. Deliberately ahead of the auth gate so it works as an
   // unauthenticated warm target — it discloses a boolean and nothing else.
-  if (req.method === 'GET' && (req.url === '/healthz' || req.url.startsWith('/healthz?'))) {
+  //
+  // NOT named /healthz: on Cloud Run the exact path /healthz is intercepted by
+  // the Google Frontend and 404s without ever reaching the container (verified
+  // against this service plus atlas and pulse). That would make it useless as a
+  // warm target, since a GFE 404 never spins an instance up. Any other path,
+  // including /readyz, routes through normally.
+  if (req.method === 'GET' && (req.url === '/readyz' || req.url.startsWith('/readyz?'))) {
     probeUpstream().then((ok) => {
       res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok, upstream: ok ? 'ready' : 'unavailable' }));

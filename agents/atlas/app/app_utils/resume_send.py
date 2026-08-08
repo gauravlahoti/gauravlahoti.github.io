@@ -393,14 +393,19 @@ async def record_send_failure(kind: str, code: str, email_hash: str | None = Non
 
 
 def _mcp_health_url() -> str:
-    """Derive the MCP server's /healthz from RESEND_MCP_URL (which ends in /mcp)."""
+    """Derive the MCP server's readiness URL from RESEND_MCP_URL (which ends in /mcp).
+
+    Uses /readyz, not /healthz: on Cloud Run the exact path /healthz is
+    intercepted by the Google Frontend and 404s without reaching the container,
+    so it would never wake the service.
+    """
     url = _env("RESEND_MCP_URL")
     if not url:
         return ""
     parts = urlsplit(url)
     if not parts.scheme or not parts.netloc:
         return ""
-    return urlunsplit((parts.scheme, parts.netloc, "/healthz", "", ""))
+    return urlunsplit((parts.scheme, parts.netloc, "/readyz", "", ""))
 
 
 async def warm_mcp_server(timeout_s: float = 3.0) -> bool:

@@ -116,8 +116,14 @@ waits a few extra seconds instead of getting a 502. Rules if you touch this file
 - Never bind `PORT` on a timer. The readiness poll is the contract.
 - If the upstream dies after boot, the process **exits 1** so Cloud Run replaces the
   instance, rather than serving 502s from a proxy that can never recover.
-- `GET /healthz` returns 200 only when the upstream answers. It sits ahead of the auth gate
+- `GET /readyz` returns 200 only when the upstream answers. It sits ahead of the auth gate
   so it works as an unauthenticated warm target; it discloses a boolean and nothing else.
+- **⚠️ Do not name it `/healthz`.** On Cloud Run the *exact* path `/healthz` is intercepted by
+  the Google Frontend and 404s (an HTML Google error page) without ever reaching the
+  container. Verified against all three services — `atlas` and `pulse` also 404 on their
+  documented `/healthz` routes, while every other path (`/health`, `/readyz`, `/healthz2`,
+  `/`) routes through normally. This matters beyond cosmetics: a GFE 404 never starts an
+  instance, so a warm ping at `/healthz` would wake nothing at all.
 - `resend-mcp` is **pinned** in `package.json` (not `"latest"`) and spawned from the local
   install rather than `npx -y`, so a cold boot never depends on the npm registry and a
   rebuild can't silently pull a new major with a different `send-email` schema.

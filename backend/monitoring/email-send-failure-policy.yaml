@@ -31,7 +31,7 @@ documentation:
     **First checks**
     1. `gcloud logging read 'resource.labels.service_name="resend-mcp-server" AND textPayload:"MCP_UPSTREAM_UNAVAILABLE"' --freshness=1h`
     2. `gcloud logging read 'textPayload:"EMAIL_SEND_FAILED"' --freshness=1h` to see which agent and which failure code.
-    3. `curl -s https://resend-mcp-server-lw4bt7nrba-uc.a.run.app/healthz` — 200 means the MCP server is up and the fault is downstream (Resend, the attachment URL, or the send arguments).
+    3. `curl -s https://resend-mcp-server-lw4bt7nrba-uc.a.run.app/readyz` — 200 means the MCP server is up and the fault is downstream (Resend, the attachment URL, or the send arguments). (Not `/healthz`: Cloud Run's frontend swallows that exact path before it reaches the container.)
 
     **Known causes**
     - `send_failed` + `MCP_UPSTREAM_UNAVAILABLE` together: the MCP server's upstream died. It now exits so Cloud Run replaces the instance; check for a crash loop.
