@@ -22,6 +22,7 @@ crafted CC. Resend's own send limits apply as a further backstop.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from app.app_utils.resume_send import (
@@ -75,8 +76,14 @@ def _note_text(visitor_email: str, message: str) -> str:
     )
 
 
-async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
+async def send_note_email(
+    visitor_email: str, message: str, *, session_id: str | None = None
+) -> dict[str, Any]:
     """Validate inputs → send via MCP → return result dict.
+
+    session_id is server-side context (injected via ToolContext in tools.py,
+    never something the model supplies) — recorded on failure so a send that
+    failed can be traced back to the conversation it happened in.
 
     Schema returned to the agent:
         {"ok": bool, "message": str, "code": "<short-code>"}
@@ -161,9 +168,14 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         "text":    _note_text(visitor_clean, msg),
     }
 
-    ok, _ = await _send_via_mcp(arguments)
+    mcp_start = time.monotonic()
+    ok, _, attempts = await _send_via_mcp(arguments)
     if not ok:
-        await record_send_failure("note", "send_failed", h)
+        latency_ms = int((time.monotonic() - mcp_start) * 1000)
+        await record_send_failure(
+            "note", "send_failed", h,
+            session_id=session_id, attempts=attempts, latency_ms=latency_ms,
+        )
         return {
             "ok": False,
             "code": "send_failed",

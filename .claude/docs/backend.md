@@ -4,32 +4,42 @@ Detailed reference for `backend/`, the analytics beacon, and `resend_mcp_server/
 
 ## Resume-gate backend (`backend/`)
 
-Gates the resume PDF behind Google Sign-In. Two runtimes share `schema.sql`:
+⚠️ **The resume-download gate was retired 2026-06-10** — the site links straight to
+`/resume.pdf` now (`assets/js/resume-gate.js` is deleted; there is no `POST
+/api/resume-download` anymore). This folder kept its name because it grew into the site's
+general-purpose backend: the agent audit log, resume/note send-and-rate-limit endpoints,
+analytics beacon, LinkedIn post metrics, GCP cost alerts, and the `daily_stats` rollup all
+live here too. `resume_downloads` stays read-only for its 2026-05→06 historical leads —
+nothing writes to it anymore, and it's deliberately exempt from the retention cron (see
+below). Two runtimes share `schema.sql`:
 
 - **Local** (`backend/local-server.js`): `cd backend && npm install && npm start` → `:8787`, SQLite (`leads.db`)
 - **Production** (`backend/src/index.js` + `wrangler.toml`): Cloudflare Worker writing to D1
-
-`assets/js/resume-gate.js` calls the backend; the PDF fires only after JWT verification and lead row write.
 
 ### Endpoints (`backend/src/index.js`)
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/resume-download` | Verify Google JWT, write lead row, release PDF |
 | `POST /api/resume-send-check` / `POST /api/resume-send-record` | Resume-by-email send fallback (Spec 28) |
+| `POST /api/note-send-check` / `POST /api/note-send-record` | Visitor-note send fallback |
 | `POST /api/send-fail` | Records a send that FAILED → `send_failures` (`AGENT_LOG_TOKEN`) |
-| `GET/POST /api/leads` | Admin read / lead write (`ADMIN_TOKEN`) |
-| `POST /api/pageview` | Analytics beacon sink |
+| `GET/POST /api/leads` | Admin read of historical `resume_downloads` (`ADMIN_TOKEN`); read-only, nothing writes here anymore |
+| `POST /api/pageview` | Analytics beacon sink — accepts an optional `sessionId` (see Analytics beacon below) |
 | `GET/POST /api/post-metrics` | LinkedIn post engagement metrics |
 | `GET/POST /api/agent-log` | Agent audit log (write: `AGENT_LOG_TOKEN`; read: `ADMIN_TOKEN`) |
-| `GET /api/agent-stats` | Public cumulative conversation count |
+| `GET /api/agent-stats` | Public cumulative conversation count (rollup-aware, see Retention below) |
+| `GET /api/ambient/interactions` / `GET /api/ambient/stats` | Pulse's digest data reads (`AGENT_LOG_TOKEN`) |
 | `GET /api/gcp-cost` + `POST /api/gcp-cost-send` | BigQuery billing read + Resend cost alert |
 
 `local-server.js` mirrors these and adds `/health`.
 
 ### Agent audit log
 
-D1 holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Rows expire after 90 days via monthly cron. Source: `agents/atlas/app/app_utils/audit_log.py`. Migration `003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta`.
+D1 holds `agent_interactions` — one row per agent turn (question, response, tool calls, tokens, latency, status, `model`, `model_fallback_depth`, optional `google_sub`/`email`). Written via `POST /api/agent-log` (bearer `AGENT_LOG_TOKEN`). Read via `GET /api/agent-log` (same `ADMIN_TOKEN` as `/api/leads`). Source: `agents/atlas/app/app_utils/audit_log.py`. Migration `003-agent-meta.sql` adds `citations_count`, `suggestions_count`, `cta`; migration `011-analytics-columns.sql` adds `model`, `model_fallback_depth`.
+
+`model` is whichever model actually answered — Atlas cascades `gemini-3.6-flash` → `3.5-flash` → `2.5-flash` → `2.5-flash-lite` on 429/503 (`agents/atlas/app/fallback_model.py`), so this is not always the primary. Captured in `agents/atlas/app/api.py` from `event.model_version` (ADK's `Event` subclasses `LlmResponse`, which carries it), paired with whichever event's `usage_metadata` is being recorded — a turn with a tool call makes two internal LLM calls, and last-wins matching keeps the model and its token counts from staying in sync. `model_fallback_depth` is the index into `[primary, *fallback_models]` (0 = primary).
+
+**Retention has changed since this was first written — see the table below, not "90 days."**
 
 ### Send rate limits and denial reasons
 
@@ -45,17 +55,97 @@ global throttle that "the resume already went out to that address today", which 
 
 ### Failed sends (`send_failures`)
 
-`POST /api/send-fail` writes `{kind, code, email_hash, failed_at}` where `kind` is
-`"resume"` or `"note"`. Called by the agents at the moment a send fails.
+`POST /api/send-fail` writes `{kind, code, email_hash, failed_at, session_id, attempts,
+latency_ms}` where `kind` is `"resume"` or `"note"`. Called by the agents at the moment a send
+fails — `session_id` links the failure to the conversation (Atlas's action tools get it via
+ADK's `ToolContext.session.id`, injected server-side and never exposed to the model's schema);
+`attempts` distinguishes "the retry logic rescued this" from "it just delayed the failure";
+`latency_ms` is the wall-clock time of those attempts. `kind="note"` also covers Pulse's own
+digest-send failures (`ambient_send.py::_send_to_gaurav`), which had no durable record at all
+before this — `session_id` is naturally absent there, since an ambient run has no visitor.
 
 This is deliberately separate from the `agent_interactions` audit log, which is written
 fire-and-forget only *after* a chat turn finishes streaming — a turn that dies mid-stream
 leaves no audit row, but the failure still happened. Between the two, plus the alert policy
-below, a failed send now leaves three independent traces.
+below and the digest surfacing a per-window count (see `chat_models`/`send_failures` in the
+ambient stats response), a failed send now leaves four independent traces.
 
 ### Migrations (`backend/migrations/`)
 
-9 files: Google sign-in fields (001), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient — duplicate `004` prefix; both run), resume sends (005), page views (006), post metrics (007), note sends (008), send failures (009). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start.
+11 files: Google sign-in fields (001, its write path retired 2026-06-10), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient — duplicate `004` prefix; both run), resume sends (005), page views (006), post metrics (007), note sends (008), send failures (009), `daily_stats` rollup table (010), `model`/`model_fallback_depth`/`send_failures.session_id`+`attempts`+`latency_ms`/`page_views.session_id` (011). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start (`schema.sql` bakes the same columns in directly for fresh installs — keep both in sync, see the `ALTER TABLE` blocks after each base `CREATE TABLE`).
+
+⚠️ **Migration comments must never contain a literal `;` mid-sentence.** `local-server.js`'s
+bootstrap naively splits `schema.sql` on `;` before executing each statement (no real SQL
+parser), so a semicolon inside a `--` comment silently truncates whatever statement follows
+it. This isn't hypothetical — it happened while writing migration 010/011's comments and
+silently dropped the entire `daily_stats` table definition until caught by testing. Use a
+period, not a semicolon, in prose inside `schema.sql`. (Actual migration *files* aren't at
+risk — `wrangler d1 migrations apply` / `d1 execute --file` send the whole file to a real
+SQL parser, not a naive string split; only `schema.sql`'s fresh-install path goes through
+`local-server.js`'s splitter.)
+
+### Retention (monthly cron, `backend/src/index.js` `scheduled()`)
+
+| Table | Cutoff | Notes |
+|---|---|---|
+| `page_views` | roll up daily, then delete raw at **180d** | was 365d; raw rows only needed for recent path/geo detail once rolled up |
+| `agent_interactions` | redact `question`/`response` to `NULL` at **30d**, delete row at **365d** | was a flat 90d hard delete; metrics (tokens, status, model, latency) now live to 365d, only the free-text PII surface shrinks early |
+| `resume_sends` / `note_sends` | **30d** | was 90d; these are 24h/1h rate-limit ledgers, so 90d was 89 days of dead weight |
+| `send_failures` | **365d** | previously never purged at all — an omission from when the table was added (PR #85) |
+| `resume_downloads` | **exempt, no delete** | write path (the gate) retired 2026-06-10; a finite historical dataset now, not one that needs ongoing purging. **Do not add a DELETE for this table without first re-checking whether the gate is still dead** — the old 365d rule would otherwise silently erase every lead this feature ever captured, as a side effect nobody decided on |
+| `post_metrics` | none (deliberate) | upsert-bounded by post count, not time |
+| `daily_stats` | never | it *is* the long-term record |
+
+### The `daily_stats` rollup — why "all-time" numbers didn't used to survive the cron
+
+Before this table existed, every "all-time" figure — the public `/api/agent-stats` badge, the
+digest's all-time pageviews/tokens/conversations — was an **unwindowed `COUNT(*)`/`SUM()`**
+over `agent_interactions`/`page_views`, tables the cron deletes from. Anything older than the
+retention window was silently gone from a number labelled "all-time." The public conversation
+badge was, in effect, a trailing count quietly mislabelled as a lifetime total.
+
+Fix: `scheduled()` calls `rollupDailyStats(env)` **before** any delete/redact statement, writing
+one `daily_stats` row per UTC day (idempotent — a day already present is never touched again).
+Every "all-time" query became `SUM(daily_stats.<col>) + COUNT(live rows whose day isn't in
+daily_stats yet)`. Verified end-to-end: seed a day into `daily_stats`, delete the same day's raw
+rows, confirm the aggregate query still returns the pre-delete total.
+
+Two columns need special handling, do not treat them like the others:
+
+- **`unique_visitors` is exact to sum across days, not an approximation.** `visitor_hash =
+  sha256(ip|ua|UTC_date)` bakes the date into the hash, so the same physical visitor gets a
+  different hash on different days — no hash value can appear on two different days. Summing
+  per-day distinct counts is therefore mathematically identical to a global `COUNT(DISTINCT
+  visitor_hash)`, which is itself always a "visitor-days" count, not true lifetime-unique
+  people. This was already true before the rollup existed; the rollup didn't change what the
+  metric means, only fixed it surviving deletion.
+- **`cost_usd` is a labelled approximation, not a queried fact.** It's priced with a single
+  blended rate (`BLENDED_PRICE_IN_PER_1M`/`_OUT`, mirroring `ambient_send.py`'s `_PRICE_IN`/
+  `_PRICE_OUT`) because Atlas's fallback cascade means a day's tokens can span more than one
+  real Gemini model, and there is no verified per-model rate table to price them individually
+  without guessing. Once a day's `agent_interactions` rows are redacted, the digest can no
+  longer re-derive an exact per-model figure for that day — the rollup's blended estimate is
+  what survives. For anything still within the 30d redact window, the digest prices by the real
+  `model` column instead (see `chat_models` below) and is exact for a window where a single
+  model answered every turn.
+
+### `page_views.session_id` — aggregate-only, by policy
+
+The only column that can join `page_views` to anything else: `visitor_hash`,
+`agent_interactions.session_id`, and `resume_downloads.google_sub` are three mutually
+incompatible identity schemes, and `page_views` previously carried none of them. `session_id`
+is the same id the chat widget uses, generated once in `assets/js/main.js` at page load
+(`window.__portfolioSessionId`) and passed to both `analytics.js`'s beacon and
+`agent-widget.js`'s chat calls — not generated independently by either.
+
+**This must stay aggregate-only.** Do not add any endpoint, digest section, or admin read that
+renders one visitor's pageview path, and do not join `page_views` to `email`/`name` at the row
+level in any shipped query. The column creates the *capability* for individual tracking;
+`daily_stats.pageview_sessions` / `pageview_sessions_chatted` (same-day counts, computed once in
+the rollup) are what keep the actual *usage* of it aggregate-only — a same-day rate ("how many
+visitors who loaded a page also chatted"), never a row-level "visitor X did Y then Z." There is
+no equivalent "downloaded" funnel step: the gate that would have made that an instrumented event
+was retired 2026-06-10, so a static `/resume.pdf` link fires no backend call to count.
 
 ### Email-failure alerting (`backend/monitoring/`)
 
@@ -89,7 +179,15 @@ recovers doesn't page anyone; only the final give-up emits `EMAIL_SEND_FAILED`.
 
 ## Analytics beacon
 
-`analytics.js` fires `navigator.sendBeacon` → `profile.links.pageviewApi` (`POST /api/pageview`) on each page load. Worker stores `{path, referrer, visitor_hash}` in `page_views` (bot traffic filtered; raw IP never stored; hash rotates daily). Lazy-loaded via `requestIdleCallback`.
+`analytics.js` fires `navigator.sendBeacon` → `profile.links.pageviewApi` (`POST /api/pageview`) on each page load. Worker stores `{path, referrer, visitor_hash, session_id}` in `page_views` (bot traffic filtered; raw IP never stored; hash rotates daily). Lazy-loaded via `requestIdleCallback`.
+
+`session_id` is generated once in `main.js` (`window.__portfolioSessionId`, before either the
+beacon or the chat widget lazy-load) and passed to both, so it's the *same* id as whatever
+`agent_interactions.session_id` the chat widget produces this page load — see the aggregate-only
+policy above. `/live-agents/`'s standalone `agents-page.js` has no beacon to correlate with, so
+it generates its own session id locally, matching the widget's pre-existing per-page-load
+behavior; do not wire it to the main site's `window.__portfolioSessionId` (different page,
+different load).
 
 ## Resend MCP Server (`resend_mcp_server/`)
 

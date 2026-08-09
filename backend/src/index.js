@@ -1,31 +1,23 @@
-// Cloudflare Worker — resume download gate (Google Sign-In).
-// POST /api/resume-download : { credential: <Google ID token JWT> }
-//   → cryptographically verify JWT via Google's JWKS (jose)
-//   → dedupe per google_sub within 24h (one row per user per day)
-//   → record verified identity to D1 with truncated IP
-//   → respond { ok: true, url }
+// Cloudflare Worker — resume-gate backend (resume-download's Google Sign-In
+// flow retired 2026-06-10, see .claude/docs/backend.md; resume_downloads is
+// kept read-only for its historical leads).
 // GET  /api/leads : admin dump (Authorization: Bearer ADMIN_TOKEN).
-// SCHEDULED : monthly retention cleanup (delete rows older than 12 months).
+// SCHEDULED : monthly retention cleanup.
 
-import * as jose from "jose";
-
-const ALLOWED_ISS = new Set([
-    "accounts.google.com",
-    "https://accounts.google.com"
-]);
-
-// JWKS is fetched from Google once and cached per-isolate by jose. After the
-// first verify, all subsequent verifies are local-only — no outbound network
-// call per request. This is the production-grade replacement for the old
-// `tokeninfo` debug endpoint.
-const JWKS = jose.createRemoteJWKSet(
-    new URL("https://www.googleapis.com/oauth2/v3/certs")
-);
-
-const RETENTION_SECONDS = 365 * 24 * 60 * 60;       // 12 months (resume_downloads)
-const AGENT_LOG_RETENTION_SECONDS = 90 * 24 * 60 * 60; // 90 days (agent_interactions, resume_sends)
-const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;         // 24 hours
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
+const RETENTION_REDACT_SECONDS = 30 * 24 * 60 * 60;  // agent_interactions text -> NULL; resume_sends/note_sends delete
+const RETENTION_PAGEVIEWS_SECONDS = 180 * 24 * 60 * 60; // page_views raw row delete (rolled up first)
+const RETENTION_LONG_SECONDS = 365 * 24 * 60 * 60;   // agent_interactions row delete; send_failures delete
+
+// Blended per-1M-token pricing for daily_stats.cost_usd, mirroring the
+// constants ambient_send.py already uses for the live digest (which prices
+// gemini-2.5-flash). Atlas cascades through several models on 429/503, so a
+// day's tokens can span more than one real rate — this rollup is a labelled
+// approximation for historical trend purposes once the source rows redact,
+// not an exact reconciliation. The live digest prices recent turns by their
+// actual agent_interactions.model column instead.
+const BLENDED_PRICE_IN_PER_1M = 0.15;
+const BLENDED_PRICE_OUT_PER_1M = 0.60;
 const SEND_AGGREGATE_WINDOW_SECONDS = 60 * 60;      // global cap window (resume_sends / note_sends)
 const SEND_AGGREGATE_LIMIT = 20;                    // max sends per table per window, across all recipients
 
@@ -38,10 +30,6 @@ export default {
 
         if (request.method === "OPTIONS") {
             return new Response(null, { status: 204, headers: corsHeaders });
-        }
-
-        if (url.pathname === "/api/resume-download" && request.method === "POST") {
-            return handleDownload(request, env, origin, allowed, corsHeaders);
         }
 
         if (url.pathname === "/api/leads" && request.method === "GET") {
@@ -92,14 +80,6 @@ export default {
             return handleAmbientInteractions(request, env);
         }
 
-        if (url.pathname === "/api/ambient/leads" && request.method === "GET") {
-            return handleAmbientLeads(request, env);
-        }
-
-        if (url.pathname === "/api/ambient/leads/mark" && request.method === "POST") {
-            return handleAmbientLeadsMark(request, env);
-        }
-
         if (url.pathname === "/api/ambient/stats" && request.method === "GET") {
             return handleAmbientStats(request, env);
         }
@@ -125,56 +105,182 @@ export default {
     //  via POST /api/ambient/run — see portfolio-agent. This Worker only serves
     //  the thin D1 read/mark endpoints it calls.)
     async scheduled(event, env, ctx) {
-        // Monthly retention cleanup ("0 2 1 * *")
-        const cutoff = Math.floor(Date.now() / 1000) - RETENTION_SECONDS;
+        // Monthly retention cleanup ("0 2 1 * *"). Roll up FIRST: every table
+        // below is either deleted or redacted after this point, and the
+        // rollup is what keeps "all-time" counters (the public agent-stats
+        // badge, the digest's all-time figures) correct once source rows are
+        // gone. Getting this order backwards was the original bug — the old
+        // cron deleted straight from agent_interactions/page_views with no
+        // rollup at all, so those "all-time" numbers were silently just
+        // "however far back the last purge reached."
+        await rollupDailyStats(env);
+
+        // resume_downloads: deliberately EXEMPT. Its write path (the Google
+        // Sign-In gate) was retired 2026-06-10 — see .claude/docs/backend.md.
+        // It's now a finite historical dataset, not one that needs ongoing
+        // purging. Do not add a DELETE for this table without re-checking
+        // whether the gate is still dead.
+
+        const now = Math.floor(Date.now() / 1000);
+        const redactCutoff = now - RETENTION_REDACT_SECONDS;      // 30d
+        const pageviewsCutoff = now - RETENTION_PAGEVIEWS_SECONDS; // 180d
+        const longCutoff = now - RETENTION_LONG_SECONDS;          // 365d
+
+        // agent_interactions: redact free text at 30d (visitors type PII into
+        // a chat box), keep the row + every metric column (tokens, status,
+        // model, latency) until 365d. The IS NOT NULL guard keeps re-runs
+        // from reporting every already-redacted row as "changed" again.
         try {
             const { meta } = await env.DB.prepare(
-                "DELETE FROM resume_downloads WHERE downloaded_at < ?"
-            ).bind(cutoff).run();
-            console.log(`[retention] resume: deleted ${meta?.changes ?? 0} rows older than 365d`);
+                "UPDATE agent_interactions SET question = NULL, response = NULL WHERE logged_at < ? AND question IS NOT NULL"
+            ).bind(redactCutoff).run();
+            console.log(`[retention] agent_interactions: redacted text on ${meta?.changes ?? 0} rows older than 30d`);
         } catch (err) {
-            console.error("[retention] resume cleanup failed", err);
+            console.error("[retention] agent_interactions redact failed", err);
         }
-
-        const cutoffAgent = Math.floor(Date.now() / 1000) - AGENT_LOG_RETENTION_SECONDS;
         try {
             const { meta } = await env.DB.prepare(
                 "DELETE FROM agent_interactions WHERE logged_at < ?"
-            ).bind(cutoffAgent).run();
-            console.log(`[retention] agent: deleted ${meta?.changes ?? 0} rows older than 90d`);
+            ).bind(longCutoff).run();
+            console.log(`[retention] agent_interactions: deleted ${meta?.changes ?? 0} rows older than 365d`);
         } catch (err) {
-            console.error("[retention] agent cleanup failed", err);
+            console.error("[retention] agent_interactions delete failed", err);
         }
 
+        // resume_sends / note_sends: pure rate-limit ledgers whose windows
+        // are 24h/1h — 90d of retention was 89 days of dead weight. 30d now.
         try {
             const { meta } = await env.DB.prepare(
                 "DELETE FROM resume_sends WHERE sent_at < ?"
-            ).bind(cutoffAgent).run();
-            console.log(`[retention] resume_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
+            ).bind(redactCutoff).run();
+            console.log(`[retention] resume_sends: deleted ${meta?.changes ?? 0} rows older than 30d`);
         } catch (err) {
             console.error("[retention] resume_sends cleanup failed", err);
         }
-
         try {
             const { meta } = await env.DB.prepare(
                 "DELETE FROM note_sends WHERE sent_at < ?"
-            ).bind(cutoffAgent).run();
-            console.log(`[retention] note_sends: deleted ${meta?.changes ?? 0} rows older than 90d`);
+            ).bind(redactCutoff).run();
+            console.log(`[retention] note_sends: deleted ${meta?.changes ?? 0} rows older than 30d`);
         } catch (err) {
             console.error("[retention] note_sends cleanup failed", err);
         }
 
-        // page_views share the 365-day window so "all-time" stats stay meaningful.
+        // send_failures: never had a retention rule before this — an
+        // omission from when the table was added. Low volume (~6/mo), high
+        // diagnostic value, so 365d.
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM send_failures WHERE failed_at < ?"
+            ).bind(longCutoff).run();
+            console.log(`[retention] send_failures: deleted ${meta?.changes ?? 0} rows older than 365d`);
+        } catch (err) {
+            console.error("[retention] send_failures cleanup failed", err);
+        }
+
+        // page_views: raw rows only needed for recent path/geo detail once
+        // rolled up above, so the window tightens from 365d to 180d.
         try {
             const { meta } = await env.DB.prepare(
                 "DELETE FROM page_views WHERE viewed_at < ?"
-            ).bind(cutoff).run();
-            console.log(`[retention] page_views: deleted ${meta?.changes ?? 0} rows older than 365d`);
+            ).bind(pageviewsCutoff).run();
+            console.log(`[retention] page_views: deleted ${meta?.changes ?? 0} rows older than 180d`);
         } catch (err) {
             console.error("[retention] page_views cleanup failed", err);
         }
     }
 };
+
+// Roll up every UTC day (strictly before today, so an in-progress day is
+// never partially rolled up) that has source data and no daily_stats row
+// yet. Idempotent — a day already in daily_stats is never touched again, so
+// running this cron early, late, or twice in the same month is harmless.
+async function rollupDailyStats(env) {
+    let days;
+    try {
+        const { results } = await env.DB.prepare(
+            `SELECT day FROM (
+               SELECT DISTINCT date(viewed_at, 'unixepoch') AS day FROM page_views
+               UNION
+               SELECT DISTINCT date(logged_at, 'unixepoch') AS day FROM agent_interactions
+               UNION
+               SELECT DISTINCT date(failed_at, 'unixepoch') AS day FROM send_failures
+             )
+             WHERE day < date('now') AND day NOT IN (SELECT day FROM daily_stats)
+             ORDER BY day`
+        ).all();
+        days = results || [];
+    } catch (err) {
+        console.error("[retention] daily_stats candidate-day query failed", err);
+        return;
+    }
+    let ok = 0;
+    for (const { day } of days) {
+        try {
+            await rollupOneDay(env, day);
+            ok++;
+        } catch (err) {
+            console.error(`[retention] daily_stats rollup failed for ${day}`, err);
+        }
+    }
+    if (days.length) {
+        console.log(`[retention] daily_stats: rolled up ${ok}/${days.length} day(s)`);
+    }
+}
+
+async function rollupOneDay(env, day) {
+    const { results } = await env.DB.prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM page_views WHERE date(viewed_at,'unixepoch') = ?1) AS pageviews,
+           (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE date(viewed_at,'unixepoch') = ?1) AS unique_visitors,
+           (SELECT COUNT(*) FROM resume_downloads WHERE date(downloaded_at,'unixepoch') = ?1) AS downloads,
+           (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS conversations,
+           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS turns,
+           (SELECT COALESCE(SUM(tokens_input),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_in,
+           (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_out,
+           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND status != 'ok') AS errors,
+           (SELECT COUNT(*) FROM send_failures WHERE date(failed_at,'unixepoch') = ?1) AS send_failures,
+           (SELECT COUNT(DISTINCT session_id) FROM page_views
+              WHERE date(viewed_at,'unixepoch') = ?1 AND session_id IS NOT NULL) AS pageview_sessions,
+           (SELECT COUNT(DISTINCT pv.session_id) FROM page_views pv
+              WHERE date(pv.viewed_at,'unixepoch') = ?1 AND pv.session_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1 FROM agent_interactions ai
+                  WHERE ai.session_id = pv.session_id AND date(ai.logged_at,'unixepoch') = ?1
+                )) AS pageview_sessions_chatted,
+           (SELECT latency_ms FROM agent_interactions
+              WHERE date(logged_at,'unixepoch') = ?1 AND latency_ms IS NOT NULL
+              ORDER BY latency_ms LIMIT 1 OFFSET (
+                SELECT MAX((COUNT(*) - 1) / 2, 0) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') = ?1 AND latency_ms IS NOT NULL
+              )) AS latency_p50_ms,
+           (SELECT latency_ms FROM agent_interactions
+              WHERE date(logged_at,'unixepoch') = ?1 AND latency_ms IS NOT NULL
+              ORDER BY latency_ms LIMIT 1 OFFSET (
+                SELECT MAX(CAST((COUNT(*) - 1) * 0.95 AS INTEGER), 0) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') = ?1 AND latency_ms IS NOT NULL
+              )) AS latency_p95_ms`
+    ).bind(day).all();
+    const r = (results && results[0]) || {};
+    const costUsd =
+        ((r.tokens_in || 0) * BLENDED_PRICE_IN_PER_1M + (r.tokens_out || 0) * BLENDED_PRICE_OUT_PER_1M) / 1_000_000;
+
+    await env.DB.prepare(
+        `INSERT OR IGNORE INTO daily_stats
+           (day, pageviews, unique_visitors, downloads, conversations, turns,
+            tokens_in, tokens_out, cost_usd, errors, send_failures,
+            pageview_sessions, pageview_sessions_chatted,
+            latency_p50_ms, latency_p95_ms, rolled_up_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+        day, r.pageviews || 0, r.unique_visitors || 0, r.downloads || 0,
+        r.conversations || 0, r.turns || 0, r.tokens_in || 0, r.tokens_out || 0,
+        costUsd, r.errors || 0, r.send_failures || 0,
+        r.pageview_sessions || 0, r.pageview_sessions_chatted || 0,
+        r.latency_p50_ms ?? null, r.latency_p95_ms ?? null,
+        Math.floor(Date.now() / 1000)
+    ).run();
+}
 
 function parseOrigins(s) {
     return (s || "")
@@ -223,101 +329,6 @@ function truncateIp(ip) {
 async function sha256hex(input) {
     const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function verifyGoogleIdToken(credential, expectedAud) {
-    if (typeof credential !== "string" || credential.length < 20 || credential.length > 4096) {
-        return { ok: false, status: 400, error: "Invalid credential" };
-    }
-    if (!expectedAud) {
-        return { ok: false, status: 503, error: "Server not configured" };
-    }
-    try {
-        // jose validates: signature against JWKS, exp, nbf (if present),
-        // iat (when ≥ 3.5.0 with maxTokenAge or default skew tolerance),
-        // audience, and issuer. Throws on any failure.
-        const { payload } = await jose.jwtVerify(credential, JWKS, {
-            audience: expectedAud,
-            issuer: Array.from(ALLOWED_ISS),
-            // Reject tokens issued more than 1 hour ago (Google's default
-            // ID token TTL is 1 hour; this also catches replays of expired
-            // tokens before exp can save us). Allows 60s clock skew.
-            maxTokenAge: "1h",
-            clockTolerance: "60s"
-        });
-        if (payload.email_verified !== true && payload.email_verified !== "true") {
-            return { ok: false, status: 401, error: "Email not verified" };
-        }
-        if (!payload.sub || !payload.email) {
-            return { ok: false, status: 401, error: "Missing required claims" };
-        }
-        return { ok: true, claims: payload };
-    } catch (err) {
-        // jose throws specific error classes; collapse to a generic message
-        // so we don't leak internal verification state to callers.
-        // Logged server-side for debugging.
-        console.warn("[jwt-verify] failed:", err?.code || err?.name || "unknown");
-        return { ok: false, status: 401, error: "Token verification failed" };
-    }
-}
-
-async function handleDownload(request, env, origin, allowed, corsHeaders) {
-    if (!origin || !allowed.includes(origin)) {
-        return json({ ok: false, error: "Origin not allowed" }, 403, corsHeaders);
-    }
-    if (!env.GOOGLE_CLIENT_ID) {
-        return json({ ok: false, error: "Server not configured" }, 503, corsHeaders);
-    }
-
-    let body;
-    try {
-        body = await request.json();
-    } catch (_) {
-        return json({ ok: false, error: "Invalid JSON" }, 400, corsHeaders);
-    }
-
-    const v = await verifyGoogleIdToken(body?.credential, env.GOOGLE_CLIENT_ID);
-    if (!v.ok) {
-        return json({ ok: false, error: v.error }, v.status, corsHeaders);
-    }
-    const c = v.claims;
-
-    // Dedupe: if this google_sub already has a row in the past 24h, return
-    // success but skip the INSERT. Visitor still gets the PDF; D1 doesn't
-    // collect a duplicate. Closes the JWT-replay vector and limits
-    // table bloat from repeat visitors.
-    const cutoff = Math.floor(Date.now() / 1000) - DEDUPE_WINDOW_SECONDS;
-    try {
-        const { results } = await env.DB.prepare(
-            "SELECT 1 FROM resume_downloads WHERE google_sub = ? AND downloaded_at > ? LIMIT 1"
-        ).bind(c.sub, cutoff).all();
-        if (results && results.length > 0) {
-            return json({ ok: true, url: "/assets/img/resume.pdf", deduped: true }, 200, corsHeaders);
-        }
-    } catch (err) {
-        console.error("[dedupe] check failed", err);
-        // Fall through and let the INSERT happen — better to record an
-        // extra row than to fail the user's download.
-    }
-
-    const ip = truncateIp(request.headers.get("CF-Connecting-IP") || "");
-    const ua = (request.headers.get("User-Agent") || "").slice(0, 500);
-    const referrer = (request.headers.get("Referer") || "").slice(0, 500);
-    const at = Math.floor(Date.now() / 1000);
-    const name = (c.name || c.given_name || "").toString().slice(0, 200);
-    const email = c.email.toString().slice(0, 200);
-    const picture = (c.picture || "").toString().slice(0, 500);
-
-    try {
-        await env.DB.prepare(
-            "INSERT INTO resume_downloads (google_sub, email, email_verified, name, picture, downloaded_at, ip, user_agent, referrer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).bind(c.sub, email, 1, name, picture, at, ip, ua, referrer).run();
-    } catch (err) {
-        console.error("D1 insert failed", err);
-        return json({ ok: false, error: "Internal" }, 500, corsHeaders);
-    }
-
-    return json({ ok: true, url: "/assets/img/resume.pdf" }, 200, corsHeaders);
 }
 
 async function handleLeads(request, env, corsHeaders) {
@@ -379,7 +390,7 @@ async function handleAgentLog(request, env) {
         return json({ ok: false, error: "Invalid status" }, 400, {});
     }
 
-    // Clamp + sanitize all string fields (same discipline as handleDownload).
+    // Clamp + sanitize all string fields before they touch D1.
     const response     = String(body?.response     ?? "").slice(0, 16000);
     const toolCallsRaw = body?.toolCalls;
     const toolCalls    = toolCallsRaw ? JSON.stringify(toolCallsRaw).slice(0, 8000) : null;
@@ -408,6 +419,14 @@ async function handleAgentLog(request, env) {
     const country = geoStr(body?.country);
     const region  = geoStr(body?.region);
     const city    = geoStr(body?.city);
+    // Which model actually answered — Atlas cascades gemini-3.6-flash ->
+    // 3.5-flash -> 2.5-flash -> 2.5-flash-lite on 429/503, so this is not
+    // always the primary model. 0 = primary, higher = further down the chain.
+    const model = body?.model ? String(body.model).slice(0, 64) : null;
+    const modelFallbackDepth =
+        Number.isInteger(body?.modelFallbackDepth) && body.modelFallbackDepth >= 0
+            ? body.modelFallbackDepth
+            : null;
 
     try {
         const { meta } = await env.DB.prepare(
@@ -416,8 +435,8 @@ async function handleAgentLog(request, env) {
                 tokens_input, tokens_output, latency_ms, status, error_message,
                 google_sub, email, ip, user_agent, referrer, agent_version,
                 citations_count, suggestions_count, cta,
-                country, region, city)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                country, region, city, model, model_fallback_depth)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             sessionId, turnIndex, loggedAt,
             question.slice(0, 4000), response, toolCalls,
@@ -425,7 +444,7 @@ async function handleAgentLog(request, env) {
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
-            country, region, city
+            country, region, city, model, modelFallbackDepth
         ).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
@@ -565,11 +584,24 @@ async function handleSendFail(request, env) {
         typeof rawHash === "string" && rawHash.length >= 8 && rawHash.length <= 64
             ? rawHash
             : null;
+    // sessionId links a failure back to the conversation the visitor was in.
+    // attempts tells you whether the retry logic rescued the send or just
+    // delayed the failure.
+    const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
+    const attempts =
+        Number.isInteger(body?.attempts) && body.attempts >= 0 && body.attempts <= 100
+            ? body.attempts
+            : null;
+    const latencyMs =
+        Number.isFinite(body?.latencyMs) && body.latencyMs >= 0
+            ? Math.round(body.latencyMs)
+            : null;
     const failedAt = Math.floor(Date.now() / 1000);
     try {
         const { meta } = await env.DB.prepare(
-            "INSERT INTO send_failures (kind, code, email_hash, failed_at) VALUES (?, ?, ?, ?)"
-        ).bind(kind, code, emailHash, failedAt).run();
+            `INSERT INTO send_failures (kind, code, email_hash, failed_at, session_id, attempts, latency_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(kind, code, emailHash, failedAt, sessionId, attempts, latencyMs).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
         console.error("[send-fail] D1 insert failed", err);
@@ -817,8 +849,16 @@ async function handleGcpCostSend(request, env, corsHeaders) {
 
 async function handleAgentStats(request, env, corsHeaders) {
     try {
+        // Rolled-up days + a live tail of whatever hasn't been rolled up yet
+        // (normally just today; more if the monthly cron missed a run) —
+        // an unwindowed COUNT(*) here used to silently shrink every time the
+        // retention cron deleted old rows, so this "total" was never
+        // actually a lifetime figure. See daily_stats in .claude/docs/backend.md.
         const { results } = await env.DB.prepare(
-            "SELECT COUNT(*) AS total FROM agent_interactions"
+            `SELECT
+               (SELECT COALESCE(SUM(turns),0) FROM daily_stats) +
+               (SELECT COUNT(*) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS total`
         ).all();
         const total = results?.[0]?.total ?? 0;
         return new Response(JSON.stringify({ ok: true, total_conversations: total }), {
@@ -959,71 +999,6 @@ async function handleAmbientInteractions(request, env) {
     }
 }
 
-// GET /api/ambient/leads — resume downloaders awaiting a follow-up.
-// Only leads that downloaded >24h ago and haven't been marked done.
-async function handleAmbientLeads(request, env) {
-    const token = env.AGENT_LOG_TOKEN;
-    if (!token) {
-        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
-    }
-    if (request.headers.get("X-Internal-Token") !== token) {
-        return json({ ok: false, error: "Unauthorized" }, 401, {});
-    }
-    const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
-    try {
-        const { results } = await env.DB.prepare(
-            `SELECT id, email, name, downloaded_at
-             FROM resume_downloads
-             WHERE followup_sent_at IS NULL AND downloaded_at < ?
-             ORDER BY downloaded_at DESC LIMIT 25`
-        ).bind(cutoff).all();
-        return json({ ok: true, leads: results || [] }, 200, {});
-    } catch (err) {
-        console.error("[ambient] leads query failed", err);
-        return json({ ok: false, error: "Internal" }, 500, {});
-    }
-}
-
-// POST /api/ambient/leads/mark — body { ids: number[] }. Stamps followup_sent_at
-// so a lead doesn't resurface on the next run. Called by the agent only after a
-// successful draft email.
-async function handleAmbientLeadsMark(request, env) {
-    const token = env.AGENT_LOG_TOKEN;
-    if (!token) {
-        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
-    }
-    if (request.headers.get("X-Internal-Token") !== token) {
-        return json({ ok: false, error: "Unauthorized" }, 401, {});
-    }
-    let body;
-    try {
-        body = await request.json();
-    } catch (_) {
-        return json({ ok: false, error: "Invalid JSON" }, 400, {});
-    }
-    const rawIds = Array.isArray(body?.ids) ? body.ids : null;
-    if (!rawIds) {
-        return json({ ok: false, error: "ids must be an array" }, 400, {});
-    }
-    const ids = rawIds
-        .filter(n => Number.isInteger(n) && n > 0)
-        .slice(0, 25);
-    if (!ids.length) {
-        return json({ ok: true, marked: 0 }, 200, {});
-    }
-    const placeholders = ids.map(() => "?").join(",");
-    const sentAt = Math.floor(Date.now() / 1000);
-    try {
-        const { meta } = await env.DB.prepare(
-            `UPDATE resume_downloads SET followup_sent_at = ? WHERE id IN (${placeholders})`
-        ).bind(sentAt, ...ids).run();
-        return json({ ok: true, marked: meta?.changes ?? 0 }, 200, {});
-    } catch (err) {
-        console.error("[ambient] leads mark failed", err);
-        return json({ ok: false, error: "Internal" }, 500, {});
-    }
-}
-
 // GET /api/ambient/stats?days=4 — pre-aggregated metrics for the weekly digest.
 // Combines page_views (real site traffic), agent_interactions (questions/errors),
 // and resume_downloads (downloads). Gated by X-Internal-Token like the other
@@ -1052,16 +1027,44 @@ async function handleAmbientStats(request, env) {
     };
 
     try {
+        // Rolled-up days (daily_stats) + a live tail of whatever hasn't been
+        // rolled up yet, so these "all_time" figures survive the retention
+        // cron instead of silently shrinking as page_views/agent_interactions
+        // age out. downloads is the one field that's genuinely unwindowed on
+        // purpose: resume_downloads is exempt from the cron (its write path
+        // was retired 2026-06-10), so a live COUNT is already exact forever.
+        // unique_locations has no rollup column yet (Tier 2, deferred) — it
+        // will still shrink post-purge; see .claude/docs/backend.md.
         const allTime = await one(
             `SELECT
-               (SELECT COUNT(*) FROM page_views)                          AS pageviews,
-               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views)      AS unique_visitors,
-               (SELECT COUNT(*) FROM resume_downloads)                    AS downloads,
-               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions) AS conversations,
+               (SELECT COALESCE(SUM(pageviews),0) FROM daily_stats) +
+               (SELECT COUNT(*) FROM page_views
+                WHERE date(viewed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS pageviews,
+
+               (SELECT COALESCE(SUM(unique_visitors),0) FROM daily_stats) +
+               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views
+                WHERE date(viewed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS unique_visitors,
+
+               (SELECT COUNT(*) FROM resume_downloads) AS downloads,
+
+               (SELECT COALESCE(SUM(conversations),0) FROM daily_stats) +
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS conversations,
+
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE country IS NOT NULL AND country != '') AS unique_locations,
-               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions) AS tokens_in,
-               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions) AS tokens_out`
+
+               (SELECT COALESCE(SUM(tokens_in),0) FROM daily_stats) +
+               (SELECT COALESCE(SUM(tokens_input),0) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS tokens_in,
+
+               (SELECT COALESCE(SUM(tokens_out),0) FROM daily_stats) +
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS tokens_out,
+
+               (SELECT COALESCE(SUM(send_failures),0) FROM daily_stats) +
+               (SELECT COUNT(*) FROM send_failures
+                WHERE date(failed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS send_failures`
         );
 
         const win = await one(
@@ -1075,7 +1078,8 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations,
                (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1) AS tokens_in,
-               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1) AS tokens_out`,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1) AS tokens_out,
+               (SELECT COUNT(*) FROM send_failures WHERE failed_at > ?1) AS send_failures`,
             winStart
         );
 
@@ -1088,7 +1092,8 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations,
                (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_in,
-               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_out`,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_out,
+               (SELECT COUNT(*) FROM send_failures WHERE failed_at > ?1 AND failed_at <= ?2) AS send_failures`,
             prevStart, winStart
         );
 
@@ -1118,6 +1123,18 @@ async function handleAmbientStats(request, env) {
              LIMIT 8`
         ).bind(winStart).all();
 
+        // Which model(s) actually answered this window — Atlas cascades on
+        // 429/503, so this can be more than one. Replaces a hardcoded model
+        // name in the digest that was wrong (named a different model than
+        // the one actually configured).
+        const chatModels = await env.DB.prepare(
+            `SELECT model, COUNT(*) AS count
+             FROM agent_interactions
+             WHERE logged_at > ? AND model IS NOT NULL
+             GROUP BY model
+             ORDER BY count DESC`
+        ).bind(winStart).all();
+
         return json({
             ok: true,
             window_days: days,
@@ -1126,7 +1143,8 @@ async function handleAmbientStats(request, env) {
             prev_window: prev,
             top_questions: topQ.results || [],
             geo: geo.results || [],
-            errors: errs.results || []
+            errors: errs.results || [],
+            chat_models: chatModels.results || []
         }, 200, {});
     } catch (err) {
         console.error("[ambient] stats query failed", err);
@@ -1140,8 +1158,8 @@ async function handleAmbientStats(request, env) {
 const BOT_UA_RE = /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|embedly|quora|pinterest|vkshare|whatsapp|telegram|preview|monitor|lighthouse|headless|curl|wget|python-requests|axios|go-http/i;
 
 // POST /api/pageview — cookieless pageview beacon. Body: { path, referrer }.
-// Public (CORS-gated to the site origins, like /api/resume-download). Stores one
-// page_views row with geo from request.cf and a daily-rotating visitor_hash.
+// Public, CORS-gated to the site origins. Stores one page_views row with geo
+// from request.cf and a daily-rotating visitor_hash.
 // Always returns 204 — a beacon must never surface errors to the page.
 async function handlePageview(request, env, origin, allowed, corsHeaders) {
     // Beacon is fire-and-forget; quietly ignore disallowed origins / bots.
@@ -1157,6 +1175,11 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     try { body = await request.json(); } catch (_) { body = {}; }
 
     const path = String(body?.path || "/").slice(0, 256);
+    // Same id the chat widget already generates client-side. Aggregate-only
+    // by policy: rolled up into daily_stats' pageview_sessions* columns, never
+    // joined to email/name at the row level in any shipped query — see
+    // .claude/docs/backend.md.
+    const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
     let referrer = "";
     try {
         const ref = String(body?.referrer || "");
@@ -1178,9 +1201,9 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     const at = Math.floor(Date.now() / 1000);
     try {
         await env.DB.prepare(
-            `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(at, path, referrer || null, country, region, city, visitorHash).run();
+            `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash, session_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(at, path, referrer || null, country, region, city, visitorHash, sessionId).run();
     } catch (err) {
         console.error("[pageview] insert failed", err);
     }

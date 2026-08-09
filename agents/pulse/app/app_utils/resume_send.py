@@ -79,6 +79,48 @@ def _record_url() -> str:
     return base.replace("/api/agent-log", "/api/resume-send-record") if base else ""
 
 
+async def record_send_failure(
+    kind: str,
+    code: str,
+    email_hash: str | None = None,
+    *,
+    session_id: str | None = None,
+    attempts: int | None = None,
+    latency_ms: int | None = None,
+) -> None:
+    """Persist a failed send to D1. Fire-and-forget; never raises.
+
+    Mirrors the atlas copy of this function (no shared package between the
+    two agents). Pulse's own ambient-run sends have no visitor session, so
+    session_id is normally omitted here — it exists for signature parity.
+    """
+    base = _env("AGENT_LOG_URL")
+    url = base.replace("/api/agent-log", "/api/send-fail") if base else ""
+    token = _env("AGENT_LOG_TOKEN")
+    if not url or not token:
+        return
+    payload: dict[str, Any] = {"kind": kind, "code": code}
+    if email_hash:
+        payload["emailHash"] = email_hash
+    if session_id:
+        payload["sessionId"] = session_id
+    if attempts is not None:
+        payload["attempts"] = attempts
+    if latency_ms is not None:
+        payload["latencyMs"] = latency_ms
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
+            r = await client.post(
+                url,
+                json=payload,
+                headers={"X-Internal-Token": token, "Content-Type": "application/json"},
+            )
+            if r.status_code >= 400:
+                logger.warning("send-fail record failed: %s %s", r.status_code, r.text[:200])
+    except Exception as exc:
+        logger.warning("send-fail record errored: %s", exc)
+
+
 async def _check_rate_limit(email_hash: str, token: str) -> tuple[bool, str | None]:
     url = _check_url()
     if not url or not token:
@@ -217,31 +259,35 @@ async def _attempt_send_via_mcp(
     return True, None
 
 
-async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
+async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None, int]:
     """Call the resend-mcp-server's `send-email` tool, retrying transport failures.
 
-    Returns (ok, error_message). Retries cover the cold-start window on the MCP
-    server; a tool-level rejection is returned immediately without retry, since
-    re-sending could deliver the same email twice.
+    Returns (ok, error_message, attempts). Retries cover the cold-start window
+    on the MCP server; a tool-level rejection is returned immediately without
+    retry, since re-sending could deliver the same email twice. `attempts`
+    lets a caller recording a failure distinguish "the retry logic rescued
+    this" from "it just delayed the failure".
     """
     mcp_url = _env("RESEND_MCP_URL")
     if not mcp_url:
         logger.error("EMAIL_SEND_FAILED RESEND_MCP_URL not configured")
-        return False, "RESEND_MCP_URL not configured"
+        return False, "RESEND_MCP_URL not configured", 0
     caller_token = _env("MCP_CALLER_TOKEN")
     mcp_headers = {"Authorization": f"Bearer {caller_token}"} if caller_token else {}
 
     deadline = time.monotonic() + _MCP_TOTAL_BUDGET_S
     last_exc: Exception | None = None
+    attempt = 0
 
     for attempt in range(1, _MCP_MAX_ATTEMPTS + 1):
         remaining = deadline - time.monotonic()
         if remaining < _MCP_MIN_ATTEMPT_S:
             break
         try:
-            return await _attempt_send_via_mcp(
+            ok, err = await _attempt_send_via_mcp(
                 mcp_url, mcp_headers, arguments, min(_MCP_TIMEOUT_S, remaining)
             )
+            return ok, err, attempt
         except Exception as exc:
             last_exc = exc
             # Intermediate attempts stay at WARNING on purpose: the alert policy
@@ -261,7 +307,7 @@ async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
         _MCP_TOTAL_BUDGET_S,
         last_exc,
     )
-    return False, "MCP transport error"
+    return False, "MCP transport error", attempt
 
 
 async def send_resume_email(email: str) -> dict[str, Any]:
@@ -313,7 +359,7 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         }],
     }
 
-    ok, mcp_err = await _send_via_mcp(arguments)
+    ok, mcp_err, _attempts = await _send_via_mcp(arguments)
     if not ok:
         return {"ok": False, "code": "send_failed",
                 "message": "The email couldn't be sent right now. Try again, or reach Gaurav on LinkedIn."}

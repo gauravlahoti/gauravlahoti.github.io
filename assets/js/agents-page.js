@@ -4,6 +4,18 @@ import { playEntranceWipe, runPageTransition } from "./page-transition.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// This page has no pageview beacon to correlate with, so a fresh id per load
+// is all initAgentWidget needs (same behavior it used to generate internally).
+function _uuidv4() {
+    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 // Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
 const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
@@ -23,7 +35,7 @@ async function _openAtlasWidget() {
                 root.id = "agent-root";
                 document.body.appendChild(root);
             }
-            const widget = initAgentWidget(root, profile);
+            const widget = initAgentWidget(root, profile, _uuidv4());
             window.__agentWidget = widget;
             return widget;
         }).catch(err => {

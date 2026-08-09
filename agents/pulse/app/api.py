@@ -48,9 +48,7 @@ async def _run_ambient_cycle() -> dict[str, Any]:
     """Drive the ambient agent once and return count-only telemetry.
 
     Inspects the event stream's function_call / function_response parts to
-    derive {interactions_seen, leads_processed, emails_sent} without surfacing
-    any PII. Logs a warning if drafts were sent but leads were never marked
-    (the autonomous agent skipped mark_leads_done).
+    derive {interactions_seen, emails_sent} without surfacing any PII.
     """
     session_id = f"ambient-{int(time.time())}"
     svc = _runner.session_service
@@ -70,11 +68,7 @@ async def _run_ambient_cycle() -> dict[str, Any]:
     await warm_mcp_server()
 
     interactions_seen = 0
-    leads_processed = 0
-    leads_seen = 0
     emails_sent = 0
-    saw_mark_call = False
-    drafts_sent_ok = False
     email_failure: str | None = None
     call_trace: list[str] = []  # ordered tool calls the agent made
     finish_reasons: list[str] = []
@@ -96,8 +90,6 @@ async def _run_ambient_cycle() -> dict[str, Any]:
             fc = getattr(part, "function_call", None)
             if fc is not None:
                 call_trace.append(str(getattr(fc, "name", None)))
-                if getattr(fc, "name", None) == "mark_leads_done":
-                    saw_mark_call = True
 
             fr = getattr(part, "function_response", None)
             if fr is None:
@@ -106,17 +98,9 @@ async def _run_ambient_cycle() -> dict[str, Any]:
             value = _fr_value(getattr(fr, "response", None))
             if name == "get_recent_interactions" and isinstance(value, list):
                 interactions_seen = len(value)
-            elif name == "get_pending_leads" and isinstance(value, list):
-                leads_seen = len(value)
-            elif name == "mark_leads_done" and isinstance(value, dict):
-                leads_processed = int(value.get("marked", 0) or 0)
             elif name == "send_review_email":
                 if isinstance(value, dict) and value.get("ok"):
                     emails_sent += 1
-                    # The single email carries the lead drafts; treat a
-                    # successful send as drafts-sent when leads were pending.
-                    if leads_seen > 0:
-                        drafts_sent_ok = True
                 else:
                     email_failure = "send_failed"
                     if isinstance(value, dict):
@@ -126,23 +110,17 @@ async def _run_ambient_cycle() -> dict[str, Any]:
                     )
 
     truncated = any("MAX_TOKENS" in r for r in finish_reasons)
-    leads_dropped = leads_seen > 0 and not drafts_sent_ok
-    if truncated or leads_dropped or (drafts_sent_ok and not saw_mark_call):
-        # Loud only on anomaly: token truncation, leads fetched but never
-        # drafted/sent, or drafts sent without the required mark.
+    if truncated:
         logger.warning(
-            "[ambient] anomaly — calls=%s finish=%s leads_seen=%d emails=%d marked=%d",
+            "[ambient] anomaly — calls=%s finish=%s emails=%d",
             call_trace or "<none>",
             finish_reasons or "<none>",
-            leads_seen,
             emails_sent,
-            leads_processed,
         )
 
     return {
         "ok": True,
         "interactions_seen": interactions_seen,
-        "leads_processed": leads_processed,
         "emails_sent": emails_sent,
         # Set when the agent tried to send the digest and the send failed. The
         # route turns this into a 500 so the Cloud Scheduler job goes red —

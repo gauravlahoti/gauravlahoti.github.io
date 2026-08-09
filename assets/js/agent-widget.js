@@ -21,7 +21,11 @@ const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 let warmedThisSession = false;
 
-// Read the self-asserted identity persisted by resume-gate.js after Google sign-in.
+// Read the self-asserted identity from a prior Google sign-in, if one was ever
+// persisted under this key. Nothing on the site writes this key anymore (the
+// resume gate that used to was retired 2026-06-10), so this now always returns
+// null for any visitor going forward — kept only so historical values already
+// in a returning visitor's localStorage don't error out before their TTL lapses.
 // Returned value is {sub, email} if present and within the 30-day TTL, else null.
 function readIdentity() {
     try {
@@ -34,7 +38,7 @@ function readIdentity() {
     } catch (_) { return null; }
 }
 
-export function initAgentWidget(root, profile) {
+export function initAgentWidget(root, profile, sessionId) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
@@ -43,8 +47,10 @@ export function initAgentWidget(root, profile) {
         return null;
     }
 
-    // Generate a fresh sessionId per page load (not persisted to localStorage).
-    const sessionId = uuidv4();
+    // Generated once in main.js at page load and shared with the pageview
+    // beacon, so page_views.session_id and agent_interactions.session_id can
+    // agree on the same visitor journey. Not persisted to localStorage — a
+    // fresh id every page load, same as before.
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
     const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
@@ -1345,14 +1351,4 @@ function escapeUrl(url) {
 
 function stripUrls(text) {
     return text.replace(URL_RE, "").trim();
-}
-
-function uuidv4() {
-    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

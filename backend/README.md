@@ -1,9 +1,12 @@
 # Resume Gate Backend
 
-Verifies a **Google Sign-In** credential and records the authenticated
-visitor whenever someone clicks **Download Resume** on the portfolio.
-The PDF download fires on the client only after the backend confirms
-the JWT is valid and the row was written.
+⚠️ **The resume-download gate itself was retired 2026-06-10** (the site links
+straight to `/resume.pdf` now — see `.claude/docs/backend.md`). This folder
+kept the name because it grew into the site's general-purpose backend: the
+agent audit log, resume/note send-and-rate-limit endpoints, analytics beacon,
+LinkedIn post metrics, and GCP cost alerts all live here too.
+`resume_downloads` stays read-only for its historical leads (2026-05 → 06);
+nothing writes to it anymore.
 
 Two interchangeable runtimes live in this folder:
 
@@ -27,8 +30,7 @@ npm start                 # listens on http://localhost:8787
 ```
 
 The server creates `backend/leads.db` automatically on first run from
-`schema.sql`. Your portfolio's `content/profile.json` already
-points `links.resumeApi` at `http://localhost:8787/api/resume-download`.
+`schema.sql`.
 
 ### Querying locally
 
@@ -52,35 +54,14 @@ contains PII, do not commit it.
 |---|---|---|
 | `PORT` | `8787` | listen port |
 | `ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | CORS allowlist |
-| `GOOGLE_CLIENT_ID` | (baked-in fallback for dev) | OAuth client id used to verify `aud` |
 | `ADMIN_TOKEN` | unset | enables `GET /api/leads` if set |
 
 ## Cloudflare deploy (future)
 
 Skip this section while you're running locally. When you're ready to
-go serverless, deploy `src/index.js` to Cloudflare and swap
-`profile.json` → `links.resumeApi` to the deployed Worker URL.
+go serverless, deploy `src/index.js` to Cloudflare.
 
-### 1. Google OAuth client
-
-1. Open <https://console.cloud.google.com/apis/credentials>.
-2. **Create credentials → OAuth client ID → Web application.**
-3. Name: `gaurav-portfolio-resume-gate`.
-4. **Authorized JavaScript origins:**
-   - `https://gauravlahoti.dev`
-   - `https://www.gauravlahoti.dev`
-   - `https://gauravlahoti.github.io`
-   - `http://localhost:5173`
-5. **Authorized redirect URIs:** none (GIS One Tap / button doesn't use them).
-6. Copy the **Client ID** (looks like `1234-abcdef.apps.googleusercontent.com`).
-7. Paste it into:
-   - `content/profile.json` → `links.googleClientId`
-   - `backend/wrangler.toml` → `[vars] GOOGLE_CLIENT_ID`
-
-The Client ID is public — safe to commit. Do **not** copy the *Client
-secret*; we don't need it.
-
-### 2. Cloudflare D1
+### Cloudflare D1
 
 ```bash
 # Prereq: free Cloudflare account, wrangler installed globally
@@ -107,18 +88,16 @@ wrangler deploy
 # → returns: https://gaurav-portfolio-resume-gate.<account>.workers.dev
 ```
 
-Paste the deployed URL + path `/api/resume-download` into
-`content/profile.json` under `links.resumeApi`.
-
 ## Endpoints
 
-- `POST /api/resume-download` — body `{ credential: <Google ID token> }`.
-  Verifies the JWT via Google's `tokeninfo` endpoint (checks `aud`,
-  `iss`, `exp`, `email_verified`). Inserts a row, returns
-  `{ ok: true, url }`. Origin must be in `ALLOWED_ORIGINS`.
-- `OPTIONS /api/resume-download` — CORS preflight.
-- `GET /api/leads` — admin dump (last 200 rows). Requires
-  `Authorization: Bearer $ADMIN_TOKEN`.
+- `GET /api/leads` — admin dump of historical `resume_downloads` rows (last
+  200). Requires `Authorization: Bearer $ADMIN_TOKEN`. Read-only: nothing
+  writes new rows to this table anymore (the gate that wrote it was retired
+  2026-06-10).
+
+This is a small slice — see `.claude/docs/backend.md` for the full endpoint
+list (agent audit log, resume/note send + rate limits, analytics beacon, post
+metrics, GCP cost alerts), which this README doesn't attempt to duplicate.
 
 ## Querying leads
 
@@ -139,15 +118,12 @@ wrangler dev
 # Worker available at http://localhost:8787
 ```
 
-Update the portfolio's `profile.json` `resumeApi` to the local URL while
-testing, or keep it pointed at production.
-
 ## Layout
 
 ```
 backend/
-├── wrangler.toml                          # Worker config + D1 binding + GOOGLE_CLIENT_ID + cron
-├── src/index.js                           # Router, JWKS verify, dedupe, D1 insert, admin GET, cron handler
+├── wrangler.toml                          # Worker config + D1 binding + cron
+├── src/index.js                           # Router, admin GET, cron handler, and every other endpoint
 ├── schema.sql                             # CREATE TABLE for fresh installs
 ├── migrations/001-add-google-fields.sql   # v1 (spec 11) → v2 (spec 12) migration
 ├── migrations/002-agent-interactions.sql  # spec 23 — adds agent_interactions table
@@ -157,10 +133,8 @@ backend/
 
 ## Privacy & retention
 
-- **JWT verification:** the Worker validates Google ID tokens cryptographically against Google's JWKS (`oauth2/v3/certs`) — no dependency on the `tokeninfo` debug endpoint.
 - **IP truncation:** stored IPs are truncated to `/24` (IPv4) or the first 4 hextets (IPv6). City-level geolocation is preserved; precise host identification is not. Applies to both the Worker and the local Node server.
-- **Per-user dedupe:** the same `google_sub` recorded within a 24h window is collapsed to a single row. Closes JWT-replay and limits table bloat from repeat visitors.
-- **Retention:** rows older than 12 months are auto-deleted by a Cloudflare cron trigger that runs at `02:00 UTC` on the 1st of each month. Configured in `wrangler.toml` (`[triggers] crons`); handler is the `scheduled()` export in `src/index.js`. Adjust the cutoff via `RETENTION_SECONDS` in `src/index.js`.
+- **Retention:** `resume_downloads` is deliberately **exempt** from the monthly cron — its write path (the gate) was retired 2026-06-10, so it's a finite historical dataset now, not one that needs ongoing purging. Every other table's retention window is documented in `.claude/docs/backend.md`. Handler is the `scheduled()` export in `src/index.js`.
 - **Erasure requests:** to remove a lead manually, run e.g. `npx wrangler d1 execute resume-leads --remote --command="DELETE FROM resume_downloads WHERE email = 'x@y.com'"`.
 
 ## Agent audit log (Spec #23)
@@ -184,7 +158,10 @@ sqlite> SELECT session_id, turn_index, datetime(logged_at,'unixepoch') AS at,
                status, question, response
         FROM agent_interactions ORDER BY logged_at DESC LIMIT 20;
 
-# Join to see who downloaded the resume AND asked questions
+# Join to see who downloaded the resume AND asked questions. Only ever
+# matches identities from before 2026-06-10 — both sides of this join
+# (the gate's identity persistence and resume_downloads itself) stopped
+# being written on that date, so it will never match a new row again.
 sqlite> SELECT ai.session_id, ai.question, rd.email, datetime(ai.logged_at,'unixepoch') AS at
         FROM agent_interactions ai
         LEFT JOIN resume_downloads rd ON ai.google_sub = rd.google_sub
@@ -201,8 +178,8 @@ The token is also set on the Cloud Run service via Secret Manager → `--secrets
 
 ### Privacy & retention
 
-- **Retention:** rows older than **90 days** are auto-deleted by the same monthly cron that cleans `resume_downloads` (which stays at 365 days). Both cleanups are wrapped in independent `try/catch` so one failure doesn't block the other.
-- **Identity:** `google_sub` and `email` are populated only when the visitor has signed in for the resume gate. Otherwise both columns are `NULL`. The identity is self-asserted by the browser (see Spec #23 §Trust model) — `resume_downloads` rows remain the authoritative source for verified identity.
+- **Retention:** see `.claude/docs/backend.md` for the current cutoffs — they've changed since this section was first written and are tracked there, not duplicated here.
+- **Identity:** `google_sub` and `email` were populated only when the visitor had signed in for the resume gate — since that gate was retired 2026-06-10 and nothing else sets this browser-side identity, both columns are `NULL` on every row going forward. Historical rows from before that date may still have them.
 - **IP truncation:** same `/24` (IPv4) or `/64` (IPv6) rule as `resume_downloads`.
 - **No local cron:** retention cleanup only runs in production (Cloudflare cron trigger). Delete rows manually if needed: `wrangler d1 execute resume-leads --remote --command="DELETE FROM agent_interactions WHERE google_sub = 'xxx'"`.
 

@@ -1,6 +1,6 @@
 ---
 name: run-ambient-digest
-description: Run the full Pulse ambient cycle ad-hoc — visitor stats + leads + one dashboard email to Gaurav. Sends email. Examples - "run the digest", "trigger ambient agent", "send the weekly summary now".
+description: Run the full Pulse ambient cycle ad-hoc — visitor stats + one dashboard email to Gaurav. Sends email. Examples - "run the digest", "trigger ambient agent", "send the weekly summary now".
 context: fork
 allowed-tools: Bash, AskUserQuestion
 ---
@@ -9,9 +9,12 @@ allowed-tools: Bash, AskUserQuestion
 
 Run the **Pulse** full ambient digest on demand. This is the `POST
 /api/ambient/run` route (`agents/pulse/app/api.py`): the agent reasons over
-recent visitor stats + agent interactions, drafts any pending leads, and
-sends **one dashboard email** via the Resend MCP. **This sends a real
-email** — it is the heavier, twice-weekly cycle, not the metrics scrape.
+recent visitor stats + agent interactions and sends **one dashboard email**
+via the Resend MCP. **This sends a real email** — it is the heavier,
+twice-weekly cycle, not the metrics scrape.
+
+(Lead-follow-up drafting was removed 2026-08-09 along with the resume-download
+gate it depended on, which was retired 2026-06-10 — see `.claude/docs/backend.md`.)
 
 > For just refreshing the LinkedIn engagement counts on the site (no email,
 > no LLM), use `/refresh-post-metrics` instead.
@@ -56,10 +59,11 @@ for i in $(seq 1 40); do
 done
 ```
 
-A `200` returns count-only telemetry: `{ok, interactions_seen,
-leads_processed, emails_sent}`. Pull the JSON body from the app logs to show
-the user those counts. `401` = token drift; `5xx` = cycle failed — surface
-the `[ambient] anomaly` / exception line from:
+A `200` returns count-only telemetry: `{ok, interactions_seen, emails_sent}`.
+Pull the JSON body from the app logs to show the user those counts. `401` =
+token drift; `5xx` = cycle failed (including a failed digest send, which now
+fails the request on purpose — see `email_failure` in the body) — surface the
+`[ambient] anomaly` / exception line from:
 `gcloud logging read '... service_name="pulse"' --limit=30 --freshness=20m --format="value(textPayload)"`.
 
 ## Step 5 — Report
@@ -69,7 +73,7 @@ the `[ambient] anomaly` / exception line from:
 
   Job:    portfolio-ambient-agent (us-central1)
   Status: <200 / error>
-  Seen:   <interactions_seen> interactions, <leads_processed> leads
+  Seen:   <interactions_seen> interactions
   Email:  <emails_sent> sent  →  check Gaurav's inbox
 ```
 
@@ -77,5 +81,5 @@ the `[ambient] anomaly` / exception line from:
 
 - `emails_sent: 0` is normal when there's nothing worth surfacing — the
   agent is designed to stay quiet below threshold.
-- Watch for the `[ambient] anomaly` warning in logs (leads fetched but never
-  drafted, or MAX_TOKENS truncation) — report it if present.
+- Watch for the `[ambient] anomaly` warning in logs (MAX_TOKENS truncation)
+  — report it if present.

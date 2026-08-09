@@ -366,11 +366,22 @@ def _email_text(ctx: dict) -> str:
     )
 
 
-async def record_send_failure(kind: str, code: str, email_hash: str | None = None) -> None:
+async def record_send_failure(
+    kind: str,
+    code: str,
+    email_hash: str | None = None,
+    *,
+    session_id: str | None = None,
+    attempts: int | None = None,
+    latency_ms: int | None = None,
+) -> None:
     """Persist a failed send to D1. Fire-and-forget; never raises.
 
     Complements the ERROR log: the log fires the alert, this row makes failures
     countable over time so the digest can report a trend instead of a one-off.
+    session_id links the failure back to the conversation the visitor was in;
+    attempts distinguishes "the retry logic rescued this" from "it just
+    delayed the failure".
     """
     url = _record_url("send-fail")
     token = _env("AGENT_LOG_TOKEN")
@@ -379,6 +390,12 @@ async def record_send_failure(kind: str, code: str, email_hash: str | None = Non
     payload: dict[str, Any] = {"kind": kind, "code": code}
     if email_hash:
         payload["emailHash"] = email_hash
+    if session_id:
+        payload["sessionId"] = session_id
+    if attempts is not None:
+        payload["attempts"] = attempts
+    if latency_ms is not None:
+        payload["latencyMs"] = latency_ms
     try:
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
             r = await client.post(
@@ -456,31 +473,35 @@ async def _attempt_send_via_mcp(
     return True, None
 
 
-async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
+async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None, int]:
     """Call the resend-mcp-server's `send-email` tool, retrying transport failures.
 
-    Returns (ok, error_message). Retries cover the cold-start window on the MCP
-    server; a tool-level rejection is returned immediately without retry, since
-    re-sending could deliver the same email twice.
+    Returns (ok, error_message, attempts). Retries cover the cold-start window
+    on the MCP server; a tool-level rejection is returned immediately without
+    retry, since re-sending could deliver the same email twice. `attempts`
+    lets a caller recording a failure distinguish "the retry logic rescued
+    this" from "it just delayed the failure".
     """
     mcp_url = _env("RESEND_MCP_URL")
     if not mcp_url:
         logger.error("EMAIL_SEND_FAILED RESEND_MCP_URL not configured")
-        return False, "RESEND_MCP_URL not configured"
+        return False, "RESEND_MCP_URL not configured", 0
     caller_token = _env("MCP_CALLER_TOKEN")
     mcp_headers = {"Authorization": f"Bearer {caller_token}"} if caller_token else {}
 
     deadline = time.monotonic() + _MCP_TOTAL_BUDGET_S
     last_exc: Exception | None = None
+    attempt = 0
 
     for attempt in range(1, _MCP_MAX_ATTEMPTS + 1):
         remaining = deadline - time.monotonic()
         if remaining < _MCP_MIN_ATTEMPT_S:
             break
         try:
-            return await _attempt_send_via_mcp(
+            ok, err = await _attempt_send_via_mcp(
                 mcp_url, mcp_headers, arguments, min(_MCP_TIMEOUT_S, remaining)
             )
+            return ok, err, attempt
         except Exception as exc:
             last_exc = exc
             # Intermediate attempts stay at WARNING on purpose: the alert policy
@@ -500,10 +521,10 @@ async def _send_via_mcp(arguments: dict[str, Any]) -> tuple[bool, str | None]:
         _MCP_TOTAL_BUDGET_S,
         last_exc,
     )
-    return False, "MCP transport error"
+    return False, "MCP transport error", attempt
 
 
-async def send_resume_email(email: str) -> dict[str, Any]:
+async def send_resume_email(email: str, *, session_id: str | None = None) -> dict[str, Any]:
     """Validate → rate-limit → send via MCP → record. Returns a result dict.
 
     Schema returned to the agent:
@@ -515,6 +536,10 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         not_configured    — server-side env vars missing (dev / misconfig)
         send_failed       — MCP / Resend rejected or transport error
         ok                — sent successfully
+
+    session_id is server-side context (injected via ToolContext in tools.py,
+    never something the model supplies) — recorded on failure so a send
+    that failed can be traced back to the conversation it happened in.
     """
     if not is_valid_email(email):
         return {"ok": False, "code": "invalid_email",
@@ -570,9 +595,14 @@ async def send_resume_email(email: str) -> dict[str, Any]:
         arguments["bcc"] = [gaurav_addr]
         arguments["replyTo"] = [gaurav_addr]
 
-    ok, mcp_err = await _send_via_mcp(arguments)
+    mcp_start = time.monotonic()
+    ok, mcp_err, attempts = await _send_via_mcp(arguments)
     if not ok:
-        await record_send_failure("resume", "send_failed", h)
+        latency_ms = int((time.monotonic() - mcp_start) * 1000)
+        await record_send_failure(
+            "resume", "send_failed", h,
+            session_id=session_id, attempts=attempts, latency_ms=latency_ms,
+        )
         return {"ok": False, "code": "send_failed",
                 "message": "The email couldn't be sent right now. Try again, or reach Gaurav on LinkedIn."}
 

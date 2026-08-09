@@ -31,8 +31,25 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "228";
+const ASSET_VERSION = "229";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
+
+function uuidv4() {
+    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// One id for the whole page load, shared by the pageview beacon and the chat
+// widget. Generated here (not inside either lazy module) so both see the same
+// value regardless of which loads first. Aggregate-only by policy: this is
+// what lets daily_stats compute "did a visitor who loaded a page also chat"
+// as a same-day count, never a row-level join — see .claude/docs/backend.md.
+window.__portfolioSessionId = uuidv4();
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
 // index.html <head> — runs before auto-restore + bfcache restore.)
@@ -67,10 +84,9 @@ const v = (path) => `${path}?v=${ASSET_VERSION}`;
     wireScrollTo();
     initCursorAsync();
     initRevealWhenIdle();
-    initResumeGateLazy(profile);
-    initAgentWidgetWhenIdle(profile);
+    initAgentWidgetWhenIdle(profile, window.__portfolioSessionId);
     initMobileEnhancements(profile);
-    initAnalyticsWhenIdle(profile);
+    initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
     initAgentStat(profile);
     initPageLinks();
     initLoadHashScroll();
@@ -172,11 +188,11 @@ function initLoadHashScroll() {
 
 // Cookieless pageview beacon (Spec #33). Lazy-loaded on idle so it stays off
 // the FCP path; the beacon itself is a single fire-and-forget POST.
-function initAnalyticsWhenIdle(profile) {
+function initAnalyticsWhenIdle(profile, sessionId) {
     if (!profile || !profile.links || !profile.links.pageviewApi) return;
     const fire = () => {
         import(v("./analytics.js"))
-            .then(({ initAnalytics }) => initAnalytics(profile))
+            .then(({ initAnalytics }) => initAnalytics(profile, sessionId))
             .catch((err) => console.warn("[analytics] failed to load", err));
     };
     if ("requestIdleCallback" in window) {
@@ -186,7 +202,7 @@ function initAnalyticsWhenIdle(profile) {
     }
 }
 
-function initAgentWidgetWhenIdle(profile) {
+function initAgentWidgetWhenIdle(profile, sessionId) {
     if (!profile || !profile.links || !profile.links.agentApi) return;
     // Skip on bandwidth-saver + reduced-motion combo (per spec #20).
     if (saveData && reduceMotion) return;
@@ -199,7 +215,7 @@ function initAgentWidgetWhenIdle(profile) {
         if (loading) return loading;
         loading = import(v("./agent-widget.js"))
             .then(({ initAgentWidget }) => {
-                window.__agentWidget = initAgentWidget(root, profile);
+                window.__agentWidget = initAgentWidget(root, profile, sessionId);
                 return window.__agentWidget;
             })
             .catch((err) => {
@@ -225,27 +241,6 @@ function initAgentWidgetWhenIdle(profile) {
     } else {
         setTimeout(start, 1500);
     }
-}
-
-function initResumeGateLazy(profile) {
-    let inst = null;
-    let loading = null;
-    document.addEventListener("click", (e) => {
-        const trigger = e.target.closest("[data-resume-trigger]");
-        if (!trigger) return;
-        e.preventDefault();
-        if (inst) { inst.open(); return; }
-        if (loading) return;
-        loading = import(v("./resume-gate.js"))
-            .then(({ initResumeGate }) => {
-                inst = initResumeGate(profile);
-                inst.open();
-            })
-            .catch((err) => {
-                console.warn("[resume-gate] failed to load", err);
-                loading = null;
-            });
-    });
 }
 
 async function initCursorAsync() {
@@ -1209,7 +1204,7 @@ function initNavDrawer() {
 
     // Close on backdrop tap, close-button click, or any link click inside
     // the drawer (links navigate via existing handlers — Lenis for #anchors,
-    // resume-gate for [data-resume-trigger], browser default for outbound).
+    // browser default for outbound).
     drawer.addEventListener("click", (e) => {
         if (e.target.closest("[data-nav-close]") || e.target.closest("a")) {
             close();

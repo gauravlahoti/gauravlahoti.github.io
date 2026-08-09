@@ -88,12 +88,14 @@ async def get_visitor_stats(days: int = 4) -> dict[str, Any]:
 
     Returns:
         A dict (empty {} if the Worker is unreachable) with keys:
-          all_time:    {pageviews, unique_visitors, downloads, conversations}
+          all_time:    {pageviews, unique_visitors, downloads, conversations,
+                        send_failures}
           window:      {pageviews, unique_visitors, downloads, conversations,
-                        agent_turns, agent_errors}
-          prev_window: {pageviews, unique_visitors, downloads}
+                        agent_turns, agent_errors, send_failures}
+          prev_window: {pageviews, unique_visitors, downloads, send_failures}
           top_questions: [{question, count}], geo: [{country, city, count}],
-          errors: [{question, status, error_message, logged_at}]
+          errors: [{question, status, error_message, logged_at}],
+          chat_models: [{model, count}] — which model(s) answered this window
     """
     base = _base_url()
     token = _token()
@@ -114,82 +116,3 @@ async def get_visitor_stats(days: int = 4) -> dict[str, Any]:
     except Exception as exc:
         logger.warning("ambient stats errored: %s", exc)
         return {}
-
-
-# Cap leads drafted per run. Drafting many leads in one turn overruns the
-# model's output budget (MAX_TOKENS truncates send_lead_drafts mid-call), so the
-# batch is bounded; the remaining backlog is picked up on subsequent runs once
-# this batch is marked done. With a Mon+Thu cadence this drains quickly.
-_MAX_LEADS_PER_RUN = 5
-
-
-async def get_pending_leads() -> list[dict[str, Any]]:
-    """Return resume downloaders who are awaiting a follow-up.
-
-    These are visitors who downloaded the resume more than 24h ago and have not
-    yet had a follow-up drafted. Use this to draft personalised outreach copy.
-
-    At most a handful of leads are returned per run (the rest are deferred to the
-    next run) so the drafting fits in one response — draft for ALL leads returned.
-
-    Returns:
-        A list of lead dicts, most-recent first. Each:
-        {id, email, name, downloaded_at}. The `id` values are what you pass to
-        mark_leads_done after drafting. Returns an empty list when the Worker is
-        unreachable or unconfigured (treat as "no leads").
-    """
-    base = _base_url()
-    token = _token()
-    if not base or not token:
-        logger.info("ambient leads skipped: AGENT_LOG_URL/TOKEN unset")
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
-            r = await client.get(
-                f"{base}/api/ambient/leads",
-                headers=_headers(token),
-            )
-        if r.status_code != 200:
-            logger.warning("ambient leads failed: %s %s", r.status_code, r.text[:200])
-            return []
-        return list(r.json().get("leads", []))[:_MAX_LEADS_PER_RUN]
-    except Exception as exc:
-        logger.warning("ambient leads errored: %s", exc)
-        return []
-
-
-async def mark_leads_done(lead_ids: list[int]) -> dict[str, Any]:
-    """Mark leads as followed-up so they don't resurface on the next run.
-
-    Call this ONLY after send_lead_drafts has returned ok, passing exactly the
-    lead `id` values you just drafted outreach for. This is idempotent and
-    required — without it, the same leads reappear next cycle and get re-drafted.
-
-    Args:
-        lead_ids: The `id` values from get_pending_leads that were drafted.
-
-    Returns:
-        {ok: bool, marked: int} on success, or {ok: False, error: str} if the
-        Worker is unreachable or unconfigured.
-    """
-    base = _base_url()
-    token = _token()
-    if not base or not token:
-        return {"ok": False, "error": "Worker not configured"}
-    ids = [n for n in (lead_ids or []) if isinstance(n, int) and n > 0]
-    if not ids:
-        return {"ok": True, "marked": 0}
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
-            r = await client.post(
-                f"{base}/api/ambient/leads/mark",
-                json={"ids": ids},
-                headers=_headers(token),
-            )
-        if r.status_code != 200:
-            logger.warning("ambient mark failed: %s %s", r.status_code, r.text[:200])
-            return {"ok": False, "error": f"mark failed: {r.status_code}"}
-        return {"ok": True, "marked": int(r.json().get("marked", 0))}
-    except Exception as exc:
-        logger.warning("ambient mark errored: %s", exc)
-        return {"ok": False, "error": "mark unavailable"}

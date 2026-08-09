@@ -2,9 +2,9 @@
 
 ONE email per run (Spec #33): a deterministic HTML dashboard (real numbers,
 tables, inline-CSS bar charts) computed from get_visitor_stats, followed by the
-agent's qualitative insights and any lead follow-up drafts. The recipient is
-always GAURAV_CONTACT_EMAIL (never an argument), and the Resend MCP path is the
-same one the chat agent uses, so no Resend credentials live here.
+agent's qualitative insights. The recipient is always GAURAV_CONTACT_EMAIL
+(never an argument), and the Resend MCP path is the same one the chat agent
+uses, so no Resend credentials live here.
 
 Email clients strip <style>/JS and block external images, so every "chart" is
 inline-styled HTML (stat cards, table rows, <div> bars whose width is a
@@ -16,11 +16,12 @@ from __future__ import annotations
 import html as _htmllib
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.app_utils.ambient_data import get_visitor_stats
-from app.app_utils.resume_send import _env, _send_via_mcp
+from app.app_utils.resume_send import _env, _send_via_mcp, record_send_failure
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +74,18 @@ def _int(n: Any) -> int:
 
 _GEO_COLORS = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#64748b"]
 
-# Gemini 2.5 Flash pricing (USD per 1M tokens, non-thinking)
+# Gemini 2.5 Flash pricing (USD per 1M tokens, non-thinking). Atlas's chat
+# turns can be answered by any model in its fallback cascade (see
+# chat_models below), each presumably priced differently — this rate is a
+# single blended estimate, not an exact reconciliation. It's exact only for
+# a window where every turn was answered by gemini-2.5-flash.
 _PRICE_IN  = 0.15   # per 1M input tokens
 _PRICE_OUT = 0.60   # per 1M output tokens
 
-# Model names (keep in sync with agent.py / ambient_agent.py)
-_MODEL_CHAT    = "gemini-2.5-flash"
-_MODEL_AMBIENT = "gemini-2.5-flash"
+# Pulse's own model (ambient_agent.py's FallbackGemini primary). Static, not
+# queried: Pulse's own runs aren't logged to agent_interactions the way
+# Atlas's chat turns are, so there's no live data source for this one.
+_MODEL_AMBIENT = "gemini-3.5-flash"
 
 
 def _delta_badge(curr: Any, prev: Any) -> str:
@@ -446,9 +452,38 @@ def _build_dashboard(stats: dict[str, Any]) -> str:
             f'✓ No errors this window.</p>'
         )
 
+    # send_failures was a write-only sink until this digest started reading it —
+    # a failed resume/note send (or a failed run of this digest itself) used to
+    # leave no trace anywhere Gaurav would actually see.
+    sf_count = _int(win.get("send_failures"))
+    if sf_count:
+        plural = "s" if sf_count != 1 else ""
+        errors_html += (
+            f'<p style="color:{_BAD};font-size:12px;margin:8px 0 0">'
+            f'⚠ {sf_count} email send failure{plural} this window '
+            f'(resume/note sends to visitors, or this digest itself).</p>'
+        )
+
+    # Model(s) that actually answered this window, from agent_interactions.model
+    # — Atlas cascades on 429/503, so more than one can show up here. This used
+    # to be a hardcoded name that didn't match either agent's real config.
+    chat_models = stats.get("chat_models") or []
+    if chat_models:
+        chat_label = ", ".join(
+            f"{_esc(m.get('model') or '?')} ({_int(m.get('count'))})" for m in chat_models[:4]
+        )
+    else:
+        chat_label = "no chat turns this window"
+    cascade_note = ""
+    if len(chat_models) > 1:
+        cascade_note = (
+            ' <span title="More than one model answered — the cost below is a '
+            'blended estimate, not exact for this window">†</span>'
+        )
+
     model_bar = (
         f'<div style="margin-top:10px;font-size:12px;color:#94a3b8">'
-        f'Chat: <span style="color:#c7d2fe;font-weight:600">{_MODEL_CHAT}</span>'
+        f'Chat: <span style="color:#c7d2fe;font-weight:600">{chat_label}</span>{cascade_note}'
         f'&nbsp;&nbsp;·&nbsp;&nbsp;'
         f'Digest: <span style="color:#c7d2fe;font-weight:600">{_MODEL_AMBIENT}</span>'
         f'&nbsp;&nbsp;·&nbsp;&nbsp;'
@@ -516,27 +551,29 @@ async def _send_to_gaurav(subject: str, html: str) -> dict[str, Any]:
         "html": html,
         "text": _html_to_text(html),  # Resend MCP requires a text part
     }
-    ok, _ = await _send_via_mcp(arguments)
+    mcp_start = time.monotonic()
+    ok, _, attempts = await _send_via_mcp(arguments)
     if not ok:
+        latency_ms = int((time.monotonic() - mcp_start) * 1000)
+        # kind="note" — this is Gaurav-directed mail (the digest itself, or a
+        # lead-flow note), not a visitor's resume request. No rate-limited
+        # recipient hash applies to a fixed internal address.
+        await record_send_failure("note", "send_failed", attempts=attempts, latency_ms=latency_ms)
         return {"ok": False, "code": "send_failed", "message": "The email couldn't be sent right now."}
     return {"ok": True, "code": "ok", "message": "Sent to Gaurav."}
 
 
-async def send_review_email(insights_html: str, lead_drafts_html: str = "") -> dict[str, Any]:
-    """Send the single weekly review email (dashboard + insights + lead drafts).
+async def send_review_email(insights_html: str) -> dict[str, Any]:
+    """Send the single weekly review email (dashboard + insights).
 
-    Call this ONCE per run, after writing your qualitative insights and (if there
-    are pending leads) the lead drafts. This tool fetches the visitor stats and
-    renders the metrics dashboard itself, so you do NOT need to include numbers —
-    focus your HTML on qualitative analysis and the per-lead outreach notes.
+    Call this ONCE per run, after writing your qualitative insights. This tool
+    fetches the visitor stats and renders the metrics dashboard itself, so you
+    do NOT need to include numbers — focus your HTML on qualitative analysis.
 
     Args:
         insights_html: Qualitative insights as plain HTML (use <strong>, <ul><li>,
             <p> — no markdown, no code fences): top themes, standout questions,
             gaps, and one improvement suggestion.
-        lead_drafts_html: Optional. One outreach draft per pending lead as HTML
-            (e.g. an <h4>Lead</h4> + <blockquote>draft</blockquote> each). Pass
-            "" when there are no pending leads.
 
     Returns:
         {ok: bool, code: str, message: str}. code: ok | not_configured | send_failed.
@@ -550,12 +587,5 @@ async def send_review_email(insights_html: str, lead_drafts_html: str = "") -> d
            f'<p style="color:{_MUTED};font-size:13px">No notable themes this week.</p>')
     )
 
-    drafts = ""
-    if lead_drafts_html and lead_drafts_html.strip():
-        drafts = (
-            _section_title("Lead follow-up drafts", "edit and send as you see fit")
-            + lead_drafts_html
-        )
-
-    body = _shell(dashboard + insights + drafts)
+    body = _shell(dashboard + insights)
     return await _send_to_gaurav(subject=_SUBJECT, html=body)
