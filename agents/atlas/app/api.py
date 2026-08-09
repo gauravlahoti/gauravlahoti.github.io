@@ -37,12 +37,29 @@ from google.genai import types
 from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
+from app.app_utils.resume_send import warm_mcp_server
 from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
 from app.rate_limit import limiter
 
 _AGENT_VERSION = os.environ.get("COMMIT_SHA", "dev")
 
 logger = logging.getLogger(__name__)
+
+
+def _model_candidates() -> list[str]:
+    """[primary, *fallbacks] from root_agent's model config, for depth lookup.
+
+    Defensive about shape: if the agent is ever reconfigured to a bare model
+    string instead of FallbackGemini, this just yields an empty list and
+    model_fallback_depth stays None rather than crashing at import time.
+    """
+    m = getattr(root_agent, "model", None)
+    primary = getattr(m, "model", None)
+    fallbacks = getattr(m, "fallback_models", None) or []
+    return [c for c in [primary, *fallbacks] if c]
+
+
+_MODEL_CANDIDATES = _model_candidates()
 
 APP_NAME = "app"  # matches App(name="app") in agent.py
 
@@ -200,7 +217,9 @@ async def _stream_agent(
     meta_open = False
     meta_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
-    usage: dict[str, int | None] = {"input": None, "output": None}
+    # Action tools that returned ok=false this turn (e.g. "send_resume:send_failed").
+    tool_failures: list[str] = []
+    usage: dict[str, int | str | None] = {"input": None, "output": None, "model": None}
     status = "ok"
     error_message: str | None = None
     # For delta de-dup (cumulative vs incremental Gemini events)
@@ -273,7 +292,37 @@ async def _stream_agent(
                         except Exception:
                             tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
 
-            # Collect token usage from usage_metadata.
+                    # Collect tool *outcomes*. Without this the audit row records
+                    # a failed send as a success: the turn streams fine, so
+                    # status stays "ok" and every downstream dashboard (including
+                    # Pulse's digest, which counts `status != 'ok'`) reports clean
+                    # while visitors are being told the email couldn't be sent.
+                    fr = getattr(part, "function_response", None)
+                    if fr is not None:
+                        fr_name = getattr(fr, "name", None) or "?"
+                        value = _fr_value(getattr(fr, "response", None))
+                        code = None
+                        if isinstance(value, dict):
+                            raw_code = value.get("code")
+                            code = str(raw_code)[:64] if raw_code is not None else None
+                            if value.get("ok") is False:
+                                # ADK can emit the same part across more than one
+                                # event, so guard against a repeated entry.
+                                failure = f"{fr_name}:{code or 'failed'}"
+                                if failure not in tool_failures:
+                                    tool_failures.append(failure)
+                        for entry in reversed(tool_calls):
+                            if entry.get("name") == fr_name and "code" not in entry:
+                                if code is not None:
+                                    entry["code"] = code
+                                break
+
+            # Collect token usage from usage_metadata. Last-wins: a turn with a
+            # tool call makes two internal LLM calls, and this keeps whichever
+            # one's counts are recorded, so pair "model" from the SAME event
+            # rather than any event that merely mentions a model — otherwise
+            # tokens from one internal call could be attributed to a different
+            # model than the one that actually produced them.
             um = getattr(event, "usage_metadata", None)
             if um is not None:
                 inp = getattr(um, "prompt_token_count", None)
@@ -282,6 +331,9 @@ async def _stream_agent(
                     usage["input"] = int(inp)
                 if out is not None:
                     usage["output"] = int(out)
+                mv = getattr(event, "model_version", None)
+                if mv:
+                    usage["model"] = str(mv)
 
             if content is None:
                 continue
@@ -368,6 +420,22 @@ async def _stream_agent(
 
     yield _sse({"done": True})
 
+    # A turn where an action tool returned ok=false is not an "ok" turn, even
+    # though the stream itself succeeded. Recording it as ok is what let failed
+    # resume sends look healthy in the digest, which counts `status != 'ok'`.
+    # Applied only here, after the [[META]] block has been parsed and emitted, so
+    # a failed send still gets its citations, chips and CTA.
+    if status == "ok" and tool_failures:
+        status = "error"
+        error_message = ("tool failed: " + ", ".join(tool_failures))[:500]
+
+    # index into _MODEL_CANDIDATES, so the digest can tell how often the
+    # 429/503 cascade fires — None if the model wasn't captured, or (rare,
+    # e.g. after reconfiguring the model) if it doesn't match a known candidate.
+    model_fallback_depth = (
+        _MODEL_CANDIDATES.index(usage["model"]) if usage["model"] in _MODEL_CANDIDATES else None
+    )
+
     # Fire-and-forget audit log after the response is fully streamed.
     asyncio.create_task(
         log_interaction({
@@ -378,6 +446,8 @@ async def _stream_agent(
             "toolCalls":      tool_calls[:20],
             "tokensInput":    usage["input"],
             "tokensOutput":   usage["output"],
+            "model":          usage["model"],
+            "modelFallbackDepth": model_fallback_depth,
             "latencyMs":      int((time.monotonic() - start) * 1000),
             "status":         status,
             "errorMessage":   error_message,
@@ -396,6 +466,13 @@ async def _stream_agent(
     )
 
 
+def _fr_value(resp: Any) -> Any:
+    """Unwrap an ADK function_response payload to the tool's return value."""
+    if isinstance(resp, dict) and "result" in resp:
+        return resp["result"]
+    return resp
+
+
 def register_routes(app: FastAPI) -> None:
     """Attach the portfolio chat routes to a FastAPI app."""
 
@@ -405,8 +482,12 @@ def register_routes(app: FastAPI) -> None:
 
     @app.get("/api/agent-chat/warm")
     async def warm() -> dict[str, bool]:
-        # Mere arrival of this request spins up Cloud Run if cold.
-        return {"ok": True}
+        # Mere arrival of this request spins up Cloud Run if cold. Also nudge the
+        # resend-mcp-server, which is a second min-instances=0 service on the
+        # send path: warming it here means an actual resume request later doesn't
+        # have to wait out its cold start.
+        mcp_ready = await warm_mcp_server()
+        return {"ok": True, "mcpReady": mcp_ready}
 
     @app.post("/api/agent-chat")
     async def agent_chat(request: Request) -> Any:
@@ -502,6 +583,8 @@ def register_routes(app: FastAPI) -> None:
                     "toolCalls":      [],
                     "tokensInput":    None,
                     "tokensOutput":   None,
+                    "model":          None,
+                    "modelFallbackDepth": None,
                     "latencyMs":      None,
                     "status":         "rate_limited",
                     "errorMessage":   None,

@@ -1,4 +1,4 @@
-// local-server.js — local-only resume gate backend.
+// local-server.js — local-only mirror of the resume-gate backend.
 // Same protocol as the Cloudflare Worker (src/index.js) but writes to a
 // SQLite file on disk via better-sqlite3. Used while developing the
 // portfolio without provisioning Cloudflare.
@@ -19,15 +19,8 @@ const PORT = Number(process.env.PORT) || 8787;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
     "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",").map(s => s.trim()).filter(Boolean);
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ||
-    "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const AGENT_LOG_TOKEN = process.env.AGENT_LOG_TOKEN || "";
-
-const ALLOWED_ISS = new Set([
-    "accounts.google.com",
-    "https://accounts.google.com"
-]);
 
 // ---------- DB bootstrap ----------
 const dbPath = path.join(__dirname, "leads.db");
@@ -42,17 +35,11 @@ for (const stmt of schemaSql.split(";").map(s => s.trim()).filter(Boolean)) {
     try { db.prepare(stmt).run(); } catch (_) { /* column already exists — safe to ignore */ }
 }
 
-const insertLead = db.prepare(
-    `INSERT INTO resume_downloads
-     (google_sub, email, email_verified, name, picture, downloaded_at, ip, user_agent, referrer)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-);
+// resume_downloads is read-only now — its write path (Google Sign-In gate)
+// was retired 2026-06-10. Historical leads stay queryable via recentLeads.
 const recentLeads = db.prepare(
     `SELECT id, google_sub, email, email_verified, name, picture, downloaded_at, ip, user_agent, referrer
      FROM resume_downloads ORDER BY downloaded_at DESC LIMIT 200`
-);
-const recentForSub = db.prepare(
-    `SELECT 1 FROM resume_downloads WHERE google_sub = ? AND downloaded_at > ? LIMIT 1`
 );
 
 const insertAgentInteraction = db.prepare(
@@ -61,8 +48,8 @@ const insertAgentInteraction = db.prepare(
         tokens_input, tokens_output, latency_ms, status, error_message,
         google_sub, email, ip, user_agent, referrer, agent_version,
         citations_count, suggestions_count, cta,
-        country, region, city)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        country, region, city, model, model_fallback_depth)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const recentAgentInteractions = db.prepare(
     `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
@@ -72,8 +59,6 @@ const recentAgentInteractions = db.prepare(
             country, region, city
      FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
 );
-
-const DEDUPE_WINDOW_SECONDS = 24 * 60 * 60;
 
 // Mirror of the Worker's truncateIp (see backend/src/index.js). Keeps city-
 // level geolocation, drops precise host identification.
@@ -135,86 +120,7 @@ async function readJson(req, limit = 8 * 1024) {
     });
 }
 
-async function verifyGoogleIdToken(credential) {
-    if (typeof credential !== "string" || credential.length < 20 || credential.length > 4096) {
-        return { ok: false, status: 400, error: "Invalid credential" };
-    }
-    let res;
-    try {
-        res = await fetch(
-            "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(credential)
-        );
-    } catch (_) {
-        return { ok: false, status: 502, error: "Verification upstream unreachable" };
-    }
-    if (!res.ok) return { ok: false, status: 401, error: "Token verification failed" };
-    let claims;
-    try { claims = await res.json(); }
-    catch (_) { return { ok: false, status: 401, error: "Token verification failed" }; }
-    if (!claims || claims.error || claims.error_description) {
-        return { ok: false, status: 401, error: "Token verification failed" };
-    }
-    if (!GOOGLE_CLIENT_ID || claims.aud !== GOOGLE_CLIENT_ID) {
-        return { ok: false, status: 401, error: "Audience mismatch" };
-    }
-    if (!ALLOWED_ISS.has(claims.iss)) {
-        return { ok: false, status: 401, error: "Issuer mismatch" };
-    }
-    if (Number(claims.exp) <= Math.floor(Date.now() / 1000)) {
-        return { ok: false, status: 401, error: "Token expired" };
-    }
-    if (claims.email_verified !== "true" && claims.email_verified !== true) {
-        return { ok: false, status: 401, error: "Email not verified" };
-    }
-    if (!claims.sub || !claims.email) {
-        return { ok: false, status: 401, error: "Missing required claims" };
-    }
-    return { ok: true, claims };
-}
-
 // ---------- handlers ----------
-async function handleDownload(req, res, origin, cors) {
-    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
-        return sendJson(res, 403, { ok: false, error: "Origin not allowed" }, cors);
-    }
-    let body;
-    try { body = await readJson(req); }
-    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, cors); }
-
-    const v = await verifyGoogleIdToken(body?.credential);
-    if (!v.ok) return sendJson(res, v.status, { ok: false, error: v.error }, cors);
-    const c = v.claims;
-
-    // Dedupe per google_sub within 24h — same behaviour as the Worker.
-    const cutoff = Math.floor(Date.now() / 1000) - DEDUPE_WINDOW_SECONDS;
-    try {
-        if (recentForSub.get(c.sub, cutoff)) {
-            console.log(`[lead] dedupe — ${c.email} already recorded within 24h`);
-            return sendJson(res, 200, { ok: true, url: "/assets/img/resume.pdf", deduped: true }, cors);
-        }
-    } catch (err) {
-        console.warn("[dedupe] check failed", err);
-        // Fall through and let the INSERT happen.
-    }
-
-    const ip = truncateIp(req.socket.remoteAddress || "");
-    const ua = (req.headers["user-agent"] || "").slice(0, 500);
-    const referrer = (req.headers.referer || "").slice(0, 500);
-    const at = Math.floor(Date.now() / 1000);
-    const name = String(c.name || c.given_name || "").slice(0, 200);
-    const email = String(c.email).slice(0, 200);
-    const picture = String(c.picture || "").slice(0, 500);
-
-    try {
-        insertLead.run(c.sub, email, 1, name, picture, at, ip, ua, referrer);
-    } catch (err) {
-        console.error("[lead-insert]", err);
-        return sendJson(res, 500, { ok: false, error: "Internal" }, cors);
-    }
-    console.log(`[lead] ${name} <${email}>`);
-    sendJson(res, 200, { ok: true, url: "/assets/img/resume.pdf" }, cors);
-}
-
 function handleLeads(req, res, cors) {
     if (!ADMIN_TOKEN) {
         return sendJson(res, 503, { ok: false, error: "Admin endpoint disabled (set ADMIN_TOKEN)" }, cors);
@@ -285,6 +191,11 @@ async function handleAgentLog(req, res) {
     const country = geoStr(body?.country);
     const region  = geoStr(body?.region);
     const city    = geoStr(body?.city);
+    const model = body?.model ? String(body.model).slice(0, 64) : null;
+    const modelFallbackDepth =
+        Number.isInteger(body?.modelFallbackDepth) && body.modelFallbackDepth >= 0
+            ? body.modelFallbackDepth
+            : null;
 
     try {
         const result = insertAgentInteraction.run(
@@ -294,7 +205,7 @@ async function handleAgentLog(req, res) {
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
-            country, region, city
+            country, region, city, model, modelFallbackDepth
         );
         console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
         sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
@@ -339,6 +250,10 @@ const insertNoteSend = db.prepare(
 const countRecentNoteSends = db.prepare(
     "SELECT COUNT(*) AS n FROM note_sends WHERE sent_at > ?"
 );
+const insertSendFailure = db.prepare(
+    `INSERT INTO send_failures (kind, code, email_hash, failed_at, session_id, attempts, latency_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+);
 
 function underGlobalSendCap(countStmt) {
     const cutoff = Math.floor(Date.now() / 1000) - SEND_AGGREGATE_WINDOW_SECONDS;
@@ -361,11 +276,15 @@ async function handleResumeSendCheck(req, res) {
         return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
     }
     if (!underGlobalSendCap(countRecentResumeSends)) {
-        return sendJson(res, 200, { ok: true, allowed: false }, {});
+        return sendJson(res, 200, { ok: true, allowed: false, reason: "global_cap" }, {});
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     const hit = recentResumeSendForHash.get(emailHash, cutoff);
-    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+    sendJson(
+        res, 200,
+        hit ? { ok: true, allowed: false, reason: "recipient_recent" } : { ok: true, allowed: true },
+        {}
+    );
 }
 
 async function handleResumeSendRecord(req, res) {
@@ -404,11 +323,15 @@ async function handleNoteSendCheck(req, res) {
         return sendJson(res, 400, { ok: false, error: "Invalid emailHash" }, {});
     }
     if (!underGlobalSendCap(countRecentNoteSends)) {
-        return sendJson(res, 200, { ok: true, allowed: false }, {});
+        return sendJson(res, 200, { ok: true, allowed: false, reason: "global_cap" }, {});
     }
     const cutoff = Math.floor(Date.now() / 1000) - RESUME_SEND_WINDOW_SECONDS;
     const hit = recentNoteSendForHash.get(emailHash, cutoff);
-    sendJson(res, 200, { ok: true, allowed: !hit }, {});
+    sendJson(
+        res, 200,
+        hit ? { ok: true, allowed: false, reason: "recipient_recent" } : { ok: true, allowed: true },
+        {}
+    );
 }
 
 async function handleNoteSendRecord(req, res) {
@@ -430,6 +353,45 @@ async function handleNoteSendRecord(req, res) {
     sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
 }
 
+// Records an outbound email that failed to send. Mirrors handleSendFail in
+// src/index.js. Body: { kind: "resume"|"note", code, emailHash? }
+async function handleSendFail(req, res) {
+    if (!AGENT_LOG_TOKEN) {
+        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    }
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    let body;
+    try { body = await readJson(req, 4 * 1024); }
+    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
+    const kind = body?.kind;
+    if (kind !== "resume" && kind !== "note") {
+        return sendJson(res, 400, { ok: false, error: "Invalid kind" }, {});
+    }
+    const code = body?.code;
+    if (typeof code !== "string" || code.length < 2 || code.length > 64) {
+        return sendJson(res, 400, { ok: false, error: "Invalid code" }, {});
+    }
+    const rawHash = body?.emailHash;
+    const emailHash =
+        typeof rawHash === "string" && rawHash.length >= 8 && rawHash.length <= 64
+            ? rawHash
+            : null;
+    const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
+    const attempts =
+        Number.isInteger(body?.attempts) && body.attempts >= 0 && body.attempts <= 100
+            ? body.attempts
+            : null;
+    const latencyMs =
+        Number.isFinite(body?.latencyMs) && body.latencyMs >= 0
+            ? Math.round(body.latencyMs)
+            : null;
+    const failedAt = Math.floor(Date.now() / 1000);
+    const result = insertSendFailure.run(kind, code, emailHash, failedAt, sessionId, attempts, latencyMs);
+    sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
+}
+
 // ---------- ambient agent D1 endpoints (Spec #31) ----------
 // The ambient agent runs on Cloud Run (ADK); these are the thin D1 reads/writes
 // it calls, gated by X-Internal-Token === AGENT_LOG_TOKEN. Mirror of the three
@@ -438,12 +400,6 @@ const ambientInteractions = db.prepare(
     `SELECT question, response, status, country, city, logged_at
      FROM agent_interactions WHERE logged_at > ?
      ORDER BY logged_at DESC LIMIT 100`
-);
-const ambientLeads = db.prepare(
-    `SELECT id, email, name, downloaded_at
-     FROM resume_downloads
-     WHERE followup_sent_at IS NULL AND downloaded_at < ?
-     ORDER BY downloaded_at DESC LIMIT 25`
 );
 
 function handleAmbientInteractions(req, res, url) {
@@ -460,50 +416,12 @@ function handleAmbientInteractions(req, res, url) {
     sendJson(res, 200, { ok: true, interactions: ambientInteractions.all(cutoff) }, {});
 }
 
-function handleAmbientLeads(req, res) {
-    if (!AGENT_LOG_TOKEN) {
-        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
-    }
-    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
-        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
-    }
-    const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
-    sendJson(res, 200, { ok: true, leads: ambientLeads.all(cutoff) }, {});
-}
-
-async function handleAmbientLeadsMark(req, res) {
-    if (!AGENT_LOG_TOKEN) {
-        return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
-    }
-    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
-        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
-    }
-    let body;
-    try { body = await readJson(req, 4 * 1024); }
-    catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
-    const rawIds = Array.isArray(body?.ids) ? body.ids : null;
-    if (!rawIds) {
-        return sendJson(res, 400, { ok: false, error: "ids must be an array" }, {});
-    }
-    const ids = rawIds.filter(n => Number.isInteger(n) && n > 0).slice(0, 25);
-    if (!ids.length) {
-        return sendJson(res, 200, { ok: true, marked: 0 }, {});
-    }
-    const placeholders = ids.map(() => "?").join(",");
-    const sentAt = Math.floor(Date.now() / 1000);
-    const stmt = db.prepare(
-        `UPDATE resume_downloads SET followup_sent_at = ? WHERE id IN (${placeholders})`
-    );
-    const result = stmt.run(sentAt, ...ids);
-    sendJson(res, 200, { ok: true, marked: result.changes }, {});
-}
-
 // ---------- pageview beacon + stats (Spec #33) ----------
 const BOT_UA_RE = /bot|crawl|spider|slurp|preview|monitor|lighthouse|headless|curl|wget|python-requests|axios|go-http/i;
 
 const insertPageView = db.prepare(
-    `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash, session_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 );
 
 // Aggregate helpers mirror handleAmbientStats in src/index.js. Each is a
@@ -535,6 +453,16 @@ const errStmt = db.prepare(
     `SELECT question, status, error_message, logged_at FROM agent_interactions
      WHERE logged_at > ? AND status != 'ok' ORDER BY logged_at DESC LIMIT 8`
 );
+const sfCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM send_failures`);
+const sfCountSince   = db.prepare(`SELECT COUNT(*) AS n FROM send_failures WHERE failed_at > ?`);
+const sfCountBetween = db.prepare(`SELECT COUNT(*) AS n FROM send_failures WHERE failed_at > ? AND failed_at <= ?`);
+// Which model(s) actually answered this window — mirrors the Worker's
+// chat_models query. Replaces a hardcoded model name that was simply wrong.
+const chatModelsStmt = db.prepare(
+    `SELECT model, COUNT(*) AS count FROM agent_interactions
+     WHERE logged_at > ? AND model IS NOT NULL
+     GROUP BY model ORDER BY count DESC`
+);
 
 // Spec #34 — post_metrics prepared statements
 const getPostMetrics = db.prepare(
@@ -561,6 +489,7 @@ async function handlePageview(req, res, origin, cors) {
     let body = {};
     try { body = await readJson(req, 4 * 1024); } catch (_) { body = {}; }
     const path = String(body?.path || "/").slice(0, 256);
+    const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
     let referrer = "";
     try {
         const ref = String(body?.referrer || "");
@@ -575,7 +504,7 @@ async function handlePageview(req, res, origin, cors) {
         : null;
     const at = Math.floor(Date.now() / 1000);
     try {
-        insertPageView.run(at, path, referrer || null, null, null, null, visitorHash);
+        insertPageView.run(at, path, referrer || null, null, null, null, visitorHash, sessionId);
     } catch (err) { console.error("[pageview] insert failed", err.message); }
     res.writeHead(204, cors); res.end();
 }
@@ -600,7 +529,8 @@ function handleAmbientStats(req, res, url) {
             pageviews: pvCountAll.get().n,
             unique_visitors: pvUniqAll.get().n,
             downloads: dlCountAll.get().n,
-            conversations: convAll.get().n
+            conversations: convAll.get().n,
+            send_failures: sfCountAll.get().n
         },
         window: {
             pageviews: pvCountSince.get(winStart).n,
@@ -608,13 +538,16 @@ function handleAmbientStats(req, res, url) {
             downloads: dlCountSince.get(winStart).n,
             conversations: convSince.get(winStart).n,
             agent_turns: turnsSince.get(winStart).n,
-            agent_errors: errSince.get(winStart).n
+            agent_errors: errSince.get(winStart).n,
+            send_failures: sfCountSince.get(winStart).n
         },
         prev_window: {
             pageviews: pvCountBetween.get(prevStart, winStart).n,
             unique_visitors: pvUniqBetween.get(prevStart, winStart).n,
-            downloads: dlCountBetween.get(prevStart, winStart).n
+            downloads: dlCountBetween.get(prevStart, winStart).n,
+            send_failures: sfCountBetween.get(prevStart, winStart).n
         },
+        chat_models: chatModelsStmt.all(winStart),
         top_questions: topQStmt.all(winStart),
         geo: geoStmt.all(winStart),
         errors: errStmt.all(winStart)
@@ -697,9 +630,6 @@ const server = http.createServer(async (req, res) => {
     }
     const url = new URL(req.url, `http://localhost:${PORT}`);
 
-    if (url.pathname === "/api/resume-download" && req.method === "POST") {
-        return handleDownload(req, res, origin, cors);
-    }
     if (url.pathname === "/api/leads" && req.method === "GET") {
         return handleLeads(req, res, cors);
     }
@@ -715,6 +645,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/resume-send-record" && req.method === "POST") {
         return handleResumeSendRecord(req, res);
     }
+    if (url.pathname === "/api/send-fail" && req.method === "POST") {
+        return handleSendFail(req, res);
+    }
     if (url.pathname === "/api/note-send-check" && req.method === "POST") {
         return handleNoteSendCheck(req, res);
     }
@@ -723,12 +656,6 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/ambient/interactions" && req.method === "GET") {
         return handleAmbientInteractions(req, res, url);
-    }
-    if (url.pathname === "/api/ambient/leads" && req.method === "GET") {
-        return handleAmbientLeads(req, res);
-    }
-    if (url.pathname === "/api/ambient/leads/mark" && req.method === "POST") {
-        return handleAmbientLeadsMark(req, res);
     }
     if (url.pathname === "/api/ambient/stats" && req.method === "GET") {
         return handleAmbientStats(req, res, url);

@@ -55,6 +55,13 @@ ALTER TABLE agent_interactions ADD COLUMN country TEXT;
 ALTER TABLE agent_interactions ADD COLUMN region  TEXT;
 ALTER TABLE agent_interactions ADD COLUMN city    TEXT;
 
+-- Which model actually answered (Atlas cascades gemini-3.6-flash -> 3.5-flash
+-- -> 2.5-flash -> 2.5-flash-lite on 429/503). Without this, the digest could
+-- not tell how often the cascade fires or price a turn by the right model.
+-- Shipped as migration 011-analytics-columns.sql for prod D1.
+ALTER TABLE agent_interactions ADD COLUMN model TEXT;
+ALTER TABLE agent_interactions ADD COLUMN model_fallback_depth INTEGER;
+
 -- Per-recipient rate-limit ledger for the agent's send_resume action.
 -- Email hashed (sha256 of email + UTC date, first 16 chars) before storage, raw
 -- addresses never persisted. Cleaned by the same retention cron as agent_interactions.
@@ -95,6 +102,13 @@ CREATE TABLE IF NOT EXISTS page_views (
 CREATE INDEX IF NOT EXISTS idx_pv_at   ON page_views(viewed_at);
 CREATE INDEX IF NOT EXISTS idx_pv_hash ON page_views(visitor_hash);
 
+-- The only column that can join page_views to anything else — visitor_hash,
+-- agent_interactions.session_id, and resume_downloads.google_sub are three
+-- mutually incompatible identity schemes. Aggregate-only by policy: rolled up
+-- into daily_stats' pageview_sessions* columns, never joined to email/name at
+-- the row level in any shipped query. Shipped as migration 011 for prod D1.
+ALTER TABLE page_views ADD COLUMN session_id TEXT;
+
 -- Spec #34 — LinkedIn engagement metrics (reactions, comments, reposts).
 -- post_id is the stable numeric LinkedIn activity id from the post URL.
 -- Shipped as migration 007-post-metrics.sql for prod D1.
@@ -107,3 +121,52 @@ CREATE TABLE IF NOT EXISTS post_metrics (
   fetched_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pm_at ON post_metrics(fetched_at);
+
+-- Failed outbound email sends. Written at the moment of failure so a chat turn
+-- that dies mid-stream still leaves a trace (the agent_interactions row is
+-- fire-and-forget after streaming completes).
+-- Shipped as migration 009-send-failures.sql for prod D1.
+CREATE TABLE IF NOT EXISTS send_failures (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind        TEXT    NOT NULL,
+  code        TEXT    NOT NULL,
+  email_hash  TEXT,
+  failed_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sf_at   ON send_failures(failed_at);
+CREATE INDEX IF NOT EXISTS idx_sf_kind ON send_failures(kind);
+
+-- attempts distinguishes "the retry logic rescued this" from "it just
+-- delayed the failure". session_id links a failure back to the conversation
+-- the visitor was in. Shipped as migration 011-analytics-columns.sql.
+ALTER TABLE send_failures ADD COLUMN session_id TEXT;
+ALTER TABLE send_failures ADD COLUMN attempts INTEGER;
+ALTER TABLE send_failures ADD COLUMN latency_ms INTEGER;
+
+-- Daily rollup written by the retention cron immediately before it
+-- deletes/redacts that day's source rows, so "all-time" counters survive
+-- the cron instead of silently shrinking as data ages out. unique_visitors
+-- is a same-day DISTINCT count, NOT additive across days. pageview_sessions*
+-- are same-day aggregate rates only, see the session_id comment on
+-- page_views above, and are never a row-level join. There is no "downloaded"
+-- funnel step: the gate that made that an instrumented event was retired
+-- 2026-06-10. Shipped as migration 010-daily-stats.sql for prod D1.
+CREATE TABLE IF NOT EXISTS daily_stats (
+  day                       TEXT    PRIMARY KEY,
+  pageviews                 INTEGER NOT NULL DEFAULT 0,
+  unique_visitors           INTEGER NOT NULL DEFAULT 0,
+  downloads                 INTEGER NOT NULL DEFAULT 0,
+  conversations             INTEGER NOT NULL DEFAULT 0,
+  turns                     INTEGER NOT NULL DEFAULT 0,
+  tokens_in                 INTEGER NOT NULL DEFAULT 0,
+  tokens_out                INTEGER NOT NULL DEFAULT 0,
+  cost_usd                  REAL    NOT NULL DEFAULT 0,
+  errors                    INTEGER NOT NULL DEFAULT 0,
+  send_failures             INTEGER NOT NULL DEFAULT 0,
+  pageview_sessions         INTEGER NOT NULL DEFAULT 0,
+  pageview_sessions_chatted INTEGER NOT NULL DEFAULT 0,
+  latency_p50_ms            INTEGER,
+  latency_p95_ms            INTEGER,
+  rolled_up_at              INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ds_day ON daily_stats(day);

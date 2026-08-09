@@ -8,8 +8,14 @@
 // The body is sent as a text/plain Blob: that content type is CORS-safelisted,
 // so navigator.sendBeacon avoids a preflight (which beacons can't perform). The
 // Worker parses the body as JSON regardless of content type.
+//
+// sessionId is the same id the chat widget uses for this page load (generated
+// once in main.js, passed down to both) — it lets the retention rollup answer
+// "did a visitor who loaded a page also chat" as a same-day aggregate count.
+// This module never reads it back or joins it to anything; see
+// .claude/docs/backend.md for the aggregate-only policy this is part of.
 
-export function initAnalytics(profile) {
+export function initAnalytics(profile, sessionId) {
     const url = profile?.links?.pageviewApi;
     if (!url) return;
 
@@ -20,6 +26,7 @@ export function initAnalytics(profile) {
         const payload = JSON.stringify({
             path: location.pathname || "/",
             referrer: document.referrer || "",
+            sessionId: sessionId || undefined,
         });
         if (navigator.sendBeacon) {
             navigator.sendBeacon(url, new Blob([payload], { type: "text/plain" }));

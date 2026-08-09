@@ -22,6 +22,7 @@ crafted CC. Resend's own send limits apply as a further backstop.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from app.app_utils.resume_send import (
@@ -31,6 +32,7 @@ from app.app_utils.resume_send import (
     _send_via_mcp,
     hash_email,
     is_valid_email,
+    record_send_failure,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,8 +76,14 @@ def _note_text(visitor_email: str, message: str) -> str:
     )
 
 
-async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
+async def send_note_email(
+    visitor_email: str, message: str, *, session_id: str | None = None
+) -> dict[str, Any]:
     """Validate inputs → send via MCP → return result dict.
+
+    session_id is server-side context (injected via ToolContext in tools.py,
+    never something the model supplies) — recorded on failure so a send that
+    failed can be traced back to the conversation it happened in.
 
     Schema returned to the agent:
         {"ok": bool, "message": str, "code": "<short-code>"}
@@ -121,13 +129,24 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
     visitor_clean = visitor_email.strip()
     h = hash_email(visitor_clean)
 
-    allowed, err = await _check_rate_limit(h, log_tok, path=_CHECK_PATH)
+    allowed, err, reason = await _check_rate_limit(h, log_tok, path=_CHECK_PATH)
     if not allowed:
         if err:
+            logger.error("EMAIL_SEND_FAILED rate-limit service unreachable: %s", err)
             return {
                 "ok": False,
                 "code": "send_failed",
                 "message": "Couldn't reach the rate-limit service — try again in a minute.",
+            }
+        if reason == "global_cap":
+            return {
+                "ok": False,
+                "code": "rate_limited",
+                "message": (
+                    "I'm handling a lot of notes right now, so this one is "
+                    "throttled. Try again shortly, or reach Gaurav directly on "
+                    "LinkedIn: https://www.linkedin.com/in/glahoti/"
+                ),
             }
         return {
             "ok": False,
@@ -149,8 +168,14 @@ async def send_note_email(visitor_email: str, message: str) -> dict[str, Any]:
         "text":    _note_text(visitor_clean, msg),
     }
 
-    ok, _ = await _send_via_mcp(arguments)
+    mcp_start = time.monotonic()
+    ok, _, attempts = await _send_via_mcp(arguments)
     if not ok:
+        latency_ms = int((time.monotonic() - mcp_start) * 1000)
+        await record_send_failure(
+            "note", "send_failed", h,
+            session_id=session_id, attempts=attempts, latency_ms=latency_ms,
+        )
         return {
             "ok": False,
             "code": "send_failed",

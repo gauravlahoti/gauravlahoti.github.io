@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from google.adk.tools.tool_context import ToolContext
 
 from app import corpus_live
 from app.app_utils.note_send import send_note_email
@@ -53,7 +54,7 @@ def get_profile() -> dict:
     Returns:
         A dict with keys: name, title, company, location, tagline, bio (list of
         sentences), careerStart (YYYY-MM), links (email, linkedin, github,
-        topmate, resume, resumeApi), capabilities (aiNative, cloud, business —
+        topmate, resume), capabilities (aiNative, cloud, business —
         each a list of capability groups with key/label/context/items).
     """
     profile = corpus_live.get_profile()
@@ -196,7 +197,7 @@ def get_recent_posts(limit: int = 5) -> list[dict]:
     return list(posts[: max(1, min(limit, len(posts)))])
 
 
-async def send_resume(email: str) -> dict[str, Any]:
+async def send_resume(email: str, tool_context: ToolContext) -> dict[str, Any]:
     """Email Gaurav's resume PDF to the visitor on explicit request.
 
     Call this tool ONLY when the visitor has clearly asked for the resume to
@@ -222,10 +223,12 @@ async def send_resume(email: str) -> dict[str, Any]:
             not_configured  — env not set (dev / misconfig); apologize briefly.
             send_failed     — transient error; suggest LinkedIn as fallback.
     """
-    return await send_resume_email(email)
+    return await send_resume_email(email, session_id=tool_context.session.id)
 
 
-async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
+async def send_note_to_gaurav(
+    visitor_email: str, message: str, tool_context: ToolContext
+) -> dict[str, Any]:
     """Send a personal note from a site visitor to Gaurav Lahoti by email.
 
     Call this tool ONLY when the visitor has BOTH composed a message AND
@@ -251,7 +254,7 @@ async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any
             not_configured  — env not set (dev / misconfig); route to LinkedIn.
             send_failed     — transient error; route to LinkedIn.
     """
-    return await send_note_email(visitor_email, message)
+    return await send_note_email(visitor_email, message, session_id=tool_context.session.id)
 
 
 def get_certifications() -> list[dict]:

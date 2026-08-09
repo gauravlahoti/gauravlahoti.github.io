@@ -22,7 +22,7 @@ python3 -m http.server 5173
 | `/add-project` | Add a node to `graph.json` |
 | `/add-post <linkedin-url>` | Fetch post title, confirm, prepend to `posts.json` |
 | `/refresh-post-metrics` | Trigger Pulse ad-hoc to scrape LinkedIn engagement → D1 (updates Perspectives chips; no email) |
-| `/run-ambient-digest` | Run the full Pulse cycle ad-hoc (visitor stats + leads + one dashboard email) |
+| `/run-ambient-digest` | Run the full Pulse cycle ad-hoc (visitor stats + insights + one dashboard email) |
 | `/ship` | Commit branch → PR → squash-merge to main |
 | `/publish` | Commit + push → trigger Pages deploy |
 
@@ -33,7 +33,7 @@ python3 -m http.server 5173
 | HTML | `index.html` | Single page; semantic anchors |
 | Standalone pages | `agent-portfolio/index.html` | `/agent-portfolio/` portfolio; shares the nav but boots its own module |
 | CSS | `assets/css/{base,layout,components,agents}.css` | `base.css` holds all variables; `agents.css` styles the `/agent-portfolio/` page |
-| JS modules | `assets/js/{main,trajectory,hero-graph,cursor,resume-gate,agent-widget}.js` | One module per surface |
+| JS modules | `assets/js/{main,trajectory,hero-graph,cursor,agent-widget}.js` | One module per surface. (`resume-gate.js` deleted 2026-08-09 — the Google Sign-In download gate it powered was retired 2026-06-10; the Resume link goes straight to `/resume.pdf` now.) |
 | Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/agent-portfolio/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
 | Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. |
@@ -47,7 +47,7 @@ python3 -m http.server 5173
 
 ## Backend, analytics & MCP → `.claude/docs/backend.md`
 
-`backend/` gates the resume PDF behind Google Sign-In: Cloudflare Worker + D1 in prod (`backend/src/index.js`), Node + SQLite locally (`backend/local-server.js` → `:8787`). Also holds the agent audit log (`agent_interactions`), self-hosted page-view analytics, post metrics, and GCP cost alerts. `resend_mcp_server/` is a Cloud Run MCP server exposing `send-email`, used by both agents.
+`backend/` is the site's general-purpose backend: Cloudflare Worker + D1 in prod (`backend/src/index.js`), Node + SQLite locally (`backend/local-server.js` → `:8787`). Holds the agent audit log (`agent_interactions`), resume/note send-and-rate-limit endpoints, self-hosted page-view analytics (`page_views`, `daily_stats` rollup), post metrics, and GCP cost alerts. It kept the "resume-gate" name from its original purpose — gating the resume PDF behind Google Sign-In — but that gate was retired 2026-06-10; the Resume link is a direct `/resume.pdf` now, and `resume_downloads` is read-only historical data. `resend_mcp_server/` is a Cloud Run MCP server exposing `send-email`, used by both agents.
 
 → **Full endpoint list, migrations, audit-log schema, scripts, analytics beacon, and MCP commands: `.claude/docs/backend.md`.**
 
