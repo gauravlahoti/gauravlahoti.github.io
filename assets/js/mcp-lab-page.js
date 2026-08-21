@@ -82,9 +82,35 @@ function initInsightsFlyout() {
     }).catch(err => console.warn("[mcp-lab] insights flyout failed", err));
 }
 
+// WebMCP (spec 45). Fire-and-forget: fetches profile.json independently of
+// this page's own content fetch (best-effort, never blocks page render) and
+// registers this page's scoped tool subset if the browser exposes the API.
+function initWebMcp() {
+    const hasApi = () => document.modelContext || navigator.modelContext;
+    const start = async () => {
+        try {
+            const base = document.querySelector("base")?.href || window.location.origin + "/";
+            const profile = await fetch(new URL(_vq("content/profile.json"), base)).then(r => r.json());
+            const { registerWebMcp } = await import(_vq("./webmcp.js"));
+            await registerWebMcp({ scope: "lab-mcp", profile });
+        } catch (err) {
+            console.debug("[webmcp] unavailable", err);
+        }
+    };
+    if (hasApi()) return void start();
+    let tries = 0;
+    const recheck = () => {
+        if (hasApi()) return void start();
+        if (++tries >= 2) return;
+    };
+    window.addEventListener("load", recheck, { once: true });
+    setTimeout(recheck, 1500);
+}
+
 async function init() {
     playEntranceWipe();
     initPageChrome();
+    initWebMcp();
 
     // Intercept same-origin page links → Neural-Slash transition.
     document.addEventListener("click", e => {

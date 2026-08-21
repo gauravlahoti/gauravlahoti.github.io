@@ -122,9 +122,35 @@ function runEntrance(grid) {
         { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", stagger: 0.1, delay: 0.1, clearProps: "opacity,transform" });
 }
 
+// WebMCP (spec 45). Fire-and-forget: fetches profile.json independently of
+// this page's own content fetch (best-effort, never blocks page render) and
+// registers this page's scoped tool subset if the browser exposes the API.
+function initWebMcp() {
+    const hasApi = () => document.modelContext || navigator.modelContext;
+    const start = async () => {
+        try {
+            const base = document.querySelector("base")?.href || window.location.origin + "/";
+            const profile = await fetch(new URL(_vq("content/profile.json"), base)).then(r => r.json());
+            const { registerWebMcp } = await import(_vq("./webmcp.js"));
+            await registerWebMcp({ scope: "ai-labs", profile });
+        } catch (err) {
+            console.debug("[webmcp] unavailable", err);
+        }
+    };
+    if (hasApi()) return void start();
+    let tries = 0;
+    const recheck = () => {
+        if (hasApi()) return void start();
+        if (++tries >= 2) return;
+    };
+    window.addEventListener("load", recheck, { once: true });
+    setTimeout(recheck, 1500);
+}
+
 async function init() {
     playEntranceWipe();
     initPageChrome();
+    initWebMcp();
 
     document.addEventListener("click", e => {
         const a = e.target.closest("[data-page-link]");

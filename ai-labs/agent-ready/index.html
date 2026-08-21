@@ -5,19 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
     <!-- WebMCP origin trial (Chrome 149-156). Origin-bound to gauravlahoti.dev.
-         Absent or expired, the feature-detect in webmcp.js finds nothing and the
-         whole feature costs one property read. -->
+         Absent or expired, the feature-detect in webmcp.js finds nothing and
+         the page falls back to its "unsupported" registry state. Paste the
+         real token from developer.chrome.com/origintrials once registered. -->
     <meta http-equiv="origin-trial" content="TODO_WEBMCP_ORIGIN_TRIAL_TOKEN">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' https://storage.googleapis.com; connect-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <!-- connect-src adds the resume-gate Worker (unlike the other AI Lab pages) because
+         this page's console can run list_linkedin_posts with include_engagement, which
+         fetches live counts from /api/post-metrics on that Worker. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' https://storage.googleapis.com; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev; object-src 'none'; base-uri 'self'; form-action 'self'">
     <base href="/">
-    <script src="assets/js/scroll-restore.js?v=227"></script>
-    <title>Engineering Loops — How Agents Grew Up | Gaurav Lahoti</title>
-    <meta name="description" content="An interactive explainer of the four ways to steer an AI: prompt, context, harness, and loop engineering, each nested inside the next. Focus a ring or take the guided tour. By Gaurav Lahoti.">
-    <link rel="canonical" href="https://gauravlahoti.dev/ai-labs/engineering-loops/">
-    <meta property="og:title" content="Engineering Loops — How Agents Grew Up">
-    <meta property="og:description" content="Prompt, context, harness, loop. Four ways to steer an AI, each wrapping the last in a bigger loop. An interactive, single-page explainer.">
+    <script src="assets/js/scroll-restore.js?v=230"></script>
+    <title>Agent-Ready Web — WebMCP on This Site | Gaurav Lahoti</title>
+    <meta name="description" content="This site registers its own WebMCP tools so an AI agent can call them directly instead of scraping the page. See the live tool registry and run any of it yourself. By Gaurav Lahoti.">
+    <link rel="canonical" href="https://gauravlahoti.dev/ai-labs/agent-ready/">
+    <meta property="og:title" content="Agent-Ready Web — WebMCP on This Site">
+    <meta property="og:description" content="Most agents read a site by scraping the screen and guessing. This one hands them real tools instead. See the live registry and run one yourself.">
     <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
-    <meta property="og:url" content="https://gauravlahoti.dev/ai-labs/engineering-loops/">
+    <meta property="og:url" content="https://gauravlahoti.dev/ai-labs/agent-ready/">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
@@ -27,17 +31,17 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
           integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
           crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=227">
-    <link rel="stylesheet" href="assets/css/layout.css?v=227">
+    <link rel="stylesheet" href="assets/css/base.css?v=230">
+    <link rel="stylesheet" href="assets/css/layout.css?v=230">
     <link rel="stylesheet" href="assets/css/components.css?v=230">
-    <link rel="stylesheet" href="assets/css/engineering-loops.css?v=57">
+    <link rel="stylesheet" href="assets/css/webmcp-lab.css?v=230">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
             crossorigin="anonymous" defer></script>
 </head>
-<body class="loops-lab-page">
-    <a class="skip-link" href="#loops-main">Skip to content</a>
+<body class="webmcp-lab-page">
+    <a class="skip-link" href="#webmcp-lab-main">Skip to content</a>
 
     <!-- Shared header — mirrors index.html structure -->
     <header class="nav" role="banner">
@@ -136,20 +140,20 @@
         </div>
     </aside>
 
-    <main id="loops-main">
-        <section class="loops-section" aria-label="Engineering Loops — prompt, context, harness, loop">
-            <div data-loops-root></div>
+    <main id="webmcp-lab-main">
+        <section class="webmcp-lab-section" aria-label="Agent-Ready Web — WebMCP on this site">
+            <div data-webmcp-lab-root></div>
         </section>
 
-        <footer class="loops-footer" role="contentinfo">
-            <p class="loops-footer-copy">© <span id="loops-year">2026</span> Gaurav Lahoti</p>
-            <a href="/ai-labs/" class="loops-footer-back" data-page-link>
+        <footer class="webmcp-lab-footer" role="contentinfo">
+            <p class="webmcp-lab-footer-copy">© <span id="webmcp-lab-year">2026</span> Gaurav Lahoti</p>
+            <a href="/ai-labs/" class="webmcp-lab-footer-back" data-page-link>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
                 All AI Lab
             </a>
         </footer>
     </main>
 
-    <script type="module" src="assets/js/engineering-loops-page.js?v=132"></script>
+    <script type="module" src="assets/js/webmcp-lab-page.js?v=230"></script>
 </body>
 </html>

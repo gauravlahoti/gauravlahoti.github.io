@@ -146,6 +146,19 @@ export function initAgentWidget(root, profile, sessionId) {
         }
     });
 
+    // Sets the composer text and focuses it without sending. Shared by the
+    // action chips and (spec 45) WebMCP's draft_note_to_gaurav tool — a real
+    // human keystroke is always required to actually send.
+    function prefillComposer(text) {
+        if (isPending) return false;
+        const s = String(text || "");
+        input.value = s + (s.endsWith(" ") ? "" : " ");
+        input.focus();
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch (_) { /* ignore */ }
+        return true;
+    }
+
     function togglePanel() {
         if (isOpen) {
             if (isMinimized) restore(); else closePanel();
@@ -233,14 +246,7 @@ export function initAgentWidget(root, profile, sessionId) {
             btn.type = "button";
             btn.className = "agent-action-chip";
             btn.textContent = label;
-            btn.addEventListener("click", () => {
-                if (isPending) return;
-                input.value = prefill + (prefill.endsWith(" ") ? "" : " ");
-                input.focus();
-                // Place caret at end so the visitor types the email straight in.
-                const len = input.value.length;
-                try { input.setSelectionRange(len, len); } catch (_) { /* ignore */ }
-            });
+            btn.addEventListener("click", () => prefillComposer(prefill));
             promptsEl.appendChild(btn);
         });
 
@@ -279,13 +285,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 btn.type = "button";
                 btn.className = "agent-action-chip";
                 btn.textContent = a.label;
-                btn.addEventListener("click", () => {
-                    if (isPending) return;
-                    input.value = a.prefill + (a.prefill.endsWith(" ") ? "" : " ");
-                    input.focus();
-                    const len = input.value.length;
-                    try { input.setSelectionRange(len, len); } catch (_) {}
-                });
+                btn.addEventListener("click", () => prefillComposer(a.prefill));
                 row.appendChild(btn);
             });
 
@@ -650,7 +650,7 @@ export function initAgentWidget(root, profile, sessionId) {
 
     dom.body.addEventListener("scroll", syncScrollHint, { passive: true });
 
-    return { open: openPanel, close: closePanel };
+    return { open: openPanel, close: closePanel, prefill: prefillComposer };
 }
 
 // --- Explainer modal --------------------------------------------------------

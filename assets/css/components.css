@@ -3697,3 +3697,56 @@ sup.agent-cite a:focus-visible {
     .resume-icon .resume-line-2,
     .resume-icon .resume-line-3 { animation: none; opacity: 1; }
 }
+
+/* ---------- WebMCP activity pill (spec 45) ---------- */
+/* Flashes the name of the tool an agent just called, so a human watching an
+   agent drive their browser sees that something is happening even for the
+   read-only tools that produce no other on-screen change. Injected only
+   when the browser actually exposes document.modelContext. */
+.webmcp-pill {
+    position: fixed;
+    left: var(--space-6);
+    bottom: var(--space-6);
+    z-index: 40; /* below the agent FAB (60) and panel (200) */
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.webmcp-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex: none;
+}
+.webmcp-pill-text {
+    color: var(--accent);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .webmcp-pill.is-live .webmcp-pill-dot {
+        animation: webmcp-pill-pulse 1.1s ease-in-out infinite;
+    }
+}
+@keyframes webmcp-pill-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-glow); }
+    50%      { opacity: 0.6; box-shadow: 0 0 0 4px transparent; }
+}
+@media (max-width: 767px) {
+    .webmcp-pill {
+        left: var(--space-3);
+        bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-3));
+    }
+}

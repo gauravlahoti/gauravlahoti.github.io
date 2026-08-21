@@ -40,6 +40,18 @@
       "href": "/ai-labs/engineering-loops/",
       "internal": true,
       "cta": "Open Engineering Loops"
+    },
+    {
+      "id": "webmcp",
+      "num": "04",
+      "status": "LIVE",
+      "title": "Agent-Ready Web",
+      "tagline": "This page talks to agents directly",
+      "description": "Most agents read a website by scraping the screen and guessing. WebMCP lets a page hand the agent real tools instead. This site registers its own, and here you can see them and run them yourself.",
+      "tags": ["WebMCP", "Agents", "Browser"],
+      "href": "/ai-labs/agent-ready/",
+      "internal": true,
+      "cta": "Open Agent-Ready Lab"
     }
   ],
   "teaser": "// more concepts in flight — added as I find better ways to explain them"

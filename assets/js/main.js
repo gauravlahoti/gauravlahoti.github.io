@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "229";
+const ASSET_VERSION = "230";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -66,6 +66,7 @@ window.__portfolioSessionId = uuidv4();
     bindDOM(profile);
     setTitle(profile);
     setYear();
+    initWebMcp(profile);
     initLenis();
     initAnchorScroll();
     scheduleHeroReveal();
@@ -92,6 +93,32 @@ window.__portfolioSessionId = uuidv4();
     initLoadHashScroll();
     auditConsole();
 })();
+
+// WebMCP (spec 45). Feature-detect first: on a browser with no model context
+// this is one property read and we never touch the network or import
+// anything, so it's free on every human visit. When the API IS present the
+// visitor is an agent, so register right away rather than on idle —
+// registration is schema-only, and the JSON behind each tool is fetched
+// lazily inside its handler.
+function initWebMcp(profile) {
+    const hasApi = () => document.modelContext || navigator.modelContext;
+    const start = () =>
+        import(v("./webmcp.js"))
+            .then((m) => m.registerWebMcp({ scope: "home", profile }))
+            .catch((err) => console.debug("[webmcp] unavailable", err));
+
+    if (hasApi()) return void start();
+
+    // An extension or polyfill may install the API after this module runs.
+    // Two cheap re-checks, then stop looking — no console noise either way.
+    let tries = 0;
+    const recheck = () => {
+        if (hasApi()) return void start();
+        if (++tries >= 2) return;
+    };
+    window.addEventListener("load", recheck, { once: true });
+    setTimeout(recheck, 1500);
+}
 
 // Live Atlas counter — fetches total questions answered from /api/agent-stats
 // and reveals "Atlas has answered N questions" under the hero tagline, counting

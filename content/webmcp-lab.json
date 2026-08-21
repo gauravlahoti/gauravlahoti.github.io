@@ -1,0 +1,32 @@
+{
+  "intro": {
+    "tag": "// 04 · agent-ready web",
+    "title": "This page talks to agents directly",
+    "sub": "Most agents read a site by scraping the screen and guessing. This one hands them real tools instead: named, typed functions with a JSON schema and a real return value. Below is the live registry this page just handed your browser, and a console to run any of it yourself."
+  },
+  "registry": {
+    "title": "Live tool registry",
+    "sub": "Read straight from document.modelContext.getTools() in this browser, right now.",
+    "unsupported": {
+      "title": "Your browser doesn't expose WebMCP yet",
+      "body": "WebMCP (document.modelContext) is a W3C proposal from Google and Microsoft, shipping in Chrome behind an origin trial (Chrome 149 to 156) or a local flag. Chrome, Edge, Safari, and Firefox are all watching it, and only Chrome ships it so far. The console below still works everywhere: it runs each tool's own code directly, the same code the browser would call.",
+      "flagLabel": "chrome://flags/#enable-webmcp-testing",
+      "flagHint": "Enable that flag in Chrome, relaunch, and reload this page to see the live registry above populate."
+    },
+    "badges": {
+      "readOnly": "read-only",
+      "write": "changes something",
+      "untrusted": "may include untrusted text"
+    }
+  },
+  "console": {
+    "title": "Run a tool",
+    "sub": "Pick one, fill in its parameters, and see the exact JSON it returns. The counter shows how far the output sits from Chrome's 1,500-character ceiling per tool call.",
+    "runLocal": "Run",
+    "runBrowser": "Run through the browser",
+    "runBrowserHint": "Calls the same tool through document.modelContext.executeTool() instead of running it directly, when this browser supports it.",
+    "empty": "Pick a tool above to run it.",
+    "outputLabel": "Output"
+  },
+  "footNote": "Every tool here is read-only or asks a human before it acts. None of them can send anything on your behalf."
+}
