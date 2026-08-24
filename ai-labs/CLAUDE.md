@@ -14,6 +14,7 @@ It's the nav's "AI Lab" destination (`/ai-labs/`) and the parent folder for ever
 | `ai-labs/index.html` | This hub |
 | `ai-labs/mcp-lab/` | MCP Lab — see its own `CLAUDE.md` |
 | `ai-labs/engineering-loops/` | Engineering Loops — see its own `CLAUDE.md` |
+| `ai-labs/agent-ready/` | Agent-Ready Web (WebMCP demo) — see its own `CLAUDE.md` |
 | `ai-labs/rag-lab/` | RAG Lab redirect stub — see its own `CLAUDE.md` |
 
 ## Design choice: cards are pure data, the hub has no lab-specific code

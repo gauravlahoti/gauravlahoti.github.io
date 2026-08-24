@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
+    <!-- WebMCP origin trial (Chrome 149-156). Origin-bound to gauravlahoti.dev.
+         Absent or expired, the feature-detect in main.js finds nothing and the
+         whole feature costs one property read. -->
+    <meta http-equiv="origin-trial" content="TODO_WEBMCP_ORIGIN_TRIAL_TOKEN">
     <!-- Content Security Policy. 'unsafe-inline' on style-src is required for
          GSAP's runtime style mutations and for the Google Sign-In iframe's
          inline styles; everything else is locked down. -->
@@ -53,7 +57,7 @@
           crossorigin="anonymous">
     <link rel="stylesheet" href="assets/css/base.css?v=228">
     <link rel="stylesheet" href="assets/css/layout.css?v=228">
-    <link rel="stylesheet" href="assets/css/components.css?v=228">
+    <link rel="stylesheet" href="assets/css/components.css?v=230">
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"
             integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"
@@ -457,6 +461,6 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=229"></script>
+    <script type="module" src="assets/js/main.js?v=231"></script>
 </body>
 </html>

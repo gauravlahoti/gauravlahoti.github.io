@@ -1,0 +1,273 @@
+/* webmcp-lab.css — Agent-Ready Web lab (spec 45)
+   Tokens only, per repo convention (base.css :root). */
+
+#webmcp-lab-main {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: calc(var(--nav-h) + var(--space-6)) var(--space-6) var(--space-12);
+}
+
+/* ─── header ─────────────────────────────────────────────────────────── */
+
+.webmcp-lab-header { margin-bottom: var(--space-8); }
+.webmcp-lab-tag {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--space-2);
+}
+.webmcp-lab-title {
+    font-family: var(--font-sans);
+    font-size: clamp(1.8rem, 4vw, var(--text-3xl));
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0 0 var(--space-3);
+    color: var(--ink);
+}
+.webmcp-lab-sub {
+    font-family: var(--font-sans);
+    font-size: var(--text-lg);
+    color: var(--ink-muted);
+    max-width: 62ch;
+    margin: 0;
+}
+
+/* ─── two-pane grid ──────────────────────────────────────────────────── */
+
+.webmcp-lab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-8);
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .webmcp-lab-grid { grid-template-columns: 1fr; }
+}
+
+.webmcp-pane {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: var(--space-6);
+}
+.webmcp-pane-title {
+    font-family: var(--font-sans);
+    font-size: var(--text-xl);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 var(--space-2);
+}
+.webmcp-pane-sub {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    margin: 0 0 var(--space-5);
+}
+
+/* ─── registry pane ──────────────────────────────────────────────────── */
+
+.webmcp-registry-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+.webmcp-registry-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-3) var(--space-4);
+}
+.webmcp-registry-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-1);
+}
+.webmcp-tool-name {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+}
+.webmcp-tool-desc {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin: var(--space-1) 0;
+}
+.webmcp-tool-params {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin: 0;
+}
+
+.webmcp-badges { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.webmcp-badge {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    padding: 2px var(--space-2);
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    color: var(--ink-muted);
+    white-space: nowrap;
+}
+.webmcp-badge-ro { color: var(--accent); border-color: var(--accent-soft); }
+.webmcp-badge-write { color: var(--ink); }
+.webmcp-badge-untrusted { color: var(--danger); border-color: var(--danger); }
+
+.webmcp-unsupported { display: flex; flex-direction: column; gap: var(--space-3); }
+.webmcp-unsupported-title {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+}
+.webmcp-unsupported-body {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin: 0;
+}
+.webmcp-flag {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: var(--space-1) var(--space-2);
+    border-radius: 6px;
+    width: fit-content;
+}
+.webmcp-unsupported-hint {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin: 0;
+}
+
+/* ─── console pane ───────────────────────────────────────────────────── */
+
+.webmcp-tool-select {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.webmcp-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.webmcp-field { display: flex; flex-direction: column; gap: 2px; }
+.webmcp-field-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+.webmcp-field-input,
+.webmcp-field-checkbox {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--space-2);
+}
+.webmcp-field-checkbox { width: fit-content; padding: 0; }
+.webmcp-field-hint {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--ink-subtle);
+}
+
+.webmcp-run-btns { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
+
+.webmcp-run-output-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    margin: var(--space-5) 0 var(--space-2);
+}
+.webmcp-run-empty {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin: 0;
+}
+.webmcp-run-pending {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    margin: 0;
+}
+.webmcp-run-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+.webmcp-run-count {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+.webmcp-run-count.is-over { color: var(--danger); }
+.webmcp-run-error-flag {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--danger);
+}
+.webmcp-run-pre {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-3);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 360px;
+    overflow-y: auto;
+    margin: 0;
+}
+
+/* ─── footer ──────────────────────────────────────────────────────────── */
+
+.webmcp-lab-foot {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin-top: var(--space-6);
+}
+
+.webmcp-lab-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-16);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+.webmcp-lab-footer-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--accent);
+    text-decoration: none;
+    transition: gap var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.webmcp-lab-footer-back:hover { gap: var(--space-3); }

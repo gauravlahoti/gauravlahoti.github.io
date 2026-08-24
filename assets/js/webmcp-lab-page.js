@@ -1,20 +1,18 @@
-// engineering-loops-page.js — /engineering-loops/ bootstrap
+// webmcp-lab-page.js — /ai-labs/agent-ready/ bootstrap
 //
-// Mirrors mcp-lab-page.js: plays the Neural-Slash entrance wipe, wires page
-// chrome (year, nav drawer, resume redirect, Insights flyout), fetches the lab
-// content, then lazy-imports the visualization module.
+// Mirrors engineering-loops-page.js: plays the Neural-Slash entrance wipe,
+// wires page chrome (year, nav drawer, resume redirect, Insights flyout),
+// fetches the lab content plus profile.json, registers this page's own
+// WebMCP tools (scope "lab-agent-ready"), then lazy-imports the lab engine.
 
 import { playEntranceWipe, runPageTransition } from "./page-transition.js";
 
 // Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
-const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
+const _vq = (path) => (_selfV ? `${path}?v=${_selfV}` : path);
 
-// Page chrome (year, nav drawer, resume redirect, Insights flyout). Lives here —
-// not in an inline <script> — because the page CSP is `script-src 'self'` with
-// no 'unsafe-inline', so inline scripts are blocked.
 function initPageChrome() {
-    const yearEl = document.getElementById("loops-year");
+    const yearEl = document.getElementById("webmcp-lab-year");
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
     const trigger = document.querySelector("[data-nav-trigger]");
@@ -79,24 +77,18 @@ function initInsightsFlyout() {
                 }
             });
         }
-    }).catch(err => console.warn("[engineering-loops] insights flyout failed", err));
+    }).catch(err => console.warn("[webmcp-lab] insights flyout failed", err));
 }
 
-// WebMCP (spec 45). Fire-and-forget: fetches profile.json independently of
-// this page's own content fetch (best-effort, never blocks page render) and
-// registers this page's scoped tool subset if the browser exposes the API.
-function initWebMcp() {
+// Registers this page's own WebMCP tools (search_site, get_profile,
+// list_work). Independent of the lab UI below: even if the visualization
+// fails to load, an agent visiting this page still gets a working registry.
+function initWebMcp(profile) {
     const hasApi = () => document.modelContext || navigator.modelContext;
-    const start = async () => {
-        try {
-            const base = document.querySelector("base")?.href || window.location.origin + "/";
-            const profile = await fetch(new URL(_vq("content/profile.json"), base)).then(r => r.json());
-            const { registerWebMcp } = await import(_vq("./webmcp.js"));
-            await registerWebMcp({ scope: "lab-loops", profile });
-        } catch (err) {
-            console.debug("[webmcp] unavailable", err);
-        }
-    };
+    const start = () =>
+        import(_vq("./webmcp.js"))
+            .then((m) => m.registerWebMcp({ scope: "lab-agent-ready", profile }))
+            .catch((err) => console.debug("[webmcp] unavailable", err));
     if (hasApi()) return void start();
     let tries = 0;
     const recheck = () => {
@@ -110,7 +102,6 @@ function initWebMcp() {
 async function init() {
     playEntranceWipe();
     initPageChrome();
-    initWebMcp();
 
     // Intercept same-origin page links → Neural-Slash transition.
     document.addEventListener("click", e => {
@@ -122,26 +113,31 @@ async function init() {
         runPageTransition(href);
     });
 
-    const root = document.querySelector("[data-loops-root]");
+    const root = document.querySelector("[data-webmcp-lab-root]");
     if (!root) return;
 
-    let content;
+    const base = document.querySelector("base")?.href || window.location.origin + "/";
+    let content, profile;
     try {
-        const base = document.querySelector("base")?.href || window.location.origin + "/";
-        content = await fetch(new URL(_vq("content/engineering-loops.json"), base)).then(r => r.json());
+        [content, profile] = await Promise.all([
+            fetch(new URL(_vq("content/webmcp-lab.json"), base)).then(r => r.json()),
+            fetch(new URL(_vq("content/profile.json"), base)).then(r => r.json()),
+        ]);
     } catch (err) {
-        console.warn("[engineering-loops] content load failed", err);
-        root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// Engineering Loops content unavailable</p>`;
+        console.warn("[webmcp-lab] content load failed", err);
+        root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// Agent-Ready Web content unavailable</p>`;
         return;
     }
 
+    initWebMcp(profile);
+
     try {
-        const { initEngineeringLoops } = await import(_vq("./engineering-loops.js"));
-        const lab = initEngineeringLoops(root, { content });
-        window.__loopsLab = lab;
+        const { initWebMcpLab } = await import(_vq("./webmcp-lab.js"));
+        const lab = initWebMcpLab(root, { content, profile });
+        window.__webmcpLab = lab;
     } catch (err) {
-        console.warn("[engineering-loops] visualization failed to load", err);
-        root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// Engineering Loops failed to start</p>`;
+        console.warn("[webmcp-lab] lab UI failed to load", err);
+        root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// Agent-Ready Web failed to start</p>`;
     }
 }
 
