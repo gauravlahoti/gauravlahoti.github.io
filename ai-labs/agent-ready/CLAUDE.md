@@ -48,11 +48,13 @@ changes here.
 
 ## Scope on this page: read-only tools only
 
-This page registers 9 tools: the 8 read-only tools plus `list_ai_labs`. `navigate_to_section`,
-`open_agent_chat`, and `draft_note_to_gaurav` are home-page-only (they need `#career`-style
-section ids or the Atlas chat widget, neither of which exists here), and `open_lab` is
-hub-only. Don't widen this page's scope to include them without adding the DOM they depend on
-first — a tool that always errors is worse than no tool.
+This page registers 3 tools: `search_site`, `get_profile`, and `list_work` (which folds in
+the old `list_ai_labs` behavior via `kind: "labs"`). `go_to` (scopes: `home`, `ai-labs`) and
+`draft_note_to_gaurav` (scope: `home`) are not registered here — `go_to` needs either
+`#career`-style section ids or a lab-id list this page doesn't drive navigation from, and
+`draft_note_to_gaurav` needs the Atlas chat widget, which doesn't exist here. Don't widen this
+page's scope to include them without adding the DOM they depend on first — a tool that always
+errors is worse than no tool.
 
 ## Verify
 

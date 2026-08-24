@@ -228,7 +228,7 @@ export function initWebMcpLab(root, { content, profile }) {
     root.append(header, grid, foot);
 
     const mc = getModelContext();
-    const defs = defineTools({ profile }).filter((d) => d.scopes.includes("lab-agent-ready"));
+    const defs = defineTools({ profile, scope: "lab-agent-ready" }).filter((d) => d.scopes.includes("lab-agent-ready"));
 
     let toolchangeHandler = null;
 

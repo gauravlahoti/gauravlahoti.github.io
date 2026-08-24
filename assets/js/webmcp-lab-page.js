@@ -80,8 +80,8 @@ function initInsightsFlyout() {
     }).catch(err => console.warn("[webmcp-lab] insights flyout failed", err));
 }
 
-// Registers this page's own WebMCP tools (the 8 read-only tools plus
-// list_ai_labs). Independent of the lab UI below: even if the visualization
+// Registers this page's own WebMCP tools (search_site, get_profile,
+// list_work). Independent of the lab UI below: even if the visualization
 // fails to load, an agent visiting this page still gets a working registry.
 function initWebMcp(profile) {
     const hasApi = () => document.modelContext || navigator.modelContext;
