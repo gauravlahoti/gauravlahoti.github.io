@@ -40,7 +40,6 @@ function badgeRow(def, labels) {
     const a = def.annotations || {};
     if (a.readOnlyHint) row.append(el("span", { class: "webmcp-badge webmcp-badge-ro", text: labels.readOnly }));
     else row.append(el("span", { class: "webmcp-badge webmcp-badge-write", text: labels.write }));
-    if (a.untrustedContentHint) row.append(el("span", { class: "webmcp-badge webmcp-badge-untrusted", text: labels.untrusted }));
     return row;
 }
 

@@ -15,8 +15,7 @@
     },
     "badges": {
       "readOnly": "read-only",
-      "write": "changes something",
-      "untrusted": "may include untrusted text"
+      "write": "changes something"
     }
   },
   "console": {
