@@ -64,6 +64,14 @@
   },
   "certifications": [
     {
+      "name": "Claude Certified Associate — Foundations",
+      "issuer": "Anthropic",
+      "category": "ai",
+      "slug": "claude-certified-associate",
+      "badge": "assets/img/badges/claude-certified-associate.png",
+      "credlyUrl": "https://www.credly.com/badges/876dce5a-06b4-4ad4-a7b7-e3a08495e580/public_url"
+    },
+    {
       "name": "Claude Certified Architect — Foundations",
       "issuer": "Anthropic",
       "category": "ai",

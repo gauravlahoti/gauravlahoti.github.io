@@ -16,8 +16,6 @@
     "github": "https://github.com/gauravlahoti",
     "topmate": "https://topmate.io/gaurav_lahoti25",
     "resume": "/resume.pdf",
-    "resumeApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/resume-download",
-    "googleClientId": "593919045544-0rl59vv2rfqh3t5gi7fq7c1set1rn0pa.apps.googleusercontent.com",
     "agentApi": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
     "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
@@ -65,6 +63,14 @@
     ]
   },
   "certifications": [
+    {
+      "name": "Claude Certified Associate — Foundations",
+      "issuer": "Anthropic",
+      "category": "ai",
+      "slug": "claude-certified-associate",
+      "badge": "assets/img/badges/claude-certified-associate.png",
+      "credlyUrl": "https://www.credly.com/badges/876dce5a-06b4-4ad4-a7b7-e3a08495e580/public_url"
+    },
     {
       "name": "Claude Certified Architect — Foundations",
       "issuer": "Anthropic",
