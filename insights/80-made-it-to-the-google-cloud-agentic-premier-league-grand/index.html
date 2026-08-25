@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>80 made it to the Google Cloud Agentic Premier League Grand Finale. 15 finished on top. I was one of them. | Gaurav Lahoti</title>
     <meta name="description" content="3,000+ builders entered across 30 cities in India. 80 made it to the Grand Finale. 15 finished at the top. I&#39;m one of them. Easily one of the sharpest…">
     <link rel="canonical" href="https://gauravlahoti.dev/insights/80-made-it-to-the-google-cloud-agentic-premier-league-grand/">
@@ -186,26 +187,6 @@
         </div>
     </footer>
 
-    <script>
-    (function () {
-        var trigger = document.querySelector("[data-nav-trigger]");
-        var drawer = document.querySelector("[data-nav-drawer]");
-        var closes = document.querySelectorAll("[data-nav-close]");
-        if (!trigger || !drawer) return;
-        function open() {
-            trigger.setAttribute("aria-expanded", "true");
-            drawer.setAttribute("aria-hidden", "false");
-        }
-        function close() {
-            trigger.setAttribute("aria-expanded", "false");
-            drawer.setAttribute("aria-hidden", "true");
-        }
-        trigger.addEventListener("click", function () {
-            trigger.getAttribute("aria-expanded") === "true" ? close() : open();
-        });
-        closes.forEach(function (el) { el.addEventListener("click", close); });
-        document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-    })();
-    </script>
+    <script src="assets/js/insight-nav.js?v=1"></script>
 </body>
 </html>

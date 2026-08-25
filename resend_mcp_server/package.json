@@ -11,6 +11,6 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "resend-mcp": "2.2.0"
+    "resend-mcp": "2.16.0"
   }
 }

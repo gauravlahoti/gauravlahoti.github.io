@@ -31,10 +31,10 @@ python3 -m http.server 5173
 | Layer | Location | Notes |
 |-------|----------|-------|
 | HTML | `index.html` | Single page; semantic anchors |
-| Standalone pages | `agent-portfolio/index.html` | `/agent-portfolio/` portfolio; shares the nav but boots its own module |
-| CSS | `assets/css/{base,layout,components,agents}.css` | `base.css` holds all variables; `agents.css` styles the `/agent-portfolio/` page |
+| Standalone pages | `live-agents/index.html` | `/live-agents/` portfolio; shares the nav but boots its own module |
+| CSS | `assets/css/{base,layout,components,agents}.css` | `base.css` holds all variables; `agents.css` styles the `/live-agents/` page |
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,agent-widget}.js` | One module per surface. (`resume-gate.js` deleted 2026-08-09 — the Google Sign-In download gate it powered was retired 2026-06-10; the Resume link goes straight to `/resume.pdf` now.) |
-| Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/agent-portfolio/` |
+| Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/live-agents/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
 | Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. |
 | Static media | `assets/img/`, `diagram-icons/`, `agent-portfolio/diagrams/` | Resume PDF, OG image, favicon, badges (`assets/img/`); vendor/cloud logos for architecture art (`diagram-icons/`); per-agent architecture SVGs referenced by `agents.json` → `diagramSvg` (`agent-portfolio/diagrams/`) |

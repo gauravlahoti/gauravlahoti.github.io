@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>I spent a weekend inside Google&#39;s PromptWars and the Claude community — here&#39;s what I saw. | Gaurav Lahoti</title>
     <meta name="description" content="I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office — I built a…">
     <link rel="canonical" href="https://gauravlahoti.dev/insights/i-spent-a-weekend-inside-googles-promptwars-and-the-claude-c/">
@@ -182,26 +183,6 @@
         </div>
     </footer>
 
-    <script>
-    (function () {
-        var trigger = document.querySelector("[data-nav-trigger]");
-        var drawer = document.querySelector("[data-nav-drawer]");
-        var closes = document.querySelectorAll("[data-nav-close]");
-        if (!trigger || !drawer) return;
-        function open() {
-            trigger.setAttribute("aria-expanded", "true");
-            drawer.setAttribute("aria-hidden", "false");
-        }
-        function close() {
-            trigger.setAttribute("aria-expanded", "false");
-            drawer.setAttribute("aria-hidden", "true");
-        }
-        trigger.addEventListener("click", function () {
-            trigger.getAttribute("aria-expanded") === "true" ? close() : open();
-        });
-        closes.forEach(function (el) { el.addEventListener("click", close); });
-        document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-    })();
-    </script>
+    <script src="assets/js/insight-nav.js?v=1"></script>
 </body>
 </html>
