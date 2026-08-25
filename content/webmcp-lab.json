@@ -4,18 +4,41 @@
     "title": "This page talks to agents directly",
     "sub": "Most agents read a site by scraping the screen and guessing. This one hands them real tools instead: named, typed functions with a JSON schema and a real return value. Below is the live registry this page just handed your browser, and a console to run any of it yourself."
   },
+  "diagram": {
+    "title": "What WebMCP actually is",
+    "lead": "An agent running inside the browser calls functions the page registered, instead of reading pixels and guessing where to click.",
+    "nodes": {
+      "platform": "AI agent platform",
+      "browser": "Web browser",
+      "agent": "Browser-integrated AI agent",
+      "page": "Running page (index.html)",
+      "tools": "WebMCP tools",
+      "service": "Third-party service (example.com)"
+    },
+    "edges": [
+      { "n": "1", "short": "loads the page", "full": "The browser loads the page over HTTP, the same as always." },
+      { "n": "2", "short": "model talks to agent", "full": "A model in the cloud communicates with the browser's AI agent so it can act on web content." },
+      { "n": "3", "short": "calls the tools", "full": "The browser agent calls the page's WebMCP tools to actuate the page. This is the part that replaces DOM scraping." },
+      { "n": "4", "short": "updates UI, calls APIs", "full": "The tools update the page's own UI and make its normal API calls, so the page stays in control of what happens." }
+    ]
+  },
   "registry": {
     "title": "Live tool registry",
-    "sub": "Read straight from document.modelContext.getTools() in this browser, right now.",
+    "sub": "Read straight out of the browser's own tool registry, right now. Tools are scoped per page, so two of these five live on the home page and are listed here for reference.",
     "unsupported": {
       "title": "Your browser doesn't expose WebMCP yet",
-      "body": "WebMCP (document.modelContext) is a W3C proposal from Google and Microsoft, shipping in Chrome behind an origin trial (Chrome 149 to 156) or a local flag. Chrome, Edge, Safari, and Firefox are all watching it, and only Chrome ships it so far. The console below still works everywhere: it runs each tool's own code directly, the same code the browser would call.",
-      "flagLabel": "chrome://flags/#enable-webmcp-testing",
-      "flagHint": "Enable that flag in Chrome, relaunch, and reload this page to see the live registry above populate."
+      "body": "WebMCP is a W3C proposal from Google and Microsoft, shipping in Chrome behind an origin trial or a local flag. Chrome, Edge, Safari, and Firefox are all watching it, and only Chrome ships it so far. The console below still works everywhere: it runs each tool's own code directly, the same code the browser would call.",
+      "hint": "The setup steps below turn it on in a couple of minutes."
     },
     "badges": {
       "readOnly": "read-only",
       "write": "changes something"
+    },
+    "scopeNote": "not on this page. registered on the ",
+    "scopeLabels": {
+      "home": "home page",
+      "ai-labs": "AI Lab pages",
+      "live-agents": "Live Agents page"
     }
   },
   "console": {
@@ -23,9 +46,28 @@
     "sub": "Pick one, fill in its parameters, and see the exact JSON it returns. The counter shows how far the output sits from Chrome's 1,500-character ceiling per tool call.",
     "runLocal": "Run",
     "runBrowser": "Run through the browser",
-    "runBrowserHint": "Calls the same tool through document.modelContext.executeTool() instead of running it directly, when this browser supports it.",
+    "runBrowserHint": "Hands the same call to the browser's own executeTool() instead of running it here, so the browser dispatches it. Only shows up when this browser has a surface that can.",
     "empty": "Pick a tool above to run it.",
     "outputLabel": "Output"
+  },
+  "setup": {
+    "title": "See it yourself",
+    "lead": "The registry above is only visible to a browser that speaks WebMCP. Four steps gets you there, and then you can inspect and call these tools the way an agent would.",
+    "steps": [
+      "Use Chrome 149 or later. The inspector extension asks for 150 or later, so go with the newest you have.",
+      "Open chrome://flags/#enable-webmcp-testing, set it to Enabled, and relaunch Chrome.",
+      "Install the Model Context Tool Inspector extension from the Chrome Web Store.",
+      "Reload this page and open the inspector. It lists every tool this page registered, shows each input schema, and lets you call one and read the raw result."
+    ],
+    "flagLabel": "chrome://flags/#enable-webmcp-testing",
+    "linksTitle": "Reference",
+    "links": [
+      { "label": "Model Context Tool Inspector", "note": "Chrome Web Store", "href": "https://chromewebstore.google.com/detail/model-context-tool-inspec/gbpdfapgefenggkahomfgkhfehlcenpd" },
+      { "label": "Inspector source", "note": "github.com/beaufortfrancois", "href": "https://github.com/beaufortfrancois/model-context-tool-inspector" },
+      { "label": "WebMCP spec and explainer", "note": "W3C Web Machine Learning CG", "href": "https://github.com/webmachinelearning/webmcp" },
+      { "label": "WebMCP on Chrome for Developers", "note": "API reference", "href": "https://developer.chrome.com/docs/ai/webmcp" },
+      { "label": "Tool design best practices", "note": "what shaped the five tools here", "href": "https://developer.chrome.com/docs/ai/webmcp/best-practices" }
+    ]
   },
   "footNote": "Every tool here is read-only or asks a human before it acts. None of them can send anything on your behalf."
 }
