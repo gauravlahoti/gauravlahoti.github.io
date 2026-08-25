@@ -336,7 +336,7 @@
     stroke: var(--ink-subtle);
     stroke-width: 1.5;
 }
-.wd-head path { fill: var(--ink-subtle); }
+.wd-head { fill: var(--ink-subtle); }
 
 .wd-edge {
     font-family: var(--font-mono);
@@ -453,4 +453,90 @@
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-subtle);
+}
+
+/* ─── diagram disclosure + step animation ────────────────────────────── */
+
+.webmcp-pane--collapsible { padding: 0; }
+
+.wd-disclosure {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-6);
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 12px;
+    color: inherit;
+    font: inherit;
+}
+.wd-disclosure:hover .webmcp-pane-title,
+.wd-disclosure:focus-visible .webmcp-pane-title { color: var(--accent); }
+.wd-disclosure .webmcp-pane-title {
+    display: block;
+    transition: color 0.18s ease;
+}
+.wd-disclosure .webmcp-pane-sub { margin: 0; }
+.wd-disclosure-text { display: block; }
+
+.wd-chevron {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    margin-top: 8px;
+    border-right: 1.5px solid var(--ink-muted);
+    border-bottom: 1.5px solid var(--ink-muted);
+    transform: rotate(45deg);
+    transition: transform 0.3s ease, border-color 0.18s ease;
+}
+.webmcp-pane--collapsible.is-open .wd-chevron {
+    transform: rotate(-135deg);
+    border-color: var(--accent);
+}
+
+/* The panel shows or hides outright and fades its contents in. Animating the
+   container height was tried twice (the 0fr/1fr grid trick, then a measured
+   height transition) and both collapsed to zero against the SVG's intrinsic
+   sizing, so the motion lives in the step reveal instead. */
+.wd-panel[hidden] { display: none; }
+.wd-panel-inner {
+    padding: 0 var(--space-6) var(--space-6);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.webmcp-pane--collapsible.is-open .wd-panel-inner {
+    opacity: 1;
+    transform: none;
+}
+
+/* Each step group is one beat. JS adds .is-on in sequence on open. */
+[data-wd-step] {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+[data-wd-step].is-on { opacity: 1; }
+
+/* The shaft draws itself, then the head fades in behind it. */
+[data-wd-step] .wd-arrow line {
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+    transition: stroke-dashoffset 0.55s ease;
+}
+[data-wd-step].is-on .wd-arrow line { stroke-dashoffset: 0; }
+[data-wd-step] .wd-head {
+    opacity: 0;
+    transition: opacity 0.25s ease 0.45s;
+}
+[data-wd-step].is-on .wd-head { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .wd-panel-inner { transition: none; transform: none; }
+    [data-wd-step],
+    [data-wd-step] .wd-arrow line,
+    [data-wd-step] .wd-head { transition: none; }
 }

@@ -189,23 +189,54 @@ function dBox(x, y, w, h, label, variant, sub) {
     return g;
 }
 
-// Straight vertical connector. dir "down" or "up" picks which end gets the head.
-function dArrow(x, y1, y2, dir) {
+// Straight vertical connector, arrowhead drawn as its own polygon rather than
+// a marker. A marker paints at the line's end vertex immediately, so a line
+// that animates its draw would show the head before the shaft arrives. Owning
+// the head lets it fade in only once the line has landed.
+const HEAD = 9;
+
+function dArrow(x, y1, y2) {
+    const down = y2 > y1;
+    const tip = y2;
+    const base = down ? y2 - HEAD : y2 + HEAD;
     const g = svg("g", { class: "wd-arrow" });
-    g.append(svg("line", { x1: x, y1, x2: x, y2, "marker-end": `url(#wd-head-${dir})` }));
+    const len = Math.abs(base - y1);
+    const line = svg("line", { x1: x, y1, x2: x, y2: base });
+    line.style.setProperty("--len", len);
+    g.append(line);
+    g.append(svg("polygon", {
+        class: "wd-head",
+        points: `${x - 5},${base} ${x + 5},${base} ${x},${tip}`,
+    }));
     return g;
 }
 
-function renderDiagram(section, content) {
-    const d = content.diagram;
-    if (!d) return;
+const STEP_MS = 340;
+
+// Reveals the picture one beat at a time: the frames, then the boxes, then
+// each numbered edge in order, so the story reads as a sequence instead of
+// landing all at once. Replays on every open.
+function playDiagram(root) {
+    const steps = [...root.querySelectorAll("[data-wd-step]")]
+        .sort((a, b) => Number(a.dataset.wdStep) - Number(b.dataset.wdStep));
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    steps.forEach((s) => s.classList.remove("is-on"));
+    if (reduce) {
+        // No motion: show the finished picture immediately.
+        steps.forEach((s) => s.classList.add("is-on"));
+        return null;
+    }
+    // Force a reflow so removing and re-adding the class actually restarts the
+    // transition rather than being coalesced into a no-op.
+    void root.getBoundingClientRect();
+
+    const timers = steps.map((s, i) => setTimeout(() => s.classList.add("is-on"), STEP_MS * i));
+    return () => timers.forEach(clearTimeout);
+}
+
+function buildDiagramSvg(d) {
     const n = d.nodes;
-
-    section.append(
-        el("h2", { class: "webmcp-pane-title", text: d.title }),
-        el("p", { class: "webmcp-pane-sub", text: d.lead })
-    );
-
     const root = svg("svg", {
         class: "wd-svg",
         viewBox: "0 0 720 880",
@@ -213,61 +244,114 @@ function renderDiagram(section, content) {
         "aria-label": `${d.title}. ${d.edges.map((e) => `${e.n}. ${e.full}`).join(" ")}`,
     });
 
-    // Arrowheads, one per direction so both ends read correctly.
-    const defs = svg("defs");
-    ["down", "up"].forEach((dir) => {
-        const m = svg("marker", {
-            id: `wd-head-${dir}`, class: "wd-head", viewBox: "0 0 10 10",
-            refX: 8, refY: 5, markerWidth: 6, markerHeight: 6,
-            orient: dir === "down" ? "90" : "270",
-        });
-        m.append(svg("path", { d: "M 0 0 L 10 5 L 0 10 z" }));
-        defs.append(m);
-    });
-    root.append(defs);
+    // Each step group is one beat of the animation, numbered in play order.
+    const step = (i, ...kids) => {
+        const g = svg("g", { "data-wd-step": i });
+        kids.forEach((k) => k && g.append(k));
+        root.append(g);
+        return g;
+    };
 
-    // Browser frame, drawn first so the boxes inside sit on top of it.
+    // Frames first so the boxes inside sit on top of them.
     const browser = svg("g", { class: "wd-frame wd-frame--browser" });
     browser.append(svg("rect", { x: 40, y: 150, width: 640, height: 500, rx: 10 }));
     // Title left-aligned so the incoming arrow does not run through it.
     browser.append(svg("text", { class: "wd-frame-label", x: 62, y: 180, text: n.browser }));
-    root.append(browser);
 
     const page = svg("g", { class: "wd-frame wd-frame--page" });
     page.append(svg("rect", { x: 100, y: 420, width: 520, height: 190, rx: 8 }));
     page.append(svg("text", { class: "wd-frame-label", x: 122, y: 450, text: n.page }));
-    root.append(page);
 
-    root.append(
+    step(0, browser, page);
+
+    step(1,
         dBox(230, 16, 260, 64, n.platform, "cloud"),
         dBox(190, 196, 340, 70, n.agent, "agent"),
         dBox(230, 470, 260, 70, n.tools, "tools"),
         dBox(230, 790, 260, 70, n.service.replace(/\s*\(.*\)$/, ""), "service", "example.com")
     );
 
-    // 2: platform down into the browser agent. 3: agent down into the tools.
-    root.append(dArrow(360, 80, 190, "down"));
-    root.append(dArrow(360, 266, 464, "down"));
-    // 4 leaves the tools on the left, 1 returns on the right, so the two legs
-    // between the page and the service never overlap.
-    root.append(dArrow(300, 540, 784, "down"));
-    root.append(dArrow(420, 790, 616, "up"));
-
-    const lab = (x, y, e, anchor) =>
-        svg("text", { class: "wd-edge", x, y, "text-anchor": anchor || "start", text: `${e.n}. ${e.short}` });
+    const lab = (x, y, e) =>
+        svg("text", { class: "wd-edge", x, y, text: `${e.n}. ${e.short}` });
     const [e1, e2, e3, e4] = d.edges;
-    root.append(lab(378, 122, e2), lab(378, 350, e3), lab(62, 700, e4), lab(436, 700, e1));
 
-    section.append(el("div", { class: "wd-scroll" }, root));
+    // Edges animate in numbered order, so the beats match the legend below.
+    // 4 leaves the tools on the left and 1 returns on the right, so the two
+    // legs between the page and the service never overlap.
+    step(2, dArrow(420, 790, 616), lab(436, 700, e1));
+    step(3, dArrow(360, 80, 190), lab(378, 122, e2));
+    step(4, dArrow(360, 266, 464), lab(378, 350, e3));
+    step(5, dArrow(300, 540, 784), lab(62, 700, e4));
 
-    // Full sentences live under the picture, so the SVG stays readable on a
-    // phone and screen readers get the same story in order.
+    return root;
+}
+
+// Collapsed by default. The tools come first on this page; the explainer is
+// here for whoever wants it, and opening it is what starts the animation.
+function renderDiagram(section, content) {
+    const d = content.diagram;
+    if (!d) return;
+
+    const panelId = "wd-panel";
+    const chevron = el("span", { class: "wd-chevron", "aria-hidden": "true" });
+    const btn = el("button", {
+        type: "button",
+        class: "wd-disclosure",
+        "aria-expanded": "false",
+        "aria-controls": panelId,
+    },
+        el("span", { class: "wd-disclosure-text" },
+            el("span", { class: "webmcp-pane-title", text: d.title }),
+            el("p", { class: "webmcp-pane-sub", text: d.lead })
+        ),
+        chevron
+    );
+
+    const root = buildDiagramSvg(d);
+
     const legend = el("ol", { class: "wd-legend" });
     d.edges.forEach((e) => legend.append(el("li", { class: "wd-legend-item" },
         el("span", { class: "wd-legend-n", text: e.n }),
         el("span", { class: "wd-legend-text", text: e.full })
     )));
-    section.append(legend);
+
+    const inner = el("div", { class: "wd-panel-inner" },
+        el("div", { class: "wd-scroll" }, root),
+        legend
+    );
+    const panel = el("div", { class: "wd-panel", id: panelId }, inner);
+    panel.hidden = true;
+
+    // The panel itself just appears and fades; the motion that matters is the
+    // step reveal inside it. Animating the container's height was tried and
+    // dropped: it fought the SVG's intrinsic sizing and left the panel at 0.
+    let cancel = null;
+    let closeTimer = 0;
+
+    btn.addEventListener("click", () => {
+        const open = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", open ? "false" : "true");
+        if (cancel) cancel();
+        clearTimeout(closeTimer);
+
+        if (open) {
+            section.classList.remove("is-open");
+            cancel = null;
+            closeTimer = setTimeout(() => { panel.hidden = true; }, 320);
+            return;
+        }
+
+        panel.hidden = false;
+        // Flush layout so the fade has a start value to transition from. A
+        // forced reflow rather than requestAnimationFrame on purpose: rAF does
+        // not fire in a background tab, which would leave the panel visible but
+        // never flagged open.
+        void panel.offsetHeight;
+        section.classList.add("is-open");
+        cancel = playDiagram(root);
+    });
+
+    section.append(btn, panel);
 }
 
 /* ---------- setup steps ---------- */
@@ -548,8 +632,6 @@ export function initWebMcpLab(root, { content, profile }) {
         el("p", { class: "webmcp-lab-sub", text: content.intro.sub })
     );
 
-    const diagramPane = el("section", { class: "webmcp-pane webmcp-pane--wide", "aria-label": "What WebMCP is" });
-
     const grid = el("div", { class: "webmcp-lab-grid" });
     const registryPane = el("section", { class: "webmcp-pane", "aria-label": "Live tool registry" });
     const consolePane = el("section", { class: "webmcp-pane", "aria-label": "Run a tool" });
@@ -557,9 +639,16 @@ export function initWebMcpLab(root, { content, profile }) {
 
     const setupPane = el("section", { class: "webmcp-pane webmcp-pane--wide", "aria-label": "See it yourself" });
 
+    // The working tools lead. The explainer sits last, collapsed, for whoever
+    // wants to know what WebMCP is after seeing it do something.
+    const diagramPane = el("section", {
+        class: "webmcp-pane webmcp-pane--wide webmcp-pane--collapsible",
+        "aria-label": "What WebMCP is",
+    });
+
     const foot = el("p", { class: "webmcp-lab-foot", text: content.footNote });
 
-    root.append(header, diagramPane, grid, setupPane, foot);
+    root.append(header, grid, setupPane, diagramPane, foot);
 
     const mc = getModelContext();
     // Registry shows every tool in the set; the console only offers the ones
@@ -582,10 +671,10 @@ export function initWebMcpLab(root, { content, profile }) {
         renderRegistry(registryPane, content, mc, allDefs, tools);
     }
 
-    renderDiagram(diagramPane, content);
     refreshRegistry();
     renderConsole(consolePane, content, mc, defs);
     renderSetup(setupPane, content);
+    renderDiagram(diagramPane, content);
 
     if (mc && typeof mc.addEventListener === "function") {
         toolchangeHandler = () => refreshRegistry();
