@@ -45,9 +45,9 @@ agents-cli 1.2.1; see the comment atop `eval_config.yaml`). Each
 `custom_function` calls Gemini directly via the free-tier `GEMINI_API_KEY`,
 so grading stays off Vertex AI entirely.
 
-- `atlas_response_quality` — LLM-judge checking Atlas's 9 product rubrics
+- `atlas_response_quality` — LLM-judge checking Atlas's 10 product rubrics
   (persona, scope, links, plain_text, grounded, email_policy, directness,
-  citations, resume_fallback). Threshold 0.85.
+  citations, resume_fallback, compound_completeness). Threshold 0.85.
 - `atlas_tool_use_quality` — LLM-judge on whether the right tools were
   called for each prompt, given the prompt, the tool catalog, and the
   actual tool calls made. Replaces the old ADK-native

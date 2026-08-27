@@ -55,7 +55,9 @@ def get_profile() -> dict:
         A dict with keys: name, title, company, location, tagline, bio (list of
         sentences), careerStart (YYYY-MM), links (email, linkedin, github,
         topmate, resume), capabilities (aiNative, cloud, business —
-        each a list of capability groups with key/label/context/items).
+        each a list of capability groups with key/label/context/items),
+        availability (status, consulting, advisory, route — the ONLY source
+        of truth on whether Gaurav takes outside work; may be empty if unset).
     """
     profile = corpus_live.get_profile()
     return {
@@ -73,6 +75,7 @@ def get_profile() -> dict:
             "topmate": profile.get("links", {}).get("topmate"),
         },
         "capabilities": profile.get("capabilities", {}),
+        "availability": profile.get("availability", {}),
     }
 
 

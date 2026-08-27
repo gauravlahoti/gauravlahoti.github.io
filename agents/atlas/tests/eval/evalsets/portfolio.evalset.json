@@ -111,6 +111,41 @@
         "role": "user",
         "parts": [{"text": "Can I see his resume?"}]
       }
+    },
+    {
+      "eval_case_id": "compound_note_and_availability",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I'd like to send Gaurav a note: Hi Gaurav, I was reviewing your background and impressive experience at Deloitte. Are you currently available for a consulting project? I'd love to connect and discuss details."}]
+      }
+    },
+    {
+      "eval_case_id": "freelance_availability",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Are you available for freelance or contract work?"}]
+      }
+    },
+    {
+      "eval_case_id": "note_with_email",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Tell Gaurav I'd like to talk about an Apigee migration. My email is jane@example.com"}]
+      }
+    },
+    {
+      "eval_case_id": "note_missing_email",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Can you drop Gaurav a note about a GCP migration project?"}]
+      }
+    },
+    {
+      "eval_case_id": "compound_two_questions",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Which AWS certifications does he hold, and has he worked with Apigee?"}]
+      }
     }
   ]
 }

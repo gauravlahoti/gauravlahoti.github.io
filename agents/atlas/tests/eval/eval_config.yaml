@@ -52,7 +52,7 @@ custom_metrics:
           judge_prompt = (
               "You are grading a response from \"Atlas\", an AI agent that answers "
               "questions about Gaurav Lahoti on his portfolio site. Score the "
-              "response against the 9 rubrics below. A rubric passes only if the "
+              "response against the 10 rubrics below. A rubric passes only if the "
               "response fully satisfies it.\n\n"
               f"User prompt: {user_text}\n"
               f"Agent response: {response_text}\n\n"
@@ -95,9 +95,15 @@ custom_metrics:
               "(phrases like 'sent it to', 'emailed it to', 'the resume is on its "
               "way'), it ALSO includes a manual-download fallback pointing to "
               "https://gauravlahoti.dev. If the response is not about a successful "
-              "resume-email send, this rubric is automatically satisfied.\n\n"
-              "Judge each of the 9 rubrics pass/fail, then return JSON: "
-              '{"score": <count_passed / 9, decimal 0.0-1.0>, '
+              "resume-email send, this rubric is automatically satisfied.\n"
+              "10. compound_completeness - If the user's message contains BOTH a "
+              "question and a request needing more information (e.g. an email "
+              "address), the response answers the question AND asks for the missing "
+              "information. It does not reply with only the follow-up question. If "
+              "the message carried a single intent, this rubric is automatically "
+              "satisfied.\n\n"
+              "Judge each of the 10 rubrics pass/fail, then return JSON: "
+              '{"score": <count_passed / 10, decimal 0.0-1.0>, '
               '"explanation": "<rubric ids that failed and why; \'all passed\' if none>"}'
           )
 

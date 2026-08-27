@@ -1,5 +1,17 @@
 [
   {
+    "url": "https://www.linkedin.com/feed/update/urn:li:activity:7497703424222846977/",
+    "firstLine": "I made my website agent-ready with WebMCP. Five tools, no DOM parsing.",
+    "excerpt": "My website is agent-ready.\nAn agent no longer has to run vision models over screenshots, parse the DOM, or simulate clicks to work out what my site can do. It reads a list of tools and calls them.\n\nI implemented this using WebMCP, a W3C Community Group proposal backed by Google and Microsoft.\n\nToday's agents operate against an interface built for eyes and hands. They infer intent from layout, wait on asynchronous rendering, and accumulate failure with every UI change. There is no contract to depend on, so there is nothing to hold stable.\n\nWebMCP exposes structured tools as website capabilities. Five are registered on my site: search_site, get_profile, list_work, go_to, and draft_note_to_gaurav.\n\nWhere this pays off immediately:\n• Travel: query live availability, skip the date picker.\n• E-commerce: cart and checkout as deterministic state, not simulated clicks.\n• SaaS: filtered data queries, not five levels of menu.\n• Lead capture: structured submissions with human confirmation.\n\nMainstream agent adoption is still in an early phase, but building on an emerging standard from major browser vendors is the right place to be.\n\nThe video shows the inspector calling these tools live. Link to test it yourself is in the comments.\n\n#WebMCP #AgenticWeb #ModelContextProtocol #AIAgents",
+    "date": "2026-08-24",
+    "tags": [
+      "webmcp",
+      "agenticweb",
+      "modelcontextprotocol",
+      "aiagents"
+    ]
+  },
+  {
     "url": "https://www.linkedin.com/posts/glahoti_anthropic-claudecertifiedarchitect-certification-share-7478046003472896000-1s8j/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
     "firstLine": "I got Claude Certified by building, not cramming",
     "excerpt": "Officially a Claude Certified Architect !!\n\nGlad to close this one out, and grateful for the road that got me here. Claude is moving fast in the enterprise, and this credential sits right at the center of it.\n\nWhat carried me through wasn't the reading. It was the building.\n\nI stood up my entire personal website and a working portfolio of agents from first principles, with Claude doing the heavy lifting alongside me. Every design tradeoff, every failed run, and every \"why on earth did the agent do that\" moment taught me more than any slide deck could.\n\nThanks to Deloitte for genuinely investing in this space: the certifications, the tooling, and a culture that encourages the people who like to build to push past the edge of the map.\n\nThe website is in the comments, and I'd love your feedback.\nIn an upcoming post, I'll share the hard-won lessons from my prep for anyone considering taking it on.\n\n#Anthropic #ClaudeCertifiedArchitect #Certification #Deloitte",

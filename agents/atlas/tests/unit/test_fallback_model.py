@@ -173,3 +173,15 @@ async def test_non_503_server_error_does_not_fall_back(monkeypatch):
                   server_errors={"gemini-3.5-flash": (500, "INTERNAL")}),
         )
     assert served == ["gemini-3.5-flash"]  # no cascade on non-capacity errors
+
+
+def test_production_model_chain():
+    """Guards the real cascade wired into root_agent (app/agent.py) against
+    silent drift. CHAIN above is a synthetic 3-model chain used only to
+    exercise FallbackGemini's cascade-twice code path — this checks the
+    actual production configuration, which is intentionally shorter.
+    """
+    from app.agent import root_agent
+
+    assert root_agent.model.model == "gemini-3.7-flash"
+    assert root_agent.model.fallback_models == ["gemini-3.6-flash"]
