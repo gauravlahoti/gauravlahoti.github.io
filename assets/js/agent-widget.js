@@ -397,7 +397,9 @@ export function initAgentWidget(root, profile, sessionId) {
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
         const stages = startLoadingStages(assistant, !sessionWarmed);
-        const thinkingEl = assistant.querySelector(".agent-thinking-text");
+        const thinkingContainer = assistant.querySelector(".agent-thinking");
+        const thinkingBody = assistant.querySelector(".agent-thinking-body");
+        const thinkingToggle = assistant.querySelector(".agent-thinking-toggle");
         let firstDelta = true;
         let firstThought = true;
         let errorShown = false;
@@ -416,13 +418,13 @@ export function initAgentWidget(root, profile, sessionId) {
                 messages,
                 identity,
                 onThinking(chunk) {
-                    if (!thinkingEl) return;
+                    if (!thinkingBody) return;
                     if (firstThought) {
                         firstThought = false;
                         stages.cancel(); // real progress is showing — drop the canned copy
-                        thinkingEl.hidden = false;
+                        thinkingContainer.hidden = false;
                     }
-                    thinkingEl.textContent += chunk;
+                    thinkingBody.textContent += chunk;
                     scrollToEnd();
                 },
                 onDelta(delta) {
@@ -430,9 +432,14 @@ export function initAgentWidget(root, profile, sessionId) {
                         firstDelta = false;
                         sessionWarmed = true; // container has served a token this session
                         stages.cancel(); // clear loading indicator on first char
-                        if (thinkingEl) {
-                            thinkingEl.hidden = true;
-                            thinkingEl.textContent = "";
+                        // Auto-collapse (never clear) the thinking panel once the
+                        // real answer starts — stays in the transcript so the
+                        // visitor can reopen it. Skip if they already toggled it
+                        // themselves mid-stream; don't fight their choice.
+                        if (thinkingToggle && !thinkingContainer.dataset.userToggled
+                            && thinkingToggle.getAttribute("aria-expanded") === "true") {
+                            thinkingToggle.setAttribute("aria-expanded", "false");
+                            thinkingBody.hidden = true;
                         }
                     }
                     appendDelta(assistant, delta, FEATURES.typingCursor);
@@ -544,9 +551,26 @@ export function initAgentWidget(root, profile, sessionId) {
             document.createElement("span"),
         );
         li.appendChild(dots);
-        const thinking = document.createElement("p");
-        thinking.className = "agent-thinking-text";
+        const thinking = document.createElement("div");
+        thinking.className = "agent-thinking";
         thinking.hidden = true;
+        const thinkingToggle = document.createElement("button");
+        thinkingToggle.type = "button";
+        thinkingToggle.className = "agent-thinking-toggle";
+        thinkingToggle.setAttribute("aria-expanded", "true");
+        thinkingToggle.innerHTML =
+            '<span class="agent-thinking-icon" aria-hidden="true">✨</span>' +
+            '<span>Thoughts</span>' +
+            '<span class="agent-thinking-chevron" aria-hidden="true">▾</span>';
+        const thinkingBody = document.createElement("div");
+        thinkingBody.className = "agent-thinking-body";
+        thinkingToggle.addEventListener("click", () => {
+            thinking.dataset.userToggled = "true";
+            const open = thinkingToggle.getAttribute("aria-expanded") === "true";
+            thinkingToggle.setAttribute("aria-expanded", String(!open));
+            thinkingBody.hidden = open;
+        });
+        thinking.append(thinkingToggle, thinkingBody);
         li.appendChild(thinking);
         const p = document.createElement("p");
         p.className = "agent-message-text";

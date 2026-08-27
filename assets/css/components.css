@@ -2564,19 +2564,40 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .agent-loading-dots span { animation: none; }
 }
 
-/* Streamed model "thinking" — Gemini's own thought summaries, shown while a
-   turn is in progress. Visually secondary to the real answer: mono/terminal
-   feel, muted ink, smaller type. Replaced by the answer text on first delta. */
-.agent-thinking-text {
+/* Streamed model "thinking" — Gemini's own thought summaries. Expanded while
+   live (genuine progress during the wait), auto-collapses to a toggle once
+   the real answer starts so it doesn't compete for attention, but stays in
+   the transcript for the visitor to reopen. */
+.agent-thinking { margin: var(--space-2) var(--space-3) 0; }
+.agent-thinking[hidden] { display: none; }
+.agent-thinking-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+.agent-thinking-toggle:hover { color: var(--ink); }
+.agent-thinking-chevron { transition: transform 0.15s ease; }
+.agent-thinking-toggle[aria-expanded="true"] .agent-thinking-chevron { transform: rotate(180deg); }
+.agent-thinking-body {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-subtle);
     line-height: 1.5;
-    padding: var(--space-2) var(--space-3) 0;
+    padding: var(--space-1) 0 0 calc(var(--space-1) + 1em);
     opacity: 0.85;
     white-space: pre-wrap;
 }
-.agent-thinking-text[hidden] { display: none; }
+.agent-thinking-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    .agent-thinking-chevron { transition: none; }
+}
 
 /* Inline citation superscripts [1], [2], [3]. */
 sup.agent-cite {
