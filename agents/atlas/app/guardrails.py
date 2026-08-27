@@ -11,6 +11,16 @@ Defense in depth, layered:
     - Strip non-allowlisted URLs from the model output.
     - Redact Gaurav's email unless the latest user message had contact-intent.
 
+- `before_tool_callback`:
+    - Content check on `send_note_to_gaurav`'s `message` argument. Atlas is
+      not a general-purpose assistant: it talks about Gaurav's work, it does
+      not do work for visitors. A visitor once talked it into writing a Python
+      function and mailing it to Gaurav, which is what this exists to stop.
+      The prompt (`instruction.py`) refuses the request; this callback is the
+      layer that holds when the prompt is talked around. Returning a dict here
+      skips the tool entirely, so a blocked note never reaches Resend and never
+      burns a row in the rate-limit ledger.
+
 These are cheap, deterministic filters. We deliberately do NOT use LLM-as-judge
 for the input filter — at portfolio traffic levels and the simplicity of our
 threats (off-topic, jailbreak attempts), regex is the honest choice.
@@ -19,10 +29,13 @@ threats (off-topic, jailbreak attempts), regex is the honest choice.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 # Email lives in profile.json under links.email; we hardcode the redaction
@@ -217,3 +230,89 @@ def after_model_callback(
     return LlmResponse(
         content=types.Content(role=content.role, parts=new_parts),
     )
+
+
+# --- Tool-argument guardrail: note content -------------------------------
+#
+# Atlas describes Gaurav's work; it does not do work for visitors. That line
+# used to live only in the system prompt, and a visitor walked straight over
+# it: they asked Atlas to write a Python function and mail it to Gaurav, and
+# the tool relayed it happily because `note_send.py` only ever checked the
+# email format and a 10-char minimum.
+#
+# These patterns are deliberately structural, not lexical. A note that merely
+# *mentions* Python, Terraform or SQL is a completely normal thing for a
+# recruiter or an engineer to write and must go through untouched — only code
+# SHAPE (a def, a fence, a SELECT…FROM, an arrow function) trips the filter.
+_NOTE_TOOL_NAME = "send_note_to_gaurav"
+_MAX_NOTE_CHARS = 2000
+
+_CODE_SHAPE_PATTERNS = (
+    re.compile(r"```"),                                             # fenced block
+    re.compile(r"\bdef\s+[A-Za-z_]\w*\s*\("),                       # python def
+    re.compile(r"^[ \t]*class[ \t]+[A-Za-z_]\w*[ \t]*[:(]", re.M),  # python/java class
+    re.compile(r"^[ \t]*import[ \t]+[\w.]+[ \t]*;?[ \t]*$", re.M),  # bare import line
+    re.compile(r"^[ \t]*from[ \t]+[\w.]+[ \t]+import\b", re.M),     # from x import y
+    re.compile(r"\bfunction\s+[A-Za-z_]\w*\s*\("),                  # js function decl
+    re.compile(r"=>\s*[{(]"),                                       # js arrow body
+    re.compile(r"^[ \t]*(?:const|let|var)[ \t]+\w+[ \t]*=", re.M),  # js declaration
+    re.compile(r"\breturn\s+[\w.]+\s*[-+*/%]\s*[\w.]+"),            # `return a + b`
+    re.compile(r"^[ \t]{2,}return\b", re.M),                        # indented return
+    re.compile(r"\bSELECT\b[\s\S]{0,200}\bFROM\b"),                 # SQL (case-sensitive)
+    re.compile(r"console\.log\s*\("),
+    re.compile(r"System\.out\.print"),
+    re.compile(r"\bprintf?\("),
+    re.compile(                                                     # java/c# method
+        r"^[ \t]*(?:public|private|protected)[ \t]+(?:static[ \t]+)?"
+        r"[\w<>\[\]]+[ \t]+\w+[ \t]*\(",
+        re.M,
+    ),
+    re.compile(r"</[A-Za-z][\w-]*>"),                               # closing markup tag
+    re.compile(r"^#!/", re.M),                                      # shebang
+)
+
+NOTE_CODE_REPLY = (
+    "I can only pass along a note written in your own words, so I've held that "
+    "one back. Writing code or drafting content isn't something I do. Tell me "
+    "what you'd like to say to Gaurav and I'll send that across."
+)
+NOTE_TOO_LONG_REPLY = (
+    "That note is longer than I can pass along. Could you trim it under "
+    f"{_MAX_NOTE_CHARS} characters and I'll send it on?"
+)
+
+# Codes this module can hand back in place of a real tool result. api.py reads
+# this to tell a deliberate guardrail block apart from a genuine send failure.
+GUARDRAIL_BLOCK_CODE = "unsupported_content"
+
+
+def looks_like_code(text: str) -> bool:
+    """True if `text` carries the *structure* of code, not just its vocabulary."""
+    return any(p.search(text) for p in _CODE_SHAPE_PATTERNS)
+
+
+def before_tool_callback(
+    tool: BaseTool,
+    args: dict[str, Any],
+    tool_context: ToolContext,
+) -> dict | None:
+    """Run before each tool call. Return a dict to skip the tool and use it as the result.
+
+    Only `send_note_to_gaurav` is guarded — it's the one tool whose payload is
+    free text that leaves the system. Returning here means Resend is never
+    called and no row lands in the note rate-limit ledger.
+    """
+    if getattr(tool, "name", None) != _NOTE_TOOL_NAME:
+        return None
+
+    message = args.get("message")
+    if not isinstance(message, str):
+        return None  # let the tool's own validation produce the error
+
+    if len(message) > _MAX_NOTE_CHARS:
+        return {"ok": False, "code": GUARDRAIL_BLOCK_CODE, "message": NOTE_TOO_LONG_REPLY}
+
+    if looks_like_code(message):
+        return {"ok": False, "code": GUARDRAIL_BLOCK_CODE, "message": NOTE_CODE_REPLY}
+
+    return None

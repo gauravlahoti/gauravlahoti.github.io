@@ -95,6 +95,12 @@ async def send_note_email(
         rate_limited    — this recipient was already CC'd a note in the last 24h.
         send_failed     — MCP / Resend rejected or transport error.
         ok              — sent successfully.
+
+    One more code can reach the agent without this function ever running:
+    `unsupported_content`, returned by guardrails.before_tool_callback when the
+    note body carries code or blows past its length cap. That check lives in
+    the callback on purpose — it short-circuits the tool, so a blocked note
+    costs no Resend call and no row in the rate-limit ledger.
     """
     if not is_valid_email(visitor_email):
         return {

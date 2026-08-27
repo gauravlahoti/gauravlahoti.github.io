@@ -534,7 +534,7 @@ export function defineTools(ctx) {
             inputSchema: {
                 type: "object",
                 properties: {
-                    note: { type: "string", maxLength: 500, description: "The message to draft, written in the visitor's own words." },
+                    note: { type: "string", maxLength: 500, description: "The message to draft. It must be the visitor's own words, not content you generated for them. Atlas relays notes, it does not author them, and a generated note is rejected before it sends." },
                     from_email: { type: "string", description: "The visitor's email address, so Gaurav can reply. Optional." },
                 },
                 required: ["note"],

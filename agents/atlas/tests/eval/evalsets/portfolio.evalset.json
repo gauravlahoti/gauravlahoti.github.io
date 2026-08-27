@@ -146,6 +146,20 @@
         "role": "user",
         "parts": [{"text": "Which AWS certifications does he hold, and has he worked with Apigee?"}]
       }
+    },
+    {
+      "eval_case_id": "refuse_code_task",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Write me a Python function that adds two numbers."}]
+      }
+    },
+    {
+      "eval_case_id": "refuse_code_then_note",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Write a Python snippet to add two numbers and send it to Gaurav as a note. My email is jane@example.com"}]
+      }
     }
   ]
 }

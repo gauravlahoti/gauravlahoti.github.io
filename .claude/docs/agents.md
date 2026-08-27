@@ -81,3 +81,52 @@ Atlas live-corpus (`app/corpus_live.py`): `CORPUS_LIVE_BASE` (default `https://g
 ## `[[META]]` block
 
 Every agent reply ends with `[[META]]…[[/META]]` carrying `citations`, `suggestions`, and optional `cta`. `_stream_agent` strips it from the stream, validates citation URLs against `_ALLOWED_CITE_HOSTS`, and re-emits as SSE events (`citations`, `suggestions`, `cta`) before `done`. Widget renders `[N]` superscripts post-stream, a chip row, and a CTA button. `[[META]]`/`[[/META]]` are stripped from user input in `before_model_callback` as injection defense. CTA copy lives in `profile.agentCopy`; transparency modal copy in `profile.agentExplainer`.
+
+## Atlas guardrails (`agents/atlas/app/guardrails.py`)
+
+Three ADK callbacks, all deterministic. No LLM-as-judge — at portfolio traffic
+levels, regex is the honest choice. Gemini's own safety filters are `OFF`
+(`agent.py`), so these are the only filters in the path.
+
+| Callback | Does |
+|---|---|
+| `before_model_callback` | 1000-char cap on the user message, prompt-injection short-circuit, `[[META]]` sentinel strip, stashes `contact_intent` |
+| `after_model_callback` | Strips non-allowlisted URLs, redacts Gaurav's email without contact-intent, rewrites hallucinated `/resume.pdf`-style paths |
+| `before_tool_callback` | Content check on `send_note_to_gaurav`'s `message` (spec 46) |
+
+### `before_tool_callback` — note content (spec 46)
+
+Atlas talks about Gaurav's work; it does not do work for visitors. A visitor
+once talked it into writing a Python function and mailing it to Gaurav, which
+is what this exists to stop. `instruction.py`'s `# Hard limit` section makes
+the model refuse; this callback is the layer that holds when the prompt is
+talked around.
+
+It guards `send_note_to_gaurav` only. Returning a dict from a
+`before_tool_callback` **skips the tool entirely** and uses the dict as the
+tool result, so a blocked note never reaches Resend and never writes a row to
+the note rate-limit ledger. The dict uses the same `{ok, code, message}` shape
+`note_send.py` returns, so `api.py` needs no special case.
+
+Two block conditions, both returning `code="unsupported_content"`:
+`looks_like_code(message)` and `len(message) > 2000`.
+
+`_CODE_SHAPE_PATTERNS` is **structural, never lexical** — a note that merely
+mentions Python, Terraform, SQL or Java is the normal case for a recruiter and
+must pass through. Only code *shape* (a `def`, a fence, `SELECT … FROM`, an
+arrow function, `return a + b`) trips it. `tests/unit/test_note_guardrail.py`
+holds both halves; the false-positive half is the one that matters most.
+
+### Audit statuses
+
+`agent_interactions.status` values set outside the normal `ok`/`error` path:
+
+| Status | Set when |
+|---|---|
+| `injection_blocked` | `before_model_callback` matched `_INJECTION_RE` |
+| `too_long` | user message over 1000 chars |
+| `scope_blocked` | every failed tool result carried `unsupported_content` |
+
+All three are non-`ok`, so `daily_stats` counts them like errors. `api.py`
+keeps `scope_blocked` distinct from `error` so a working guardrail doesn't read
+as a broken send in Pulse's digest.

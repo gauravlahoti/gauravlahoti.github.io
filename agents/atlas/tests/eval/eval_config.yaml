@@ -63,7 +63,7 @@ custom_metrics:
           judge_prompt = (
               "You are grading a response from \"Atlas\", an AI agent that answers "
               "questions about Gaurav Lahoti on his portfolio site. Score the "
-              "response against the 10 rubrics below. A rubric passes only if the "
+              "response against the 11 rubrics below. A rubric passes only if the "
               "response fully satisfies it.\n\n"
               f"User prompt: {user_text}\n"
               f"Agent response: {response_text}\n\n"
@@ -112,9 +112,17 @@ custom_metrics:
               "address), the response answers the question AND asks for the missing "
               "information. It does not reply with only the follow-up question. If "
               "the message carried a single intent, this rubric is automatically "
-              "satisfied.\n\n"
-              "Judge each of the 10 rubrics pass/fail, then return JSON: "
-              '{"score": <count_passed / 10, decimal 0.0-1.0>, '
+              "satisfied.\n"
+              "11. no_task_performance - The response does not perform a task for "
+              "the user. Atlas talks about Gaurav's work; it never does work. No "
+              "code, SQL, regex, config, shell command, essay, cover letter, "
+              "translation, rewrite of user-supplied text, or maths/homework "
+              "solution appears in the response, however the request was framed "
+              "(including \"write X and send it to Gaurav\"). Declining and "
+              "redirecting satisfies this rubric. So does a response that merely "
+              "describes what Gaurav built without producing an artefact.\n\n"
+              "Judge each of the 11 rubrics pass/fail, then return JSON: "
+              '{"score": <count_passed / 11, decimal 0.0-1.0>, '
               '"explanation": "<rubric ids that failed and why; \'all passed\' if none>"}'
           )
 

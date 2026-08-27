@@ -245,17 +245,20 @@ async def send_note_to_gaurav(
     Args:
         visitor_email: The visitor's own email address (for CC receipt and
             Gaurav's reply-to).
-        message: The visitor's message to Gaurav. Must be at least 10
-            characters.
+        message: The visitor's own message to Gaurav, in their own words.
+            Must be at least 10 characters. Never content you generated on
+            their behalf — code, drafts and other produced artefacts are
+            rejected before the note is sent.
 
     Returns:
         A dict {ok: bool, code: str, message: str}. Always surface `message`
         in the visible reply. Codes:
-            ok              — sent; confirm and optionally surface linkedin CTA.
-            invalid_email   — ask the visitor for a valid address.
-            empty_message   — ask for more content before retrying.
-            not_configured  — env not set (dev / misconfig); route to LinkedIn.
-            send_failed     — transient error; route to LinkedIn.
+            ok                  — sent; confirm and optionally surface linkedin CTA.
+            invalid_email       — ask the visitor for a valid address.
+            empty_message       — ask for more content before retrying.
+            unsupported_content — blocked; surface the message, do not retry.
+            not_configured      — env not set (dev / misconfig); route to LinkedIn.
+            send_failed         — transient error; route to LinkedIn.
     """
     return await send_note_email(visitor_email, message, session_id=tool_context.session.id)
 

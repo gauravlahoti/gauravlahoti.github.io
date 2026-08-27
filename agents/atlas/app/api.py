@@ -38,7 +38,11 @@ from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.resume_send import warm_mcp_server
-from app.guardrails import INJECTION_REPLY_PREFIX, TOO_LONG_REPLY_PREFIX
+from app.guardrails import (
+    GUARDRAIL_BLOCK_CODE,
+    INJECTION_REPLY_PREFIX,
+    TOO_LONG_REPLY_PREFIX,
+)
 from app.rate_limit import limiter
 
 _AGENT_VERSION = os.environ.get("COMMIT_SHA", "dev")
@@ -470,9 +474,15 @@ async def _stream_agent(
     # resume sends look healthy in the digest, which counts `status != 'ok'`.
     # Applied only here, after the [[META]] block has been parsed and emitted, so
     # a failed send still gets its citations, chips and CTA.
+    # A guardrail block is not an infrastructure failure — Atlas deliberately
+    # refused to relay something out of scope. Give it its own status so the
+    # digest doesn't read a working guardrail as a broken send. It still counts
+    # as non-"ok", the same way injection_blocked and too_long already do.
     if status == "ok" and tool_failures:
-        status = "error"
-        error_message = ("tool failed: " + ", ".join(tool_failures))[:500]
+        blocked = all(f.endswith(":" + GUARDRAIL_BLOCK_CODE) for f in tool_failures)
+        status = "scope_blocked" if blocked else "error"
+        label = "guardrail blocked: " if blocked else "tool failed: "
+        error_message = (label + ", ".join(tool_failures))[:500]
 
     # index into _MODEL_CANDIDATES, so the digest can tell how often the
     # 429/503 cascade fires — None if the model wasn't captured, or (rare,

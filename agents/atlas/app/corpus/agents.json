@@ -6,7 +6,7 @@
     "role": "Conversational AI",
     "status": "LIVE",
     "headline": "The AI behind the chat widget on this portfolio.",
-    "description": "Atlas answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Inference runs on a Gemini cascade that keeps the widget answering even when a model's free-tier quota is spent.",
+    "description": "Atlas answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Inference runs on a Gemini cascade that keeps the widget answering even if the primary model is temporarily unavailable.",
     "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
     "stack": ["Google ADK", "Live Retrieval Tools", "Gemini 3.7 → 3.6 Flash", "Cloud Run", "MCP", "SSE"],
     "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg?v=2",
@@ -20,7 +20,7 @@
       {
         "n": 2,
         "label": "ADK Agent calls the retrieval tool it needs",
-        "detail": "Gemini picks from nine on-demand tools — profile, work history, projects, posts, certifications, live agents, site stats, plus two email actions — instead of stuffing the whole corpus into every prompt. Inference cascades: gemini-3.7-flash first, falling back to gemini-3.6-flash if the primary's free-tier quota is exhausted."
+        "detail": "Gemini picks from nine on-demand tools — profile, work history, projects, posts, certifications, live agents, site stats, plus two email actions — instead of stuffing the whole corpus into every prompt. Inference cascades: gemini-3.7-flash first, falling back to gemini-3.6-flash if the primary returns a transient error, both running on Vertex AI for reliable capacity."
       },
       {
         "n": 3,
@@ -45,7 +45,7 @@
       },
       {
         "tech": "Tiered Gemini (3.7 → 3.6 Flash)",
-        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. Each model carries its own daily free-tier quota, so a 429 transparently cascades to the next model — the widget keeps answering at zero cost instead of erroring when one quota is spent."
+        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. On a transient capacity error the request transparently cascades to the next model on Vertex AI — the widget keeps answering instead of erroring when one model is briefly unavailable."
       },
       {
         "tech": "Live retrieval tools",

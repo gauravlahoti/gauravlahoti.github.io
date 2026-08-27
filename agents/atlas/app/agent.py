@@ -22,7 +22,11 @@ from google.genai import types
 from app import corpus_live
 from app import tools as portfolio_tools
 from app.fallback_model import FallbackGemini
-from app.guardrails import after_model_callback, before_model_callback
+from app.guardrails import (
+    after_model_callback,
+    before_model_callback,
+    before_tool_callback,
+)
 from app.instruction import SYSTEM_INSTRUCTION
 
 # Auth path is gated on whether GEMINI_API_KEY is set. In production on Cloud
@@ -81,6 +85,10 @@ root_agent = Agent(
     tools=_tools,
     before_model_callback=before_model_callback,
     after_model_callback=after_model_callback,
+    # Content check on send_note_to_gaurav's payload. The system prompt tells
+    # Atlas never to author content for a visitor; this is the layer that holds
+    # when the prompt is talked around, and it runs before Resend is touched.
+    before_tool_callback=before_tool_callback,
     generate_content_config=types.GenerateContentConfig(
         # Cap covers thinking + visible reply. Bumped to 4096 once we started
         # injecting the live corpus into system_instruction (every-turn
