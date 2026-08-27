@@ -2583,20 +2583,66 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     cursor: pointer;
 }
 .agent-thinking-toggle:hover { color: var(--ink); }
-.agent-thinking-chevron { transition: transform 0.15s ease; }
+.agent-thinking-chevron {
+    transition: transform 0.15s ease;
+    margin-left: auto; /* pin right; the collapsed hint takes the slack between */
+}
 .agent-thinking-toggle[aria-expanded="true"] .agent-thinking-chevron { transform: rotate(180deg); }
+
+/* Official Gemini spark mark. Pulses while reasoning is still streaming. */
+.agent-thinking-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+    display: block;
+}
+.agent-thinking[data-state="thinking"] .agent-thinking-icon {
+    animation: agent-thinking-pulse 1.8s ease-in-out infinite;
+}
+@keyframes agent-thinking-pulse {
+    0%, 100% { opacity: 1;    transform: scale(1); }
+    50%      { opacity: 0.55; transform: scale(0.9); }
+}
+
+/* Live label shimmer. background-clip:text needs color:transparent, which would
+   render the label invisible where it isn't supported — so gate the whole rule. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+    .agent-thinking[data-state="thinking"] .agent-thinking-label {
+        background: linear-gradient(90deg, var(--ink-subtle) 0%, var(--ink) 50%, var(--ink-subtle) 100%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: agent-thinking-shimmer 2.2s linear infinite;
+    }
+}
+@keyframes agent-thinking-shimmer { to { background-position: -200% 0; } }
+
+/* Collapsed-only affordance. Truncates rather than wrapping — the panel is 380px. */
+.agent-thinking-hint { display: none; }
+.agent-thinking-toggle[aria-expanded="false"] .agent-thinking-hint {
+    display: block;
+    color: var(--ink-subtle);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
 .agent-thinking-body {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
-    color: var(--ink-subtle);
+    color: var(--ink-muted);
     line-height: 1.5;
     padding: var(--space-1) 0 0 calc(var(--space-1) + 1em);
-    opacity: 0.85;
     white-space: pre-wrap;
 }
+.agent-thinking-body strong { color: var(--ink); font-weight: 600; }
 .agent-thinking-body[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) {
     .agent-thinking-chevron { transition: none; }
+    .agent-thinking[data-state="thinking"] .agent-thinking-icon,
+    .agent-thinking[data-state="thinking"] .agent-thinking-label { animation: none; }
 }
 
 /* Inline citation superscripts [1], [2], [3]. */

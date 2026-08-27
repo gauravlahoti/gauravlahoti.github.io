@@ -400,8 +400,26 @@ export function initAgentWidget(root, profile, sessionId) {
         const thinkingContainer = assistant.querySelector(".agent-thinking");
         const thinkingBody = assistant.querySelector(".agent-thinking-body");
         const thinkingToggle = assistant.querySelector(".agent-thinking-toggle");
+        const thinkingLabel = assistant.querySelector(".agent-thinking-label");
         let firstDelta = true;
         let firstThought = true;
+        let thinkingRaw = "";
+
+        // Reasoning is over: "Thinking" becomes "Thoughts" and the panel folds
+        // away (never clears) so the answer has the floor. Called from both the
+        // first answer delta and onDone — the latter covers a turn that thought
+        // but then errored or came back empty, which would otherwise leave the
+        // label stuck on "Thinking" forever.
+        function settleThinking() {
+            if (!thinkingContainer || thinkingContainer.dataset.state === "done") return;
+            thinkingContainer.dataset.state = "done";
+            if (thinkingLabel) thinkingLabel.textContent = "Thoughts";
+            if (thinkingToggle && !thinkingContainer.dataset.userToggled
+                && thinkingToggle.getAttribute("aria-expanded") === "true") {
+                thinkingToggle.setAttribute("aria-expanded", "false");
+                thinkingBody.hidden = true;
+            }
+        }
         let errorShown = false;
         let midStreamError = false;
         let pendingCitations = {};
@@ -424,7 +442,11 @@ export function initAgentWidget(root, profile, sessionId) {
                         stages.cancel(); // real progress is showing — drop the canned copy
                         thinkingContainer.hidden = false;
                     }
-                    thinkingBody.textContent += chunk;
+                    // Re-render from the full accumulated string rather than
+                    // appending — that's what keeps `**header**` markers correct
+                    // when one is split across two SSE chunks.
+                    thinkingRaw += chunk;
+                    renderThinkingText(thinkingBody, thinkingRaw);
                     scrollToEnd();
                 },
                 onDelta(delta) {
@@ -432,15 +454,7 @@ export function initAgentWidget(root, profile, sessionId) {
                         firstDelta = false;
                         sessionWarmed = true; // container has served a token this session
                         stages.cancel(); // clear loading indicator on first char
-                        // Auto-collapse (never clear) the thinking panel once the
-                        // real answer starts — stays in the transcript so the
-                        // visitor can reopen it. Skip if they already toggled it
-                        // themselves mid-stream; don't fight their choice.
-                        if (thinkingToggle && !thinkingContainer.dataset.userToggled
-                            && thinkingToggle.getAttribute("aria-expanded") === "true") {
-                            thinkingToggle.setAttribute("aria-expanded", "false");
-                            thinkingBody.hidden = true;
-                        }
+                        settleThinking();
                     }
                     appendDelta(assistant, delta, FEATURES.typingCursor);
                 },
@@ -456,6 +470,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 },
                 onDone(full) {
                     stages.cancel();
+                    settleThinking();
                     if (!full && !errorShown) {
                         appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
                     }
@@ -554,13 +569,15 @@ export function initAgentWidget(root, profile, sessionId) {
         const thinking = document.createElement("div");
         thinking.className = "agent-thinking";
         thinking.hidden = true;
+        thinking.dataset.state = "thinking";
         const thinkingToggle = document.createElement("button");
         thinkingToggle.type = "button";
         thinkingToggle.className = "agent-thinking-toggle";
         thinkingToggle.setAttribute("aria-expanded", "true");
         thinkingToggle.innerHTML =
-            '<span class="agent-thinking-icon" aria-hidden="true">✨</span>' +
-            '<span>Thoughts</span>' +
+            '<img class="agent-thinking-icon" src="/assets/img/logo-gemini.svg" alt="" aria-hidden="true" width="14" height="14">' +
+            '<span class="agent-thinking-label">Thinking</span>' +
+            '<span class="agent-thinking-hint">Expand to view model thoughts</span>' +
             '<span class="agent-thinking-chevron" aria-hidden="true">▾</span>';
         const thinkingBody = document.createElement("div");
         thinkingBody.className = "agent-thinking-body";
@@ -1318,6 +1335,23 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, 
 }
 
 // --- text rendering ---------------------------------------------------------
+
+// Gemini's thought summaries label each reasoning phase as `**Some Header**`.
+// Render those as real emphasis instead of showing raw asterisks. Built from
+// DOM nodes (never innerHTML) so model output can't inject markup.
+function renderThinkingText(el, raw) {
+    el.replaceChildren();
+    const re = /\*\*(.+?)\*\*/g;
+    let pos = 0, m;
+    while ((m = re.exec(raw)) !== null) {
+        if (m.index > pos) el.appendChild(document.createTextNode(raw.slice(pos, m.index)));
+        const strong = document.createElement("strong");
+        strong.textContent = m[1];
+        el.appendChild(strong);
+        pos = m.index + m[0].length;
+    }
+    if (pos < raw.length) el.appendChild(document.createTextNode(raw.slice(pos)));
+}
 
 function renderTextWithLinks(container, text, citations) {
     // Replace [N] citation markers first
