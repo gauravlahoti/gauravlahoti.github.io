@@ -48,8 +48,9 @@ const insertAgentInteraction = db.prepare(
         tokens_input, tokens_output, latency_ms, status, error_message,
         google_sub, email, ip, user_agent, referrer, agent_version,
         citations_count, suggestions_count, cta,
-        country, region, city, model, model_fallback_depth)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        country, region, city, model, model_fallback_depth,
+        thinking_tokens, had_thinking)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const recentAgentInteractions = db.prepare(
     `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
@@ -196,6 +197,8 @@ async function handleAgentLog(req, res) {
         Number.isInteger(body?.modelFallbackDepth) && body.modelFallbackDepth >= 0
             ? body.modelFallbackDepth
             : null;
+    const thinkingTokens = Number.isInteger(body?.thinkingTokens) ? body.thinkingTokens : null;
+    const hadThinking = body?.hadThinking === true ? 1 : 0;
 
     try {
         const result = insertAgentInteraction.run(
@@ -205,7 +208,8 @@ async function handleAgentLog(req, res) {
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
-            country, region, city, model, modelFallbackDepth
+            country, region, city, model, modelFallbackDepth,
+            thinkingTokens, hadThinking
         );
         console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
         sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});

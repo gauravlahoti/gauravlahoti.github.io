@@ -203,7 +203,11 @@ def after_model_callback(
             new_text = _EMAIL_RE.sub(_EMAIL_REDACT_REPLACEMENT, new_text)
         if new_text != text:
             changed = True
-            new_parts.append(types.Part.from_text(text=new_text))
+            # Preserve `thought` on rebuild — types.Part.from_text() would
+            # silently drop it, reclassifying a filtered thought chunk as an
+            # answer part downstream (api.py's answer/thought bifurcation,
+            # and the audit log's `response` field).
+            new_parts.append(types.Part(text=new_text, thought=getattr(part, "thought", None)))
         else:
             new_parts.append(part)
 

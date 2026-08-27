@@ -11,6 +11,7 @@ const FEATURES = Object.freeze({
     typingCursor:    true,
     scrollNudge:     false,
     explainerDialog: true,
+    thinking:        true,
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -396,7 +397,9 @@ export function initAgentWidget(root, profile, sessionId) {
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
         const stages = startLoadingStages(assistant, !sessionWarmed);
+        const thinkingEl = assistant.querySelector(".agent-thinking-text");
         let firstDelta = true;
+        let firstThought = true;
         let errorShown = false;
         let midStreamError = false;
         let pendingCitations = {};
@@ -412,11 +415,25 @@ export function initAgentWidget(root, profile, sessionId) {
                 sessionId,
                 messages,
                 identity,
+                onThinking(chunk) {
+                    if (!thinkingEl) return;
+                    if (firstThought) {
+                        firstThought = false;
+                        stages.cancel(); // real progress is showing — drop the canned copy
+                        thinkingEl.hidden = false;
+                    }
+                    thinkingEl.textContent += chunk;
+                    scrollToEnd();
+                },
                 onDelta(delta) {
                     if (firstDelta) {
                         firstDelta = false;
                         sessionWarmed = true; // container has served a token this session
                         stages.cancel(); // clear loading indicator on first char
+                        if (thinkingEl) {
+                            thinkingEl.hidden = true;
+                            thinkingEl.textContent = "";
+                        }
                     }
                     appendDelta(assistant, delta, FEATURES.typingCursor);
                 },
@@ -527,6 +544,10 @@ export function initAgentWidget(root, profile, sessionId) {
             document.createElement("span"),
         );
         li.appendChild(dots);
+        const thinking = document.createElement("p");
+        thinking.className = "agent-thinking-text";
+        thinking.hidden = true;
+        li.appendChild(thinking);
         const p = document.createElement("p");
         p.className = "agent-message-text";
         p.textContent = "";
@@ -1184,7 +1205,7 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
@@ -1249,6 +1270,8 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onDelta, onC
                     full += evt.delta;
                     hadDeltas = true;
                     onDelta(evt.delta);
+                } else if (typeof evt.thinking === "string" && FEATURES.thinking) {
+                    onThinking(evt.thinking);
                 } else if (evt.citations && FEATURES.citations) {
                     onCitations(evt.citations);
                 } else if (evt.suggestions && FEATURES.suggestions) {

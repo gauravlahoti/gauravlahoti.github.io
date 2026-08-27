@@ -66,10 +66,12 @@ _tools = [
 
 root_agent = Agent(
     name="root_agent",
-    # Free-tier model cascade: each model has its own daily free quota, so on a
-    # 429 RESOURCE_EXHAUSTED we fall back to the next instead of failing the
-    # visitor. Keeps the widget on the AI Studio free tier (no Vertex/paid).
-    # See app/fallback_model.py.
+    # Both primary (gemini-3.7-flash) and fallback (gemini-3.6-flash) are
+    # pinned to Vertex AI on adk-mas-demo for reliable capacity — 3.7-flash
+    # was hitting near-constant 503s on the AI Studio free tier in production.
+    # The fallback now exists purely for model-availability redundancy, not a
+    # different cost tier: on a 429/503 from the primary we transparently
+    # retry against it instead of failing the visitor. See app/fallback_model.py.
     model=FallbackGemini(
         model="gemini-3.7-flash",
         fallback_models=["gemini-3.6-flash"],
@@ -86,6 +88,19 @@ root_agent = Agent(
         # earlier 1800 cap was clipping replies to MAX_TOKENS mid-sentence.
         max_output_tokens=4096,
         temperature=0.2,
+        # Surfaces Gemini's own thought summaries (streamed to the widget as
+        # {"thinking": ...} SSE events — see api.py) instead of a static
+        # "hang tight" placeholder. Thinking already happens and is billed
+        # regardless of this flag; include_thoughts only makes the summary
+        # text visible. thinking_level is a CEILING on reasoning depth, not
+        # a fixed budget — Gemini 3 models already adapt actual effort to
+        # each query's complexity at any level, so a trivial "hi" still
+        # produces little to no thinking even at HIGH. Env-overridable so
+        # the level can be dialed down without a redeploy.
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True,
+            thinking_level=types.ThinkingLevel[os.environ.get("ATLAS_THINKING_LEVEL", "HIGH")],
+        ),
         # Disable Gemini's built-in safety filters — the portfolio agent has
         # its own input/output guardrails (see guardrails.py: prompt-injection
         # short-circuit, URL allowlist, email redaction). Default filters can

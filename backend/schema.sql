@@ -55,12 +55,20 @@ ALTER TABLE agent_interactions ADD COLUMN country TEXT;
 ALTER TABLE agent_interactions ADD COLUMN region  TEXT;
 ALTER TABLE agent_interactions ADD COLUMN city    TEXT;
 
--- Which model actually answered (Atlas cascades gemini-3.6-flash -> 3.5-flash
--- -> 2.5-flash -> 2.5-flash-lite on 429/503). Without this, the digest could
--- not tell how often the cascade fires or price a turn by the right model.
+-- Which model actually answered (Atlas cascades gemini-3.7-flash -> 3.6-flash
+-- on 429/503). Without this, the digest could not tell how often the cascade
+-- fires or price a turn by the right model.
 -- Shipped as migration 011-analytics-columns.sql for prod D1.
 ALTER TABLE agent_interactions ADD COLUMN model TEXT;
 ALTER TABLE agent_interactions ADD COLUMN model_fallback_depth INTEGER;
+
+-- Gemini thought-summary token count (usage_metadata.thoughts_token_count) and
+-- whether the turn produced any visible thinking. Raw thought text is never
+-- persisted here (unedited, exploratory reasoning) — only this aggregate, so
+-- cost stays visible without storing the reasoning itself.
+-- Shipped as migration 012-agent-thinking-columns.sql for prod D1.
+ALTER TABLE agent_interactions ADD COLUMN thinking_tokens INTEGER;
+ALTER TABLE agent_interactions ADD COLUMN had_thinking     INTEGER;
 
 -- Per-recipient rate-limit ledger for the agent's send_resume action.
 -- Email hashed (sha256 of email + UTC date, first 16 chars) before storage, raw

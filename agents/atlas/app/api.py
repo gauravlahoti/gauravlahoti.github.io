@@ -219,11 +219,17 @@ async def _stream_agent(
     tool_calls: list[dict[str, Any]] = []
     # Action tools that returned ok=false this turn (e.g. "send_resume:send_failed").
     tool_failures: list[str] = []
-    usage: dict[str, int | str | None] = {"input": None, "output": None, "model": None}
+    usage: dict[str, int | str | None] = {
+        "input": None, "output": None, "model": None, "thinkingTokens": None,
+    }
     status = "ok"
     error_message: str | None = None
     # For delta de-dup (cumulative vs incremental Gemini events)
     emitted_len = 0  # chars already flushed to user_visible / pending
+    # Thinking (part.thought == True) is a fully separate stream from the
+    # answer — its own de-dup state, never touches user_visible/meta_parts/
+    # the audit log's `response` field. See thinking_config in agent.py.
+    thought_visible: list[str] = []
 
     _SENTINEL_LEN = len(_META_OPEN)  # 8
 
@@ -331,6 +337,9 @@ async def _stream_agent(
                     usage["input"] = int(inp)
                 if out is not None:
                     usage["output"] = int(out)
+                tt = getattr(um, "thoughts_token_count", None)
+                if tt is not None:
+                    usage["thinkingTokens"] = int(tt)
                 mv = getattr(event, "model_version", None)
                 if mv:
                     usage["model"] = str(mv)
@@ -342,14 +351,50 @@ async def _stream_agent(
             if author is not None and author == "user":
                 continue
             parts = getattr(content, "parts", None) or []
-            text_chunks: list[str] = []
+            # The final event of a streaming turn (partial=False, emitted once
+            # the whole response is assembled) can return thought text that is
+            # a TRUNCATED/windowed recap rather than a clean superset of what
+            # streamed live (confirmed empirically: on longer reasoning, the
+            # final thought part dropped its earliest segment). Treating that
+            # as fresh content would re-emit stale/incomplete thinking after
+            # the real answer has already started. Thinking is only ever
+            # useful live anyway, so only process it while partial=True; the
+            # final event's answer text (never observed to have this problem)
+            # still flows through the unchanged dedup below.
+            is_partial = bool(getattr(event, "partial", False))
+            answer_texts: list[str] = []
+            thought_texts: list[str] = []
             for part in parts:
                 t = getattr(part, "text", None)
-                if t:
-                    text_chunks.append(t)
-            if not text_chunks:
+                if not t:
+                    continue
+                if getattr(part, "thought", False):
+                    if is_partial:
+                        thought_texts.append(t)
+                else:
+                    answer_texts.append(t)
+
+            if thought_texts:
+                full_thought = "".join(thought_texts)
+                thought_so_far = "".join(thought_visible)
+                if full_thought.startswith(thought_so_far):
+                    new_thought = full_thought[len(thought_so_far):]
+                elif thought_so_far.startswith(full_thought):
+                    new_thought = ""
+                else:
+                    # Disjoint (fresh reasoning round after a tool call) — treat as fresh
+                    new_thought = full_thought
+                if new_thought:
+                    thought_visible.append(new_thought)
+                    # Cosmetic only — the real [[META]] protocol lives entirely on
+                    # the answer stream and is untouched by this.
+                    cleaned = new_thought.replace("[[META]]", "").replace("[[/META]]", "")
+                    if cleaned:
+                        yield _sse({"thinking": cleaned})
+
+            if not answer_texts:
                 continue
-            full = "".join(text_chunks)
+            full = "".join(answer_texts)
 
             # Delta de-dup: Gemini can send cumulative or incremental payloads.
             total_so_far = "".join(user_visible) + pending + "".join(meta_parts)
@@ -447,6 +492,8 @@ async def _stream_agent(
             "tokensInput":    usage["input"],
             "tokensOutput":   usage["output"],
             "model":          usage["model"],
+            "thinkingTokens": usage["thinkingTokens"],
+            "hadThinking":    bool(thought_visible),
             "modelFallbackDepth": model_fallback_depth,
             "latencyMs":      int((time.monotonic() - start) * 1000),
             "status":         status,

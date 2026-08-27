@@ -52,7 +52,7 @@ Do NOT hand-edit `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the
 | Local dev (FastAPI) | `make dev` (atlas `:8000`, pulse `:8001`) |
 | One-shot smoke test | `agents-cli run "your prompt"` |
 | Lint | `make lint` |
-| Eval gate (atlas only, before deploy) | `make eval` — agent under test on the AI Studio free-tier key; grading judge on Vertex (adk-mas-demo project, its own free-tier credit); `make eval-quick` for a cheap 2-case check |
+| Eval gate (atlas only, before deploy) | `make eval` — agent under test and grading judge both run on Vertex (adk-mas-demo project); `make eval-quick` for a cheap 2-case check |
 | Refresh corpus (atlas only) | `make corpus` — **before every atlas deploy**; syncs `../../content/*.json` → `app/corpus/` |
 | Deploy | `make deploy` (atlas → `atlas`; pulse → `pulse`). Sets the full env/secret set inline. |
 

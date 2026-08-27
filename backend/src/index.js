@@ -419,14 +419,18 @@ async function handleAgentLog(request, env) {
     const country = geoStr(body?.country);
     const region  = geoStr(body?.region);
     const city    = geoStr(body?.city);
-    // Which model actually answered — Atlas cascades gemini-3.6-flash ->
-    // 3.5-flash -> 2.5-flash -> 2.5-flash-lite on 429/503, so this is not
-    // always the primary model. 0 = primary, higher = further down the chain.
+    // Which model actually answered — Atlas cascades gemini-3.7-flash ->
+    // 3.6-flash on 429/503, so this is not always the primary model.
+    // 0 = primary, higher = further down the chain.
     const model = body?.model ? String(body.model).slice(0, 64) : null;
     const modelFallbackDepth =
         Number.isInteger(body?.modelFallbackDepth) && body.modelFallbackDepth >= 0
             ? body.modelFallbackDepth
             : null;
+    // Gemini thought-summary aggregate — raw thought text is never sent here,
+    // only the token count and whether the turn produced any.
+    const thinkingTokens = Number.isInteger(body?.thinkingTokens) ? body.thinkingTokens : null;
+    const hadThinking = body?.hadThinking === true ? 1 : 0;
 
     try {
         const { meta } = await env.DB.prepare(
@@ -435,8 +439,9 @@ async function handleAgentLog(request, env) {
                 tokens_input, tokens_output, latency_ms, status, error_message,
                 google_sub, email, ip, user_agent, referrer, agent_version,
                 citations_count, suggestions_count, cta,
-                country, region, city, model, model_fallback_depth)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                country, region, city, model, model_fallback_depth,
+                thinking_tokens, had_thinking)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             sessionId, turnIndex, loggedAt,
             question.slice(0, 4000), response, toolCalls,
@@ -444,7 +449,8 @@ async function handleAgentLog(request, env) {
             status, errorMessage,
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
-            country, region, city, model, modelFallbackDepth
+            country, region, city, model, modelFallbackDepth,
+            thinkingTokens, hadThinking
         ).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {

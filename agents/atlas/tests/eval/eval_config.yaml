@@ -31,6 +31,17 @@
 # different cost model, not literally free the way AI Studio is.
 # gemini-3.1-flash-lite / gemini-3.6-flash were confirmed reachable on
 # this project only at location="global" (us-central1 404s).
+#
+# UPDATE: the agent under test now ALSO runs on Vertex/adk-mas-demo
+# unconditionally (app/fallback_model.py's FallbackGemini.api_client forces
+# it, ignoring this Makefile target's GEMINI_API_KEY/GOOGLE_GENAI_USE_VERTEXAI
+# env vars) — both gemini-3.7-flash and gemini-3.6-flash proved unreliable
+# on the AI Studio free tier in production. The "rather than the AI Studio
+# free-tier API key the agent itself uses" framing above is now historical:
+# agent and judge run on the same project, via separate clients, so a
+# `make eval` run's full cost (agent inference + judge grading) now lands
+# on adk-mas-demo rather than being split across AI Studio (agent, free)
+# and Vertex (judge, paid).
 
 metrics_to_run:
   - atlas_response_quality
