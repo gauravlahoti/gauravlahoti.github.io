@@ -424,6 +424,7 @@ export function initAgentWidget(root, profile, sessionId) {
         const thinkingBody = assistant.querySelector(".agent-thinking-body");
         const thinkingToggle = assistant.querySelector(".agent-thinking-toggle");
         const thinkingLabel = assistant.querySelector(".agent-thinking-label");
+        const thinkingHint = assistant.querySelector(".agent-thinking-hint");
         let firstDelta = true;
         let firstThought = true;
         let thinkingRaw = "";
@@ -471,6 +472,8 @@ export function initAgentWidget(root, profile, sessionId) {
                     // when one is split across two SSE chunks.
                     thinkingRaw += chunk;
                     renderThinkingText(thinkingBody, thinkingRaw);
+                    const header = latestThoughtHeader(thinkingRaw);
+                    if (header && thinkingHint) thinkingHint.textContent = header;
                     scrollToEnd();
                 },
                 onDelta(delta) {
@@ -617,7 +620,7 @@ export function initAgentWidget(root, profile, sessionId) {
         const thinkingToggle = document.createElement("button");
         thinkingToggle.type = "button";
         thinkingToggle.className = "agent-thinking-toggle";
-        thinkingToggle.setAttribute("aria-expanded", "true");
+        thinkingToggle.setAttribute("aria-expanded", "false");
         thinkingToggle.innerHTML =
             '<img class="agent-thinking-icon" src="/assets/img/logo-gemini.svg" alt="" aria-hidden="true" width="14" height="14">' +
             '<span class="agent-thinking-label">Thinking</span>' +
@@ -625,6 +628,7 @@ export function initAgentWidget(root, profile, sessionId) {
             '<span class="agent-thinking-chevron" aria-hidden="true">▾</span>';
         const thinkingBody = document.createElement("div");
         thinkingBody.className = "agent-thinking-body";
+        thinkingBody.hidden = true;
         thinkingToggle.addEventListener("click", () => {
             thinking.dataset.userToggled = "true";
             const open = thinkingToggle.getAttribute("aria-expanded") === "true";
@@ -1403,6 +1407,15 @@ function renderThinkingText(el, raw) {
         pos = m.index + m[0].length;
     }
     if (pos < raw.length) el.appendChild(document.createTextNode(raw.slice(pos)));
+}
+
+// The most recent `**Header**` phase in the thought stream so far — used as a
+// live one-line status while the full transcript stays collapsed.
+function latestThoughtHeader(raw) {
+    const re = /\*\*(.+?)\*\*/g;
+    let last = null, m;
+    while ((m = re.exec(raw)) !== null) last = m[1];
+    return last;
 }
 
 function renderTextWithLinks(container, text, citations) {

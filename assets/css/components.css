@@ -2599,10 +2599,11 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .agent-loading-dots span { animation: none; }
 }
 
-/* Streamed model "thinking" — Gemini's own thought summaries. Expanded while
-   live (genuine progress during the wait), auto-collapses to a toggle once
-   the real answer starts so it doesn't compete for attention, but stays in
-   the transcript for the visitor to reopen. */
+/* Streamed model "thinking" — Gemini's own thought summaries. Collapsed by
+   default; the hint line updates live with the latest reasoning phase as it
+   streams, so there's a visible signal without pushing the answer down.
+   Expand via the toggle for the full transcript, which stays in the
+   conversation for the visitor to reopen after the answer lands. */
 .agent-thinking { margin: var(--space-2) var(--space-3) 0; }
 .agent-thinking[hidden] { display: none; }
 .agent-thinking-toggle {
