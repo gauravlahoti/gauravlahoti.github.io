@@ -624,8 +624,8 @@ export function initAgentWidget(root, profile, sessionId) {
         thinkingToggle.innerHTML =
             '<img class="agent-thinking-icon" src="/assets/img/logo-gemini.svg" alt="" aria-hidden="true" width="14" height="14">' +
             '<span class="agent-thinking-label">Thinking</span>' +
-            '<span class="agent-thinking-hint">Expand to view model thoughts</span>' +
-            '<span class="agent-thinking-chevron" aria-hidden="true">▾</span>';
+            '<span class="agent-thinking-chevron" aria-hidden="true">▾</span>' +
+            '<span class="agent-thinking-hint">Expand to view model thoughts</span>';
         const thinkingBody = document.createElement("div");
         thinkingBody.className = "agent-thinking-body";
         thinkingBody.hidden = true;

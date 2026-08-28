@@ -2608,6 +2608,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-thinking[hidden] { display: none; }
 .agent-thinking-toggle {
     display: flex;
+    flex-wrap: wrap; /* lets the hint (flex-basis:100%) drop to its own line below */
     align-items: center;
     gap: var(--space-1);
     background: none;
@@ -2621,7 +2622,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-thinking-toggle:hover { color: var(--ink); }
 .agent-thinking-chevron {
     transition: transform 0.15s ease;
-    margin-left: auto; /* pin right; the collapsed hint takes the slack between */
+    margin-left: auto; /* pin right on row 1 — hint is on its own row 2 now */
 }
 .agent-thinking-toggle[aria-expanded="true"] .agent-thinking-chevron { transform: rotate(180deg); }
 
@@ -2654,10 +2655,16 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 @keyframes agent-thinking-shimmer { to { background-position: -200% 0; } }
 
-/* Collapsed-only affordance. Truncates rather than wrapping — the panel is 380px. */
+/* Collapsed-only affordance. Own line below "Thinking" (flex-basis:100% forces
+   the wrap onto row 2 of the flex-wrap toggle), indented to align under the
+   label rather than the icon. Truncates rather than wrapping further — the
+   panel is 380px. */
 .agent-thinking-hint { display: none; }
 .agent-thinking-toggle[aria-expanded="false"] .agent-thinking-hint {
     display: block;
+    flex-basis: 100%;
+    margin-top: 2px;
+    margin-left: calc(0.95rem + var(--space-1)); /* icon width + toggle gap */
     color: var(--ink-subtle);
     overflow: hidden;
     text-overflow: ellipsis;
