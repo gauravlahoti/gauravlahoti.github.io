@@ -1235,7 +1235,8 @@ async function handleAgentLogRead(request, env, corsHeaders) {
                     tokens_input, tokens_output, latency_ms, status, error_message,
                     google_sub, email, ip, user_agent, referrer, agent_version,
                     citations_count, suggestions_count, cta,
-                    country, region, city
+                    country, region, city, model, model_fallback_depth,
+                    thinking_tokens, had_thinking
              FROM agent_interactions ORDER BY logged_at DESC LIMIT 200`
         ).all();
         return json({ ok: true, leads: results }, 200, corsHeaders);
