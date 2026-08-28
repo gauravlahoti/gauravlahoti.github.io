@@ -2481,6 +2481,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .agent-input { font-size: 16px; }
 }
 .agent-send {
+    position: relative;
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
@@ -2492,10 +2493,44 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: opacity var(--dur-fast) var(--ease-out);
+    transition: opacity var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
 }
 .agent-send:disabled { opacity: 0.4; cursor: progress; }
 .agent-send:hover:not(:disabled) { filter: brightness(1.1); }
+
+/* Two glyphs live in the button; data-mode picks one. No layout shift when
+   the send button morphs into a stop control mid-stream. */
+.agent-send-glyph { display: none; }
+.agent-send[data-mode="send"] .agent-send-glyph-send { display: block; }
+.agent-send[data-mode="stop"] .agent-send-glyph-stop { display: block; }
+
+/* Thin arc orbiting the stop square while a turn streams. */
+.agent-send[data-mode="stop"]::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0, 0, 0, 0.25);
+    border-top-color: var(--bg);
+    animation: agent-send-spin 0.75s linear infinite;
+}
+@keyframes agent-send-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .agent-send[data-mode="stop"]::after {
+        animation: none;
+        border-color: var(--bg);
+    }
+}
+
+/* Muted marker under a response the visitor cut short with the stop button. */
+.agent-stopped-note {
+    margin: var(--space-2) 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    letter-spacing: 0.02em;
+}
 
 .agent-panel-foot {
     padding: var(--space-2) var(--space-4);

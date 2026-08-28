@@ -71,6 +71,8 @@ export function initAgentWidget(root, profile, sessionId) {
     let isOpen = false;
     let isMinimized = false;
     let isPending = false; // true while a response is streaming
+    let abortController = null; // live only while a turn is streaming
+    let wasStopped = false; // set by stopStreaming(), read in onDone
     let sessionWarmed = false; // true after the first streamed token this session — gates the cold-start loading copy
     let panelEverOpened = false; // for scroll nudge — flipped on first open
     let introRendered = false; // guards one-shot intro stream on first open
@@ -129,7 +131,10 @@ export function initAgentWidget(root, profile, sessionId) {
         }
     }, { passive: true });
 
-    sendBtn.addEventListener("click", sendCurrent);
+    sendBtn.addEventListener("click", () => {
+        if (sendBtn.dataset.mode === "stop") stopStreaming();
+        else sendCurrent();
+    });
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -143,9 +148,25 @@ export function initAgentWidget(root, profile, sessionId) {
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
-            closePanel();
+            if (isPending) stopStreaming();
+            else closePanel();
         }
     });
+
+    // Sets the send button's icon/behaviour. "stop" while a turn is
+    // streaming, "send" otherwise — the button never disables so a visitor
+    // can always cancel.
+    function setSendMode(mode) {
+        sendBtn.dataset.mode = mode;
+        sendBtn.setAttribute("aria-label", mode === "stop" ? "Stop generating" : "Send");
+    }
+
+    function stopStreaming() {
+        if (!isPending || !abortController) return;
+        wasStopped = true;
+        abortController.abort();
+        liveRegion.textContent = "Stopped.";
+    }
 
     // Sets the composer text and focuses it without sending. Shared by the
     // action chips and (spec 45) WebMCP's draft_note_to_gaurav tool — a real
@@ -387,8 +408,10 @@ export function initAgentWidget(root, profile, sessionId) {
 
         promptsEl.classList.add("is-hidden");
         input.value = "";
-        sendBtn.disabled = true;
         isPending = true;
+        wasStopped = false;
+        abortController = new AbortController();
+        setSendMode("stop");
 
         appendUser(text);
         messages.push({ role: "user", content: text });
@@ -435,6 +458,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 sessionId,
                 messages,
                 identity,
+                signal: abortController.signal,
                 onThinking(chunk) {
                     if (!thinkingBody) return;
                     if (firstThought) {
@@ -471,6 +495,16 @@ export function initAgentWidget(root, profile, sessionId) {
                 onDone(full) {
                     stages.cancel();
                     settleThinking();
+                    if (wasStopped) {
+                        removeCaret(assistant);
+                        if (full) {
+                            finalizeAssistant(assistant, full, turnState.citations);
+                            messages.push({ role: "assistant", content: full });
+                        }
+                        appendStoppedNote(assistant);
+                        input.focus();
+                        return;
+                    }
                     if (!full && !errorShown) {
                         appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
                     }
@@ -511,9 +545,19 @@ export function initAgentWidget(root, profile, sessionId) {
                 },
             });
         } finally {
-            sendBtn.disabled = false;
+            setSendMode("send");
             isPending = false;
+            abortController = null;
         }
+    }
+
+    function appendStoppedNote(assistantLi) {
+        if (assistantLi.querySelector(".agent-stopped-note")) return;
+        const note = document.createElement("p");
+        note.className = "agent-stopped-note";
+        note.textContent = "Stopped.";
+        assistantLi.appendChild(note);
+        scrollToEnd();
     }
 
     function appendRetryButton(assistantLi, userText) {
@@ -712,7 +756,7 @@ export function initAgentWidget(root, profile, sessionId) {
 
     dom.body.addEventListener("scroll", syncScrollHint, { passive: true });
 
-    return { open: openPanel, close: closePanel, prefill: prefillComposer };
+    return { open: openPanel, close: closePanel, prefill: prefillComposer, stop: stopStreaming };
 }
 
 // --- Explainer modal --------------------------------------------------------
@@ -1020,10 +1064,14 @@ function renderShell(root, agentExplainer) {
     const sendBtn = document.createElement("button");
     sendBtn.type = "submit";
     sendBtn.className = "agent-send";
+    sendBtn.dataset.mode = "send";
     sendBtn.setAttribute("aria-label", "Send");
     sendBtn.innerHTML = `
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="agent-send-glyph agent-send-glyph-send" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 8 L14 2 L10 14 L8 9 Z"/>
+        </svg>
+        <svg class="agent-send-glyph agent-send-glyph-stop" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor"/>
         </svg>
     `;
     inputRow.appendChild(input);
@@ -1246,7 +1294,7 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
@@ -1254,10 +1302,12 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, 
             method: "POST",
             mode: "cors",
             cache: "no-store",
+            signal,
             headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
             body: JSON.stringify(reqBody),
         });
     } catch (err) {
+        if (signal?.aborted) { onDone(""); return; }
         onError("I can't reach the server right now — might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
         onDone("");
         return;
@@ -1289,6 +1339,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, 
             try {
                 chunk = await reader.read();
             } catch (readErr) {
+                if (signal?.aborted) { onDone(hadDeltas ? full : ""); return; }
                 // Network dropped mid-stream
                 onError("", true /* isMidStream */);
                 onDone(hadDeltas ? full : "");
@@ -1327,6 +1378,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, onThinking, 
             if (done) break;
         }
     } catch (err) {
+        if (signal?.aborted) { onDone(hadDeltas ? full : ""); return; }
         onError("", hadDeltas /* isMidStream */);
         onDone(hadDeltas ? full : "");
         return;
