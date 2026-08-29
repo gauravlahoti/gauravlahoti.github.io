@@ -2634,31 +2634,61 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-speaking-stop:hover { color: var(--ink); border-color: var(--accent); }
 
-/* Four bars bouncing out of phase — the standard "audio is playing" read,
-   and cheap: transform only, no layout. */
-.agent-speaking-bars {
+/* A small breathing orb with an outward sonar-ping ring — reads as a present,
+   listening-to-itself AI rather than a generic audio-level meter. Transform
+   + opacity only, no layout thrash. */
+.agent-speaking-orb {
+    position: relative;
     display: inline-flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 12px;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
 }
-.agent-speaking-bars span {
-    display: block;
-    width: 2px;
-    height: 100%;
+.agent-speaking-orb-core {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
     background: var(--accent);
-    transform-origin: bottom;
-    animation: agent-speaking-bar 0.9s ease-in-out infinite;
+    box-shadow: 0 0 6px var(--accent-glow);
+    animation: agent-speaking-orb-breathe 1.6s ease-in-out infinite;
 }
-.agent-speaking-bars span:nth-child(2) { animation-delay: 0.15s; }
-.agent-speaking-bars span:nth-child(3) { animation-delay: 0.30s; }
-.agent-speaking-bars span:nth-child(4) { animation-delay: 0.45s; }
-@keyframes agent-speaking-bar {
-    0%, 100% { transform: scaleY(0.3); }
-    50%      { transform: scaleY(1); }
+.agent-speaking-orb-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    animation: agent-speaking-orb-ping 1.6s ease-out infinite;
 }
+@keyframes agent-speaking-orb-breathe {
+    0%, 100% { transform: scale(0.85); opacity: 0.75; }
+    50%      { transform: scale(1.15); opacity: 1; }
+}
+@keyframes agent-speaking-orb-ping {
+    0%   { transform: scale(0.6); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Shimmer sweep on the label while speaking — same background-clip: text
+   technique as .agent-thinking[data-state="thinking"] .agent-thinking-label,
+   so the two "something is live" cues in this widget read as one system. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+    .agent-speaking-label {
+        background: linear-gradient(90deg, var(--ink-muted) 0%, var(--ink) 50%, var(--ink-muted) 100%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: agent-speaking-label-shimmer 2.2s linear infinite;
+    }
+}
+@keyframes agent-speaking-label-shimmer { to { background-position: -200% 0; } }
+
 @media (prefers-reduced-motion: reduce) {
-    .agent-speaking-bars span { animation: none; transform: scaleY(0.6); }
+    .agent-speaking-orb-core { animation: none; }
+    .agent-speaking-orb-ring { animation: none; opacity: 0; }
+    .agent-speaking-label { animation: none; }
 }
 
 /* ---- first-run consent card (spec 50) -------------------------------- */
@@ -2953,14 +2983,44 @@ sup.agent-cite a:focus-visible {
     outline: none;
 }
 
-/* Clickable source list rendered below assistant messages with citations. */
+/* Collapsible source list rendered below assistant messages with citations —
+   mirrors .agent-thinking's toggle/body/chevron mechanics so the two
+   accordions in a message feel like one system, not two patterns. Collapsed
+   by default: the panel is small and a citation list shouldn't outweigh the
+   answer it supports. */
 .agent-sources {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
     margin-top: var(--space-2);
     padding-top: var(--space-2);
     border-top: 1px solid var(--border);
+}
+.agent-sources-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+.agent-sources-toggle:hover { color: var(--ink); }
+.agent-sources-chevron {
+    margin-left: auto;
+    transition: transform 0.15s ease;
+}
+.agent-sources-toggle[aria-expanded="true"] .agent-sources-chevron { transform: rotate(180deg); }
+.agent-sources-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: var(--space-1);
+}
+.agent-sources-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    .agent-sources-chevron { transition: none; }
 }
 .agent-source-link {
     font-family: var(--font-mono);

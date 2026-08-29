@@ -285,7 +285,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         try {
             while (mine === generation && !disposed) {
                 if (!pending.length || inFlight >= LOOKAHEAD) break;
-                const { seq, text } = pending.shift();
+                const { seq, text, rawText } = pending.shift();
                 inFlight += 1;
                 // Deliberately not awaited: several may be in flight at once,
                 // which is the point.
@@ -305,7 +305,10 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
                     if (mine !== generation || disposed) return;
                     // Recorded even when null, so drainReady() can skip past a
                     // failed chunk instead of stalling the whole reply on it.
-                    decoded.set(seq, { buf, text });
+                    // `rawText` (not the trimmed `text` sent to synthesize()),
+                    // so the boundary whitespace/paragraph break this chunk
+                    // started with survives to the screen.
+                    decoded.set(seq, { buf, text: rawText });
                     drainReady();
                     produce();
                     settleIfDone();
@@ -351,7 +354,14 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     function enqueue(text) {
         const trimmed = text.trim();
         if (!trimmed) return;
-        pending.push({ seq: seqCounter++, text: trimmed });
+        // `rawText` (untrimmed) is what ends up on screen via
+        // onChunkScheduled; `trimmed` is only ever sent to /api/agent-speak.
+        // Chunk boundaries fall right after a sentence/clause end, so the
+        // separating whitespace — a space, or a paragraph's \n\n — lands as
+        // the *next* chunk's leading edge. Trimming that away before it
+        // reaches the reveal queue glued adjacent chunks together on screen
+        // and ate paragraph breaks entirely.
+        pending.push({ seq: seqCounter++, text: trimmed, rawText: text });
         chunkIndex += 1;
         if (!scheduledCount && !announcedPlaying) emitState("speaking");
         produce();
