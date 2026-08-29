@@ -20,7 +20,7 @@
 // 2. Chunk sizes must *ramp*, not sit at a constant. For playback never to
 //    starve, chunk N+1 must synthesize faster than chunk N plays:
 //    0.69 * dur(N+1) <= dur(N), so each chunk can be at most ~1.45x the last
-//    with one request in flight (more with LOOKAHEAD 2). A flat "just use big
+//    with one request in flight (more with LOOKAHEAD 3). A flat "just use big
 //    chunks" would starve badly right after a short opener — 600 chars is ~44s
 //    of audio and ~30s of synthesis.
 //
@@ -53,10 +53,12 @@ const NATURAL_BOUNDARY_SLACK = 1.6;
 // and the fast-start win is lost.
 const CHUNK_MIN = 20;
 
-// How many chunks may be synthesized ahead of playback. 2 gives comfortable
-// headroom against the starvation rule without multiplying rate-limit spend
-// or per-minute Vertex quota pressure the way unbounded parallelism would.
-const LOOKAHEAD = 2;
+// How many chunks may be synthesized ahead of playback. Real-world Vertex
+// latency variance can still starve playback at 2 — bumped to 3 for more
+// buffered runway against a single slow response, without multiplying
+// rate-limit spend (total /api/agent-speak calls per turn is unchanged,
+// only how many are ever concurrent) or approaching unbounded parallelism.
+const LOOKAHEAD = 3;
 
 // Scheduling cushion. When starting a fresh run (or recovering from a starve)
 // the first buffer is scheduled this far ahead of currentTime so the decode
@@ -70,8 +72,13 @@ const CHARS_PER_SEC_OF_SPEECH = 13.5;
 const SYNTH_RATIO = 0.69;
 
 // Safety margin on top of the estimated synthesis time, covering network
-// round-trip, decode, and the model's own variance.
-const RUNWAY_MARGIN_S = 1.0;
+// round-trip, decode, and the model's own variance. Widened from 1.0: real
+// stalls were still happening at that margin, so drain() now gives up on
+// waiting to fill a bigger chunk sooner, favoring an earlier, smaller,
+// faster-to-synthesize chunk whenever the runway estimate is anything less
+// than comfortable. Costs a few more (still natural-boundary) seams on some
+// replies; per this file's own "safety wins" rule, that's the right trade.
+const RUNWAY_MARGIN_S = 1.5;
 
 // A sentence ending: . ! or ? that is genuinely the end of a sentence.
 //
