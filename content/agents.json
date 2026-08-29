@@ -63,7 +63,7 @@
       },
       {
         "tech": "Voice runs as plain REST, outside the ADK loop",
-        "why": "The transcribe and speak routes call Vertex directly instead of going through the agent. The text path is untouched, so if speech fails the answer is still on screen. They also spend their own rate-limit budgets, which means a bad recording or a long spoken reply never costs a visitor one of their four questions."
+        "why": "The transcribe and speak routes call Vertex directly instead of going through the agent. The text path is untouched, so if speech fails the answer is still on screen. They also spend their own rate-limit budgets, which means a bad recording or a long spoken reply never costs a visitor one of their ten questions."
       },
       {
         "tech": "Sentence-chunked TTS on the Web Audio clock",

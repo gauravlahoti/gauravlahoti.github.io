@@ -40,9 +40,9 @@ All tools are plain Python functions in `app/tools.py` with type-hinted signatur
 - **Prompt-injection short-circuit:** input matching `/ignore (previous|all) instructions|system:|<\|im_start\|>/i` returns a canned safe reply without calling the model.
 - **Length cap:** user messages > 1000 chars rejected with a friendly message.
 - **Cost cap:** `max_output_tokens=3000` per response (~2000 words).
-- **Rate limits — hard 4-question ceiling per visitor.** Two layers:
-    - **Per sessionId:** 4 messages per 24-hour rolling window. Once a session is exhausted, sending more from that page-load returns 429.
-    - **Per IP-hash:** 4 messages per 24-hour rolling window. Stops the trivial "reload to get a new sessionId" bypass — the IP cap is the true ceiling. IP hashed with `sha256(ip + UTC_DATE)`, rotating daily.
+- **Rate limits — hard 10-question ceiling per visitor.** Two layers:
+    - **Per sessionId:** 10 messages per 24-hour rolling window. Once a session is exhausted, sending more from that page-load returns 429.
+    - **Per IP-hash:** 10 messages per 24-hour rolling window. Stops the trivial "reload to get a new sessionId" bypass — the IP cap is the true ceiling. IP hashed with `sha256(ip + UTC_DATE)`, rotating daily.
 - **No PII collection.** Only IP **hash** is touched; never persisted across instance restarts.
 
 ## Success criteria

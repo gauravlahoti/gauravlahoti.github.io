@@ -5,37 +5,47 @@
     "subtitle": "Portfolio Intelligence Agent",
     "role": "Conversational AI",
     "status": "LIVE",
-    "headline": "The AI behind the chat widget on this portfolio.",
-    "description": "Atlas answers questions about Gaurav in real time. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Inference runs on a Gemini cascade that keeps the widget answering even if the primary model is temporarily unavailable.",
-    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
-    "stack": ["Google ADK", "Live Retrieval Tools", "Gemini 3.7 → 3.6 Flash", "Cloud Run", "MCP", "SSE"],
-    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v1.svg?v=2",
-    "diagramAlt": "Browser → SSE → Cloud Run ADK Agent → Live Retrieval Tools (content JSON) + Resend MCP Server",
+    "headline": "The AI behind the chat widget on this portfolio. Type to it, or talk to it.",
+    "description": "Atlas answers questions about Gaurav in real time, by text or by voice. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Three Gemini models sit behind it: a dedicated speech model for the mic, a tiered reasoning cascade for the answer, and a TTS model that reads the reply back while it is still streaming.",
+    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, and have it talk back. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
+    "stack": ["Google ADK", "Gemini 3.7 → 3.6 Flash", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v2.svg",
+    "diagramAlt": "Browser mic and speaker talk to two plain REST routes on Cloud Run that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly, while the composer streams over SSE to the ADK Agent running Gemini 3.7 to 3.6 Flash, which calls ADK Skills for retrieval and the Resend MCP server for email.",
     "steps": [
       {
         "n": 1,
-        "label": "Visitor sends a question via SSE",
-        "detail": "The browser opens a Server-Sent Events stream to Cloud Run. Questions are rate-limited per IP and stripped of injection attempts before reaching the ADK runner."
+        "label": "Visitor taps the mic and speaks",
+        "detail": "MediaRecorder captures a clip in the browser, capped at 30 seconds, and posts it to /api/agent-transcribe. Nothing reaches a model until the visitor stops recording."
       },
       {
         "n": 2,
-        "label": "ADK Agent calls the retrieval tool it needs",
-        "detail": "Gemini picks from nine on-demand tools — profile, work history, projects, posts, certifications, live agents, site stats, plus two email actions — instead of stuffing the whole corpus into every prompt. Inference cascades: gemini-3.7-flash first, falling back to gemini-3.6-flash if the primary returns a transient error, both running on Vertex AI for reliable capacity."
+        "label": "Gemini 3.5 Transcribe returns a clean transcript",
+        "detail": "A purpose-built speech model, not a reasoning model with audio bolted on. SMART mode strips filler words and false starts, and a custom vocabulary biases recognition toward the proper nouns on this site. The transcript prefills the composer and stops there. A human keystroke always sends the message."
       },
       {
         "n": 3,
-        "label": "Tool fetches live corpus data",
-        "detail": "Each retrieval tool reads the site's own content JSON at request time, with a short TTL cache and a bundled snapshot as offline fallback. Content edits reflect within seconds, no redeploy needed."
+        "label": "The message opens an SSE stream",
+        "detail": "The browser opens a Server-Sent Events stream to /api/agent-chat on Cloud Run. Questions are rate-limited per session and per IP, and stripped of injection attempts before reaching the ADK runner."
       },
       {
         "n": 4,
-        "label": "Response streams back with citations",
-        "detail": "Tokens stream through SSE as generated. A [[META]] block carries citation URLs and follow-up chip suggestions. The widget validates and renders them as UI."
+        "label": "The agent reasons and calls the tool it needs",
+        "detail": "Gemini picks from nine on-demand tools, covering profile, work history, projects, posts, certifications, live agents, site stats, and two email actions, instead of stuffing the whole corpus into every prompt. Retrieval tools read the site's own content JSON at request time. Email actions route through the Resend MCP server, so the agent holds no credentials. Inference cascades from gemini-3.7-flash to gemini-3.6-flash on a transient error."
       },
       {
         "n": 5,
-        "label": "Email actions go via Resend MCP",
-        "detail": "Resume sends and contact notes route through the Resend MCP Server. The agent holds no credentials; it just calls the tool."
+        "label": "The reply streams back with citations",
+        "detail": "Tokens stream through SSE as they are generated. A [[META]] block carries citation URLs and follow-up chip suggestions, which the widget validates and renders as UI."
+      },
+      {
+        "n": 6,
+        "label": "The browser cuts the reply into sentences and sends them to be spoken",
+        "detail": "If the visitor has turned on spoken replies, the widget splits the stream at sentence boundaries and posts each chunk to /api/agent-speak while the rest of the answer is still arriving. Chunk sizes ramp up, so the first words start playing after the first short sentence rather than after the whole answer."
+      },
+      {
+        "n": 7,
+        "label": "Gemini 3.1 Flash TTS returns audio, Web Audio plays it seamlessly",
+        "detail": "Each chunk comes back as 24 kHz PCM in the Charon voice. The browser decodes it and schedules it on the Web Audio clock at the exact moment the previous chunk ends, so there is no gap between sentences. Up to two syntheses run ahead of playback to keep it that way."
       }
     ],
     "techDecisions": [
@@ -45,7 +55,19 @@
       },
       {
         "tech": "Tiered Gemini (3.7 → 3.6 Flash)",
-        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. On a transient capacity error the request transparently cascades to the next model on Vertex AI — the widget keeps answering instead of erroring when one model is briefly unavailable."
+        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. On a transient capacity error the request transparently cascades to the next model on Vertex AI, so the widget keeps answering instead of erroring when one model is briefly unavailable."
+      },
+      {
+        "tech": "A dedicated speech model, not Flash with audio",
+        "why": "Gemini Flash can transcribe audio, but it decides what to keep as a byproduct of reasoning. gemini-3.5-transcribe has two switches a reasoning model does not: SMART mode, which strips filler words and self-corrections, and a custom vocabulary that biases recognition toward names like Deloitte, Topmate, and ADK. Both matter more here than raw capability."
+      },
+      {
+        "tech": "Voice runs as plain REST, outside the ADK loop",
+        "why": "The transcribe and speak routes call Vertex directly instead of going through the agent. The text path is untouched, so if speech fails the answer is still on screen. They also spend their own rate-limit budgets, which means a bad recording or a long spoken reply never costs a visitor one of their ten questions."
+      },
+      {
+        "tech": "Sentence-chunked TTS on the Web Audio clock",
+        "why": "Synthesising a whole answer means waiting for the whole answer. Instead the reply is cut at sentence boundaries as it streams, chunks are synthesised up to two ahead in parallel, and each is scheduled back to back on the AudioContext clock so playback has no seams. Synthesis runs at roughly 0.7x realtime, so once it starts it stays ahead."
       },
       {
         "tech": "Live retrieval tools",
@@ -53,7 +75,7 @@
       },
       {
         "tech": "Cloud Run (min-instances=0)",
-        "why": "Zero idle cost. Cold-starts in ~6s. A /warm endpoint, pinged when the page loads, hides the cold-start behind the hero section read time."
+        "why": "Zero idle cost. A scheduled ping every five minutes keeps an instance warm, which buys the same latency that minimum instances would charge for."
       },
       {
         "tech": "Model Context Protocol (MCP)",
@@ -66,16 +88,17 @@
     ],
     "traits": [
       { "label": "Model",          "value": "Gemini 3.7 → 3.6 Flash (tiered)" },
+      { "label": "Voice",          "value": "Gemini 3.5 Transcribe · 3.1 Flash TTS" },
       { "label": "Framework",      "value": "Google ADK 1.32+" },
       { "label": "Runtime",        "value": "Cloud Run (gen2)" },
       { "label": "Latency p50",    "value": "~1.2 s warm" },
       { "label": "Grounding",      "value": "Live retrieval tools · content JSON" },
-      { "label": "Pattern",        "value": "Tool Use · MCP · Streaming" }
+      { "label": "Pattern",        "value": "Tool Use · MCP · Streaming · Voice" }
     ],
     "searchMeta": {
       "type": "Chat",
       "model": "Gemini 3.7 → 3.6 Flash (tiered)",
-      "patterns": ["RAG", "Tool Use", "MCP", "Streaming"]
+      "patterns": ["RAG", "Tool Use", "MCP", "Streaming", "Voice", "STT", "TTS"]
     },
     "links": [
       { "label": "Try it live",         "href": "/#top" }
