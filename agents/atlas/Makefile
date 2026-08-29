@@ -46,17 +46,21 @@ _FREE_KEY = KEY="$${GEMINI_API_KEY:-$$(gcloud secrets versions access latest --s
 	echo ">> Agent on AI Studio free tier; judge on adk-mas-demo Vertex (~32 calls/run)";
 
 eval: ## Run the FULL 16-case eval gate. Agent on AI Studio free tier; judge on adk-mas-demo Vertex. Use before deploy.
+	@mkdir -p artifacts/eval_datasets
+	@uv run python tests/eval/prepare_evalset.py tests/eval/evalsets/portfolio.evalset.json artifacts/eval_datasets/portfolio.generated.evalset.json
 	@$(_FREE_KEY) \
 	uv sync --frozen --extra eval && \
 	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
-		agents-cli eval run --dataset tests/eval/evalsets/portfolio.evalset.json --config tests/eval/eval_config.yaml
+		agents-cli eval run --dataset artifacts/eval_datasets/portfolio.generated.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/portfolio.evalset.json
 
 eval-quick: ## Cheap 2-case smoke eval on the free-tier key (routine checks; ~4 calls).
+	@mkdir -p artifacts/eval_datasets
+	@uv run python tests/eval/prepare_evalset.py tests/eval/evalsets/basic.evalset.json artifacts/eval_datasets/basic.generated.evalset.json
 	@$(_FREE_KEY) \
 	uv sync --frozen --extra eval && \
 	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
-		agents-cli eval run --dataset tests/eval/evalsets/basic.evalset.json --config tests/eval/eval_config.yaml
+		agents-cli eval run --dataset artifacts/eval_datasets/basic.generated.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/basic.evalset.json
 
 lint: ## Lint with ruff (auto-fix).
