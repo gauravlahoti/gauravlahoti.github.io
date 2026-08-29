@@ -21,19 +21,22 @@ window:
 IP is hashed with `sha256(ip + UTC_DATE)` so the hash rotates daily by
 construction — no manual salt rotation needed.
 
-**`chat`** — 4 messages / 24h per layer. This is the visitor-facing question
+**`chat`** — 10 messages / 24h per layer. This is the visitor-facing question
 budget: a visitor who reloads to escape the session cap is stopped by the IP
-cap. After 24 hours, both budgets refresh.
+cap. After 24 hours, both budgets refresh. Raised from 4 once spec 51's
+keep-warm ping stopped scale-to-zero from silently resetting these in-process
+counters, which made the cap bind for the first time.
 
 **`voice`** — 12 / 24h per layer. Transcribing must never spend a chat
-question (a bad recording shouldn't cost the visitor one of their 4
+question (a bad recording shouldn't cost the visitor one of their 10
 answers), so it's a wholly separate budget. It's higher than `chat` because
 re-recording after a mis-transcription is normal, expected usage, not abuse.
 
-**`speak`** — 40 / 24h per layer. Synthesis is charged per sentence chunk,
+**`speak`** — 60 / 24h per layer. Synthesis is charged per sentence chunk,
 not per reply (see `agent-speech.js`), so a single spoken answer costs
-several slots. At ~5 chunks an answer this is roughly 8 spoken replies a
-day, comfortably more than the 4 chat questions that can produce them. Like
+several slots. At ~5 chunks an answer this is roughly 12 spoken replies a
+day, which keeps the deliberate margin over the 10 chat questions that can
+produce them. This bucket must be resized whenever `chat` is. Like
 `voice`, it must never spend a chat question — and unlike both others, going
 over it is harmless: the reply is already on screen, it just stops being
 read aloud.
@@ -48,9 +51,9 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 
 BUCKETS: dict[str, dict[str, int]] = {
-    "chat":  {"session": 4,  "ip": 4,  "window_s": 24 * 60 * 60},
+    "chat":  {"session": 10, "ip": 10, "window_s": 24 * 60 * 60},
     "voice": {"session": 12, "ip": 12, "window_s": 24 * 60 * 60},
-    "speak": {"session": 40, "ip": 40, "window_s": 24 * 60 * 60},
+    "speak": {"session": 60, "ip": 60, "window_s": 24 * 60 * 60},
 }
 
 

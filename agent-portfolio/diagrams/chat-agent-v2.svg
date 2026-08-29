@@ -89,7 +89,7 @@
   <!-- /api/agent-speak — x=468 y=276 330×66 -->
   <rect x="468" y="276" width="330" height="66" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
   <text x="486" y="302" class="node-title">/api/agent-speak</text>
-  <text x="486" y="322" class="node-sub">one call per sentence · speak bucket 40/day</text>
+  <text x="486" y="322" class="node-sub">one call per sentence · speak bucket 60/day</text>
 
   <!-- ADK Agent — x=452 y=425 356×100 -->
   <rect x="452" y="425" width="356" height="100" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
@@ -97,7 +97,7 @@
   <text x="506" y="455" class="node-title">ADK Agent</text>
   <text x="506" y="474" class="node-sub">/api/agent-chat · SSE</text>
   <text x="506" y="492" class="node-sub">9 tools · orchestrator</text>
-  <text x="470" y="512" class="node-sub">chat bucket 4/day</text>
+  <text x="470" y="512" class="node-sub">chat bucket 10/day</text>
 
   <!-- Vertex model chips -->
   <rect x="922" y="190" width="286" height="66" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>

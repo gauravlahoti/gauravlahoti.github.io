@@ -230,12 +230,28 @@ export function initAgentWidget(root, profile, sessionId) {
 
     const SPEAKER_PREF_KEY = "atlas.speakReplies";
 
-    // The preference is remembered, but it is only ever *applied* after a
-    // click in this page session — see toggleSpeaker(). Browsers require a
-    // user gesture before audio may play, and restoring a saved "on" straight
-    // into autoplay would be both blocked and rude.
+    // Voice is the default. A visitor who never touches the toggle gets spoken
+    // replies, because the feature is the point of the widget and burying it
+    // behind an unlabelled icon meant almost nobody found it.
+    //
+    // "On by default" still does not mean "audio with no warning": the first
+    // time a reply would ever be spoken, sendMessage() shows the consent card
+    // and keeps that turn silent. Consent is asked once, then remembered, so
+    // this costs a returning visitor nothing.
+    const SPEAK_DEFAULT_ON = true;
+
+    // Note this is only ever *applied* inside a click — see toggleSpeaker() and
+    // openPanel(). Browsers require a user gesture before audio may play, so
+    // the stored preference selects the mode while the gesture unlocks it.
     function readSpeakerPref() {
-        try { return localStorage.getItem(SPEAKER_PREF_KEY) === "1"; } catch (_) { return false; }
+        try {
+            const v = localStorage.getItem(SPEAKER_PREF_KEY);
+            // Absent means "never chosen", which is where the default applies.
+            // Only an explicit "0" counts as off.
+            return v === null ? SPEAK_DEFAULT_ON : v === "1";
+        } catch (_) {
+            return SPEAK_DEFAULT_ON;
+        }
     }
     function writeSpeakerPref(on) {
         try { localStorage.setItem(SPEAKER_PREF_KEY, on ? "1" : "0"); } catch (_) { /* private mode */ }
@@ -418,13 +434,13 @@ export function initAgentWidget(root, profile, sessionId) {
         card.setAttribute("aria-label", "Spoken replies");
         const copy = document.createElement("p");
         copy.className = "agent-consent-copy";
-        copy.textContent = "Atlas will read its answers out loud in a synthesized voice. You can turn this off any time.";
+        copy.textContent = "Atlas reads its answers out loud in a synthesized voice. Turn it off any time with the speaker icon.";
         const actions = document.createElement("div");
         actions.className = "agent-consent-actions";
         const yes = document.createElement("button");
         yes.type = "button";
         yes.className = "agent-consent-yes";
-        yes.textContent = "Turn on";
+        yes.textContent = "Sounds good";
         const no = document.createElement("button");
         no.type = "button";
         no.className = "agent-consent-no";
@@ -433,11 +449,25 @@ export function initAgentWidget(root, profile, sessionId) {
         card.append(copy, actions);
         dom.panel.insertBefore(card, dom.inputRow);
 
-        no.addEventListener("click", () => card.remove());
+        // Declining has to be recorded, not just dismissed. Voice defaults on,
+        // so leaving the pref unwritten would re-arm it and re-prompt on the
+        // next turn — the visitor said no, and that has to stick.
+        no.addEventListener("click", () => {
+            card.remove();
+            try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
+            speakerOn = false;
+            writeSpeakerPref(false);
+            setSpeakerMode("off");
+        });
         yes.addEventListener("click", async () => {
             try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
             card.remove();
             await enableSpeaker();
+            // Speak the answer already on screen. Without this, agreeing does
+            // nothing audible until the visitor thinks of something else to
+            // ask, which reads as a broken button.
+            const last = [...messages].reverse().find(m => m.role === "assistant");
+            if (last?.content && speakerOn && speaker) speaker.speak(last.content);
         });
         yes.focus();
     }
@@ -809,6 +839,17 @@ export function initAgentWidget(root, profile, sessionId) {
         abortController = new AbortController();
         setSendMode("stop");
         if (FEATURES.voiceInput) micBtn.disabled = true;
+
+        // Voice is on by default, so the first reply a visitor ever gets would
+        // otherwise start talking unannounced. Ask here instead: this turn
+        // stays silent, the card sits above the composer while the answer
+        // streams in, and agreeing speaks that same answer back rather than
+        // making them ask again. Asked once ever, then remembered.
+        if (FEATURES.speakReplies && speakerOn && !hasConsented()) {
+            speakerOn = false;          // silence THIS turn only
+            setSpeakerMode("off");      // the pref is deliberately not written:
+            renderConsentCard();        // nothing was chosen yet
+        }
 
         // Spec 49: a new turn silences the previous one and rebuilds the
         // engine if the panel was closed since it last spoke. Awaited here,

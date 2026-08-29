@@ -26,8 +26,8 @@ event format. Five routes:
 
 Rate limiting is enforced before the ADK runner (or the transcribe call) is
 invoked. Each route has its own independent budget bucket — see
-`rate_limit.py` for details. The chat bucket is layered: 4 messages per
-sessionId per 24h AND 4 messages per IP-hash per 24h. The IP cap is the
+`rate_limit.py` for details. The chat bucket is layered: 10 messages per
+sessionId per 24h AND 10 messages per IP-hash per 24h. The IP cap is the
 ceiling — reloading to get a fresh sessionId does not bypass it.
 """
 
@@ -607,7 +607,7 @@ def register_routes(app: FastAPI) -> None:
             )
 
         # Own bucket (see rate_limit.py): transcribing must never spend one
-        # of the visitor's 4 chat questions. No geo lookup, no audit log —
+        # of the visitor's 10 chat questions. No geo lookup, no audit log —
         # this isn't a chat turn.
         raw_ip = _client_ip(request)
         ip_hash = limiter.hash_ip(raw_ip)
@@ -663,7 +663,7 @@ def register_routes(app: FastAPI) -> None:
             )
 
         # Own bucket (see rate_limit.py): synthesis must never spend one of
-        # the visitor's 4 chat questions. No geo lookup, no audit log — the
+        # the visitor's 10 chat questions. No geo lookup, no audit log — the
         # chat turn that produced this text was already logged, and logging
         # again per sentence chunk would multiply one answer into several
         # rows.
@@ -763,11 +763,11 @@ def register_routes(app: FastAPI) -> None:
         ip_hash = limiter.hash_ip(raw_ip)
         allowed, _reason = limiter.check_and_record(session_id, ip_hash)
         if not allowed:
-            # Both session and IP buckets cap at 4/24h, so the user-facing
+            # Both session and IP buckets cap at 10/24h, so the user-facing
             # message is the same regardless of which one fired.
             msg = (
                 "Thanks for the conversation — that's the question budget for "
-                "today (4 per visitor). For anything more, the best place is "
+                "today (10 per visitor). For anything more, the best place is "
                 "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
                 "tomorrow!"
             )
