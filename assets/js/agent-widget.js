@@ -14,7 +14,7 @@ const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
 
 const FEATURES = Object.freeze({
     citations:       true,
-    suggestions:     true,
+    suggestions:     false, // off: post-reply follow-up chips, not the opening starter chips (.agent-prompts, unaffected)
     cta:             true,
     typingCursor:    true,
     scrollNudge:     false,
