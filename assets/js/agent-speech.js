@@ -38,7 +38,7 @@
 // prosody reset — the model synthesizes each in isolation — so fewer, longer
 // chunks sound markedly more natural. Growth stays under the ~1.45x-per-chunk
 // ceiling the starvation rule allows. Capped at the last value.
-const CHUNK_RAMP = [70, 140, 240, 350];
+const CHUNK_RAMP = [36, 140, 240, 350];
 
 // How far past a ramp limit we will wait for a *natural* boundary before
 // giving up and breaking on a bare word. Splitting mid-sentence is the one
@@ -135,7 +135,7 @@ function base64ToArrayBuffer(b64) {
 // `onStateChange` fires with "speaking" | "idle"; `onPlaying()` fires when
 // audio genuinely starts; `onError(message)` fires once per turn on failure
 // and is always followed by an "idle" state change.
-export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying }) {
+export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying, onChunkScheduled }) {
     let buffer = "";          // text received but not yet chunked
     let chunkIndex = 0;       // position in CHUNK_RAMP for the current turn
     let pending = [];         // {seq, text} awaiting synthesis
@@ -225,7 +225,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     // buffer durations rather than being recomputed from the clock, clips join
     // sample-accurately instead of drifting apart by however long each
     // play() call happened to take.
-    function schedule(audioBuffer) {
+    function schedule(audioBuffer, text) {
         if (disposed) return;
         // Should never happen — unlock() runs from the click that enables the
         // speaker — but dropping audio silently because a context was missing
@@ -236,6 +236,13 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         // Starved (or starting fresh): the cursor is in the past, so pull it
         // forward. This is the only place a gap can appear.
         if (nextStartTime < now + START_LEAD_S) nextStartTime = now + START_LEAD_S;
+
+        // Spec 55: this is the exact schedule a text-reveal queue needs to
+        // pace words against the voice — the same cursor and duration that
+        // drive playback itself, not a second, independently-guessed timing.
+        if (typeof onChunkScheduled === "function") {
+            onChunkScheduled({ text, ctxNow: now, ctxStartAt: nextStartTime, durationSec: audioBuffer.duration });
+        }
 
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
@@ -298,7 +305,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
                     if (mine !== generation || disposed) return;
                     // Recorded even when null, so drainReady() can skip past a
                     // failed chunk instead of stalling the whole reply on it.
-                    decoded.set(seq, buf);
+                    decoded.set(seq, { buf, text });
                     drainReady();
                     produce();
                     settleIfDone();
@@ -314,10 +321,23 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     // every later chunk behind it forever.
     function drainReady() {
         while (decoded.has(nextSeq)) {
-            const buf = decoded.get(nextSeq);
+            const { buf, text } = decoded.get(nextSeq);
             decoded.delete(nextSeq);
             nextSeq += 1;
-            if (buf) schedule(buf);
+            if (buf) {
+                schedule(buf, text);
+            } else if (typeof onChunkScheduled === "function") {
+                // Synthesis failed for this chunk: no audio to schedule, but
+                // the text still needs to surface so a reveal queue tied to
+                // this callback doesn't stall on it forever.
+                const ctxNow = ctx ? ctx.currentTime : 0;
+                onChunkScheduled({
+                    text,
+                    ctxNow,
+                    ctxStartAt: ctxNow,
+                    durationSec: text.length / CHARS_PER_SEC_OF_SPEECH,
+                });
+            }
         }
     }
 
