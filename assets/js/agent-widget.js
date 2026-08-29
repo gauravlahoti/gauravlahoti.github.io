@@ -177,6 +177,7 @@ export function initAgentWidget(root, profile, sessionId) {
             sendCurrent();
         }
     });
+    input.addEventListener("input", autoGrowInput);
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
@@ -267,13 +268,28 @@ export function initAgentWidget(root, profile, sessionId) {
         voiceEngine.start();
     }
 
+    // Grows the composer to fit wrapped content, up to the CSS max-height
+    // (120px) on .agent-input — past that, the existing max-height + the
+    // textarea's default overflow:auto take over and it scrolls internally
+    // instead of growing further, so this can never push the panel's other
+    // controls around. Resetting to "auto" first (rather than only ever
+    // growing) is what lets it shrink back down when text is deleted or the
+    // composer is cleared after send.
+    function autoGrowInput() {
+        input.style.height = "auto";
+        input.style.height = input.scrollHeight + "px";
+    }
+
     // Sets the composer text and focuses it without sending. Shared by the
     // action chips and (spec 45) WebMCP's draft_note_to_gaurav tool — a real
-    // human keystroke is always required to actually send.
+    // human keystroke is always required to actually send. A direct .value
+    // assignment never fires an "input" event, so this must call
+    // autoGrowInput() itself rather than relying on the input listener below.
     function prefillComposer(text) {
         if (isPending) return false;
         const s = String(text || "");
         input.value = s + (s.endsWith(" ") ? "" : " ");
+        autoGrowInput();
         input.focus();
         const len = input.value.length;
         try { input.setSelectionRange(len, len); } catch (_) { /* ignore */ }
@@ -516,6 +532,7 @@ export function initAgentWidget(root, profile, sessionId) {
 
         promptsEl.classList.add("is-hidden");
         input.value = "";
+        autoGrowInput();
         isPending = true;
         wasStopped = false;
         abortController = new AbortController();
