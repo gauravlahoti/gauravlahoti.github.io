@@ -121,12 +121,22 @@ export function initAgentWidget(root, profile, sessionId) {
     // gap desktop browsers tolerate between a gesture and unlock() but mobile
     // ones largely don't, which is why TTS worked on desktop and was
     // completely (silently) dead on mobile.
+    //
+    // The resume() check runs on EVERY call, not just when a context is
+    // first created: mobile browsers (iOS Safari especially) suspend an
+    // existing, otherwise-fine AudioContext far more readily than desktop —
+    // backgrounding the tab, locking the screen, even just a lull in
+    // activity — so a context that worked for the first reply can go quiet
+    // again before the next one. Each new turn is itself a fresh user
+    // gesture (sendCurrent's ensureSpeaker() call), which is exactly what a
+    // repeat resume() needs to succeed.
     let primedAudioContext = null;
     function primeAudioContext() {
-        if (primedAudioContext && primedAudioContext.state !== "closed") return primedAudioContext;
-        const Ctor = window.AudioContext || window.webkitAudioContext;
-        if (!Ctor) return null;
-        primedAudioContext = new Ctor();
+        if (!primedAudioContext || primedAudioContext.state === "closed") {
+            const Ctor = window.AudioContext || window.webkitAudioContext;
+            if (!Ctor) return null;
+            primedAudioContext = new Ctor();
+        }
         if (primedAudioContext.state === "suspended") {
             primedAudioContext.resume().catch(() => { /* best effort — agent-speech.js's own unlock() retries and surfaces a note on failure */ });
         }
