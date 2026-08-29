@@ -2,19 +2,26 @@
 
 The static site (`assets/js/agent-widget.js`) talks to these routes — not
 ADK's native `/run_sse` — so the frontend stays decoupled from ADK's internal
-event format. Three routes:
+event format. Four routes:
 
 - `POST /api/agent-chat` — SSE stream emitting `{"delta": str}` per chunk and
   `{"done": true}` to close. Request shape mirrors spec #20:
       {"sessionId": "uuid-v4", "messages": [{"role": "user|assistant", "content": str}, ...]}
+- `POST /api/agent-transcribe` — speech-to-text for the mic button (spec #48).
+  Ears only: turns a recorded clip into text for the composer, never sends a
+  turn itself.
+      {"sessionId": "uuid-v4", "mimeType": "audio/webm", "audio": "<base64>"}
+  → 200 {"text": str} | 400 bad input | 429 voice budget exhausted |
+    502 transcription unavailable. See `app/app_utils/transcribe.py`.
 - `GET  /api/agent-chat/warm` — 200 OK, no work. Frontend fires this on
   FAB-open to spin up Cloud Run before the user types.
 - `GET  /healthz` — Cloud Run liveness probe.
 
-Rate limiting is enforced before the ADK runner is invoked. The strategy
-is layered: 4 messages per sessionId per 24h AND 4 messages per IP-hash
-per 24h. The IP cap is the ceiling — reloading to get a fresh sessionId
-does not bypass it. See `rate_limit.py` for details.
+Rate limiting is enforced before the ADK runner (or the transcribe call) is
+invoked. Each route has its own independent budget bucket — see
+`rate_limit.py` for details. The chat bucket is layered: 4 messages per
+sessionId per 24h AND 4 messages per IP-hash per 24h. The IP cap is the
+ceiling — reloading to get a fresh sessionId does not bypass it.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.resume_send import warm_mcp_server
+from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
     INJECTION_REPLY_PREFIX,
@@ -545,6 +553,77 @@ def register_routes(app: FastAPI) -> None:
         # have to wait out its cold start.
         mcp_ready = await warm_mcp_server()
         return {"ok": True, "mcpReady": mcp_ready}
+
+    # ~3x the client's 30s recording cap at 24kbps opus, so a legitimate clip
+    # never trips this — it exists to stop a crafted request from posting a
+    # huge body straight into a Gemini call.
+    _MAX_AUDIO_B64_CHARS = 2_200_000
+
+    @app.post("/api/agent-transcribe")
+    async def agent_transcribe(request: Request) -> Any:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return JSONResponse(
+                status_code=400, content={"error": "Body must be JSON."}
+            )
+
+        session_id = (body or {}).get("sessionId")
+        mime_type = (body or {}).get("mimeType")
+        audio_b64 = (body or {}).get("audio")
+        if not isinstance(session_id, str) or not session_id:
+            return JSONResponse(
+                status_code=400, content={"error": "Missing sessionId."}
+            )
+        if not isinstance(mime_type, str):
+            return JSONResponse(
+                status_code=400, content={"error": "Missing mimeType."}
+            )
+        mime = normalize_mime(mime_type)
+        if mime is None:
+            return JSONResponse(
+                status_code=400, content={"error": "Unsupported audio format."}
+            )
+        if not isinstance(audio_b64, str) or not audio_b64:
+            return JSONResponse(
+                status_code=400, content={"error": "Missing audio."}
+            )
+        if len(audio_b64) > _MAX_AUDIO_B64_CHARS:
+            return JSONResponse(
+                status_code=400, content={"error": "Recording too large."}
+            )
+
+        # Own bucket (see rate_limit.py): transcribing must never spend one
+        # of the visitor's 4 chat questions. No geo lookup, no audit log —
+        # this isn't a chat turn.
+        raw_ip = _client_ip(request)
+        ip_hash = limiter.hash_ip(raw_ip)
+        allowed, _reason = limiter.check_and_record(
+            session_id, ip_hash, bucket="voice"
+        )
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": (
+                        "That's the voice-input budget for today. "
+                        "Type your question instead."
+                    )
+                },
+            )
+
+        text, _model_used = await transcribe_audio(audio_b64, mime)
+        if not text:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": (
+                        "Transcription is unavailable right now. "
+                        "Type your question instead."
+                    )
+                },
+            )
+        return {"text": text[:1000]}
 
     @app.post("/api/agent-chat")
     async def agent_chat(request: Request) -> Any:

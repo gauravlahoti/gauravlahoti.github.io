@@ -36,8 +36,11 @@ logger = logging.getLogger(__name__)
 # on the AI Studio free tier (near-100% 503 UNAVAILABLE in production logs
 # shortly after launch); this is the same project tests/eval/eval_config.yaml's
 # judge already runs on, for the same free-tier-unreliability reason.
-_ATLAS_VERTEX_PROJECT = "adk-mas-demo"
-_ATLAS_VERTEX_LOCATION = "global"
+ATLAS_VERTEX_PROJECT = "adk-mas-demo"
+ATLAS_VERTEX_LOCATION = "global"
+# Private aliases kept so existing internal references below are untouched.
+_ATLAS_VERTEX_PROJECT = ATLAS_VERTEX_PROJECT
+_ATLAS_VERTEX_LOCATION = ATLAS_VERTEX_LOCATION
 
 
 class FallbackGemini(Gemini):
