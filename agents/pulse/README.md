@@ -1,36 +1,40 @@
-# portfolio-agent
+# pulse
 
-Google ADK Python agent powering the "Ask my agent" chat widget on [gauravlahoti.dev](https://gauravlahoti.dev). Answers questions about Gaurav using five retrieval tools over a frozen JSON corpus. Deployed on Cloud Run (`min-instances=0`).
+Google ADK Python agent that runs on a schedule with no human in the loop
+and emails Gaurav one review-ready digest. No chat widget, no visitor-facing
+endpoint — its only callers are two Cloud Scheduler jobs. Deployed on Cloud
+Run (`min-instances=0`, service `pulse`).
+
+See `DESIGN_SPEC.md` for the full behaviour spec and `.claude/docs/agents.md`
+(repo root) for the cross-agent reference (Atlas / Pulse / RAG Lab).
 
 ## Project Structure
 
 ```
-portfolio-agent/
+pulse/
 ├── app/
-│   ├── agent.py               # Root agent definition
-│   ├── fast_api_app.py        # FastAPI + SSE streaming endpoint
-│   ├── ambient_agent.py       # Background ambient agent (visitor digest)
-│   ├── guardrails.py          # [[META]] injection defense + citation validation
+│   ├── agent.py                     # Points App(name="app") at ambient_agent
+│   ├── ambient_agent.py             # The one task: insights -> send_review_email
+│   ├── fast_api_app.py              # FastAPI app; mounts api.py's routes
+│   ├── api.py                       # POST /api/ambient/{run,metrics}, GET /healthz
 │   └── app_utils/
-│       ├── audit_log.py       # POST /api/agent-log after each turn
-│       ├── resume_send.py     # send-resume-by-email via Resend MCP
-│       ├── note_send.py       # send-note-to-gaurav via Resend MCP
-│       ├── ambient_send.py    # weekly digest email via Resend MCP
-│       └── ambient_data.py    # visitor stats from Worker /api/ambient/stats
-├── tests/
-│   ├── unit/                  # Pure unit tests (no network)
-│   └── integration/           # Live agent smoke tests
-│       └── evalsets/          # Eval set for agents-cli eval gate
-├── .env.example               # All required env vars with docs
-├── Makefile                   # dev, corpus, audit shortcuts
-└── pyproject.toml             # Dependencies (managed by agents-cli / uv)
+│       ├── ambient_data.py          # get_recent_interactions — reads Atlas's D1 conversations
+│       ├── ambient_send.py          # send_review_email — builds the dashboard + sends via Resend MCP
+│       ├── post_metrics.py          # LinkedIn engagement scrape -> D1 (no LLM)
+│       ├── resume_send.py           # shared MCP send path (warm_mcp_server, record_send_failure) —
+│       │                            #   kept identical to atlas's copy; see docs/agents.md
+│       └── telemetry.py, typing.py
+├── tests/unit/                      # test_ambient.py, test_dummy.py — no eval gate
+├── .env.example                     # All required env vars with docs
+├── Makefile                         # dev, smoke, lint, deploy — no corpus/eval targets
+└── pyproject.toml                   # Dependencies (managed by agents-cli / uv)
 ```
 
 ## Quick Start
 
 ```bash
 cp .env.example .env           # fill in real values
-make dev                       # FastAPI dev server on :8000
+make dev                       # FastAPI dev server on :8001
 agents-cli playground          # interactive web UI
 ```
 
@@ -38,62 +42,68 @@ agents-cli playground          # interactive web UI
 
 | Command | Purpose |
 |---------|---------|
-| `make dev` | FastAPI dev server on `:8000` |
+| `make dev` | FastAPI dev server on `:8001` |
 | `agents-cli playground` | Interactive ADK web UI |
-| `agents-cli run "prompt"` | One-shot smoke test |
-| `agents-cli eval run --evalset tests/eval/evalsets/portfolio.evalset.json` | Eval gate (required before deploy) |
-| `uv run pytest tests/unit tests/integration` | Unit + integration tests |
-| `make corpus` | Sync `content/*.json` → `app/corpus/` (run before every deploy) |
-| `make audit` | Smoke-test the audit log endpoint |
-| `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` | Deploy to Cloud Run |
+| `make smoke` | Drive one ambient cycle locally — **sends a real digest email** |
+| `uv run pytest tests/unit` | Unit tests |
+| `make lint` | Ruff, auto-fix |
+| `make deploy` | Deploy to Cloud Run |
+
+No `corpus` or `eval` target — that machinery is Atlas-only (Pulse has no
+retrieval corpus and no eval gate; see `DESIGN_SPEC.md`'s Success criteria).
 
 ## Environment Variables
 
-Copy `.env.example` → `.env` and fill in real values. Production values are mounted via GCP Secret Manager.
+Copy `.env.example` → `.env` and fill in real values. Production values are
+mounted via GCP Secret Manager (see the `deploy` target in `Makefile`).
 
 | Var | Purpose |
 |-----|---------|
 | `GEMINI_API_KEY` | Gemini API key (AI Studio free tier for local dev) |
-| `AGENT_LOG_URL` | Worker audit log endpoint (`/api/agent-log`) |
-| `AGENT_LOG_TOKEN` | Shared secret for the audit log endpoint |
-| `ALLOW_ORIGINS` | CORS allowlist (comma-separated) |
+| `AGENT_LOG_URL` | Worker endpoint `get_recent_interactions` reads Atlas's conversation data through |
+| `AGENT_LOG_TOKEN` | Shared secret for that endpoint |
+| `ALLOW_ORIGINS` | CORS allowlist (comma-separated) — mostly irrelevant here since nothing calls this from a browser |
 | `RESEND_MCP_URL` | Resend MCP server endpoint on Cloud Run |
-| `MCP_CALLER_TOKEN` | Bearer token for the Resend MCP server auth gate |
-| `RESEND_FROM_ADDRESS` | Verified sender address for resume emails |
-| `NOTE_FROM_ADDRESS` | Verified sender address for visitor notes |
-| `RESUME_PDF_URL` | Public resume PDF URL for email attachments |
-| `GAURAV_CONTACT_EMAIL` | Inbox that receives visitor notes |
-| `AMBIENT_TRIGGER_TOKEN` | Gates `POST /api/ambient/run` (ambient agent trigger) |
+| `MCP_CALLER_TOKEN` | Bearer token for the Resend MCP server's auth gate |
+| `RESEND_FROM_ADDRESS` | Verified sender address for the digest email |
+| `NOTE_FROM_ADDRESS` | Verified sender address for send-failure notices |
+| `GAURAV_CONTACT_EMAIL` | Inbox that receives the digest |
+| `AMBIENT_TRIGGER_TOKEN` | Gates both `POST /api/ambient/run` and `POST /api/ambient/metrics` via the `x-internal-token` header — dedicated secret, distinct from `AGENT_LOG_TOKEN` |
 
 ## Deploy Workflow
 
-1. `make corpus` — sync corpus from latest `content/*.json`
-2. `agents-cli eval run` — eval gate must pass (iterate until it does)
-3. `uv run pytest tests/unit tests/integration` — tests must pass
-4. Deploy:
-   ```bash
-   agents-cli deploy \
-     --service-name portfolio-agent \
-     --region us-central1 \
-     -- --allow-unauthenticated --cpu-boost --min-instances=0
-   ```
-5. Update `profile.json` (`links.agentApi`, `links.agentWarm`) and `index.html` CSP `connect-src` with the new Cloud Run URL.
+1. `uv run pytest tests/unit` — must pass
+2. Get explicit approval
+3. `make deploy`
 
-## Ambient Agent
+No eval gate. A bad prompt change won't fail loudly here — it just sends a
+worse email — so watch the next one or two scheduled runs land correctly
+rather than trusting green tests alone.
 
-`app/ambient_agent.py` runs on a Cloud Scheduler trigger (twice weekly). It:
+## What each scheduled run does
 
-1. Fetches visitor stats from `GET /api/ambient/stats?days=4`
-2. Fetches LinkedIn post engagement metrics
-3. Generates qualitative insights
-4. Drafts follow-up notes for pending leads
-5. Sends a single digest email to Gaurav via the Resend MCP server
+`app/ambient_agent.py`'s one task, triggered by `POST /api/ambient/run`
+(Cloud Scheduler, Mon/Thu 08:00):
 
-Trigger endpoint: `POST /api/ambient/run` (requires `X-Internal-Token: <AMBIENT_TRIGGER_TOKEN>`).
+1. `get_recent_interactions(days=4)` — reads what visitors actually asked
+   Atlas.
+2. Writes a short qualitative insights block (top themes, standout
+   questions, one confidence-scored improvement suggestion).
+3. `send_review_email(insights_html)` — called exactly once. Every metric
+   number in the dashboard (pageviews, visitors, downloads, top questions,
+   geo, errors) comes from this tool's own D1 query, never from the model.
+
+`POST /api/ambient/metrics` (every 2 days) is unrelated and simpler: scrapes
+LinkedIn engagement counts into D1, no LLM call, no email.
+
+Lead-follow-up drafting was removed 2026-08-09 — it depended on the
+resume-download gate retired 2026-06-10, and had been a silent no-op for two
+months by the time it was caught. See `.claude/docs/agents.md`.
 
 ## Rules
 
-- **Never hand-edit** `pyproject.toml [tool.agents-cli]` or `App(name="app")` — the CLI owns them.
-- **Eval must pass** before every deploy — no exceptions.
-- **Run `make corpus`** before every deploy — stale corpus = stale answers.
+- **Never hand-edit** `pyproject.toml [tool.agents-cli]` or `App(name="app")`
+  — the CLI owns them.
 - **Never change the model** unless explicitly asked.
+- **Every dashboard number comes from `send_review_email`'s own query, never
+  the model.** Don't let the instruction start asking it to restate a metric.
