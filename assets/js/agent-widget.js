@@ -108,6 +108,11 @@ export function initAgentWidget(root, profile, sessionId) {
     // callback fires asynchronously and needs to know which message to hang
     // the "Reading aloud" strip on.
     let currentAssistantLi = null;
+    // Spec 55: paces the current turn's reply text to the speaker's audio
+    // schedule instead of showing it instantly. Only set while speaking is
+    // active for the turn in flight; null means "stream text instantly" (the
+    // pre-spec-55 behavior), which is also what a speaker-off visitor gets.
+    let revealQueue = null;
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
@@ -337,6 +342,15 @@ export function initAgentWidget(root, profile, sessionId) {
                     apiUrl: speakApiUrl,
                     sessionId,
                     onStateChange: (state) => {
+                        // Unconditional, ahead of the speakerOn guard below:
+                        // this is the authoritative "the turn's audio — and so
+                        // its paced text — is fully done" signal, and it must
+                        // fire even when speakerOn just flipped false (the
+                        // speaker-off toggle cancels() before this callback
+                        // runs). Without it, whenDrained() could hang forever
+                        // and stray reveal timers would keep firing after
+                        // finalizeAssistant() has already replaced the DOM.
+                        if (state === "idle" && revealQueue) revealQueue.stop();
                         if (!speakerOn) return;
                         setSpeakerMode(state === "speaking" ? "speaking" : "on");
                         if (state === "speaking") {
@@ -357,6 +371,12 @@ export function initAgentWidget(root, profile, sessionId) {
                         // The reply is already on screen, so a synthesis
                         // failure is a note, not an error state.
                         showVoiceNote(message);
+                    },
+                    // Spec 55: the exact schedule each audio chunk plays on —
+                    // handed to whichever reveal queue is active for the
+                    // current turn so its text can be paced to match.
+                    onChunkScheduled: (info) => {
+                        if (revealQueue) revealQueue.scheduleChunk(info);
                     },
                 });
                 return true;
@@ -664,6 +684,14 @@ export function initAgentWidget(root, profile, sessionId) {
             speaker.dispose();
             speaker = null;
         }
+        // dispose() (unlike cancel()) never emits a state change, so it is
+        // the one teardown path that needs an explicit stop() — otherwise a
+        // reveal queue mid-turn would sit waiting on a schedule that will
+        // never arrive.
+        if (revealQueue) {
+            revealQueue.stop();
+            revealQueue = null;
+        }
         clearSpeakingIndicator();
         if (speakerOn) setSpeakerMode("on");
     }
@@ -891,6 +919,27 @@ export function initAgentWidget(root, profile, sessionId) {
                 thinkingBody.hidden = true;
             }
         }
+
+        // Drops the loading dots/canned copy and folds the Thoughts panel —
+        // normally fired on the first raw delta, but when a reveal queue is
+        // pacing text to audio (spec 55) it's held for the first word that
+        // actually reaches the screen instead, so the loading state doesn't
+        // vanish into blank silence while the first audio chunk is still
+        // buffering.
+        function markFirstDelta() {
+            if (!firstDelta) return;
+            firstDelta = false;
+            sessionWarmed = true;
+            stages.cancel();
+            settleThinking();
+        }
+
+        // Spec 55: only paces text when this turn will actually be spoken —
+        // mirrors the exact `speaker` truthiness check onDelta already uses,
+        // now that ensureSpeaker() above has settled either way.
+        revealQueue = (FEATURES.speakReplies && speakerOn && speaker)
+            ? createRevealQueue(assistant, markFirstDelta)
+            : null;
         let errorShown = false;
         let midStreamError = false;
         let pendingCitations = {};
@@ -924,13 +973,18 @@ export function initAgentWidget(root, profile, sessionId) {
                     scrollToEnd();
                 },
                 onDelta(delta) {
-                    if (firstDelta) {
-                        firstDelta = false;
-                        sessionWarmed = true; // container has served a token this session
-                        stages.cancel(); // clear loading indicator on first char
-                        settleThinking();
+                    // Spec 55: when a reveal queue is active, the raw delta
+                    // must NOT also be painted directly — its text arrives on
+                    // screen only via the queue's onChunkScheduled-paced
+                    // reveal (which fires markFirstDelta itself, on the first
+                    // word actually shown), so voice and text stay in step.
+                    // No queue means speaking is off (or unavailable) this
+                    // turn, so this is exactly the original instant-append
+                    // behavior, first delta included.
+                    if (!revealQueue) {
+                        markFirstDelta();
+                        appendDelta(assistant, delta, FEATURES.typingCursor);
                     }
-                    appendDelta(assistant, delta, FEATURES.typingCursor);
                     // Chunking happens inside the speaker; this just hands it
                     // the raw stream. Sanitization is server-side, so what is
                     // spoken and what is shown stay in sync.
@@ -946,7 +1000,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 onCta(cta) {
                     turnState.cta = cta;
                 },
-                onDone(full) {
+                async onDone(full) {
                     stages.cancel();
                     settleThinking();
                     // The tail after the last sentence boundary only becomes
@@ -966,6 +1020,12 @@ export function initAgentWidget(root, profile, sessionId) {
                         input.focus();
                         return;
                     }
+                    // Spec 55: hold the DOM finalization — everything below
+                    // this line — until the reveal queue reports every
+                    // scheduled chunk has been shown (or superseded by a
+                    // stop()). Text-off turns have no queue and fall straight
+                    // through, unchanged.
+                    if (revealQueue) await revealQueue.whenDrained();
                     if (!full && !errorShown) {
                         appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
                     }
@@ -998,6 +1058,11 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Remove cursor if streaming was interrupted
                     removeCaret(assistant);
                     if (isMidStream) {
+                        // A broken connection isn't worth pacing text for —
+                        // stop() lets onDone's already-pending await resolve
+                        // immediately so the retry button doesn't sit above
+                        // reply text still trickling in.
+                        if (revealQueue) revealQueue.stop();
                         // Keep partial text; append retry button
                         appendRetryButton(assistant, lastUserText);
                     } else {
@@ -1124,6 +1189,129 @@ export function initAgentWidget(root, profile, sessionId) {
     function removeCaret(li) {
         const caret = li.querySelector(".agent-cursor");
         if (caret) caret.remove();
+    }
+
+    // Spec 55: paces one turn's reply text to agent-speech.js's own audio
+    // schedule instead of the instant per-delta append `appendDelta` does.
+    //
+    // Each chunk gets its own independent timer, armed the moment
+    // onChunkScheduled fires — mirroring exactly how agent-speech.js's own
+    // schedule() arms every audio buffer's source.start() up front, against
+    // an accumulating clock cursor, with no chunk's start ever waiting on a
+    // previous chunk's callback. An earlier version chained each chunk's
+    // timer off the previous chunk's reveal *finishing*, using a delay that
+    // had gone stale by the time it was armed — the two waits compounded
+    // every chunk, and text visibly stalled while audio (on its own,
+    // unrelated clock) kept playing. finishActive() is the safety net for
+    // any residual drift: if a new chunk's timer fires before the previous
+    // one's word-by-word reveal finished, the remainder is dumped instantly
+    // rather than left to fall further behind.
+    //
+    // finalizeAssistant() always eventually replaces this queue's DOM output
+    // with the authoritative full-text render, in every completion path
+    // (normal, stopped, or mid-stream error) — so stop() only has to silence
+    // this queue's own timers before that happens, never force-append
+    // anything itself.
+    function createRevealQueue(li, onFirstReveal) {
+        const p = li.querySelector(".agent-message-text");
+        const timers = new Set(); // setTimeout ids waiting on a chunk's start
+        let rafId = null;
+        let active = null;        // { words, idx } of the reveal in progress
+        let stopped = false;
+        let revealed = false;
+        let resolveDrained = null;
+        const drained = new Promise((resolve) => { resolveDrained = resolve; });
+
+        function settle() {
+            if (resolveDrained) { resolveDrained(); resolveDrained = null; }
+        }
+
+        function appendWord(word) {
+            if (!p || !word) return;
+            if (!revealed) {
+                revealed = true;
+                if (typeof onFirstReveal === "function") onFirstReveal();
+            }
+            p.appendChild(document.createTextNode(word));
+            scrollToEnd();
+        }
+
+        // Instantly shows whatever the current reveal hasn't gotten to yet.
+        // Called before starting a new chunk's reveal (so two never overlap)
+        // and from stop() — never leaves this queue's idea of "shown" behind
+        // what should already be visible.
+        function finishActive() {
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            if (!active) return;
+            const { words } = active;
+            while (active.idx < words.length) {
+                appendWord(words[active.idx]);
+                active.idx += 1;
+            }
+            active = null;
+        }
+
+        function runReveal(words, durationMs) {
+            finishActive();
+            const start = performance.now();
+            const total = words.length;
+            const mine = { words, idx: 0 };
+            active = mine;
+            function step(now) {
+                if (stopped || active !== mine) return; // stopped or superseded
+                const elapsed = now - start;
+                const targetIdx = total <= 1 || durationMs <= 0
+                    ? total
+                    : Math.min(total, Math.ceil((elapsed / durationMs) * total));
+                while (mine.idx < targetIdx) {
+                    appendWord(words[mine.idx]);
+                    mine.idx += 1;
+                }
+                if (mine.idx < total) {
+                    rafId = requestAnimationFrame(step);
+                } else {
+                    rafId = null;
+                    active = null;
+                }
+            }
+            rafId = requestAnimationFrame(step);
+        }
+
+        return {
+            // Arms this chunk's own timer immediately — ctxNow/ctxStartAt
+            // are a fresh read from the instant onChunkScheduled fired, so
+            // there is no deferral gap for them to go stale in.
+            scheduleChunk({ text, ctxNow, ctxStartAt, durationSec }) {
+                if (stopped) return;
+                const delayMs = Math.max(0, (ctxStartAt - ctxNow) * 1000);
+                const words = text.split(/(\s+)/).filter((w) => w !== "");
+                const id = setTimeout(() => {
+                    timers.delete(id);
+                    if (stopped) return;
+                    runReveal(words, Math.max(0, durationSec * 1000));
+                }, delayMs);
+                timers.add(id);
+            },
+            // Resolves once every scheduled chunk (including the tail from
+            // speaker.flush()) has either been revealed or superseded by
+            // stop() — the signal onDone() waits on before finalizing.
+            whenDrained() {
+                return drained;
+            },
+            // Silences this queue: clears pending timers/animation, so a
+            // straggling callback can never append a stray word after
+            // finalizeAssistant() has already replaced the message's DOM.
+            stop() {
+                if (stopped) { settle(); return; }
+                stopped = true;
+                timers.forEach((id) => clearTimeout(id));
+                timers.clear();
+                if (rafId) cancelAnimationFrame(rafId);
+                rafId = null;
+                active = null;
+                settle();
+            },
+        };
     }
 
     function finalizeAssistant(li, fullText, citations) {
