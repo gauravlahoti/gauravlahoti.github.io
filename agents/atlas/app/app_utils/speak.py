@@ -246,6 +246,25 @@ async def _call_model(
     )
 
 
+def warm() -> bool:
+    """Prime the cached ADC credentials and httpx client.
+
+    The first Vertex call in a fresh container pays a token fetch plus a TLS
+    handshake, and it shows: 5.57s for a chunk that takes 2.39s once warm.
+    Sentence-chunked playback means that cost lands squarely on the first thing
+    a visitor hears, so the warm route calls this when the panel opens and
+    again when the speaker is switched on. Best-effort: a failure here is not
+    worth failing the warm request over, since the real call will retry anyway.
+    """
+    try:
+        _get_credentials()
+        _get_client()
+        return True
+    except Exception:
+        logger.warning("speak: warm failed", exc_info=True)
+        return False
+
+
 async def speak_text(text: str) -> tuple[str | None, str]:
     """Synthesize `text`. Returns (base64 WAV, model_used).
 

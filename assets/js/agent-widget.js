@@ -30,17 +30,6 @@ const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// 8kHz mono 16-bit, 100 samples of silence — used to bank the user's click as
-// audio permission (see primeAudio). Must be a well-formed file; a malformed
-// one throws NotSupportedError and grants nothing.
-const SILENT_WAV_B64 =
-    "UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YcgAAA" +
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-
 let warmedThisSession = false;
 
 // Read the self-asserted identity from a prior Google sign-in, if one was ever
@@ -115,6 +104,10 @@ export function initAgentWidget(root, profile, sessionId) {
     let speakerLoading = false;
     let isSpeaking = false;
     let voiceNoteTimer = null;
+    // The assistant message of the turn in flight. The speaker's state
+    // callback fires asynchronously and needs to know which message to hang
+    // the "Reading aloud" strip on.
+    let currentAssistantLi = null;
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
@@ -226,6 +219,7 @@ export function initAgentWidget(root, profile, sessionId) {
         // Stop is a single control for the whole turn: if the text has
         // finished but Atlas is still talking, this must still silence it.
         if (speaker) speaker.cancel();
+        clearSpeakingIndicator();
         if (!isPending || !abortController) return;
         wasStopped = true;
         abortController.abort();
@@ -245,6 +239,37 @@ export function initAgentWidget(root, profile, sessionId) {
     }
     function writeSpeakerPref(on) {
         try { localStorage.setItem(SPEAKER_PREF_KEY, on ? "1" : "0"); } catch (_) { /* private mode */ }
+    }
+
+    // The assistant <li> currently being read aloud, so the indicator can be
+    // attached to the right message and cleared from it later.
+    let speakingLi = null;
+
+    // Mirrors the .agent-thinking block's shape: a small labelled strip inside
+    // the message itself. The header icon alone was too easy to miss — nothing
+    // in the transcript showed Atlas was talking.
+    function showSpeakingIndicator(li) {
+        if (!li || li.querySelector(".agent-speaking")) return;
+        const el = document.createElement("div");
+        el.className = "agent-speaking";
+        el.innerHTML =
+            '<span class="agent-speaking-bars" aria-hidden="true">'
+            + '<span></span><span></span><span></span><span></span>'
+            + "</span>"
+            + '<span class="agent-speaking-label">Reading aloud</span>'
+            + '<button type="button" class="agent-speaking-stop">Stop</button>';
+        el.querySelector(".agent-speaking-stop").addEventListener("click", () => {
+            if (speaker) speaker.cancel();
+        });
+        li.appendChild(el);
+        speakingLi = li;
+    }
+
+    function clearSpeakingIndicator() {
+        if (!speakingLi) return;
+        const el = speakingLi.querySelector(".agent-speaking");
+        if (el) el.remove();
+        speakingLi = null;
     }
 
     // off | on | speaking. "speaking" is a transient sub-state of on.
@@ -298,9 +323,14 @@ export function initAgentWidget(root, profile, sessionId) {
                     onStateChange: (state) => {
                         if (!speakerOn) return;
                         setSpeakerMode(state === "speaking" ? "speaking" : "on");
-                        if (state === "speaking") showVoiceNote("Speaking…", 0);
-                        else if (voiceStatus.textContent === "Speaking…") {
-                            voiceStatus.classList.add("is-hidden");
+                        if (state === "speaking") {
+                            showVoiceNote("Speaking…", 0);
+                            showSpeakingIndicator(currentAssistantLi);
+                        } else {
+                            clearSpeakingIndicator();
+                            if (voiceStatus.textContent === "Speaking…") {
+                                voiceStatus.classList.add("is-hidden");
+                            }
                         }
                     },
                     // Fires only when audio genuinely starts, so the status
@@ -330,48 +360,86 @@ export function initAgentWidget(root, profile, sessionId) {
             speakerOn = false;
             writeSpeakerPref(false);
             if (speaker) speaker.cancel();
+            clearSpeakingIndicator();
             setSpeakerMode("off");
             showVoiceNote("Spoken replies off.", 2500);
             return;
         }
-        // This click is the user gesture that makes playback legal. Priming a
-        // muted zero-length clip inside the handler itself banks that gesture,
-        // so the first real clip — which arrives seconds later, well outside
-        // the activation window — is not refused.
-        primeAudio();
+        // First time ever: say plainly what is about to happen and let the
+        // visitor agree to it. Sound starting off one unlabelled icon click
+        // isn't consent. Asked once, then remembered.
+        if (!hasConsented()) {
+            renderConsentCard();
+            return;
+        }
+        await enableSpeaker();
+    }
+
+    // The half of toggleSpeaker that actually turns sound on. Split out so the
+    // consent card's "Turn on" button can call it directly — that click is
+    // itself a user gesture, which is exactly what unlock() needs.
+    async function enableSpeaker() {
         const ok = await ensureSpeaker();
         if (!ok) return;
+        // Must run inside the click. Creating and resuming the AudioContext
+        // here banks the gesture for the whole page session; the first clip
+        // lands 1-2s later, long after the activation window closes.
+        speaker.unlock();
         speakerOn = true;
         writeSpeakerPref(true);
         setSpeakerMode("on");
-        showVoiceNote("Spoken replies on. Atlas will read its answers.", 4000);
+        showVoiceNote("Reading answers aloud. Click the speaker to stop.", 4000);
         liveRegion.textContent = "Spoken replies on.";
+        // Warm the TTS path so the first reply doesn't pay the cold ADC token
+        // fetch — measured at 5.57s cold against 2.39s warm for one chunk.
+        if (warmUrl) {
+            fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
+                .catch(() => { /* best-effort */ });
+        }
     }
 
-    // Unlocks audio for this page session. Chrome and Safari grant playback
-    // off a user gesture, but the first synthesized clip lands 2-3s later,
-    // long after the activation window closes. Playing a silent clip inside
-    // the click handler is the standard way to bank that permission.
-    let audioPrimed = false;
-    function primeAudio() {
-        if (audioPrimed) return;
-        audioPrimed = true;
-        try {
-            // Via a blob: URL, not a data: URI. The page CSP is
-            // `media-src 'self' blob:` — a data: URI is refused outright with
-            // NotSupportedError, which banks nothing, and widening the CSP for
-            // a 244-byte silent clip isn't worth it.
-            const bin = atob(SILENT_WAV_B64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-            const silent = new Audio(url);
-            silent.volume = 0;
-            const done = () => URL.revokeObjectURL(url);
-            const p = silent.play();
-            if (p && typeof p.then === "function") p.then(done, done);
-            else done();
-        } catch (_) { /* best effort */ }
+    // ---- first-run consent (spec 50) ------------------------------------
+
+    const SPEAKER_CONSENT_KEY = "atlas.speakReplies.consented";
+
+    function hasConsented() {
+        try { return localStorage.getItem(SPEAKER_CONSENT_KEY) === "1"; } catch (_) { return false; }
+    }
+
+    // Inline above the composer rather than a <dialog>. showModal() centres
+    // against the viewport, which is why the explainer dialog has to be
+    // portalled onto document.body; a one-line consent prompt isn't worth
+    // that, and it reads better attached to the control it explains.
+    function renderConsentCard() {
+        if (dom.panel.querySelector(".agent-consent")) return;
+        const card = document.createElement("div");
+        card.className = "agent-consent";
+        card.setAttribute("role", "group");
+        card.setAttribute("aria-label", "Spoken replies");
+        const copy = document.createElement("p");
+        copy.className = "agent-consent-copy";
+        copy.textContent = "Atlas will read its answers out loud in a synthesized voice. You can turn this off any time.";
+        const actions = document.createElement("div");
+        actions.className = "agent-consent-actions";
+        const yes = document.createElement("button");
+        yes.type = "button";
+        yes.className = "agent-consent-yes";
+        yes.textContent = "Turn on";
+        const no = document.createElement("button");
+        no.type = "button";
+        no.className = "agent-consent-no";
+        no.textContent = "Not now";
+        actions.append(no, yes);
+        card.append(copy, actions);
+        dom.panel.insertBefore(card, dom.inputRow);
+
+        no.addEventListener("click", () => card.remove());
+        yes.addEventListener("click", async () => {
+            try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
+            card.remove();
+            await enableSpeaker();
+        });
+        yes.focus();
     }
 
     // Spec 48: mirrors setSendMode's shape for the mic button's three
@@ -516,10 +584,18 @@ export function initAgentWidget(root, profile, sessionId) {
         // audio may play. On the paths where it isn't — a WebMCP go_to, an
         // action chip — play() is refused and the speaker just stays silent,
         // which agent-speech.js handles by resolving rather than throwing.
-        if (FEATURES.speakReplies && !speakerOn && readSpeakerPref()) {
+        // Two cases, and both need the unlock: a returning visitor whose
+        // preference is stored, and one who simply closed and reopened the
+        // panel mid-session. closePanel() disposes the engine but leaves
+        // speakerOn true, so guarding this on `!speakerOn` skipped the unlock
+        // entirely on reopen — synthesis ran, ctx was never created, and
+        // every clip was silently dropped.
+        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())) {
             speakerOn = true;
             setSpeakerMode("on");
-            ensureSpeaker();
+            // Opening the panel is itself a click, so bank it for audio the
+            // same way enableSpeaker() does.
+            ensureSpeaker().then((ok) => { if (ok && speaker) speaker.unlock(); });
         }
         if (agentIntro?.text && !introRendered) {
             introRendered = true;
@@ -558,6 +634,7 @@ export function initAgentWidget(root, profile, sessionId) {
             speaker.dispose();
             speaker = null;
         }
+        clearSpeakingIndicator();
         if (speakerOn) setSpeakerMode("on");
     }
 
@@ -745,6 +822,7 @@ export function initAgentWidget(root, profile, sessionId) {
         messages.push({ role: "user", content: text });
 
         const assistant = appendAssistantPlaceholder();
+        currentAssistantLi = assistant;
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
         const stages = startLoadingStages(assistant, !sessionWarmed);
@@ -1510,7 +1588,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, sendBtn, micBtn, speakerBtn, voiceStatus, liveRegion, foot,
+        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
