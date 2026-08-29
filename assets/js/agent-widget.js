@@ -114,6 +114,25 @@ export function initAgentWidget(root, profile, sessionId) {
     // pre-spec-55 behavior), which is also what a speaker-off visitor gets.
     let revealQueue = null;
 
+    // Mobile TTS fix: the AudioContext must be created and resume()d
+    // synchronously inside a real user gesture, or Safari/iOS refuse to play
+    // through it. ensureSpeaker() below primes this before its own
+    // `await import("./agent-speech.js")` — that import is a genuine async
+    // gap desktop browsers tolerate between a gesture and unlock() but mobile
+    // ones largely don't, which is why TTS worked on desktop and was
+    // completely (silently) dead on mobile.
+    let primedAudioContext = null;
+    function primeAudioContext() {
+        if (primedAudioContext && primedAudioContext.state !== "closed") return primedAudioContext;
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        primedAudioContext = new Ctor();
+        if (primedAudioContext.state === "suspended") {
+            primedAudioContext.resume().catch(() => { /* best effort — agent-speech.js's own unlock() retries and surfaces a note on failure */ });
+        }
+        return primedAudioContext;
+    }
+
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
     let _tooltipHideTimer = null;
@@ -333,6 +352,12 @@ export function initAgentWidget(root, profile, sessionId) {
     // sound, with nothing anywhere to say why.
     let speakerLoadPromise = null;
     function ensureSpeaker() {
+        // Must run before the `await import(...)` below, on every call —
+        // all three call sites (enableSpeaker, openPanel, sendCurrent) invoke
+        // this synchronously from a real click/Enter-keydown handler, so this
+        // one line covers all of them without each needing to remember to
+        // prime first. See primeAudioContext()'s comment for why.
+        const primedCtx = primeAudioContext();
         if (speaker) return Promise.resolve(true);
         if (speakerLoadPromise) return speakerLoadPromise;
         speakerLoading = true;
@@ -342,6 +367,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 speaker = mod.initSpeaker({
                     apiUrl: speakApiUrl,
                     sessionId,
+                    audioContext: primedCtx,
                     onStateChange: (state) => {
                         // Unconditional, ahead of the speakerOn guard below:
                         // this is the authoritative "the turn's audio — and so

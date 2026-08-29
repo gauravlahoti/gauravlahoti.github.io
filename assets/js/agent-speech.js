@@ -135,7 +135,7 @@ function base64ToArrayBuffer(b64) {
 // `onStateChange` fires with "speaking" | "idle"; `onPlaying()` fires when
 // audio genuinely starts; `onError(message)` fires once per turn on failure
 // and is always followed by an "idle" state change.
-export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying, onChunkScheduled }) {
+export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying, onChunkScheduled, audioContext }) {
     let buffer = "";          // text received but not yet chunked
     let chunkIndex = 0;       // position in CHUNK_RAMP for the current turn
     let pending = [];         // {seq, text} awaiting synthesis
@@ -165,8 +165,19 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     // loop ever got to read it.
     let generation = 0;
 
-    let ctx = null;
+    // Spec 55/mobile-fix: `audioContext`, when provided, was already created
+    // (and resume()d) synchronously inside the real click/tap that led here —
+    // agent-widget.js does this *before* the await import() that lazily
+    // loads this module, because mobile Safari's autoplay-gesture window
+    // doesn't survive that async gap the way desktop browsers' does. Wiring
+    // it up here means unlock() never has to create a fresh, gesture-less
+    // context of its own on the common path.
+    let ctx = audioContext || null;
     let gain = null;
+    if (ctx) {
+        gain = ctx.createGain();
+        gain.connect(ctx.destination);
+    }
 
     function emitState(state) {
         if (!disposed && typeof onStateChange === "function") onStateChange(state);
@@ -191,7 +202,13 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
             gain = ctx.createGain();
             gain.connect(ctx.destination);
         }
-        if (ctx.state === "suspended") ctx.resume().catch(() => { /* best effort */ });
+        if (ctx.state === "suspended") {
+            // Swallowing this used to mean a resume() the browser actually
+            // refused (mobile gesture-window strictness, or anything else)
+            // looked identical to success — the UI would proceed as if audio
+            // was about to play while nothing ever did. Surface it instead.
+            ctx.resume().catch(() => emitError("Voice playback isn't available in this browser."));
+        }
     }
 
     async function synthesize(text) {
