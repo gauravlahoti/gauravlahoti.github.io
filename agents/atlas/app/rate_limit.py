@@ -29,6 +29,14 @@ cap. After 24 hours, both budgets refresh.
 question (a bad recording shouldn't cost the visitor one of their 4
 answers), so it's a wholly separate budget. It's higher than `chat` because
 re-recording after a mis-transcription is normal, expected usage, not abuse.
+
+**`speak`** — 40 / 24h per layer. Synthesis is charged per sentence chunk,
+not per reply (see `agent-speech.js`), so a single spoken answer costs
+several slots. At ~5 chunks an answer this is roughly 8 spoken replies a
+day, comfortably more than the 4 chat questions that can produce them. Like
+`voice`, it must never spend a chat question — and unlike both others, going
+over it is harmless: the reply is already on screen, it just stops being
+read aloud.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from datetime import UTC, datetime
 BUCKETS: dict[str, dict[str, int]] = {
     "chat":  {"session": 4,  "ip": 4,  "window_s": 24 * 60 * 60},
     "voice": {"session": 12, "ip": 12, "window_s": 24 * 60 * 60},
+    "speak": {"session": 40, "ip": 40, "window_s": 24 * 60 * 60},
 }
 
 
