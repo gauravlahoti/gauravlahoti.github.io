@@ -112,8 +112,20 @@ export default {
         // gone. Getting this order backwards was the original bug — the old
         // cron deleted straight from agent_interactions/page_views with no
         // rollup at all, so those "all-time" numbers were silently just
-        // "however far back the last purge reached."
-        await rollupDailyStats(env);
+        // "however far back the last purge reached." It regressed once
+        // (spec 54: daily_stats itself went missing for months, the rollup
+        // failed silently, and every delete below still ran), so the
+        // destructive phase is now conditional on the rollup actually
+        // succeeding rather than merely being attempted.
+        const rolledUp = await rollupDailyStats(env);
+        if (!rolledUp) {
+            console.error(
+                "[retention] rollup did not fully succeed this run — skipping " +
+                "redact/delete to avoid purging days daily_stats has not captured. " +
+                "Will retry in full next run; nothing here is time-critical."
+            );
+            return;
+        }
 
         // resume_downloads: deliberately EXEMPT. Its write path (the Google
         // Sign-In gate) was retired 2026-06-10 — see .claude/docs/backend.md.
@@ -195,6 +207,12 @@ export default {
 // never partially rolled up) that has source data and no daily_stats row
 // yet. Idempotent — a day already in daily_stats is never touched again, so
 // running this cron early, late, or twice in the same month is harmless.
+// Returns whether it is safe to run the destructive phase that follows.
+// `false` means at least one day's source rows are not yet reflected in
+// daily_stats — in that case the caller must skip deletion for this run
+// rather than purge data no rollup will ever cover again. See spec 54: this
+// table was missing entirely for months, the candidate-day query silently
+// failed, and the deletes below ran anyway.
 async function rollupDailyStats(env) {
     let days;
     try {
@@ -212,7 +230,7 @@ async function rollupDailyStats(env) {
         days = results || [];
     } catch (err) {
         console.error("[retention] daily_stats candidate-day query failed", err);
-        return;
+        return false;
     }
     let ok = 0;
     for (const { day } of days) {
@@ -226,6 +244,7 @@ async function rollupDailyStats(env) {
     if (days.length) {
         console.log(`[retention] daily_stats: rolled up ${ok}/${days.length} day(s)`);
     }
+    return ok === days.length;
 }
 
 async function rollupOneDay(env, day) {
