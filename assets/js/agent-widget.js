@@ -4,6 +4,14 @@
 // chips, Topmate/LinkedIn CTA button, scroll nudge, transparency modal,
 // and mid-stream network-error retry. All gated by FEATURES flags below.
 
+// Spec 48: this module's own `?v=` (set by whichever boot path imported it —
+// main.js or agents-page.js) is reused for its own dynamic import of
+// agent-voice.js, so that lazy-loaded module shares agent-widget.js's
+// cache-bust rather than being pinned to whatever the browser cached first.
+// Same pattern as agents-page.js's _selfV/_vq.
+const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
+const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
+
 const FEATURES = Object.freeze({
     citations:       true,
     suggestions:     true,
@@ -12,6 +20,7 @@ const FEATURES = Object.freeze({
     scrollNudge:     false,
     explainerDialog: true,
     thinking:        true,
+    voiceInput:      true,
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -43,6 +52,8 @@ export function initAgentWidget(root, profile, sessionId) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
+    // Spec 48: same host, sibling route — not a second config key.
+    const transcribeApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-transcribe") : apiUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -66,6 +77,8 @@ export function initAgentWidget(root, profile, sessionId) {
     const transcript = dom.transcript;
     const input = dom.input;
     const sendBtn = dom.sendBtn;
+    const micBtn = dom.micBtn;
+    const voiceStatus = dom.voiceStatus;
     const liveRegion = dom.liveRegion;
     const promptsEl = dom.prompts;
     let isOpen = false;
@@ -77,6 +90,8 @@ export function initAgentWidget(root, profile, sessionId) {
     let panelEverOpened = false; // for scroll nudge — flipped on first open
     let introRendered = false; // guards one-shot intro stream on first open
     let nudgeIo = null; // IntersectionObserver for scroll nudge
+    let voiceEngine = null; // lazy-loaded agent-voice.js handle, set on first mic tap
+    let micLoading = false; // guards a double-click during the lazy import
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
@@ -102,6 +117,13 @@ export function initAgentWidget(root, profile, sessionId) {
     }
     setupExplainerModal(dom, agentExplainer);
     setupScrollNudge();
+
+    // Spec 48: hide the mic outright (not disabled) when the browser lacks
+    // the APIs it needs — a trivial sync check, so it doesn't need the lazy
+    // agent-voice.js import just to decide whether to render.
+    if (FEATURES.voiceInput && !(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function" && typeof window.MediaRecorder === "function")) {
+        micBtn.classList.add("is-hidden");
+    }
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
@@ -135,6 +157,16 @@ export function initAgentWidget(root, profile, sessionId) {
         if (sendBtn.dataset.mode === "stop") stopStreaming();
         else sendCurrent();
     });
+    if (FEATURES.voiceInput) {
+        micBtn.addEventListener("click", () => {
+            if (isPending) return; // send button is a stop control mid-stream; don't touch the composer
+            if (micBtn.dataset.mode === "recording") {
+                voiceEngine && voiceEngine.stop();
+            } else if (micBtn.dataset.mode === "idle") {
+                startVoiceInput();
+            }
+        });
+    }
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -166,6 +198,73 @@ export function initAgentWidget(root, profile, sessionId) {
         wasStopped = true;
         abortController.abort();
         liveRegion.textContent = "Stopped.";
+    }
+
+    // Spec 48: mirrors setSendMode's shape for the mic button's three
+    // states. "recording" and "busy" both get an aria-label announcing
+    // themselves through liveRegion so a screen-reader user knows the mic
+    // is live without having to poll it.
+    let recordStartedAt = 0;
+    let recordTickTimer = null;
+    function setMicMode(mode) {
+        micBtn.dataset.mode = mode === "recording" ? "recording" : mode === "busy" ? "busy" : "idle";
+        micBtn.setAttribute("aria-label", mode === "recording" ? "Stop recording" : mode === "busy" ? "Transcribing" : "Ask by voice");
+        clearInterval(recordTickTimer);
+        recordTickTimer = null;
+        if (mode === "recording") {
+            recordStartedAt = Date.now();
+            voiceStatus.classList.remove("is-hidden");
+            voiceStatus.textContent = "Listening… 0:00";
+            recordTickTimer = setInterval(() => {
+                const secs = Math.floor((Date.now() - recordStartedAt) / 1000);
+                voiceStatus.textContent = `Listening… 0:${String(secs).padStart(2, "0")}`;
+            }, 1000);
+        } else if (mode === "busy") {
+            voiceStatus.classList.remove("is-hidden");
+            voiceStatus.textContent = "Transcribing…";
+        } else {
+            voiceStatus.classList.add("is-hidden");
+        }
+    }
+
+    // Lazy-imports agent-voice.js on first use so MediaRecorder code never
+    // ships in the initial page payload (matches how main.js defers this
+    // whole module until idle).
+    async function startVoiceInput() {
+        if (micLoading) return;
+        if (!voiceEngine) {
+            micLoading = true;
+            try {
+                const mod = await import(_vq("./agent-voice.js"));
+                if (!mod.isVoiceSupported()) {
+                    // Shouldn't happen — the button is hidden when unsupported —
+                    // but guards a race between render and the capability check.
+                    micBtn.classList.add("is-hidden");
+                    return;
+                }
+                voiceEngine = mod.initVoiceInput({
+                    apiUrl: transcribeApiUrl,
+                    sessionId,
+                    onStateChange: setMicMode,
+                    onTranscript: (text) => prefillComposer(text),
+                    onError: (message) => {
+                        voiceStatus.classList.remove("is-hidden");
+                        voiceStatus.textContent = message;
+                        liveRegion.textContent = message;
+                        setTimeout(() => {
+                            if (micBtn.dataset.mode === "idle") voiceStatus.classList.add("is-hidden");
+                        }, 4000);
+                    },
+                });
+            } catch (_) {
+                voiceStatus.classList.remove("is-hidden");
+                voiceStatus.textContent = "Voice input failed to load.";
+                return;
+            } finally {
+                micLoading = false;
+            }
+        }
+        voiceEngine.start();
     }
 
     // Sets the composer text and focuses it without sending. Shared by the
@@ -241,6 +340,15 @@ export function initAgentWidget(root, profile, sessionId) {
         fab.setAttribute("aria-expanded", "false");
         document.body.removeAttribute("data-agent-panel-open");
         fab.focus();
+        // Dismissing the panel must not leave the mic listening in the
+        // background. dispose() permanently silences that engine instance's
+        // state callbacks, so drop the reference too — the next mic tap
+        // lazy-imports a fresh one via startVoiceInput()'s `!voiceEngine` guard.
+        if (voiceEngine) {
+            voiceEngine.dispose();
+            voiceEngine = null;
+        }
+        setMicMode("idle");
     }
 
     function renderStarters() {
@@ -412,6 +520,7 @@ export function initAgentWidget(root, profile, sessionId) {
         wasStopped = false;
         abortController = new AbortController();
         setSendMode("stop");
+        if (FEATURES.voiceInput) micBtn.disabled = true;
 
         appendUser(text);
         messages.push({ role: "user", content: text });
@@ -551,6 +660,7 @@ export function initAgentWidget(root, profile, sessionId) {
             setSendMode("send");
             isPending = false;
             abortController = null;
+            if (FEATURES.voiceInput) micBtn.disabled = false;
         }
     }
 
@@ -1078,8 +1188,33 @@ function renderShell(root, agentExplainer) {
             <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor"/>
         </svg>
     `;
+
+    // Spec 48: mic button. Rendered only if FEATURES.voiceInput is on; hidden
+    // entirely (not just disabled) at runtime if the browser lacks
+    // getUserMedia/MediaRecorder — see wireVoiceInput().
+    const micBtn = document.createElement("button");
+    micBtn.type = "button";
+    micBtn.className = "agent-mic";
+    micBtn.dataset.mode = "idle";
+    micBtn.setAttribute("aria-label", "Ask by voice");
+    micBtn.innerHTML = `
+        <svg class="agent-mic-glyph agent-mic-glyph-idle" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="1.5" width="4" height="7" rx="2"/>
+            <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"/>
+            <path d="M8 12v2.5M5.5 14.5h5"/>
+        </svg>
+        <svg class="agent-mic-glyph agent-mic-glyph-stop" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <rect x="5" y="5" width="6" height="6" rx="1.5" fill="currentColor"/>
+        </svg>
+    `;
+
+    const voiceStatus = document.createElement("div");
+    voiceStatus.className = "agent-voice-status is-hidden";
+
     inputRow.appendChild(input);
+    if (FEATURES.voiceInput) inputRow.appendChild(micBtn);
     inputRow.appendChild(sendBtn);
+    if (FEATURES.voiceInput) inputRow.appendChild(voiceStatus);
 
     const foot = document.createElement("footer");
     foot.className = "agent-panel-foot";
@@ -1129,7 +1264,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, sendBtn, liveRegion, foot,
+        prompts, transcript, input, sendBtn, micBtn, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };

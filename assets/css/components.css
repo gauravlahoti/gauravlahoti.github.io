@@ -2449,6 +2449,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 
 .agent-input-row {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: flex-end;
     padding: var(--space-3) var(--space-4);
@@ -2522,6 +2523,88 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         border-color: var(--bg);
     }
 }
+
+/* Spec 48: mic button. Secondary styling (transparent + muted border) so
+   the cyan send button stays the one primary action in the row. */
+.agent-mic {
+    position: relative;
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
+}
+.agent-mic.is-hidden { display: none; }
+.agent-mic:disabled { opacity: 0.4; cursor: progress; }
+.agent-mic:hover:not(:disabled) { color: var(--ink); }
+
+/* Two glyphs live in the button; data-mode picks one — same swap as .agent-send. */
+.agent-mic-glyph { display: none; }
+.agent-mic[data-mode="idle"] .agent-mic-glyph-idle { display: block; }
+.agent-mic[data-mode="recording"] .agent-mic-glyph-stop { display: block; }
+.agent-mic[data-mode="busy"] .agent-mic-glyph-stop { display: block; }
+
+.agent-mic[data-mode="recording"] {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+/* Soft pulse while listening. */
+.agent-mic[data-mode="recording"]::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 0 0 var(--accent-glow);
+    animation: agent-mic-pulse 1.6s ease-out infinite;
+}
+@keyframes agent-mic-pulse {
+    0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
+    70%  { box-shadow: 0 0 0 8px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* Orbiting arc while transcribing — same pattern as the send button's stop mode. */
+.agent-mic[data-mode="busy"] {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.agent-mic[data-mode="busy"]::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    border-top-color: var(--accent);
+    animation: agent-send-spin 0.75s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-mic[data-mode="recording"]::after { animation: none; box-shadow: 0 0 0 2px var(--accent-glow); }
+    .agent-mic[data-mode="busy"]::after { animation: none; border-color: var(--accent); }
+}
+
+/* Status line for the mic — wraps onto its own line below the composer
+   controls (.agent-input-row has flex-wrap: wrap; flex-basis 100% on an
+   already-occupied line forces the wrap). Same muted-mono treatment as
+   .agent-stopped-note below. */
+.agent-voice-status {
+    flex: 1 0 100%;
+    order: 5;
+    margin-top: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    letter-spacing: 0.02em;
+}
+.agent-voice-status.is-hidden { display: none; }
 
 /* Muted marker under a response the visitor cut short with the stop button. */
 .agent-stopped-note {
