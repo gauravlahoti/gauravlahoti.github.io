@@ -147,48 +147,48 @@
 
   <!-- ① Browser mic → /api/agent-transcribe -->
   <line x1="240" y1="206" x2="466" y2="206" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="272" y="192" width="96" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="203" class="edge-label" text-anchor="middle">audio clip</text>
+  <rect x="272" y="188" width="96" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="199" class="edge-label" text-anchor="middle">audio clip</text>
 
   <!-- ② transcript back → composer (never auto-sends) -->
   <line x1="468" y1="240" x2="244" y2="240" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="272" y="226" width="96" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="237" class="edge-label" text-anchor="middle">transcript</text>
+  <rect x="272" y="222" width="96" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="233" class="edge-label" text-anchor="middle">transcript</text>
 
   <!-- ⑥ reply chunks → /api/agent-speak -->
   <line x1="240" y1="292" x2="466" y2="292" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="266" y="278" width="108" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="289" class="edge-label" text-anchor="middle">reply chunks</text>
+  <rect x="266" y="274" width="108" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="285" class="edge-label" text-anchor="middle">reply chunks</text>
 
   <!-- ⑦ WAV back → Web Audio -->
   <line x1="468" y1="326" x2="244" y2="326" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="272" y="312" width="96" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="323" class="edge-label" text-anchor="middle">WAV audio</text>
+  <rect x="272" y="308" width="96" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="319" class="edge-label" text-anchor="middle">WAV audio</text>
 
   <!-- ③ composer → ADK Agent (SSE) -->
   <line x1="240" y1="451" x2="450" y2="451" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="296" y="437" width="48" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="448" class="edge-label" text-anchor="middle">SSE</text>
+  <rect x="296" y="433" width="48" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="444" class="edge-label" text-anchor="middle">SSE</text>
 
   <!-- ⑤ reply streams back -->
   <line x1="452" y1="499" x2="244" y2="499" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="272" y="485" width="96" height="14" rx="3" fill="#000000"/>
-  <text x="320" y="496" class="edge-label" text-anchor="middle">stream back</text>
+  <rect x="272" y="481" width="96" height="14" rx="3" fill="#000000"/>
+  <text x="320" y="492" class="edge-label" text-anchor="middle">stream back</text>
 
   <!-- transcribe → STT model -->
   <line x1="798" y1="223" x2="918" y2="223" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="840" y="209" width="36" height="14" rx="3" fill="#000000"/>
-  <text x="858" y="220" class="edge-label" text-anchor="middle">STT</text>
+  <rect x="840" y="205" width="36" height="14" rx="3" fill="#000000"/>
+  <text x="858" y="216" class="edge-label" text-anchor="middle">STT</text>
 
   <!-- speak → TTS model -->
   <line x1="798" y1="309" x2="918" y2="309" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="840" y="295" width="36" height="14" rx="3" fill="#000000"/>
-  <text x="858" y="306" class="edge-label" text-anchor="middle">TTS</text>
+  <rect x="840" y="291" width="36" height="14" rx="3" fill="#000000"/>
+  <text x="858" y="302" class="edge-label" text-anchor="middle">TTS</text>
 
   <!-- agent → reasoning model -->
   <line x1="808" y1="475" x2="918" y2="475" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="832" y="461" width="62" height="14" rx="3" fill="#000000"/>
-  <text x="863" y="472" class="edge-label" text-anchor="middle">inference</text>
+  <rect x="832" y="457" width="62" height="14" rx="3" fill="#000000"/>
+  <text x="863" y="468" class="edge-label" text-anchor="middle">inference</text>
 
   <!-- ④ agent → ADK Skills -->
   <line x1="520" y1="525" x2="520" y2="616" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
@@ -199,8 +199,8 @@
   <line x1="740" y1="525" x2="740" y2="580" stroke="#00FFD1" stroke-width="1.5"/>
   <line x1="740" y1="580" x2="1070" y2="580" stroke="#00FFD1" stroke-width="1.5"/>
   <line x1="1070" y1="580" x2="1070" y2="608" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
-  <rect x="846" y="564" width="66" height="14" rx="3" fill="#000000"/>
-  <text x="879" y="575" class="edge-label" text-anchor="middle">MCP call</text>
+  <rect x="846" y="560" width="66" height="14" rx="3" fill="#000000"/>
+  <text x="879" y="571" class="edge-label" text-anchor="middle">MCP call</text>
 
   <!-- ═══ STEP CIRCLES ═══ -->
 
