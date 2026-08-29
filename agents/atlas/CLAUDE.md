@@ -14,7 +14,7 @@ Google ADK Python agent powering the portfolio chat widget. Answers questions ab
 | `uv run pytest tests/unit tests/integration` | Unit + integration tests |
 | `agents-cli lint` | Code quality check |
 | `make corpus` | Sync `content/*.json` → `app/corpus/` |
-| `agents-cli deploy ... -- --allow-unauthenticated --cpu-boost --min-instances=0` | Deploy to Cloud Run |
+| `make deploy` | Deploy to Cloud Run (`gcloud beta run deploy atlas --source .` with this service's actual flags/env/secrets — see the Makefile's `deploy` target; it is not the bare `agents-cli deploy` scaffold command, which lacks several flags this service needs) |
 
 ## Workflow
 
@@ -34,4 +34,5 @@ Eval must pass before every deploy.
 - **Run Python via uv:** `uv run python script.py`
 - **Repeated errors (3+):** fix the root cause, don't retry.
 - **Terraform 409:** use `terraform import` instead of recreating.
+- **New `app_utils` module calling Vertex directly** (own cached ADC creds / httpx client, following `speak.py`'s pattern): give it a `warm()` function and wire it into `GET /api/agent-chat/warm` in `api.py`, alongside `warm_mcp_server`/`warm_speak`/`warm_transcribe`. Skipping this was a real bug — `transcribe.py` shipped without one, so it was never pre-warmed by the keep-warm scheduler ping the way `speak.py` is, and most real transcribe requests paid a ~5s cold ADC/TLS tax every time.
 - Only modify code targeted by the request — preserve surrounding code, config values, and formatting.

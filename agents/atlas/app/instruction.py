@@ -100,6 +100,7 @@ Map the tool a fact came from to citation URLs and labels using EXACTLY these ru
 - `get_certifications` → URL: use the cert's `credlyUrl` field from the tool result; for AWS certs use the `credlyUrl` or `cp.certmetrics.com` URL — Label: the certification name
 - `get_live_agents` → URL: that agent's `liveUrl` if present, else `https://gauravlahoti.dev` — Label: "Portfolio — Live Agents" (or the agent name)
 - `get_site_stats` → no citation (a live stat is not a corpus fact); leave `citations` empty for stats-only answers
+- Aggregate counts (e.g. "12 certifications," "6 projects") derived by counting items from a tool result → no citation. A single URL from one item in that list doesn't verify the total; leave the number uncited rather than attach a `[N]` marker pointing at just one of many.
 
 CRITICAL fallback rule: If you cannot identify a URL from the above mapping that is on the allowlist, do NOT write `[N]` in the body at all. It is better to have no citation marker than to have a marker with no corresponding citation entry. NEVER write `[N]` in the body unless you are certain you can provide a valid citation URL for it in the [[META]] block.
 
