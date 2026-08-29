@@ -274,8 +274,9 @@ export function initAgentWidget(root, profile, sessionId) {
         const el = document.createElement("div");
         el.className = "agent-speaking";
         el.innerHTML =
-            '<span class="agent-speaking-bars" aria-hidden="true">'
-            + '<span></span><span></span><span></span><span></span>'
+            '<span class="agent-speaking-orb" aria-hidden="true">'
+            + '<span class="agent-speaking-orb-core"></span>'
+            + '<span class="agent-speaking-orb-ring"></span>'
             + "</span>"
             + '<span class="agent-speaking-label">Reading aloud</span>'
             + '<button type="button" class="agent-speaking-stop">Stop</button>';
@@ -353,10 +354,7 @@ export function initAgentWidget(root, profile, sessionId) {
                         if (state === "idle" && revealQueue) revealQueue.stop();
                         if (!speakerOn) return;
                         setSpeakerMode(state === "speaking" ? "speaking" : "on");
-                        if (state === "speaking") {
-                            showVoiceNote("Speaking…", 0);
-                            showSpeakingIndicator(currentAssistantLi);
-                        } else {
+                        if (state !== "speaking") {
                             clearSpeakingIndicator();
                             if (voiceStatus.textContent === "Speaking…") {
                                 voiceStatus.classList.add("is-hidden");
@@ -366,7 +364,15 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Fires only when audio genuinely starts, so the status
                     // line distinguishes "synthesizing" from "actually
                     // audible" — the two are indistinguishable otherwise.
-                    onPlaying: () => showVoiceNote("Speaking…", 0),
+                    // The per-message "Reading aloud" strip lives here too
+                    // (not on the earlier "speaking"/enqueued state above):
+                    // spec 55 holds text back until this same moment, so
+                    // showing the strip any earlier left it sitting over a
+                    // still-empty, caret-only message.
+                    onPlaying: () => {
+                        showVoiceNote("Speaking…", 0);
+                        showSpeakingIndicator(currentAssistantLi);
+                    },
                     onError: (message) => {
                         // The reply is already on screen, so a synthesis
                         // failure is a note, not an error state.
@@ -1343,8 +1349,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function renderCitationList(assistantLi, citations) {
         const ids = Object.keys(citations).map(Number).sort((a, b) => a - b);
         if (!ids.length) return;
-        const wrap = document.createElement("div");
-        wrap.className = "agent-sources";
+        const links = [];
         ids.forEach(id => {
             const c = citations[id];
             if (!c?.url) return;
@@ -1354,9 +1359,34 @@ export function initAgentWidget(root, profile, sessionId) {
             a.target = "_blank";
             a.rel = "noopener noreferrer";
             a.textContent = `[${id}] ${c.label || c.url}`;
-            wrap.appendChild(a);
+            links.push(a);
         });
-        if (wrap.children.length) assistantLi.appendChild(wrap);
+        if (!links.length) return;
+
+        // Collapsed by default — the panel is small, and a citation list
+        // shouldn't outweigh the answer it's supporting. Mirrors the
+        // Thinking panel's toggle/body/chevron shape exactly (same
+        // aria-expanded + hidden mechanics) rather than a new pattern.
+        const wrap = document.createElement("div");
+        wrap.className = "agent-sources";
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "agent-sources-toggle";
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.innerHTML =
+            `<span class="agent-sources-label">Sources (${links.length})</span>` +
+            '<span class="agent-sources-chevron" aria-hidden="true">▾</span>';
+        const body = document.createElement("div");
+        body.className = "agent-sources-body";
+        body.hidden = true;
+        body.append(...links);
+        toggle.addEventListener("click", () => {
+            const open = toggle.getAttribute("aria-expanded") === "true";
+            toggle.setAttribute("aria-expanded", String(!open));
+            body.hidden = open;
+        });
+        wrap.append(toggle, body);
+        assistantLi.appendChild(wrap);
     }
 
     function renderSuggestions(assistantLi, suggestions) {
@@ -1716,11 +1746,11 @@ function renderShell(root, agentExplainer) {
     input.className = "agent-input";
     input.rows = 1;
     input.maxLength = 1000;
-    // Shorter than "Ask about Gaurav's work…" (which the panel header
-    // "Ask Atlas" already makes redundant) — the longer copy wrapped and
-    // clipped inside the shrunk textarea on narrow mobile widths once the
-    // mic/send flex-wrap fix (below) let the box actually shrink to fit.
-    input.placeholder = "Ask about his work…";
+    // "Ask about Gaurav's work…" previously clipped on narrow mobile
+    // widths before .agent-input's min-width: 0 fix (below) let the
+    // textarea actually shrink to fit alongside the mic/send buttons —
+    // re-verified fitting fine now that fix is in place.
+    input.placeholder = "Ask about Gaurav's work…";
     input.setAttribute("aria-label", "Message");
     // Spec 26: native-feeling soft-keyboard hints on touch devices.
     input.setAttribute("enterkeyhint", "send");
