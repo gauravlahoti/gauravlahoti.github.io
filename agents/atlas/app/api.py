@@ -55,6 +55,7 @@ from app.app_utils.resume_send import warm_mcp_server
 from app.app_utils.speak import MAX_TEXT_CHARS, speak_text
 from app.app_utils.speak import warm as warm_speak
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
+from app.app_utils.transcribe import warm as warm_transcribe
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
     INJECTION_REPLY_PREFIX,
@@ -565,7 +566,16 @@ def register_routes(app: FastAPI) -> None:
         # in a container costs ~3s more than a warm one, and with sentence
         # chunking that lands on the first clip a visitor hears.
         speak_ready = warm_speak()
-        return {"ok": True, "mcpReady": mcp_ready, "speakReady": speak_ready}
+        # Same tax, same fix, for transcription — voice input is mic-tap-gated
+        # and mobile-heavy, so without this most real transcribe requests were
+        # each container's first-ever call, paying the cold ADC/TLS cost.
+        transcribe_ready = warm_transcribe()
+        return {
+            "ok": True,
+            "mcpReady": mcp_ready,
+            "speakReady": speak_ready,
+            "transcribeReady": transcribe_ready,
+        }
 
     # ~3x the client's 30s recording cap at 24kbps opus, so a legitimate clip
     # never trips this — it exists to stop a crafted request from posting a

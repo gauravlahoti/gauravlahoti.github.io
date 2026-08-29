@@ -127,6 +127,27 @@ def _get_credentials() -> google.auth.credentials.Credentials:
     return _creds
 
 
+def warm() -> bool:
+    """Prime the cached ADC credentials and httpx client.
+
+    Mirrors speak.py's warm() for the same reason: the first Vertex call in a
+    fresh container pays a token fetch plus a TLS handshake (spec 50 measured
+    this class of tax at 5.57s cold vs 2.39s warm on the sibling TTS path).
+    Voice input is mic-tap-gated and comparatively rare, so without this most
+    real transcribe requests were each container's *first* transcribe call —
+    paying the full cold tax every time, which is what showed up as "mobile
+    transcription is slow" (voice input skews mobile-heavy by design; nothing
+    in the request path itself differs by platform).
+    """
+    try:
+        _get_credentials()
+        _get_client()
+        return True
+    except Exception:
+        logger.warning("transcribe: warm failed", exc_info=True)
+        return False
+
+
 def _model_url(model: str) -> str:
     return (
         f"https://aiplatform.googleapis.com/v1/projects/{ATLAS_VERTEX_PROJECT}"
