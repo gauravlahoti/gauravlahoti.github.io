@@ -1184,7 +1184,11 @@ function renderShell(root, agentExplainer) {
     input.className = "agent-input";
     input.rows = 1;
     input.maxLength = 1000;
-    input.placeholder = "Ask about Gaurav's work…";
+    // Shorter than "Ask about Gaurav's work…" (which the panel header
+    // "Ask Atlas" already makes redundant) — the longer copy wrapped and
+    // clipped inside the shrunk textarea on narrow mobile widths once the
+    // mic/send flex-wrap fix (below) let the box actually shrink to fit.
+    input.placeholder = "Ask about his work…";
     input.setAttribute("aria-label", "Message");
     // Spec 26: native-feeling soft-keyboard hints on touch devices.
     input.setAttribute("enterkeyhint", "send");

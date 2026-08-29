@@ -2458,6 +2458,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-input {
     flex: 1 1 auto;
+    /* Flex items default to min-width: auto, which floors shrinking at the
+       textarea's intrinsic content width — on narrow mobile viewports that
+       floor left no room for both the mic and send buttons (flex: 0 0 auto,
+       never shrink) on the same line, so .agent-input-row's flex-wrap: wrap
+       (added for the voice-status line) pushed the send button onto its own
+       row instead. min-width: 0 lets the textarea actually shrink to fit. */
+    min-width: 0;
     resize: none;
     min-height: 44px;
     max-height: 120px;
