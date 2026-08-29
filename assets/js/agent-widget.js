@@ -30,6 +30,17 @@ const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// 8kHz mono 16-bit, 100 samples of silence — used to bank the user's click as
+// audio permission (see primeAudio). Must be a well-formed file; a malformed
+// one throws NotSupportedError and grants nothing.
+const SILENT_WAV_B64 =
+    "UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YcgAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
 let warmedThisSession = false;
 
 // Read the self-asserted identity from a prior Google sign-in, if one was ever
@@ -103,6 +114,7 @@ export function initAgentWidget(root, profile, sessionId) {
     let speakerOn = false;    // visitor's toggle, mirrored to localStorage
     let speakerLoading = false;
     let isSpeaking = false;
+    let voiceNoteTimer = null;
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
@@ -246,59 +258,120 @@ export function initAgentWidget(root, profile, sessionId) {
         );
     }
 
-    // Builds the playback engine if it isn't there. Called from the toggle
-    // and again from sendCurrent(), because closePanel() disposes the engine
-    // while the toggle preference survives — reopening the panel with
-    // "speak replies" still on must not feed a disposed instance.
-    async function ensureSpeaker() {
-        if (speaker) return true;
-        if (speakerLoading) return false;
-        speakerLoading = true;
-        try {
-            const mod = await import(_vq("./agent-speech.js"));
-            speaker = mod.initSpeaker({
-                apiUrl: speakApiUrl,
-                sessionId,
-                onStateChange: (state) => {
-                    if (!speakerOn) return;
-                    setSpeakerMode(state === "speaking" ? "speaking" : "on");
-                },
-                onError: (message) => {
-                    // The reply is already on screen, so a synthesis failure
-                    // is a note, not an error state.
-                    voiceStatus.classList.remove("is-hidden");
-                    voiceStatus.textContent = message;
-                    setTimeout(() => {
-                        if (micBtn.dataset.mode === "idle") voiceStatus.classList.add("is-hidden");
-                    }, 4000);
-                },
-            });
-            return true;
-        } catch (_) {
-            voiceStatus.classList.remove("is-hidden");
-            voiceStatus.textContent = "Voice playback failed to load.";
-            return false;
-        } finally {
-            speakerLoading = false;
+    // Shared one-line status under the composer. The mic owns it while
+    // recording; the speaker borrows it, so a visitor always has somewhere to
+    // look when voice does something.
+    function showVoiceNote(message, autoHideMs = 5000) {
+        voiceStatus.classList.remove("is-hidden");
+        voiceStatus.textContent = message;
+        clearTimeout(voiceNoteTimer);
+        if (autoHideMs) {
+            voiceNoteTimer = setTimeout(() => {
+                if (micBtn.dataset.mode === "idle" && !isSpeaking) {
+                    voiceStatus.classList.add("is-hidden");
+                }
+            }, autoHideMs);
         }
     }
 
+    // Builds the playback engine if it isn't there. Called from the toggle and
+    // again from sendCurrent(), because closePanel() disposes the engine while
+    // the toggle preference survives — reopening the panel with "speak
+    // replies" still on must not feed a disposed instance.
+    //
+    // Concurrent callers share one in-flight load rather than the second one
+    // bailing out. openPanel() starts this without awaiting, so sendCurrent()
+    // can land mid-import; returning early there left `speaker` null and
+    // silently dropped every delta of that turn — a cyan "on" icon and no
+    // sound, with nothing anywhere to say why.
+    let speakerLoadPromise = null;
+    function ensureSpeaker() {
+        if (speaker) return Promise.resolve(true);
+        if (speakerLoadPromise) return speakerLoadPromise;
+        speakerLoading = true;
+        speakerLoadPromise = (async () => {
+            try {
+                const mod = await import(_vq("./agent-speech.js"));
+                speaker = mod.initSpeaker({
+                    apiUrl: speakApiUrl,
+                    sessionId,
+                    onStateChange: (state) => {
+                        if (!speakerOn) return;
+                        setSpeakerMode(state === "speaking" ? "speaking" : "on");
+                        if (state === "speaking") showVoiceNote("Speaking…", 0);
+                        else if (voiceStatus.textContent === "Speaking…") {
+                            voiceStatus.classList.add("is-hidden");
+                        }
+                    },
+                    // Fires only when audio genuinely starts, so the status
+                    // line distinguishes "synthesizing" from "actually
+                    // audible" — the two are indistinguishable otherwise.
+                    onPlaying: () => showVoiceNote("Speaking…", 0),
+                    onError: (message) => {
+                        // The reply is already on screen, so a synthesis
+                        // failure is a note, not an error state.
+                        showVoiceNote(message);
+                    },
+                });
+                return true;
+            } catch (_) {
+                showVoiceNote("Voice playback failed to load.");
+                return false;
+            } finally {
+                speakerLoading = false;
+                speakerLoadPromise = null;
+            }
+        })();
+        return speakerLoadPromise;
+    }
+
     async function toggleSpeaker() {
-        if (speakerLoading) return;
         if (speakerOn) {
             speakerOn = false;
             writeSpeakerPref(false);
             if (speaker) speaker.cancel();
             setSpeakerMode("off");
+            showVoiceNote("Spoken replies off.", 2500);
             return;
         }
-        // This click is the user gesture that makes playback legal.
+        // This click is the user gesture that makes playback legal. Priming a
+        // muted zero-length clip inside the handler itself banks that gesture,
+        // so the first real clip — which arrives seconds later, well outside
+        // the activation window — is not refused.
+        primeAudio();
         const ok = await ensureSpeaker();
         if (!ok) return;
         speakerOn = true;
         writeSpeakerPref(true);
         setSpeakerMode("on");
+        showVoiceNote("Spoken replies on. Atlas will read its answers.", 4000);
         liveRegion.textContent = "Spoken replies on.";
+    }
+
+    // Unlocks audio for this page session. Chrome and Safari grant playback
+    // off a user gesture, but the first synthesized clip lands 2-3s later,
+    // long after the activation window closes. Playing a silent clip inside
+    // the click handler is the standard way to bank that permission.
+    let audioPrimed = false;
+    function primeAudio() {
+        if (audioPrimed) return;
+        audioPrimed = true;
+        try {
+            // Via a blob: URL, not a data: URI. The page CSP is
+            // `media-src 'self' blob:` — a data: URI is refused outright with
+            // NotSupportedError, which banks nothing, and widening the CSP for
+            // a 244-byte silent clip isn't worth it.
+            const bin = atob(SILENT_WAV_B64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+            const silent = new Audio(url);
+            silent.volume = 0;
+            const done = () => URL.revokeObjectURL(url);
+            const p = silent.play();
+            if (p && typeof p.then === "function") p.then(done, done);
+            else done();
+        } catch (_) { /* best effort */ }
     }
 
     // Spec 48: mirrors setSendMode's shape for the mic button's three
@@ -323,7 +396,9 @@ export function initAgentWidget(root, profile, sessionId) {
         } else if (mode === "busy") {
             voiceStatus.classList.remove("is-hidden");
             voiceStatus.textContent = "Transcribing…";
-        } else {
+        } else if (!isSpeaking) {
+            // The speaker borrows this same line. Returning the mic to idle
+            // must not wipe a live "Speaking…" out from under it.
             voiceStatus.classList.add("is-hidden");
         }
     }
