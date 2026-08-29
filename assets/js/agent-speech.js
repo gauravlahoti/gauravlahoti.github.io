@@ -1,28 +1,77 @@
-// agent-speech.js — spoken-reply playback for the Atlas composer (spec #49).
+// agent-speech.js — spoken-reply playback for the Atlas composer (spec #50).
 //
 // Mouth only: takes the reply text as it streams, splits it into sentence
 // chunks, asks /api/agent-speak to synthesize each one, and plays the clips
-// back in order. It never sends a chat turn and never touches the composer.
+// back-to-back. It never sends a chat turn and never touches the composer.
 //
-// Why chunks rather than one call at the end: synthesis runs at ~0.69x
-// realtime, so a whole 12-second answer costs ~9s of silence before anything
-// plays. Chunking means playback starts after the first sentence. Because
-// 0.69 < 1, generation outruns playback, so a single in-flight request is
-// enough to keep the queue fed — no parallel fetches, which would also spend
-// the rate-limit bucket several times faster.
+// # Why this is built the way it is
+//
+// Synthesis runs at a measured ~0.69x realtime (39 chars -> 3.48s of audio in
+// 2.39s; 171 chars -> 12.64s in 9.26s). Two consequences drive the whole
+// design.
+//
+// 1. Generation is *faster* than playback, so a producer running ahead of a
+//    consumer can keep the queue fed indefinitely. Spec 49 claimed to do this
+//    but its pump() awaited synthesize() and then play() in one loop, so the
+//    next chunk only started once the previous had finished *playing* — 2-4
+//    seconds of dead air between every clip. That is what made it sound like
+//    it was reading word by word. The producer/consumer split below is the fix.
+//
+// 2. Chunk sizes must *ramp*, not sit at a constant. For playback never to
+//    starve, chunk N+1 must synthesize faster than chunk N plays:
+//    0.69 * dur(N+1) <= dur(N), so each chunk can be at most ~1.45x the last
+//    with one request in flight (more with LOOKAHEAD 2). A flat "just use big
+//    chunks" would starve badly right after a short opener — 600 chars is ~44s
+//    of audio and ~30s of synthesis.
+//
+// Playback goes through Web Audio rather than <audio> elements. Prefetching
+// alone is not enough: new Audio().play() has a variable start delay, so
+// clips would still join unevenly. decodeAudioData + source.start(when) with
+// an accumulated start time is sample-accurate, so consecutive chunks butt
+// together with no gap at all.
 //
 // Lazy-loaded: agent-widget.js only import()s this when the speaker is first
 // switched on, so none of it ships in the initial page payload.
 
-// The first chunk is the only latency a listener actually feels, so it is cut
-// short on purpose (~2.4s to synthesize at this size). Later chunks run long
-// to spend fewer rate-limit slots and sound less choppy.
-const FIRST_CHUNK_MAX = 90;
-const CHUNK_MAX = 320;
-// Only guards against absurdly short clips ("Yes."); it must stay well under
-// FIRST_CHUNK_MAX or a short opening sentence gets merged into the next one
-// and the first-chunk latency win is lost.
+// Chunk size ramp, in characters. The first is small so speech starts fast
+// (~1.4s to synthesize); later ones grow because every chunk boundary is a
+// prosody reset — the model synthesizes each in isolation — so fewer, longer
+// chunks sound markedly more natural. Growth stays under the ~1.45x-per-chunk
+// ceiling the starvation rule allows. Capped at the last value.
+const CHUNK_RAMP = [70, 140, 240, 350];
+
+// How far past a ramp limit we will wait for a *natural* boundary before
+// giving up and breaking on a bare word. Splitting mid-sentence is the one
+// thing that reliably sounds wrong — an early build cut the opening at 45
+// chars and produced "Gaurav has spent about eight years at" / "Deloitte."
+// as two clips. Waiting a little longer for a comma or a full stop is worth
+// more than shaving a few hundred milliseconds off the start.
+const NATURAL_BOUNDARY_SLACK = 1.6;
+
+// Only guards against absurdly short clips ("Yes."). Must stay well under the
+// first ramp step or a short opening sentence gets merged into the next one
+// and the fast-start win is lost.
 const CHUNK_MIN = 20;
+
+// How many chunks may be synthesized ahead of playback. 2 gives comfortable
+// headroom against the starvation rule without multiplying rate-limit spend
+// or per-minute Vertex quota pressure the way unbounded parallelism would.
+const LOOKAHEAD = 2;
+
+// Scheduling cushion. When starting a fresh run (or recovering from a starve)
+// the first buffer is scheduled this far ahead of currentTime so the decode
+// and graph wiring land before playback reaches them.
+const START_LEAD_S = 0.06;
+
+// Measured: text runs at ~13.5 characters per second of synthesized speech.
+const CHARS_PER_SEC_OF_SPEECH = 13.5;
+
+// Synthesis costs ~0.69x the audio duration (measured).
+const SYNTH_RATIO = 0.69;
+
+// Safety margin on top of the estimated synthesis time, covering network
+// round-trip, decode, and the model's own variance.
+const RUNWAY_MARGIN_S = 1.0;
 
 // A sentence ending: . ! or ? that is genuinely the end of a sentence.
 //
@@ -51,37 +100,73 @@ function findSplit(text, limit, final) {
     }
     if (best >= CHUNK_MIN) return best;
 
-    // No usable sentence end. If we're already over the limit, fall back to
-    // the last clause or word break so a long unpunctuated run still speaks.
-    if (text.length <= limit) return -1;
+    // No sentence end fits. A clause break is the next most natural place to
+    // breathe, so take one if there is one inside the limit.
     const window = text.slice(0, limit);
     const clause = Math.max(window.lastIndexOf(", "), window.lastIndexOf("; "));
     if (clause >= CHUNK_MIN) return clause + 1;
-    const space = window.lastIndexOf(" ");
-    return space >= CHUNK_MIN ? space : limit;
+
+    // Nothing natural yet. Keep waiting for more text rather than breaking
+    // mid-sentence — but only up to a point, so a long unpunctuated run still
+    // eventually speaks.
+    const hardLimit = Math.round(limit * NATURAL_BOUNDARY_SLACK);
+    if (!final && text.length <= hardLimit) return -1;
+    if (final && text.length <= limit) return -1;
+
+    const wide = text.slice(0, hardLimit);
+    const lateClause = Math.max(wide.lastIndexOf(", "), wide.lastIndexOf("; "));
+    if (lateClause >= CHUNK_MIN) return lateClause + 1;
+    const space = wide.lastIndexOf(" ");
+    return space >= CHUNK_MIN ? space : hardLimit;
 }
 
-// Returns { speak, feed, flush, cancel, dispose }.
+function base64ToArrayBuffer(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+}
+
+// Returns { speak, feed, flush, cancel, dispose, unlock }.
+//
 // `feed(delta)` accepts streaming text and emits chunks as they complete;
-// `flush()` speaks whatever is left once the stream ends. `onStateChange`
-// fires with "speaking" | "idle"; `onError(message)` fires once per turn on
-// failure and is always followed by an "idle" state change.
+// `flush()` speaks whatever is left once the stream ends; `unlock()` must be
+// called from inside a real click handler to satisfy autoplay policy.
+// `onStateChange` fires with "speaking" | "idle"; `onPlaying()` fires when
+// audio genuinely starts; `onError(message)` fires once per turn on failure
+// and is always followed by an "idle" state change.
 export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying }) {
     let buffer = "";          // text received but not yet chunked
-    let isFirstChunk = true;
-    let queue = [];           // chunks awaiting synthesis
-    let pumping = false;      // a synth+play loop is running
-    let audio = null;         // the <audio> currently playing
-    let objectUrl = null;
-    let controller = null;    // aborts the in-flight synthesis fetch
+    let chunkIndex = 0;       // position in CHUNK_RAMP for the current turn
+    let pending = [];         // {seq, text} awaiting synthesis
+    // Decoded buffers keyed by sequence number, plus the next sequence that
+    // may be scheduled. Synthesis runs LOOKAHEAD-wide in parallel and
+    // completes out of order — a short chunk finishes before a long one sent
+    // earlier — so buffers MUST be released in sequence or the reply is
+    // spoken with its sentences shuffled.
+    let decoded = new Map();
+    let seqCounter = 0;
+    let nextSeq = 0;
+    let inFlight = 0;         // synthesis requests outstanding
+    let producing = false;
     let disposed = false;
     let errored = false;      // one error message per turn, not one per chunk
-    // Bumped by cancel(). A pump loop captures it on entry and bails the
-    // moment it changes, which is what makes "stop" take effect while a
-    // synthesis request is already in flight. A plain boolean can't do this:
-    // cancel() is synchronous and would have to reset the flag before the
-    // awaiting loop ever gets to read it.
+    let announcedPlaying = false;
+    let controllers = new Set();   // abortable in-flight fetches
+    let sources = new Set();       // scheduled AudioBufferSourceNodes
+    let nextStartTime = 0;         // accumulated schedule cursor, in ctx time
+    let scheduledCount = 0;
+    let finalised = false;         // flush() called: no more text is coming
+
+    // Bumped by cancel(). Loops capture it on entry and bail the moment it
+    // changes, which is what makes "stop" take effect while a synthesis
+    // request is already in flight. A plain boolean cannot do this: cancel()
+    // is synchronous and would have to reset the flag before the awaiting
+    // loop ever got to read it.
     let generation = 0;
+
+    let ctx = null;
+    let gain = null;
 
     function emitState(state) {
         if (!disposed && typeof onStateChange === "function") onStateChange(state);
@@ -93,23 +178,25 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         if (typeof onError === "function") onError(message);
     }
 
-    function releaseAudio() {
-        if (audio) {
-            audio.pause();
-            audio.removeAttribute("src");
-            audio.load();
-            audio = null;
+    // Creating and resuming the AudioContext inside a click handler is what
+    // banks the user gesture for the whole page session. The first synthesized
+    // clip arrives 1-2s later, long after the activation window closes, so
+    // without this Safari and iOS refuse to play it.
+    function unlock() {
+        if (disposed) return;
+        if (!ctx) {
+            const Ctor = window.AudioContext || window.webkitAudioContext;
+            if (!Ctor) return;
+            ctx = new Ctor();
+            gain = ctx.createGain();
+            gain.connect(ctx.destination);
         }
-        if (objectUrl) {
-            // Revoking is what lets the decoded clip be collected — a long
-            // conversation would otherwise hold every reply it ever spoke.
-            URL.revokeObjectURL(objectUrl);
-            objectUrl = null;
-        }
+        if (ctx.state === "suspended") ctx.resume().catch(() => { /* best effort */ });
     }
 
     async function synthesize(text) {
-        controller = new AbortController();
+        const controller = new AbortController();
+        controllers.add(controller);
         try {
             const res = await fetch(apiUrl, {
                 method: "POST",
@@ -129,76 +216,178 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
             }
             return null;
         } finally {
-            controller = null;
+            controllers.delete(controller);
         }
     }
 
-    function play(base64Wav) {
-        return new Promise((resolve) => {
-            let bytes;
-            try {
-                const binary = atob(base64Wav);
-                bytes = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            } catch (_) {
-                resolve();
-                return;
+    // Schedules one decoded buffer to start exactly where the previous one
+    // ended. `nextStartTime` is the whole trick: because it accumulates real
+    // buffer durations rather than being recomputed from the clock, clips join
+    // sample-accurately instead of drifting apart by however long each
+    // play() call happened to take.
+    function schedule(audioBuffer) {
+        if (disposed) return;
+        // Should never happen — unlock() runs from the click that enables the
+        // speaker — but dropping audio silently because a context was missing
+        // is exactly the class of failure spec 50 exists to stop.
+        if (!ctx) unlock();
+        if (!ctx) { emitError("Audio isn't available in this browser."); return; }
+        const now = ctx.currentTime;
+        // Starved (or starting fresh): the cursor is in the past, so pull it
+        // forward. This is the only place a gap can appear.
+        if (nextStartTime < now + START_LEAD_S) nextStartTime = now + START_LEAD_S;
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(gain);
+        source.start(nextStartTime);
+        sources.add(source);
+        scheduledCount += 1;
+
+        const mine = generation;
+        source.onended = () => {
+            sources.delete(source);
+            source.disconnect();
+            if (mine !== generation || disposed) return;
+            // Run finished: nothing scheduled, nothing queued, no more coming.
+            if (!sources.size && !decoded.size && !pending.length && !inFlight && finalised) {
+                emitState("idle");
             }
-            // A Blob URL rather than a data: URI — a 300KB base64 string in the
-            // DOM is both slower to parse and awkward to revoke.
-            objectUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-            audio = new Audio(objectUrl);
-            const done = () => { releaseAudio(); resolve(); };
-            audio.addEventListener("ended", done, { once: true });
-            audio.addEventListener("error", done, { once: true });
-            // A rejection here means the browser refused to play. Reporting it
-            // matters more than it looks: the failure is otherwise completely
-            // silent — no sound, no error, a cyan "on" icon — and there is no
-            // way for anyone to tell it apart from a broken backend.
-            audio.play().then(
-                () => { if (typeof onPlaying === "function") onPlaying(); },
-                (err) => {
-                    emitError(
-                        err && err.name === "NotAllowedError"
-                            ? "Browser blocked autoplay. Click the speaker icon again to allow sound."
-                            : "Couldn't play the audio.",
-                    );
-                    done();
-                },
-            );
-        });
+        };
+
+        if (!announcedPlaying) {
+            announcedPlaying = true;
+            // Fire when audio genuinely begins, not when it was merely
+            // requested — the two are seconds apart and the status line needs
+            // to tell them apart.
+            const delayMs = Math.max(0, (nextStartTime - now) * 1000);
+            setTimeout(() => {
+                if (mine === generation && !disposed && typeof onPlaying === "function") onPlaying();
+            }, delayMs);
+        }
+
+        nextStartTime += audioBuffer.duration;
     }
 
-    async function pump() {
-        if (pumping) return;
-        pumping = true;
+    // Producer: keeps up to LOOKAHEAD requests outstanding, independent of
+    // whatever playback is doing. This is the half spec 49 was missing.
+    async function produce() {
+        if (producing) return;
+        producing = true;
         const mine = generation;
-        emitState("speaking");
         try {
-            while (queue.length && mine === generation && !disposed) {
-                const text = queue.shift();
-                const wav = await synthesize(text);
-                if (mine !== generation || disposed) break;
-                if (!wav) continue;  // this chunk failed; keep the rest going
-                await play(wav);
+            while (mine === generation && !disposed) {
+                if (!pending.length || inFlight >= LOOKAHEAD) break;
+                const { seq, text } = pending.shift();
+                inFlight += 1;
+                // Deliberately not awaited: several may be in flight at once,
+                // which is the point.
+                (async () => {
+                    const b64 = await synthesize(text);
+                    inFlight -= 1;
+                    if (mine !== generation || disposed) return;
+                    let buf = null;
+                    if (b64) {
+                        if (!ctx) unlock();
+                        try {
+                            buf = ctx ? await ctx.decodeAudioData(base64ToArrayBuffer(b64)) : null;
+                        } catch (_) {
+                            emitError("Couldn't decode the audio.");
+                        }
+                    }
+                    if (mine !== generation || disposed) return;
+                    // Recorded even when null, so drainReady() can skip past a
+                    // failed chunk instead of stalling the whole reply on it.
+                    decoded.set(seq, buf);
+                    drainReady();
+                    produce();
+                    settleIfDone();
+                })();
             }
         } finally {
-            pumping = false;
-            if (!disposed && mine === generation) emitState("idle");
+            producing = false;
+        }
+    }
+
+    // Releases buffers strictly in sequence. A chunk that failed to
+    // synthesize is stored as null so it is skipped rather than blocking
+    // every later chunk behind it forever.
+    function drainReady() {
+        while (decoded.has(nextSeq)) {
+            const buf = decoded.get(nextSeq);
+            decoded.delete(nextSeq);
+            nextSeq += 1;
+            if (buf) schedule(buf);
+        }
+    }
+
+    function settleIfDone() {
+        if (disposed) return;
+        if (!sources.size && !decoded.size && !pending.length && !inFlight && finalised) {
+            emitState("idle");
         }
     }
 
     function enqueue(text) {
         const trimmed = text.trim();
         if (!trimmed) return;
-        queue.push(trimmed);
-        isFirstChunk = false;
-        pump();
+        pending.push({ seq: seqCounter++, text: trimmed });
+        chunkIndex += 1;
+        if (!scheduledCount && !announcedPlaying) emitState("speaking");
+        produce();
+    }
+
+    // True when nothing is queued, in flight, or sounding — i.e. the listener
+    // is sitting in silence right now.
+    function starving() {
+        return !pending.length && !inFlight && !sources.size && !decoded.size;
+    }
+
+    // Seconds of audio already scheduled but not yet played, plus a rough
+    // estimate for everything still queued or in flight. This is the runway
+    // the producer has to work with. Text runs at ~13.5 characters per second
+    // of speech (measured), and synthesis costs ~0.69x the audio duration.
+    // How long chunk of `chars` will take to synthesize, from the measured
+    // characters-per-second-of-speech and synthesis ratio.
+    function synthCostSec(chars) {
+        return (chars / CHARS_PER_SEC_OF_SPEECH) * SYNTH_RATIO;
+    }
+
+    function runwaySec() {
+        const scheduledLeft = ctx ? Math.max(0, nextStartTime - ctx.currentTime) : 0;
+        let queuedChars = 0;
+        pending.forEach((c) => { queuedChars += c.text.length; });
+        return scheduledLeft + queuedChars / CHARS_PER_SEC_OF_SPEECH;
     }
 
     function drain(final) {
         for (;;) {
-            const limit = isFirstChunk ? FIRST_CHUNK_MAX : CHUNK_MAX;
+            const limit = CHUNK_RAMP[Math.min(chunkIndex, CHUNK_RAMP.length - 1)];
+
+            // Emit at the first natural boundary only when the listener would
+            // otherwise be waiting in silence; the rest of the time, let the
+            // buffer fill to the ramp limit first. Without this the chunker
+            // fires on every sentence as it arrives and a reply comes out as
+            // eight short clips instead of four long ones — every boundary is
+            // a prosody reset, so fewer and longer is markedly more natural.
+            // Fill the chunk for prosody when there is runway to spare; emit
+            // at the first natural boundary when there is not. Filling alone
+            // starves (a 130-char chunk needs ~6.6s to synthesize while a
+            // 47-char opener only plays for 3.5s); emitting alone produces
+            // eight short clips where four long ones sound better.
+            // The threshold is the next chunk's own synthesis cost, not a
+            // flat number: waiting to fill a 240-char chunk is only safe if
+            // there is more than ~12s of audio still ahead of it. A constant
+            // either starves on the long chunks or leaves the short ones
+            // needlessly fragmented.
+            //
+            // This errs towards emitting. More chunks means more seams, but
+            // seams land on sentence boundaries — where a speaker would pause
+            // anyway — while starving means audible dead air, which is the
+            // thing this spec exists to remove. Safety wins.
+            if (!final && !starving() && buffer.length < limit
+                && runwaySec() > synthCostSec(limit) + RUNWAY_MARGIN_S) break;
+
             const at = findSplit(buffer, limit, final);
             if (at === -1) break;
             enqueue(buffer.slice(0, at));
@@ -210,43 +399,86 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         }
     }
 
+    function stopAll() {
+        controllers.forEach((c) => { try { c.abort(); } catch (_) { /* ignore */ } });
+        controllers.clear();
+        sources.forEach((s) => {
+            try { s.onended = null; s.stop(); s.disconnect(); } catch (_) { /* ignore */ }
+        });
+        sources.clear();
+        pending = [];
+        decoded.clear();
+        seqCounter = 0;
+        nextSeq = 0;
+        buffer = "";
+        inFlight = 0;
+        scheduledCount = 0;
+        nextStartTime = 0;
+        announcedPlaying = false;
+        finalised = false;
+        chunkIndex = 0;
+        errored = false;
+    }
+
     return {
+        unlock,
+
         // Streaming entry point: called from the chat turn's onDelta.
         feed(delta) {
             if (disposed) return;
             buffer += delta;
             drain(false);
         },
+
         // Called from onDone — speaks the tail that never hit a boundary.
         flush() {
             if (disposed) return;
             drain(true);
+            finalised = true;
+            settleIfDone();
         },
+
         // One-shot: speak a complete string that never streamed.
         speak(text) {
             if (disposed) return;
             buffer += text;
             drain(true);
+            finalised = true;
         },
-        // Stop now: aborts in-flight synthesis, drops the queue, kills audio.
-        // Reset for the next turn, so this doubles as the per-turn cleanup.
+
+        // Stop now: aborts in-flight synthesis, drops the queue, silences
+        // anything scheduled. Resets for the next turn, so this doubles as
+        // the per-turn cleanup.
         cancel() {
             generation += 1;
-            queue = [];
-            buffer = "";
-            if (controller) controller.abort();
-            releaseAudio();
-            isFirstChunk = true;
-            errored = false;
+            if (gain && ctx) {
+                // A short ramp instead of a hard cut — stopping a buffer
+                // mid-sample otherwise clicks audibly.
+                try {
+                    const now = ctx.currentTime;
+                    gain.gain.cancelScheduledValues(now);
+                    gain.gain.setValueAtTime(gain.gain.value, now);
+                    gain.gain.linearRampToValueAtTime(0.0001, now + 0.04);
+                    setTimeout(() => {
+                        if (!gain || !ctx) return;
+                        gain.gain.cancelScheduledValues(ctx.currentTime);
+                        gain.gain.setValueAtTime(1, ctx.currentTime);
+                    }, 60);
+                } catch (_) { /* ignore */ }
+            }
+            stopAll();
             emitState("idle");
         },
+
         dispose() {
             disposed = true;
             generation += 1;
-            queue = [];
-            buffer = "";
-            if (controller) controller.abort();
-            releaseAudio();
+            stopAll();
+            if (ctx) {
+                try { ctx.close(); } catch (_) { /* ignore */ }
+                ctx = null;
+                gain = null;
+            }
         },
     };
 }

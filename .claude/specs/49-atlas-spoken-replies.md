@@ -1,5 +1,11 @@
 # Spec 49: Atlas spoken replies
 
+> **Correction (spec 50).** The Approach section below claims "one synthesis
+> request stays in flight while the previous clip plays." That was the design;
+> it was not what shipped. `pump()` awaited `synthesize()` and then `play()` in
+> a single loop, so each chunk only began synthesizing after the previous had
+> finished playing, leaving 2-4s of dead air between clips. Fixed in spec 50.
+
 ## Overview
 
 Spec 48 gave Atlas ears. This gives it a mouth.

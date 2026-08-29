@@ -2603,6 +2603,107 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
    controls (.agent-input-row has flex-wrap: wrap; flex-basis 100% on an
    already-occupied line forces the wrap). Same muted-mono treatment as
    .agent-stopped-note below. */
+/* ---- "Reading aloud" strip inside the message (spec 50) --------------- */
+/* Sits in the assistant <li> like .agent-thinking does. The header speaker
+   icon alone was too easy to miss — nothing in the transcript itself showed
+   Atlas was still talking. */
+.agent-speaking {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+.agent-speaking-label { flex: 1 1 auto; }
+.agent-speaking-stop {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    cursor: pointer;
+}
+.agent-speaking-stop:hover { color: var(--ink); border-color: var(--accent); }
+
+/* Four bars bouncing out of phase — the standard "audio is playing" read,
+   and cheap: transform only, no layout. */
+.agent-speaking-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+}
+.agent-speaking-bars span {
+    display: block;
+    width: 2px;
+    height: 100%;
+    background: var(--accent);
+    transform-origin: bottom;
+    animation: agent-speaking-bar 0.9s ease-in-out infinite;
+}
+.agent-speaking-bars span:nth-child(2) { animation-delay: 0.15s; }
+.agent-speaking-bars span:nth-child(3) { animation-delay: 0.30s; }
+.agent-speaking-bars span:nth-child(4) { animation-delay: 0.45s; }
+@keyframes agent-speaking-bar {
+    0%, 100% { transform: scaleY(0.3); }
+    50%      { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-speaking-bars span { animation: none; transform: scaleY(0.6); }
+}
+
+/* ---- first-run consent card (spec 50) -------------------------------- */
+/* Inline above the composer, not a <dialog>: showModal() centres against the
+   viewport, which is why the explainer dialog has to be portalled onto
+   document.body. A one-line prompt reads better attached to its control. */
+.agent-consent {
+    margin: 0 var(--space-4) var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+}
+.agent-consent-copy {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--ink);
+}
+.agent-consent-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+.agent-consent-actions button {
+    min-height: var(--tap-min);
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+.agent-consent-no {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--ink-muted);
+}
+.agent-consent-no:hover { color: var(--ink); }
+.agent-consent-yes {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+}
+
 /* ---- spoken replies toggle (spec 49) ---------------------------------- */
 /* Lives in the panel header, not the composer: the composer holds input
    controls (mic, send), the header holds session controls. Sizing comes from

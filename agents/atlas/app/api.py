@@ -53,6 +53,7 @@ from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.resume_send import warm_mcp_server
 from app.app_utils.speak import MAX_TEXT_CHARS, speak_text
+from app.app_utils.speak import warm as warm_speak
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
@@ -560,7 +561,11 @@ def register_routes(app: FastAPI) -> None:
         # send path: warming it here means an actual resume request later doesn't
         # have to wait out its cold start.
         mcp_ready = await warm_mcp_server()
-        return {"ok": True, "mcpReady": mcp_ready}
+        # Spec 50: prime the TTS credentials/client too. The first Vertex call
+        # in a container costs ~3s more than a warm one, and with sentence
+        # chunking that lands on the first clip a visitor hears.
+        speak_ready = warm_speak()
+        return {"ok": True, "mcpReady": mcp_ready, "speakReady": speak_ready}
 
     # ~3x the client's 30s recording cap at 24kbps opus, so a legitimate clip
     # never trips this — it exists to stop a crafted request from posting a
