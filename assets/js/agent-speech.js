@@ -66,7 +66,7 @@ function findSplit(text, limit, final) {
 // `flush()` speaks whatever is left once the stream ends. `onStateChange`
 // fires with "speaking" | "idle"; `onError(message)` fires once per turn on
 // failure and is always followed by an "idle" state change.
-export function initSpeaker({ apiUrl, sessionId, onStateChange, onError }) {
+export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying }) {
     let buffer = "";          // text received but not yet chunked
     let isFirstChunk = true;
     let queue = [];           // chunks awaiting synthesis
@@ -151,10 +151,21 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError }) {
             const done = () => { releaseAudio(); resolve(); };
             audio.addEventListener("ended", done, { once: true });
             audio.addEventListener("error", done, { once: true });
-            // Rejection here means the browser refused autoplay. The toggle is
-            // only ever switched on by a click, so this should not happen —
-            // resolving rather than throwing keeps the queue draining if it does.
-            audio.play().catch(() => done());
+            // A rejection here means the browser refused to play. Reporting it
+            // matters more than it looks: the failure is otherwise completely
+            // silent — no sound, no error, a cyan "on" icon — and there is no
+            // way for anyone to tell it apart from a broken backend.
+            audio.play().then(
+                () => { if (typeof onPlaying === "function") onPlaying(); },
+                (err) => {
+                    emitError(
+                        err && err.name === "NotAllowedError"
+                            ? "Browser blocked autoplay. Click the speaker icon again to allow sound."
+                            : "Couldn't play the audio.",
+                    );
+                    done();
+                },
+            );
         });
     }
 
