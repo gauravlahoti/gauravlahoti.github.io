@@ -9,11 +9,24 @@ make eval-quick   # cheap 2-case smoke eval against basic.evalset.json
 make eval         # full 16-case gate against portfolio.evalset.json, required before deploy
 ```
 
-Both targets run `agents-cli eval run --dataset <file> --config ../eval_config.yaml`
-(chains `eval generate` + `eval grade`) and then `tests/eval/check_results.py`,
-which applies the pass/fail thresholds and gives `make eval` a real non-zero
-exit code on regressions — `agents-cli eval grade` itself only scores and
-writes a report, it doesn't enforce a bar.
+Both targets first run `tests/eval/prepare_evalset.py`, which copies the
+checked-in fixture to `artifacts/eval_datasets/` with every test email
+(`@example.com`) tagged `+eval<run>-<n>` — `send_resume`/`send_note_to_gaurav`
+enforce a real 1-send-per-address-per-24h limit against the live production
+Worker/D1, so reusing the same literal address run after run means only the
+first `make eval` in a 24h window gets a genuine send and every run after
+that scores `atlas_tool_use_quality` as if the agent picked the wrong tool.
+Tagging keeps each run (and each case within a run) on its own address, so
+that state never bleeds across runs. The checked-in `.evalset.json` files
+stay untouched — only the generated, gitignored copy is templated.
+
+Both targets then run `agents-cli eval run --dataset <generated file>
+--config ../eval_config.yaml` (chains `eval generate` + `eval grade`) and
+`tests/eval/check_results.py`, which applies the pass/fail thresholds and
+gives `make eval` a real non-zero exit code on regressions — `agents-cli
+eval grade` itself only scores and writes a report, it doesn't enforce a
+bar. `check_results.py` still reads the original (non-generated) fixture
+for case-id labelling — case order and ids are unaffected by tagging.
 
 ## Dataset format
 
