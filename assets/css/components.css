@@ -2613,6 +2613,22 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-voice-status.is-hidden { display: none; }
 
+/* Below 767px (the mobile bottom-sheet breakpoint used elsewhere in this
+   file), don't rely on the textarea implicitly shrinking enough to keep
+   mic+send on the same line as it — that reflow is sensitive to exact
+   viewport width and font metrics, and doesn't hold on every real device
+   (e.g. reported broken on a Samsung Z Fold's narrow cover-screen browser,
+   which didn't reproduce in emulation down to 344px — evidently narrower
+   or otherwise different from anything tested here). Forcing the textarea
+   onto its own full-width row is deterministic instead: mic+send always
+   land together on the row below, correct by construction rather than by
+   flex-wrap math happening to work out. */
+@media (max-width: 767px) {
+    .agent-input {
+        flex-basis: 100%;
+    }
+}
+
 /* Muted marker under a response the visitor cut short with the stop button. */
 .agent-stopped-note {
     margin: var(--space-2) 0 0;
