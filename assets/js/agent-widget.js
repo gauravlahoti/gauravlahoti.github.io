@@ -21,6 +21,7 @@ const FEATURES = Object.freeze({
     explainerDialog: true,
     thinking:        true,
     voiceInput:      true,
+    speakReplies:    true,
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -54,6 +55,8 @@ export function initAgentWidget(root, profile, sessionId) {
     const warmUrl = links.agentWarm;
     // Spec 48: same host, sibling route — not a second config key.
     const transcribeApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-transcribe") : apiUrl;
+    // Spec 49: same again for spoken replies.
+    const speakApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-speak") : apiUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -78,6 +81,7 @@ export function initAgentWidget(root, profile, sessionId) {
     const input = dom.input;
     const sendBtn = dom.sendBtn;
     const micBtn = dom.micBtn;
+    const speakerBtn = dom.speakerBtn;
     const voiceStatus = dom.voiceStatus;
     const liveRegion = dom.liveRegion;
     const promptsEl = dom.prompts;
@@ -92,6 +96,13 @@ export function initAgentWidget(root, profile, sessionId) {
     let nudgeIo = null; // IntersectionObserver for scroll nudge
     let voiceEngine = null; // lazy-loaded agent-voice.js handle, set on first mic tap
     let micLoading = false; // guards a double-click during the lazy import
+    // Spec 49. Deliberately not folded into isPending: playback outlives the
+    // stream (audio is still going after onDone), so "a turn is streaming"
+    // and "Atlas is talking" are genuinely different states.
+    let speaker = null;       // lazy-loaded agent-speech.js handle
+    let speakerOn = false;    // visitor's toggle, mirrored to localStorage
+    let speakerLoading = false;
+    let isSpeaking = false;
 
     // Tooltip: show after 5s, auto-hide after 10s; cancelled on first open.
     let _tooltipShowTimer = null;
@@ -167,6 +178,11 @@ export function initAgentWidget(root, profile, sessionId) {
             }
         });
     }
+    if (FEATURES.speakReplies) {
+        speakerBtn.addEventListener("click", toggleSpeaker);
+    } else {
+        speakerBtn.classList.add("is-hidden");
+    }
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -195,10 +211,94 @@ export function initAgentWidget(root, profile, sessionId) {
     }
 
     function stopStreaming() {
+        // Stop is a single control for the whole turn: if the text has
+        // finished but Atlas is still talking, this must still silence it.
+        if (speaker) speaker.cancel();
         if (!isPending || !abortController) return;
         wasStopped = true;
         abortController.abort();
         liveRegion.textContent = "Stopped.";
+    }
+
+    // ---- spoken replies (spec 49) ---------------------------------------
+
+    const SPEAKER_PREF_KEY = "atlas.speakReplies";
+
+    // The preference is remembered, but it is only ever *applied* after a
+    // click in this page session — see toggleSpeaker(). Browsers require a
+    // user gesture before audio may play, and restoring a saved "on" straight
+    // into autoplay would be both blocked and rude.
+    function readSpeakerPref() {
+        try { return localStorage.getItem(SPEAKER_PREF_KEY) === "1"; } catch (_) { return false; }
+    }
+    function writeSpeakerPref(on) {
+        try { localStorage.setItem(SPEAKER_PREF_KEY, on ? "1" : "0"); } catch (_) { /* private mode */ }
+    }
+
+    // off | on | speaking. "speaking" is a transient sub-state of on.
+    function setSpeakerMode(mode) {
+        isSpeaking = mode === "speaking";
+        speakerBtn.dataset.mode = mode;
+        speakerBtn.setAttribute("aria-pressed", mode === "off" ? "false" : "true");
+        speakerBtn.setAttribute(
+            "aria-label",
+            mode === "off" ? "Speak replies" : mode === "speaking" ? "Speaking, click to stop" : "Stop speaking replies",
+        );
+    }
+
+    // Builds the playback engine if it isn't there. Called from the toggle
+    // and again from sendCurrent(), because closePanel() disposes the engine
+    // while the toggle preference survives — reopening the panel with
+    // "speak replies" still on must not feed a disposed instance.
+    async function ensureSpeaker() {
+        if (speaker) return true;
+        if (speakerLoading) return false;
+        speakerLoading = true;
+        try {
+            const mod = await import(_vq("./agent-speech.js"));
+            speaker = mod.initSpeaker({
+                apiUrl: speakApiUrl,
+                sessionId,
+                onStateChange: (state) => {
+                    if (!speakerOn) return;
+                    setSpeakerMode(state === "speaking" ? "speaking" : "on");
+                },
+                onError: (message) => {
+                    // The reply is already on screen, so a synthesis failure
+                    // is a note, not an error state.
+                    voiceStatus.classList.remove("is-hidden");
+                    voiceStatus.textContent = message;
+                    setTimeout(() => {
+                        if (micBtn.dataset.mode === "idle") voiceStatus.classList.add("is-hidden");
+                    }, 4000);
+                },
+            });
+            return true;
+        } catch (_) {
+            voiceStatus.classList.remove("is-hidden");
+            voiceStatus.textContent = "Voice playback failed to load.";
+            return false;
+        } finally {
+            speakerLoading = false;
+        }
+    }
+
+    async function toggleSpeaker() {
+        if (speakerLoading) return;
+        if (speakerOn) {
+            speakerOn = false;
+            writeSpeakerPref(false);
+            if (speaker) speaker.cancel();
+            setSpeakerMode("off");
+            return;
+        }
+        // This click is the user gesture that makes playback legal.
+        const ok = await ensureSpeaker();
+        if (!ok) return;
+        speakerOn = true;
+        writeSpeakerPref(true);
+        setSpeakerMode("on");
+        liveRegion.textContent = "Spoken replies on.";
     }
 
     // Spec 48: mirrors setSendMode's shape for the mic button's three
@@ -335,6 +435,17 @@ export function initAgentWidget(root, profile, sessionId) {
         panel.setAttribute("aria-hidden", "false");
         fab.setAttribute("aria-expanded", "true");
         document.body.setAttribute("data-agent-panel-open", "true");
+        // Spec 49: restore a remembered "speak replies" preference here
+        // rather than at widget init. Opening the panel is nearly always a
+        // real click (the FAB), which is the gesture browsers want before
+        // audio may play. On the paths where it isn't — a WebMCP go_to, an
+        // action chip — play() is refused and the speaker just stays silent,
+        // which agent-speech.js handles by resolving rather than throwing.
+        if (FEATURES.speakReplies && !speakerOn && readSpeakerPref()) {
+            speakerOn = true;
+            setSpeakerMode("on");
+            ensureSpeaker();
+        }
         if (agentIntro?.text && !introRendered) {
             introRendered = true;
             // Delay until the panel slide animation completes (--dur-base = 320ms) so
@@ -365,6 +476,14 @@ export function initAgentWidget(root, profile, sessionId) {
             voiceEngine = null;
         }
         setMicMode("idle");
+        // Same reasoning as the mic: dismissing the panel must not leave
+        // Atlas talking to an empty room. The toggle preference survives in
+        // localStorage; the engine instance does not.
+        if (speaker) {
+            speaker.dispose();
+            speaker = null;
+        }
+        if (speakerOn) setSpeakerMode("on");
     }
 
     function renderStarters() {
@@ -539,6 +658,14 @@ export function initAgentWidget(root, profile, sessionId) {
         setSendMode("stop");
         if (FEATURES.voiceInput) micBtn.disabled = true;
 
+        // Spec 49: a new turn silences the previous one and rebuilds the
+        // engine if the panel was closed since it last spoke. Awaited here,
+        // before the stream opens, so onDelta never races the lazy import.
+        if (FEATURES.speakReplies && speakerOn) {
+            if (speaker) speaker.cancel();
+            await ensureSpeaker();
+        }
+
         appendUser(text);
         messages.push({ role: "user", content: text });
 
@@ -610,6 +737,10 @@ export function initAgentWidget(root, profile, sessionId) {
                         settleThinking();
                     }
                     appendDelta(assistant, delta, FEATURES.typingCursor);
+                    // Chunking happens inside the speaker; this just hands it
+                    // the raw stream. Sanitization is server-side, so what is
+                    // spoken and what is shown stay in sync.
+                    if (FEATURES.speakReplies && speakerOn && speaker) speaker.feed(delta);
                 },
                 onCitations(citations) {
                     // Store for post-done render — do NOT re-render yet (caret active)
@@ -624,6 +755,13 @@ export function initAgentWidget(root, profile, sessionId) {
                 onDone(full) {
                     stages.cancel();
                     settleThinking();
+                    // The tail after the last sentence boundary only becomes
+                    // speakable once the stream is closed. Skipped on stop:
+                    // stopStreaming() has already cancelled playback, and
+                    // flushing here would start it up again.
+                    if (FEATURES.speakReplies && speakerOn && speaker && !wasStopped) {
+                        speaker.flush();
+                    }
                     if (wasStopped) {
                         removeCaret(assistant);
                         if (full) {
@@ -1146,6 +1284,17 @@ function renderShell(root, agentExplainer) {
             Ask Atlas
         </h3>
         <div class="agent-panel-head-actions">
+            <button type="button" class="agent-speaker" data-mode="off" aria-pressed="false" aria-label="Speak replies" title="Speak replies">
+                <svg class="agent-speaker-glyph agent-speaker-glyph-off" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2.5 4.5 5.5H2v5h2.5L8 13.5Z"/>
+                    <path d="M11 6l3 4M14 6l-3 4"/>
+                </svg>
+                <svg class="agent-speaker-glyph agent-speaker-glyph-on" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2.5 4.5 5.5H2v5h2.5L8 13.5Z"/>
+                    <path d="M10.5 6a3 3 0 0 1 0 4"/>
+                    <path d="M12.5 4a5.5 5.5 0 0 1 0 8"/>
+                </svg>
+            </button>
             <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 7 V3 H7 M13 9 V13 H9 M3 3 L7 7 M13 13 L9 9"/>
@@ -1160,6 +1309,7 @@ function renderShell(root, agentExplainer) {
         </div>
     `;
     const closeBtn = head.querySelector(".agent-panel-close");
+    const speakerBtn = head.querySelector(".agent-speaker");
     const expandBtn = head.querySelector(".agent-panel-expand");
     const minimizeBtn = head.querySelector(".agent-panel-minimize");
 
@@ -1285,7 +1435,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, sendBtn, micBtn, voiceStatus, liveRegion, foot,
+        prompts, transcript, input, sendBtn, micBtn, speakerBtn, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };

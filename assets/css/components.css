@@ -2242,7 +2242,8 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-panel-close,
 .agent-panel-expand,
-.agent-panel-minimize {
+.agent-panel-minimize,
+.agent-speaker {
     /* Spec 26: bump from 36px to --tap-min (44px) so thumb-taps on phones
        hit reliably and we align with the spec-24 tap-target rule. */
     min-width: var(--tap-min);
@@ -2602,6 +2603,45 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
    controls (.agent-input-row has flex-wrap: wrap; flex-basis 100% on an
    already-occupied line forces the wrap). Same muted-mono treatment as
    .agent-stopped-note below. */
+/* ---- spoken replies toggle (spec 49) ---------------------------------- */
+/* Lives in the panel header, not the composer: the composer holds input
+   controls (mic, send), the header holds session controls. Sizing comes from
+   the shared .agent-panel-close/-expand/-minimize rule above. */
+.agent-speaker {
+    position: relative;
+}
+.agent-speaker.is-hidden { display: none; }
+
+/* Two glyphs, data-mode picks one — same zero-layout-shift swap as
+   .agent-send and .agent-mic. */
+.agent-speaker-glyph { display: none; }
+.agent-speaker[data-mode="off"] .agent-speaker-glyph-off { display: block; }
+.agent-speaker[data-mode="on"] .agent-speaker-glyph-on,
+.agent-speaker[data-mode="speaking"] .agent-speaker-glyph-on { display: block; }
+
+.agent-speaker[data-mode="on"],
+.agent-speaker[data-mode="speaking"] {
+    color: var(--accent);
+}
+
+/* Only the "actively talking" state animates. Reuses the mic's pulse rather
+   than inventing a second rhythm, so listening and speaking read as the same
+   family of state. */
+.agent-speaker[data-mode="speaking"]::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 0 var(--accent-glow);
+    animation: agent-mic-pulse 1.6s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-speaker[data-mode="speaking"]::after {
+        animation: none;
+        box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+}
+
 .agent-voice-status {
     flex: 1 0 100%;
     order: 5;

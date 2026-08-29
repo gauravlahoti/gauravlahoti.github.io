@@ -2,7 +2,7 @@
 
 The static site (`assets/js/agent-widget.js`) talks to these routes — not
 ADK's native `/run_sse` — so the frontend stays decoupled from ADK's internal
-event format. Four routes:
+event format. Five routes:
 
 - `POST /api/agent-chat` — SSE stream emitting `{"delta": str}` per chunk and
   `{"done": true}` to close. Request shape mirrors spec #20:
@@ -13,6 +13,13 @@ event format. Four routes:
       {"sessionId": "uuid-v4", "mimeType": "audio/webm", "audio": "<base64>"}
   → 200 {"text": str} | 400 bad input | 429 voice budget exhausted |
     502 transcription unavailable. See `app/app_utils/transcribe.py`.
+- `POST /api/agent-speak` — text-to-speech for the spoken-replies toggle
+  (spec #49). Synthesizes one sentence chunk of an answer; the frontend
+  calls it repeatedly as a reply streams.
+      {"sessionId": "uuid-v4", "text": "<one or two sentences>"}
+  → 200 {"audio": "<base64 wav>", "mime": "audio/wav", "model": str} |
+    400 bad input | 429 speak budget exhausted | 502 synthesis unavailable.
+  See `app/app_utils/speak.py`.
 - `GET  /api/agent-chat/warm` — 200 OK, no work. Frontend fires this on
   FAB-open to spin up Cloud Run before the user types.
 - `GET  /healthz` — Cloud Run liveness probe.
@@ -45,6 +52,7 @@ from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.resume_send import warm_mcp_server
+from app.app_utils.speak import MAX_TEXT_CHARS, speak_text
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
@@ -624,6 +632,54 @@ def register_routes(app: FastAPI) -> None:
                 },
             )
         return {"text": text[:1000]}
+
+    @app.post("/api/agent-speak")
+    async def agent_speak(request: Request) -> Any:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return JSONResponse(
+                status_code=400, content={"error": "Body must be JSON."}
+            )
+
+        session_id = (body or {}).get("sessionId")
+        text = (body or {}).get("text")
+        if not isinstance(session_id, str) or not session_id:
+            return JSONResponse(
+                status_code=400, content={"error": "Missing sessionId."}
+            )
+        if not isinstance(text, str) or not text.strip():
+            return JSONResponse(
+                status_code=400, content={"error": "Missing text."}
+            )
+        if len(text) > MAX_TEXT_CHARS:
+            return JSONResponse(
+                status_code=400, content={"error": "Text too long to speak."}
+            )
+
+        # Own bucket (see rate_limit.py): synthesis must never spend one of
+        # the visitor's 4 chat questions. No geo lookup, no audit log — the
+        # chat turn that produced this text was already logged, and logging
+        # again per sentence chunk would multiply one answer into several
+        # rows.
+        raw_ip = _client_ip(request)
+        ip_hash = limiter.hash_ip(raw_ip)
+        allowed, _reason = limiter.check_and_record(
+            session_id, ip_hash, bucket="speak"
+        )
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "That's the spoken-reply budget for today."},
+            )
+
+        audio_b64, model_used = await speak_text(text)
+        if not audio_b64:
+            return JSONResponse(
+                status_code=502,
+                content={"error": "Speech is unavailable right now."},
+            )
+        return {"audio": audio_b64, "mime": "audio/wav", "model": model_used}
 
     @app.post("/api/agent-chat")
     async def agent_chat(request: Request) -> Any:
