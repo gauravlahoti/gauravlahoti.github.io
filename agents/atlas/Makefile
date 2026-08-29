@@ -74,7 +74,7 @@ deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1)
 		--project gcp-experiments-490306 \
 		--region us-central1 \
 		--source . \
-		--memory 2Gi \
+		--memory 512Mi \
 		--allow-unauthenticated \
 		--cpu-throttling \
 		--cpu-boost \
