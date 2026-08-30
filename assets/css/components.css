@@ -3230,16 +3230,33 @@ sup.agent-cite a:focus-visible {
     color: var(--accent);
     margin: 0;
 }
+/* The glyph alone is only ~13px wide, which left almost the whole header as
+   a dead zone: a near-miss lands on the header element, which neither this
+   handler nor the dialog's backdrop-click handler acts on, so the button
+   read as broken. Give it a real 40px touch target instead. */
 .agent-explainer-close {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
+    border-radius: var(--radius-md);
     color: var(--ink-muted);
     font-size: 1.4rem;
     cursor: pointer;
     line-height: 1;
     padding: 0;
+    transition: color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out);
 }
-.agent-explainer-close:hover { color: var(--ink); }
+.agent-explainer-close:hover,
+.agent-explainer-close:focus-visible {
+    color: var(--ink);
+    background: var(--accent-soft);
+}
 .agent-explainer-body p {
     font-size: var(--text-sm);
     line-height: 1.6;
