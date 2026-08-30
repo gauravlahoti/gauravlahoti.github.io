@@ -3224,19 +3224,39 @@ sup.agent-cite a:focus-visible {
 /* ── Agent architecture diagram (ad-) ────────────────────────────────────── */
 .ad-svg { display: block; width: 100%; height: auto; margin-bottom: var(--space-4); overflow: visible; touch-action: manipulation; }
 .ad-edge { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-linecap: round; }
-.ad-pulse {
-    fill: none;
+/* The five numbered pipeline edges form one continuous accent spine, so the
+   cyan reads as the path the request actually travels rather than as stray
+   highlights. Tool-call edges (grounding/actions) keep the muted default. */
+.ad-edge--key { stroke: var(--accent); opacity: 0.5; }
+
+/* Numbered step badges — each lights in turn on a 5s loop (JS sets
+   animation-delay to n-1 seconds) so the eye is walked 1 -> 5 in order. */
+.ad-step circle {
+    fill: var(--bg-card);
     stroke: var(--accent);
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-dasharray: 8 100;
-    stroke-dashoffset: 108;
-    animation: ad-flow 2.4s linear infinite;
-    opacity: 0.85;
+    stroke-width: 1.2;
 }
-@keyframes ad-flow { from { stroke-dashoffset: 108; } to { stroke-dashoffset: 0; } }
+.ad-step text {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    fill: var(--accent);
+    pointer-events: none;
+}
+.ad-step {
+    opacity: 0.45;
+    animation: ad-step-cycle 5s ease-in-out infinite;
+}
+@keyframes ad-step-cycle {
+    0%   { opacity: 0.45; }
+    4%   { opacity: 1; }
+    16%  { opacity: 1; }
+    24%  { opacity: 0.45; }
+    100% { opacity: 0.45; }
+}
 @media (prefers-reduced-motion: reduce) {
-    .ad-pulse { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; opacity: 0.35; }
+    /* No sequencing — every badge stays legible, the numerals still carry the order. */
+    .ad-step { animation: none; opacity: 1; }
 }
 .ad-node rect {
     fill: var(--bg-card);
@@ -3249,11 +3269,15 @@ sup.agent-cite a:focus-visible {
 .ad-node--hub:hover rect { fill: rgba(0,255,209,0.10); }
 .ad-node-name { font-family: var(--font-mono); font-size: 10px; fill: var(--ink); font-weight: 500; pointer-events: none; }
 .ad-node-sub  { font-family: var(--font-mono); font-size: 8px; fill: var(--ink-muted); pointer-events: none; }
-/* Marks the three AI-model stages (Gemini, STT, TTS) as the diagram's key
-   read — accent + bold name text, vs. the plain default for Data Corpus /
-   MCP Server, which are secondary tool calls the agent makes, not model
-   stages in their own right. */
+/* Marks the AI-model stages (Gemini, STT, TTS) as the diagram's key read —
+   accent + bold name text, vs. the plain default for Data Corpus / MCP
+   Server, which are secondary tool calls the agent makes, not model stages
+   in their own right. --you marks the human at both ends of the loop: a
+   dashed border sets it apart from the machine nodes without competing
+   with the accent stages for attention. */
 .ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
+.ad-node--you rect { stroke: var(--ink-muted); stroke-dasharray: 3 2; }
+.ad-node--you .ad-node-name { fill: var(--ink); font-weight: 700; }
 .ad-label-bg   { fill: var(--bg-card); }
 .ad-edge-label { font-family: var(--font-mono); font-size: 9px; font-weight: 600; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; }
 .ad-edge-label--key { fill: var(--accent); font-weight: 700; }

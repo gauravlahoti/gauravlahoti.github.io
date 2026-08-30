@@ -1581,38 +1581,41 @@ function buildAgentDiagram() {
     // renders at ~1.32x natural scale rather than ~0.65x, making it prominent.
     const mobile = window.innerWidth < 540;
     const VW = mobile ? 250 : 480;
-    const VH = mobile ? 220 : 192;
+    const VH = mobile ? 310 : 250;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // STT/TTS flank the hub with a short unlabeled connector — the node's own
-    // name ("STT"/"TTS") already says what it is, and reading left → center →
-    // right now matches the real sequence (STT first, reasoning, TTS last).
-    // reasoning is the one surviving label that gets the same accent/bold
-    // "key stage" treatment as the STT/TTS node names (see .ad-node--key /
-    // .ad-edge-label--key in components.css); grounding/actions stay muted —
-    // they're secondary tool calls the agent makes, not AI-model stages.
+    // The diagram is a loop that starts and ends with You: ask (1) → STT (2)
+    // → the agent reasons (3) → TTS (4) → the spoken reply lands back with
+    // you (5). Steps 1-5 are numbered badges that light up in sequence, so
+    // where the flow starts and which way it runs is readable at a glance
+    // rather than implied. The five spine edges carry the accent colour
+    // (`key`) as one continuous cyan path; grounding/actions stay muted grey
+    // — they're tool calls the agent makes inside step 3, not stages of the
+    // pipeline itself.
     const edges = mobile ? [
-        // Nodes centered at x=125; Agent bottom=114, spoke tops=150 → 36px gap
-        { d: "M 125 72 L 125 43",  label: "reasoning",  lx: 112, ly: 58,  delay: 0,   bgW: 56, key: true },
-        { d: "M 70 93 L 58 93",    label: "",           delay: 0.4 },
-        { d: "M 180 93 L 192 93",  label: "",           delay: 0.8 },
-        { d: "M 95 114 L 63 150",  label: "grounding",  lx: 79,  ly: 132, delay: 1.2, bgW: 58 },
-        { d: "M 155 114 L 188 150",label: "actions",    lx: 171, ly: 132, delay: 1.6, bgW: 44 },
+        { d: "M 88 36 L 88 54",                                 key: true },
+        { d: "M 88 84 L 88 102",                                key: true },
+        { d: "M 126 119 L 150 119",                             key: true },
+        { d: "M 88 136 L 88 236",                               key: true },
+        { d: "M 88 266 L 88 288 L 22 288 L 22 22 L 56 22",      key: true },
+        // No grounding/actions text at this width — the labels would land on
+        // top of the step-4 spine. The Corpus/MCP node names carry it, and the
+        // tap tooltips carry the detail.
+        { d: "M 100 136 L 150 158" },
+        { d: "M 106 136 L 150 198" },
     ] : [
-        // Agent bottom=112, corpus/mcp spoke tops=140 → 28px gap, labels at y=126
-        { d: "M 240 68 L 240 46",   label: "reasoning", lx: 225, ly: 60,  delay: 0,   bgW: 56, key: true },
-        { d: "M 178 90 L 120 90",   label: "",           delay: 0.4 },
-        { d: "M 302 90 L 360 90",   label: "",           delay: 0.8 },
-        { d: "M 192 112 L 156 140", label: "grounding", lx: 172, ly: 126, delay: 1.2, bgW: 58 },
-        { d: "M 288 112 L 344 140", label: "actions",   lx: 316, ly: 126, delay: 1.6, bgW: 44 },
+        { d: "M 82 120 L 104 120",                              key: true },
+        { d: "M 188 120 L 210 120",                             key: true },
+        { d: "M 258 98 L 258 54",   label: "reasoning", lx: 258, ly: 88, bgW: 56, key: true },
+        { d: "M 306 120 L 328 120",                             key: true },
+        { d: "M 370 142 L 370 228 L 44 228 L 44 142", label: "spoken reply", lx: 207, ly: 228, bgW: 76, key: true },
+        { d: "M 240 142 L 206 170", label: "grounding", lx: 223, ly: 158, bgW: 58 },
+        { d: "M 276 142 L 330 170", label: "actions",   lx: 303, ly: 158, bgW: 44 },
     ];
-    edges.forEach(({ d, label, lx, ly, delay, bgW, key }) => {
-        svg.appendChild(el("path", { class: "ad-edge", d }));
-        const pulse = el("path", { class: "ad-pulse", d });
-        if (!REDUCE_MOTION) pulse.style.animationDelay = `${delay}s`;
-        svg.appendChild(pulse);
+    edges.forEach(({ d, label, lx, ly, bgW, key }) => {
+        svg.appendChild(el("path", { class: key ? "ad-edge ad-edge--key" : "ad-edge", d }));
         if (!label) return;
         svg.appendChild(el("rect", {
             class: "ad-label-bg",
@@ -1623,6 +1626,24 @@ function buildAgentDiagram() {
         lbl.textContent = label;
         svg.appendChild(lbl);
     });
+
+    // Numbered step badges. Each lights in turn on a 5s loop (delay = n-1
+    // seconds), so the eye is walked 1 → 5 in pipeline order.
+    const step = (n, cx, cy) => {
+        const g = el("g", { class: "ad-step" });
+        g.appendChild(el("circle", { cx: String(cx), cy: String(cy), r: "8" }));
+        const t = el("text", { x: String(cx), y: String(cy + 3), "text-anchor": "middle" });
+        t.textContent = String(n);
+        g.appendChild(t);
+        if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
+        return g;
+    };
+    const steps = mobile
+        ? [[1, 88, 45], [2, 88, 93], [3, 138, 119], [4, 88, 215], [5, 22, 150]]
+        // 5 sits on the final leg arriving back at You — the descent at x=370
+        // runs behind the MCP Server node, which draws over it.
+        : [[1, 93, 120], [2, 199, 120], [3, 258, 66], [4, 317, 120], [5, 44, 190]];
+    steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
 
     const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details) => {
         const g = el("g", { class: cls ? `ad-node ${cls}` : "ad-node" });
@@ -1637,6 +1658,7 @@ function buildAgentDiagram() {
     };
 
     const TIPS = {
+        you:    ["you type, or hold the mic", "the reply streams back as text", "and plays back as speech"],
         llm:    ["Gemini 3.7 Flash", "reasoning + generation", "plans tool calls · synthesizes reply", "falls back to 3.6 Flash on overload"],
         agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
         corpus: ["profile.json — bio, roles, certs", "graph.json — projects", "posts.json — LinkedIn", "fetched live, short-TTL cache"],
@@ -1645,27 +1667,32 @@ function buildAgentDiagram() {
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
-    // ad-node--key marks the three AI-model stages (Gemini, STT, TTS) with an
-    // accent/bold node name, visually promoted above the plain Data Corpus /
-    // MCP Server tool-call nodes — see .ad-node--key in components.css.
+    // ad-node--key marks the AI-model stages (Gemini, STT, TTS) with an accent
+    // node name; ad-node--you marks the human entry/exit point. Data Corpus and
+    // MCP Server stay plain — they're tool calls made inside step 3, so they
+    // read as secondary by contrast. See components.css.
     if (mobile) {
-        // 250-unit viewBox: STT/TTS flank a narrowed Agent hub (row shared
-        // with Gemini's width above); Data Corpus/MCP Server sit in their
-        // own row below, same 2-across shape the mobile diagram used before
-        // voice was added to it.
-        svg.appendChild(node("ad-node--key", 60,   5, 130, 38, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 125, TIPS.llm));
-        svg.appendChild(node("ad-node--hub", 70,  72, 110, 42, "Agent",   "ADK orchestrator", "ADK agent on Cloud Run — orchestrates all tool calls", 125, TIPS.agent));
-        svg.appendChild(node("ad-node--key",  8,  72,  50, 42, "STT",     "Gemini 3.5",       "Gemini 3.5 Transcribe — converts mic input to text", 33, TIPS.stt));
-        svg.appendChild(node("ad-node--key",192,  72,  50, 42, "TTS",     "Gemini 3.1",       "Gemini 3.1 Flash TTS — converts the reply to speech", 217, TIPS.tts));
-        svg.appendChild(node(null,            5, 150, 115, 38, "Corpus",  "profile · projects", "Live JSON fetch — grounding source for every reply", 62.5, TIPS.corpus));
-        svg.appendChild(node(null,          130, 150, 115, 38, "MCP",     "email",              "MCP-compatible Resend server — fires email on agent request", 187.5, TIPS.mcp));
+        // Vertical spine at cx=88 (You → STT → Agent → TTS), satellites stacked
+        // to the right of the Agent, and the step-5 return path running back up
+        // the clear left corridor at x=22.
+        svg.appendChild(node("ad-node--you",  56,   6, 64, 30, "You",        "ask",        "You — type a question or hold the mic", 88, TIPS.you));
+        svg.appendChild(node("ad-node--key",  56,  54, 64, 30, "STT",        "Gemini 3.5", "Gemini 3.5 Transcribe — converts mic input to text", 88, TIPS.stt));
+        svg.appendChild(node("ad-node--hub",  50, 102, 76, 34, "Agent",      "ADK",        "ADK agent on Cloud Run — orchestrates all tool calls", 88, TIPS.agent));
+        svg.appendChild(node("ad-node--key", 150, 102, 94, 34, "Gemini 3.7", "reasoning",  "Google Gemini — reasoning and language generation", 197, TIPS.llm));
+        svg.appendChild(node(null,           150, 150, 94, 30, "Corpus",     "live JSON",  "Live JSON fetch — grounding source for every reply", 197, TIPS.corpus));
+        svg.appendChild(node(null,           150, 190, 94, 30, "MCP",        "email",      "MCP-compatible Resend server — fires email on agent request", 197, TIPS.mcp));
+        svg.appendChild(node("ad-node--key",  56, 236, 64, 30, "TTS",        "Gemini 3.1", "Gemini 3.1 Flash TTS — converts the reply to speech", 88, TIPS.tts));
     } else {
-        svg.appendChild(node("ad-node--key", 178,   6, 124, 40, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 240, TIPS.llm));
-        svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 240, TIPS.agent));
-        svg.appendChild(node("ad-node--key",  20,  68, 100, 44, "STT",         "Gemini 3.5",                 "Gemini 3.5 Transcribe — converts mic input to text", 70, TIPS.stt));
-        svg.appendChild(node("ad-node--key", 360,  68, 100, 44, "TTS",         "Gemini 3.1 Flash",           "Gemini 3.1 Flash TTS — converts the reply to speech", 410, TIPS.tts));
-        svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus", "profile · projects · posts", "Live JSON fetch — grounding source for every reply", 82, TIPS.corpus));
-        svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 402, TIPS.mcp));
+        // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
+        // above the Agent, Corpus/MCP below it, and the step-5 return path
+        // looping along y=228 back to You.
+        svg.appendChild(node("ad-node--you",   6,  98,  76, 44, "You",              "ask · listen",    "You — type a question or hold the mic", 44, TIPS.you));
+        svg.appendChild(node("ad-node--key", 104,  98,  84, 44, "STT",              "Gemini 3.5",      "Gemini 3.5 Transcribe — converts mic input to text", 146, TIPS.stt));
+        svg.appendChild(node("ad-node--hub", 210,  98,  96, 44, "Agent",            "ADK loop",        "ADK agent on Cloud Run — orchestrates all tool calls", 258, TIPS.agent));
+        svg.appendChild(node("ad-node--key", 328,  98,  84, 44, "TTS",              "Gemini 3.1",      "Gemini 3.1 Flash TTS — converts the reply to speech", 370, TIPS.tts));
+        svg.appendChild(node("ad-node--key", 196,  14, 124, 40, "Gemini 3.7 Flash", "generation",      "Google Gemini — reasoning and language generation", 258, TIPS.llm));
+        svg.appendChild(node(null,           150, 170, 112, 38, "Data Corpus",      "profile · posts", "Live JSON fetch — grounding source for every reply", 206, TIPS.corpus));
+        svg.appendChild(node(null,           278, 170, 104, 38, "MCP Server",       "Resend email",    "MCP-compatible Resend server — fires email on agent request", 330, TIPS.mcp));
     }
 
     return svg;
