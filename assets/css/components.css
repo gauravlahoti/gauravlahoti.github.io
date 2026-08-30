@@ -3249,8 +3249,14 @@ sup.agent-cite a:focus-visible {
 .ad-node--hub:hover rect { fill: rgba(0,255,209,0.10); }
 .ad-node-name { font-family: var(--font-mono); font-size: 10px; fill: var(--ink); font-weight: 500; pointer-events: none; }
 .ad-node-sub  { font-family: var(--font-mono); font-size: 8px; fill: var(--ink-muted); pointer-events: none; }
+/* Marks the three AI-model stages (Gemini, STT, TTS) as the diagram's key
+   read — accent + bold name text, vs. the plain default for Data Corpus /
+   MCP Server, which are secondary tool calls the agent makes, not model
+   stages in their own right. */
+.ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
 .ad-label-bg   { fill: var(--bg-card); }
 .ad-edge-label { font-family: var(--font-mono); font-size: 9px; font-weight: 600; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; }
+.ad-edge-label--key { fill: var(--accent); font-weight: 700; }
 
 /* ── Diagram node tooltip ─────────────────────────────────────────────────── */
 .ad-node-tooltip {

@@ -1586,32 +1586,41 @@ function buildAgentDiagram() {
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // [d, labelText, label-cx, label-cy, pulse-delay, bg-rect-width]
+    // STT/TTS flank the hub with a short unlabeled connector — the node's own
+    // name ("STT"/"TTS") already says what it is, and reading left → center →
+    // right now matches the real sequence (STT first, reasoning, TTS last).
+    // reasoning is the one surviving label that gets the same accent/bold
+    // "key stage" treatment as the STT/TTS node names (see .ad-node--key /
+    // .ad-edge-label--key in components.css); grounding/actions stay muted —
+    // they're secondary tool calls the agent makes, not AI-model stages.
     const edges = mobile ? [
-        // Nodes centered at x=125; Agent bottom=114, spoke tops=155 → 41px gap
-        ["M 125 72 L 125 43",  "reasoning",  112,  58, 0,   56],
-        ["M 100 114 L 39 155", "grounding",   70, 132, 0.6, 58],
-        ["M 125 114 L 125 155","voice",      125, 132, 1.2, 34],
-        ["M 150 114 L 211 155","actions",    180, 132, 1.8, 44],
+        // Nodes centered at x=125; Agent bottom=114, spoke tops=150 → 36px gap
+        { d: "M 125 72 L 125 43",  label: "reasoning",  lx: 112, ly: 58,  delay: 0,   bgW: 56, key: true },
+        { d: "M 70 93 L 58 93",    label: "",           delay: 0.4 },
+        { d: "M 180 93 L 192 93",  label: "",           delay: 0.8 },
+        { d: "M 95 114 L 63 150",  label: "grounding",  lx: 79,  ly: 132, delay: 1.2, bgW: 58 },
+        { d: "M 155 114 L 188 150",label: "actions",    lx: 171, ly: 132, delay: 1.6, bgW: 44 },
     ] : [
-        // Agent bottom=112, spoke tops=140 → 28px gap, labels at y=126
-        ["M 240 68 L 240 46",   "reasoning", 225, 60,  0,   56],
-        ["M 192 112 L 156 140", "grounding", 172, 126, 0.6, 58],
-        ["M 240 112 L 240 140", "voice",     240, 126, 1.2, 36],
-        ["M 288 112 L 344 140", "actions",   316, 126, 1.8, 44],
+        // Agent bottom=112, corpus/mcp spoke tops=140 → 28px gap, labels at y=126
+        { d: "M 240 68 L 240 46",   label: "reasoning", lx: 225, ly: 60,  delay: 0,   bgW: 56, key: true },
+        { d: "M 178 90 L 120 90",   label: "",           delay: 0.4 },
+        { d: "M 302 90 L 360 90",   label: "",           delay: 0.8 },
+        { d: "M 192 112 L 156 140", label: "grounding", lx: 172, ly: 126, delay: 1.2, bgW: 58 },
+        { d: "M 288 112 L 344 140", label: "actions",   lx: 316, ly: 126, delay: 1.6, bgW: 44 },
     ];
-    edges.forEach(([d, labelText, lx, ly, delay, bgW]) => {
+    edges.forEach(({ d, label, lx, ly, delay, bgW, key }) => {
         svg.appendChild(el("path", { class: "ad-edge", d }));
         const pulse = el("path", { class: "ad-pulse", d });
         if (!REDUCE_MOTION) pulse.style.animationDelay = `${delay}s`;
         svg.appendChild(pulse);
+        if (!label) return;
         svg.appendChild(el("rect", {
             class: "ad-label-bg",
             x: String(lx - bgW / 2), y: String(ly - 9),
             width: String(bgW), height: "13", rx: "3",
         }));
-        const lbl = el("text", { class: "ad-edge-label", x: String(lx), y: String(ly) });
-        lbl.textContent = labelText;
+        const lbl = el("text", { class: key ? "ad-edge-label ad-edge-label--key" : "ad-edge-label", x: String(lx), y: String(ly) });
+        lbl.textContent = label;
         svg.appendChild(lbl);
     });
 
@@ -1631,23 +1640,31 @@ function buildAgentDiagram() {
         llm:    ["Gemini 3.7 Flash", "reasoning + generation", "plans tool calls · synthesizes reply", "falls back to 3.6 Flash on overload"],
         agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
         corpus: ["profile.json — bio, roles, certs", "graph.json — projects", "posts.json — LinkedIn", "fetched live, short-TTL cache"],
-        voice:  ["Gemini 3.5 Transcribe — mic input", "Gemini 3.1 Flash TTS — spoken replies", "chunked + streamed via Web Audio API"],
+        stt:    ["Gemini 3.5 Transcribe", "speech-to-text · mic input", "runs before the agent reasons — outside the ADK loop"],
+        tts:    ["Gemini 3.1 Flash TTS", "text-to-speech · spoken replies", "runs after the reply streams — chunked via Web Audio API"],
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
+    // ad-node--key marks the three AI-model stages (Gemini, STT, TTS) with an
+    // accent/bold node name, visually promoted above the plain Data Corpus /
+    // MCP Server tool-call nodes — see .ad-node--key in components.css.
     if (mobile) {
-        // 250-unit viewBox: nodes centered at x=125; three spoke nodes share
-        // the row at reduced width — full names/subs live in the tap tooltip.
-        svg.appendChild(node(null,            60,   5, 130, 38, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 125, TIPS.llm));
-        svg.appendChild(node("ad-node--hub",  60,  72, 130, 42, "Agent",   "ADK orchestrator", "ADK agent on Cloud Run — orchestrates all tool calls", 125, TIPS.agent));
-        svg.appendChild(node(null,             2, 155,  74, 38, "Corpus",  "profile",          "Live JSON fetch — grounding source for every reply", 39, TIPS.corpus));
-        svg.appendChild(node(null,            88, 155,  74, 38, "Voice",   "3.5 STT · 3.1 TTS", "Gemini STT + TTS — mic input and spoken replies", 125, TIPS.voice));
-        svg.appendChild(node(null,           174, 155,  74, 38, "MCP",     "email",            "MCP-compatible Resend server — fires email on agent request", 211, TIPS.mcp));
+        // 250-unit viewBox: STT/TTS flank a narrowed Agent hub (row shared
+        // with Gemini's width above); Data Corpus/MCP Server sit in their
+        // own row below, same 2-across shape the mobile diagram used before
+        // voice was added to it.
+        svg.appendChild(node("ad-node--key", 60,   5, 130, 38, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 125, TIPS.llm));
+        svg.appendChild(node("ad-node--hub", 70,  72, 110, 42, "Agent",   "ADK orchestrator", "ADK agent on Cloud Run — orchestrates all tool calls", 125, TIPS.agent));
+        svg.appendChild(node("ad-node--key",  8,  72,  50, 42, "STT",     "Gemini 3.5",       "Gemini 3.5 Transcribe — converts mic input to text", 33, TIPS.stt));
+        svg.appendChild(node("ad-node--key",192,  72,  50, 42, "TTS",     "Gemini 3.1",       "Gemini 3.1 Flash TTS — converts the reply to speech", 217, TIPS.tts));
+        svg.appendChild(node(null,            5, 150, 115, 38, "Corpus",  "profile · projects", "Live JSON fetch — grounding source for every reply", 62.5, TIPS.corpus));
+        svg.appendChild(node(null,          130, 150, 115, 38, "MCP",     "email",              "MCP-compatible Resend server — fires email on agent request", 187.5, TIPS.mcp));
     } else {
-        svg.appendChild(node(null,           178,   6, 124, 40, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 240, TIPS.llm));
+        svg.appendChild(node("ad-node--key", 178,   6, 124, 40, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 240, TIPS.llm));
         svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 240, TIPS.agent));
+        svg.appendChild(node("ad-node--key",  20,  68, 100, 44, "STT",         "Gemini 3.5",                 "Gemini 3.5 Transcribe — converts mic input to text", 70, TIPS.stt));
+        svg.appendChild(node("ad-node--key", 360,  68, 100, 44, "TTS",         "Gemini 3.1 Flash",           "Gemini 3.1 Flash TTS — converts the reply to speech", 410, TIPS.tts));
         svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus", "profile · projects · posts", "Live JSON fetch — grounding source for every reply", 82, TIPS.corpus));
-        svg.appendChild(node(null,           182, 140, 116, 40, "Voice I/O",   "3.5 STT · 3.1 TTS",          "Gemini STT + TTS — mic input and spoken replies", 240, TIPS.voice));
         svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 402, TIPS.mcp));
     }
 
