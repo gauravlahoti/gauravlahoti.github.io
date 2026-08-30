@@ -2508,6 +2508,21 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-send:disabled { opacity: 0.4; cursor: progress; }
 .agent-send:hover:not(:disabled) { filter: brightness(1.1); }
 
+/* Spec: match the mic button's idle/active language — muted outline when
+   there's no text to send, full accent once there is (or while streaming,
+   where is-empty is never applied so the stop control stays obviously
+   actionable). Without this the send button always looked like a live CTA
+   even when sendCurrent() would silently no-op on empty input. */
+.agent-send.is-empty {
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border-strong);
+}
+.agent-send.is-empty:hover:not(:disabled) {
+    color: var(--ink);
+    filter: none;
+}
+
 /* Two glyphs live in the button; data-mode picks one. No layout shift when
    the send button morphs into a stop control mid-stream. */
 .agent-send-glyph { display: none; }
