@@ -3174,22 +3174,55 @@ sup.agent-cite a:focus-visible {
     border-radius: var(--radius-md);
     background: var(--bg-card);
     color: var(--ink);
-    width: min(520px, 90vw);
-    max-height: 80vh;
-    overflow-y: auto;
+    /* Wider than the chat panel it opens from: the diagram is the point of
+       this modal, and at 520px it was rendering smaller than the prose under
+       it. The dialog itself no longer scrolls — it's a flex column whose
+       figure stays pinned and whose text region scrolls on its own, so the
+       diagram can't be pushed off-screen by the copy below it. */
+    width: min(720px, 94vw);
+    max-height: 88vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     padding: var(--space-5);
     z-index: 100;
 }
 .agent-explainer-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
 @media (max-width: 540px) {
-    .agent-explainer-dialog { width: 95vw; max-height: 88vh; }
+    .agent-explainer-dialog { width: 95vw; max-height: 90vh; }
     .ad-node-sub { font-size: 7px; }
 }
 .agent-explainer-head {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: var(--space-4);
+}
+/* Body is the flex column that splits pinned figure from scrolling text.
+   min-height:0 is what lets the scroll child actually shrink inside it. */
+.agent-explainer-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.agent-explainer-body .ad-figure { flex: 0 0 auto; }
+/* Cap the inline diagram so it can never crowd out the text region.
+   Unconditional rather than inside a width media query on purpose: the SVG's
+   aspect ratio is picked at build time from window.innerWidth, so a diagram
+   built at a narrow width and then viewed wide (rotate, window resize) would
+   otherwise render far taller than the dialog. preserveAspectRatio
+   letterboxes instead of distorting, and Expand gives the full-size view.
+   Well clear of the desktop diagram's natural height, so it only ever bites
+   in that mismatched case or on very short viewports. */
+.agent-explainer-body .ad-svg { max-height: 46vh; }
+.agent-explainer-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
 }
 .agent-explainer-title {
     font-family: var(--font-mono);
