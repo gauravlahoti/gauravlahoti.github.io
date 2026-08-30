@@ -1583,43 +1583,46 @@ function buildAgentDiagram(opts) {
     // On mobile (<540px) use a 250-unit viewBox (vs 480 desktop) so the diagram
     // renders at ~1.32x natural scale rather than ~0.65x, making it prominent.
     const mobile = !wide && window.innerWidth < 540;
-    const VW = mobile ? 250 : 480;
+    // Wider than they need to be for the boxes alone: the full "Speech-to-Text
+    // (STT)" / "Text-to-Speech (TTS)" sub-labels are ~96 units at the sub font
+    // size, so the model boxes grew and the viewBox grew with them.
+    const VW = mobile ? 300 : 540;
     const VH = mobile ? 320 : 250;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // A loop that starts and ends with You: ask (1) → STT (2) → the agent
-    // reasons (3) → TTS (4) → the spoken reply lands back with you (5).
+    // A loop that starts and ends with You: ask (1) → speech to text (2) →
+    // the agent gathers grounding (3) and takes actions (4) → reasons (5) →
+    // text to speech (6) → the spoken reply lands back with you (7).
     // Nothing is written on the connectors — text sitting on a line was the
-    // main thing making this hard to read. Every stage word now lives either
-    // in a node's own sub-label ("reasoning", "grounding", "actions") or in
-    // the numbered legend rendered under the figure, so the lines stay clean.
-    // The five spine edges carry the accent as one continuous path; the two
-    // tool-call edges stay muted grey — they happen inside step 3.
+    // main thing making this hard to read. Every stage word lives in a node's
+    // own sub-label or in the numbered legend under the figure, so the lines
+    // stay clean. All seven edges are numbered steps, so all seven carry the
+    // accent; nothing here is a silent side-path any more.
     const edges = mobile ? [
-        { d: "M 88 36 L 88 66",                            key: true },
-        { d: "M 88 96 L 88 126",                           key: true },
-        { d: "M 126 143 L 156 143",                        key: true },
-        { d: "M 88 160 L 88 254",                          key: true },
-        { d: "M 88 284 L 88 306 L 22 306 L 22 21 L 50 21", key: true },
-        { d: "M 100 160 L 156 186" },
-        { d: "M 106 160 L 156 226" },
+        { d: "M 96 36 L 96 66" },
+        { d: "M 96 96 L 96 126" },
+        { d: "M 108 160 L 176 186" },
+        { d: "M 114 160 L 176 226" },
+        { d: "M 152 143 L 176 143" },
+        { d: "M 96 160 L 96 254" },
+        { d: "M 96 284 L 96 306 L 18 306 L 18 21 L 40 21" },
     ] : [
-        { d: "M 87 120 L 121 120",                     key: true },
-        { d: "M 213 120 L 247 120",                    key: true },
-        { d: "M 295 98 L 295 54",                      key: true },
-        { d: "M 343 120 L 377 120",                    key: true },
-        { d: "M 423 142 L 423 228 L 49 228 L 49 142",  key: true },
-        { d: "M 277 142 L 243 170" },
-        { d: "M 313 142 L 367 170" },
+        { d: "M 101 120 L 135 120" },
+        { d: "M 243 120 L 277 120" },
+        { d: "M 307 142 L 273 170" },
+        { d: "M 343 142 L 397 170" },
+        { d: "M 325 98 L 325 54" },
+        { d: "M 373 120 L 407 120" },
+        { d: "M 461 142 L 461 228 L 63 228 L 63 142" },
     ];
-    edges.forEach(({ d, key }) => {
-        svg.appendChild(el("path", { class: key ? "ad-edge ad-edge--key" : "ad-edge", d }));
+    edges.forEach(({ d }) => {
+        svg.appendChild(el("path", { class: "ad-edge ad-edge--key", d }));
     });
 
     // Numbered markers keyed to the legend below the figure. They light one
-    // after another (delay = n-1 on a 6s cycle) so the animation traces the
+    // after another (delay = n-1 on an 8s cycle) so the animation traces the
     // route in order rather than pulsing everything at once.
     const step = (n, cx, cy) => {
         const g = el("g", { class: "ad-step" });
@@ -1630,11 +1633,13 @@ function buildAgentDiagram(opts) {
         if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
         return g;
     };
+    // 3 and 4 sit partway along the corpus/MCP diagonals rather than at their
+    // midpoints, which would collide with each other on the mobile layout.
     const steps = mobile
-        ? [[1, 88, 51], [2, 88, 111], [3, 141, 143], [4, 88, 215], [5, 22, 160]]
-        // 5 sits on the final leg arriving back at You — the descent at x=423
+        ? [[1, 96, 51], [2, 96, 111], [3, 149, 176], [4, 151, 200], [5, 164, 143], [6, 96, 215], [7, 18, 160]]
+        // 7 sits on the final leg arriving back at You — the descent at x=461
         // runs behind the MCP Server node, which draws over it.
-        : [[1, 104, 120], [2, 230, 120], [3, 295, 76], [4, 360, 120], [5, 49, 190]];
+        : [[1, 118, 120], [2, 260, 120], [3, 290, 156], [4, 370, 156], [5, 325, 76], [6, 390, 120], [7, 63, 190]];
     steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
 
     // Small stick figure marking the human end of the loop, drawn to the left
@@ -1646,15 +1651,40 @@ function buildAgentDiagram(opts) {
         return g;
     };
 
-    const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details, person) => {
+    // The official Gemini mark, same same-origin asset the engineering-loops
+    // lab uses via brandLogo(). img-src 'self' in the CSP already covers it.
+    const geminiLogo = (cx, cy, size) => {
+        const im = el("image", {
+            x: String(cx - size / 2), y: String(cy - size / 2),
+            width: String(size), height: String(size),
+            preserveAspectRatio: "xMidYMid meet",
+            class: "ad-brand",
+        });
+        im.setAttribute("href", "/assets/img/logo-gemini.svg");
+        return im;
+    };
+
+    // `lead` draws a glyph immediately before the node's name, inside the box:
+    // "person" for You, "gemini" for the model nodes. The pair is centred as a
+    // unit, so the offset is derived from the name's own width rather than a
+    // fixed nudge (a fixed one only ever looks right for one label length).
+    const LEAD_SIZE = 11, LEAD_GAP = 4, NAME_ADVANCE = 6; // 10px mono ≈ 6px/char
+    const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details, lead) => {
         const g = el("g", { class: cls ? `ad-node ${cls}` : "ad-node" });
         const t = el("title", {}); t.textContent = tip; g.appendChild(t);
         g.appendChild(el("rect", { x: String(rx), y: String(ry), width: String(rw), height: String(rh), rx: "6" }));
         const nameY = ry + Math.floor(rh * 0.42);
-        // Shift the label right to make room for the glyph, keeping the pair
-        // visually centred in the box.
-        if (person) g.appendChild(personGlyph(cx - 14, nameY - 3));
-        const nm = el("text", { class: "ad-node-name", x: String(person ? cx + 7 : cx), y: String(nameY), "text-anchor": "middle" });
+        let nameCx = cx;
+        if (lead) {
+            const nameW = name.length * NAME_ADVANCE;
+            const total = LEAD_SIZE + LEAD_GAP + nameW;
+            const left = cx - total / 2;
+            nameCx = left + LEAD_SIZE + LEAD_GAP + nameW / 2;
+            const gx = left + LEAD_SIZE / 2;
+            if (lead === "person") g.appendChild(personGlyph(gx, nameY - 3));
+            else g.appendChild(geminiLogo(gx, nameY - 3.5, LEAD_SIZE));
+        }
+        const nm = el("text", { class: "ad-node-name", x: String(nameCx), y: String(nameY), "text-anchor": "middle" });
         nm.textContent = name; g.appendChild(nm);
         const sb = el("text", { class: "ad-node-sub", x: String(cx), y: String(ry + Math.floor(rh * 0.75)), "text-anchor": "middle" });
         sb.textContent = sub; g.appendChild(sb);
@@ -1674,31 +1704,31 @@ function buildAgentDiagram(opts) {
 
     // ad-node--key marks the AI-model stages (Gemini, STT, TTS) with an accent
     // node name; ad-node--you marks the human entry/exit point. Data Corpus and
-    // MCP Server stay plain — they're tool calls made inside step 3, so they
-    // read as secondary by contrast. See components.css.
+    // MCP Server stay plain so the model stages read as the primary path.
+    // See components.css.
     if (mobile) {
-        // Vertical spine at cx=88 (You → STT → Agent → TTS), satellites stacked
-        // to the right of the Agent, and the step-5 return path running back up
-        // the clear left corridor at x=22.
-        svg.appendChild(node("ad-node--you",  50,   6, 76, 30, "You",        "ask · listen", "You: type a question or hold the mic", 88, TIPS.you, true));
-        svg.appendChild(node("ad-node--key",  50,  66, 76, 30, "Gemini 3.5", "STT",          "Gemini 3.5 Transcribe converts mic input to text", 88, TIPS.stt));
-        svg.appendChild(node("ad-node--hub",  50, 126, 76, 34, "Agent",      "ADK",          "ADK agent on Cloud Run, orchestrates all tool calls", 88, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 156, 126, 88, 34, "Gemini 3.7", "reasoning",    "Google Gemini, reasoning and language generation", 200, TIPS.llm));
-        svg.appendChild(node(null,           156, 174, 88, 30, "Corpus",     "grounding",    "Live JSON fetch, grounding source for every reply", 200, TIPS.corpus));
-        svg.appendChild(node(null,           156, 214, 88, 30, "MCP",        "actions",      "MCP-compatible Resend server, fires email on agent request", 200, TIPS.mcp));
-        svg.appendChild(node("ad-node--key",  50, 254, 76, 30, "Gemini 3.1", "TTS",          "Gemini 3.1 Flash TTS converts the reply to speech", 88, TIPS.tts));
+        // Vertical spine at cx=96 (You → STT → Agent → TTS), satellites stacked
+        // to the right of the Agent, and the step-7 return path running back up
+        // the clear left corridor at x=18.
+        svg.appendChild(node("ad-node--you",  40,   6, 112, 30, "You",        "ask · listen",         "You: type a question or hold the mic", 96, TIPS.you, "person"));
+        svg.appendChild(node("ad-node--key",  40,  66, 112, 30, "Gemini 3.5", "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--hub",  40, 126, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
+        svg.appendChild(node("ad-node--key", 176, 126, 116, 34, "Gemini 3.7", "reasoning",            "Google Gemini, reasoning and language generation", 234, TIPS.llm, "gemini"));
+        svg.appendChild(node(null,           176, 174, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 234, TIPS.corpus));
+        svg.appendChild(node(null,           176, 214, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 234, TIPS.mcp));
+        svg.appendChild(node("ad-node--key",  40, 254, 112, 30, "Gemini 3.1", "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
     } else {
         // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
-        // above the Agent, Corpus/MCP below it, and the step-5 return path
+        // above the Agent, Corpus/MCP below it, and the step-7 return path
         // looping along y=228 back to You. 34px between boxes leaves the step
         // badges room to sit clear of both, so the connectors stay readable.
-        svg.appendChild(node("ad-node--you",  11,  98,  76, 44, "You",              "ask · listen", "You: type a question or hold the mic", 49, TIPS.you, true));
-        svg.appendChild(node("ad-node--key", 121,  98,  92, 44, "Gemini 3.5",       "STT",          "Gemini 3.5 Transcribe converts mic input to text", 167, TIPS.stt));
-        svg.appendChild(node("ad-node--hub", 247,  98,  96, 44, "Agent",            "ADK loop",     "ADK agent on Cloud Run, orchestrates all tool calls", 295, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 377,  98,  92, 44, "Gemini 3.1",       "TTS",          "Gemini 3.1 Flash TTS converts the reply to speech", 423, TIPS.tts));
-        svg.appendChild(node("ad-node--key", 233,  14, 124, 40, "Gemini 3.7 Flash", "reasoning",    "Google Gemini, reasoning and language generation", 295, TIPS.llm));
-        svg.appendChild(node(null,           187, 170, 112, 38, "Data Corpus",      "grounding",    "Live JSON fetch, grounding source for every reply", 243, TIPS.corpus));
-        svg.appendChild(node(null,           315, 170, 104, 38, "MCP Server",       "actions",      "MCP-compatible Resend server, fires email on agent request", 367, TIPS.mcp));
+        svg.appendChild(node("ad-node--you",  25,  98,  76, 44, "You",              "ask · listen",         "You: type a question or hold the mic", 63, TIPS.you, "person"));
+        svg.appendChild(node("ad-node--key", 135,  98, 108, 44, "Gemini 3.5",       "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 189, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--hub", 277,  98,  96, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 325, TIPS.agent));
+        svg.appendChild(node("ad-node--key", 407,  98, 108, 44, "Gemini 3.1",       "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 461, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key", 263,  14, 124, 40, "Gemini 3.7 Flash", "reasoning",            "Google Gemini, reasoning and language generation", 325, TIPS.llm, "gemini"));
+        svg.appendChild(node(null,           217, 170, 112, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 273, TIPS.corpus));
+        svg.appendChild(node(null,           345, 170, 104, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 397, TIPS.mcp));
     }
 
     return svg;
@@ -1708,9 +1738,11 @@ function buildAgentDiagram(opts) {
 // the diagram and the fullscreen view. Numbers match the badges in the SVG.
 const AGENT_STEPS = [
     ["You ask", "typed, or held down the mic"],
-    ["STT", "Gemini 3.5 turns the recording into text"],
-    ["Agent reasons", "Gemini 3.7 plans, grounded on the corpus, acting through MCP"],
-    ["TTS", "Gemini 3.1 turns the finished reply into speech"],
+    ["Speech-to-Text (STT)", "Gemini 3.5 turns the recording into text"],
+    ["Grounding", "the agent pulls the facts it needs from the live corpus"],
+    ["Actions", "it calls the MCP server when something needs doing, like emailing the resume"],
+    ["Reasoning", "Gemini 3.7 works out the answer from what it gathered"],
+    ["Text-to-Speech (TTS)", "Gemini 3.1 turns the finished reply into speech"],
     ["Back to you", "text streams in, audio plays alongside it"],
 ];
 

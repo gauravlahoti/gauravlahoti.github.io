@@ -3304,13 +3304,14 @@ sup.agent-cite a:focus-visible {
     opacity: 0.5;
     transform-box: fill-box;
     transform-origin: center;
-    animation: ad-step-seq 6s ease-in-out infinite;
+    /* 8s / 7 steps, JS staggers animation-delay by n-1 seconds. */
+    animation: ad-step-seq 8s ease-in-out infinite;
 }
 @keyframes ad-step-seq {
     0%        { opacity: 0.5; transform: scale(1); }
-    3%        { opacity: 1;   transform: scale(1.2); }
-    12%       { opacity: 1;   transform: scale(1.2); }
-    18%, 100% { opacity: 0.5; transform: scale(1); }
+    2%        { opacity: 1;   transform: scale(1.2); }
+    10%       { opacity: 1;   transform: scale(1.2); }
+    14%, 100% { opacity: 0.5; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
     /* No sequencing; the numerals and the legend still carry the order. */
