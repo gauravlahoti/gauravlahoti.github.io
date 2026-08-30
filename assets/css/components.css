@@ -2494,25 +2494,29 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent);
     border-radius: var(--radius-md);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: opacity var(--dur-fast) var(--ease-out),
-                background var(--dur-fast) var(--ease-out);
+                background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
 .agent-send:disabled { opacity: 0.4; cursor: progress; }
 .agent-send:hover:not(:disabled) { filter: brightness(1.1); }
 
 /* Spec: match the mic button's idle/active language — muted outline when
-   there's no text to send, full accent once there is (or while streaming,
-   where is-empty is never applied so the stop control stays obviously
-   actionable). Without this the send button always looked like a live CTA
-   even when sendCurrent() would silently no-op on empty input. */
+   there's no text to send, cyan border + icon once there is (or while
+   streaming, where is-empty is never applied so the stop control stays
+   obviously actionable). Neither state uses a full solid fill — the
+   accent lives on the border/icon so both buttons read as siblings,
+   matching .agent-mic's recording/busy treatment below rather than the
+   old always-solid-cyan look. */
 .agent-send.is-empty {
     background: transparent;
     color: var(--ink-muted);
@@ -2529,21 +2533,23 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-send[data-mode="send"] .agent-send-glyph-send { display: block; }
 .agent-send[data-mode="stop"] .agent-send-glyph-stop { display: block; }
 
-/* Thin arc orbiting the stop square while a turn streams. */
+/* Thin arc orbiting the stop square while a turn streams — same ring
+   treatment as .agent-mic[data-mode="busy"]::after now that the button's
+   background is soft/transparent rather than solid cyan. */
 .agent-send[data-mode="stop"]::after {
     content: "";
     position: absolute;
     inset: 7px;
     border-radius: 50%;
-    border: 1.5px solid rgba(0, 0, 0, 0.25);
-    border-top-color: var(--bg);
+    border: 1.5px solid var(--border);
+    border-top-color: var(--accent);
     animation: agent-send-spin 0.75s linear infinite;
 }
 @keyframes agent-send-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
     .agent-send[data-mode="stop"]::after {
         animation: none;
-        border-color: var(--bg);
+        border-color: var(--accent);
     }
 }
 
