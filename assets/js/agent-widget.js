@@ -1647,7 +1647,7 @@ function buildAgentDiagram() {
         svg.appendChild(node(null,           178,   6, 124, 40, "Gemini 3.7 Flash", "reasoning · generation", "Google Gemini — reasoning and language generation", 240, TIPS.llm));
         svg.appendChild(node("ad-node--hub", 178,  68, 124, 44, "Agent",       "ADK orchestrator",           "ADK agent on Cloud Run — orchestrates all tool calls", 240, TIPS.agent));
         svg.appendChild(node(null,             8, 140, 148, 40, "Data Corpus", "profile · projects · posts", "Live JSON fetch — grounding source for every reply", 82, TIPS.corpus));
-        svg.appendChild(node(null,           185, 140, 110, 40, "Voice I/O",   "3.5 Transcribe · 3.1 TTS",   "Gemini STT + TTS — mic input and spoken replies", 240, TIPS.voice));
+        svg.appendChild(node(null,           182, 140, 116, 40, "Voice I/O",   "3.5 STT · 3.1 TTS",          "Gemini STT + TTS — mic input and spoken replies", 240, TIPS.voice));
         svg.appendChild(node(null,           344, 140, 116, 40, "MCP Server",  "Resend · email actions",     "MCP-compatible Resend server — fires email on agent request", 402, TIPS.mcp));
     }
 
