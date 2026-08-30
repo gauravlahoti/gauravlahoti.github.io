@@ -200,7 +200,7 @@
     }
   ],
   "agentExplainer": {
-    "title": "Meet the agent",
+    "title": "Inside Atlas",
     "body": [
       "It's built on Google's **Agent Development Kit**, powered by the Gemini model, and lives on **Cloud Run**. It can talk too: replies are read aloud with Gemini's text-to-speech, and you can ask by voice instead of typing. When it needs to actually do something, like email you my resume, it reaches through a Resend **MCP** server, with **Model Context Protocol** handling the wiring between the agent and its tools. The first reply might lag while it warms up, that's just the cold start.",
       "**Grounded**, not guessing. Every response draws from my profile, projects, certifications, and recent writing, fetched live off this site, so an edit shows up within minutes with no redeploy needed. Each turn, it decides what's worth citing and when the right move is to send you straight to me. Watch the inline [1] markers, and open Sources to see exactly where an answer comes from.",
