@@ -3229,9 +3229,9 @@ sup.agent-cite a:focus-visible {
    highlights. Tool-call edges (grounding/actions) keep the muted default. */
 .ad-edge--key { stroke: var(--accent); opacity: 0.5; }
 
-/* Numbered step markers, keyed to the .ad-legend list below the figure.
-   Deliberately static — a looping highlight read as decoration, and the
-   numerals plus the legend already carry the sequence. */
+/* Numbered step markers, keyed to the .ad-legend list below the figure. They
+   light one after another (JS sets animation-delay to n-1 on a 6s cycle), so
+   the motion traces the route in order instead of pulsing all at once. */
 .ad-step circle {
     fill: var(--bg-card);
     stroke: var(--accent);
@@ -3243,6 +3243,31 @@ sup.agent-cite a:focus-visible {
     font-weight: 700;
     fill: var(--accent);
     pointer-events: none;
+}
+.ad-step {
+    opacity: 0.5;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ad-step-seq 6s ease-in-out infinite;
+}
+@keyframes ad-step-seq {
+    0%        { opacity: 0.5; transform: scale(1); }
+    3%        { opacity: 1;   transform: scale(1.2); }
+    12%       { opacity: 1;   transform: scale(1.2); }
+    18%, 100% { opacity: 0.5; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* No sequencing; the numerals and the legend still carry the order. */
+    .ad-step { animation: none; opacity: 1; }
+}
+
+/* Stick figure inside the You node. */
+.ad-person circle,
+.ad-person path {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.2;
+    stroke-linecap: round;
 }
 .ad-node rect {
     fill: var(--bg-card);
