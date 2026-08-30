@@ -1796,13 +1796,18 @@ function setupExplainerModal(dom, agentExplainer) {
     if (titleEl && agentExplainer.title) titleEl.textContent = agentExplainer.title;
     if (bodyEl && Array.isArray(agentExplainer.body)) {
         bodyEl.replaceChildren();
+        // Figure stays pinned; legend + prose scroll under it so the diagram
+        // keeps the space rather than being pushed off by the copy.
         bodyEl.appendChild(buildAgentFigure(dialog));
-        bodyEl.appendChild(buildAgentLegend());
+        const scroll = document.createElement("div");
+        scroll.className = "agent-explainer-scroll";
+        scroll.appendChild(buildAgentLegend());
         agentExplainer.body.forEach(para => {
             const p = document.createElement("p");
             p.appendChild(parseEmphasis(para));
-            bodyEl.appendChild(p);
+            scroll.appendChild(p);
         });
+        bodyEl.appendChild(scroll);
     }
     // No repo link in current copy — hide the footer element if empty
     if (footEl && !agentExplainer.repoUrl) footEl.style.display = "none";
