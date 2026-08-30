@@ -1635,11 +1635,15 @@ function buildAgentDiagram(opts) {
     };
     // 3 and 4 sit partway along the corpus/MCP diagonals rather than at their
     // midpoints, which would collide with each other on the mobile layout.
+    // Corpus and MCP deliberately SHARE step 4: the model calls tools as one
+    // step, and they're alternatives rather than a sequence (MCP only fires
+    // when something needs doing, like emailing the resume). Sharing the
+    // number also means both badges light together, which is the intent.
     const steps = mobile
-        ? [[1, 96, 51], [2, 96, 111], [3, 149, 176], [4, 151, 200], [5, 164, 143], [6, 96, 215], [7, 18, 160]]
-        // 7 sits on the final leg arriving back at You — the descent at x=461
+        ? [[4, 149, 176], [4, 151, 200], [1, 96, 51], [2, 96, 111], [3, 164, 143], [5, 96, 215], [6, 18, 160]]
+        // 6 sits on the final leg arriving back at You — the descent at x=461
         // runs behind the MCP Server node, which draws over it.
-        : [[1, 118, 120], [2, 260, 120], [3, 290, 156], [4, 370, 156], [5, 325, 76], [6, 390, 120], [7, 63, 190]];
+        : [[4, 290, 156], [4, 370, 156], [1, 118, 120], [2, 260, 120], [3, 325, 76], [5, 390, 120], [6, 63, 190]];
     steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
 
     // Small stick figure marking the human end of the loop, drawn to the left
@@ -1736,12 +1740,13 @@ function buildAgentDiagram(opts) {
 
 // The five pipeline steps, written once and used by both the legend under
 // the diagram and the fullscreen view. Numbers match the badges in the SVG.
+// Step 4 covers both tool nodes in the diagram, which share that badge:
+// the model decides in step 3, then calls whichever tools it needs.
 const AGENT_STEPS = [
     ["You ask", "typed, or held down the mic"],
     ["Speech-to-Text (STT)", "Gemini 3.5 turns the recording into text"],
-    ["Grounding", "the agent pulls the facts it needs from the live corpus"],
-    ["Actions", "it calls the MCP server when something needs doing, like emailing the resume"],
-    ["Reasoning", "Gemini 3.7 works out the answer from what it gathered"],
+    ["Reasoning", "Gemini 3.7 works out what it needs and what to call"],
+    ["Tools", "it reads the live corpus for facts, and calls the MCP server when something needs doing, like emailing the resume"],
     ["Text-to-Speech (TTS)", "Gemini 3.1 turns the finished reply into speech"],
     ["Back to you", "text streams in, audio plays alongside it"],
 ];
