@@ -3319,6 +3319,61 @@ sup.agent-cite a:focus-visible {
     .ad-step { animation: none; opacity: 1; }
 }
 
+/* Waveform <-> text strips beside the speech nodes. Same 7s cycle as the step
+   badges, and JS gives each strip its stage's delay, so the conversion plays
+   while that number is lit and sits still (drawn, dim) the rest of the time. */
+.ad-xform rect {
+    fill: var(--accent);
+    transform-box: fill-box;
+}
+.ad-xform-wave rect {
+    transform-origin: center;
+    opacity: 0.35;
+    animation: ad-xform-wave 7s ease-in-out infinite;
+}
+.ad-xform-text rect {
+    /* Text builds outward from the side facing the waveform, so the two
+       halves read as one left-to-right transform in each direction. */
+    transform-origin: left center;
+    opacity: 0.35;
+    animation: ad-xform-text 7s ease-in-out infinite;
+}
+.ad-xform--to-voice .ad-xform-text rect { transform-origin: right center; }
+/* The "becomes" cue between the two halves. */
+.ad-xform-arrow {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.35;
+    animation: ad-xform-arrow 7s ease-in-out infinite;
+}
+@keyframes ad-xform-arrow {
+    0%, 100% { opacity: 0.35; }
+    5%       { opacity: 1; }
+    14%      { opacity: 1; }
+    20%      { opacity: 0.35; }
+}
+@keyframes ad-xform-wave {
+    0%,  100% { opacity: 0.35; transform: scaleY(0.55); }
+    3%        { opacity: 1;    transform: scaleY(1); }
+    9%        { opacity: 1;    transform: scaleY(0.7); }
+    16%       { opacity: 0.35; transform: scaleY(0.55); }
+}
+@keyframes ad-xform-text {
+    0%,  100% { opacity: 0.35; transform: scaleX(1); }
+    3%        { opacity: 0.35; transform: scaleX(0); }
+    12%       { opacity: 1;    transform: scaleX(1); }
+    18%       { opacity: 0.6;  transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* Both halves stay drawn and legible; only the conversion motion goes. */
+    .ad-xform-wave rect,
+    .ad-xform-text rect { animation: none; opacity: 0.7; transform: none; }
+    .ad-xform-arrow { animation: none; opacity: 0.7; }
+}
+
 /* Stick figure inside the You node. */
 .ad-person circle,
 .ad-person path {
