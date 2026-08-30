@@ -3229,8 +3229,9 @@ sup.agent-cite a:focus-visible {
    highlights. Tool-call edges (grounding/actions) keep the muted default. */
 .ad-edge--key { stroke: var(--accent); opacity: 0.5; }
 
-/* Numbered step badges — each lights in turn on a 5s loop (JS sets
-   animation-delay to n-1 seconds) so the eye is walked 1 -> 5 in order. */
+/* Numbered step markers, keyed to the .ad-legend list below the figure.
+   Deliberately static — a looping highlight read as decoration, and the
+   numerals plus the legend already carry the sequence. */
 .ad-step circle {
     fill: var(--bg-card);
     stroke: var(--accent);
@@ -3242,21 +3243,6 @@ sup.agent-cite a:focus-visible {
     font-weight: 700;
     fill: var(--accent);
     pointer-events: none;
-}
-.ad-step {
-    opacity: 0.45;
-    animation: ad-step-cycle 5s ease-in-out infinite;
-}
-@keyframes ad-step-cycle {
-    0%   { opacity: 0.45; }
-    4%   { opacity: 1; }
-    16%  { opacity: 1; }
-    24%  { opacity: 0.45; }
-    100% { opacity: 0.45; }
-}
-@media (prefers-reduced-motion: reduce) {
-    /* No sequencing — every badge stays legible, the numerals still carry the order. */
-    .ad-step { animation: none; opacity: 1; }
 }
 .ad-node rect {
     fill: var(--bg-card);
@@ -3278,9 +3264,83 @@ sup.agent-cite a:focus-visible {
 .ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
 .ad-node--you rect { stroke: var(--ink-muted); stroke-dasharray: 3 2; }
 .ad-node--you .ad-node-name { fill: var(--ink); font-weight: 700; }
-.ad-label-bg   { fill: var(--bg-card); }
-.ad-edge-label { font-family: var(--font-mono); font-size: 9px; font-weight: 600; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; }
-.ad-edge-label--key { fill: var(--accent); font-weight: 700; }
+
+/* ── Diagram figure, expand control, and numbered legend ─────────────────── */
+.ad-figure { position: relative; }
+.ad-expand {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out);
+}
+.ad-expand:hover,
+.ad-expand:focus-visible { color: var(--accent); border-color: var(--accent); }
+
+.ad-legend {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+}
+.ad-legend li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--ink-muted);
+}
+.ad-legend strong { color: var(--ink); font-weight: 600; }
+.ad-legend-n {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(2px);
+}
+
+/* Fullscreen diagram — its own top-level dialog, stacked over the explainer
+   modal so Escape/backdrop dismiss the zoom first and leave the modal open. */
+.ad-zoom-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    width: min(96vw, 1080px);
+    max-height: 92vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--ink);
+    padding: var(--space-6);
+    z-index: 300;
+}
+.ad-zoom-dialog::backdrop { background: rgba(0, 0, 0, 0.82); }
+.ad-zoom-close { position: absolute; top: var(--space-3); right: var(--space-4); }
+.ad-zoom-dialog .ad-svg { margin-bottom: var(--space-6); }
 
 /* ── Diagram node tooltip ─────────────────────────────────────────────────── */
 .ad-node-tooltip {

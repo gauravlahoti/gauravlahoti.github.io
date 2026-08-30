@@ -1569,7 +1569,10 @@ function _setupDiagramTooltips(svg, dialog) {
     });
 }
 
-function buildAgentDiagram() {
+function buildAgentDiagram(opts) {
+    // opts.wide forces the roomy desktop layout regardless of viewport — the
+    // fullscreen view uses it so a phone still gets the readable version.
+    const wide = !!(opts && opts.wide);
     const NS = "http://www.w3.org/2000/svg";
     const el = (tag, attrs) => {
         const e = document.createElementNS(NS, tag);
@@ -1579,70 +1582,58 @@ function buildAgentDiagram() {
 
     // On mobile (<540px) use a 250-unit viewBox (vs 480 desktop) so the diagram
     // renders at ~1.32x natural scale rather than ~0.65x, making it prominent.
-    const mobile = window.innerWidth < 540;
+    const mobile = !wide && window.innerWidth < 540;
     const VW = mobile ? 250 : 480;
     const VH = mobile ? 310 : 250;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // The diagram is a loop that starts and ends with You: ask (1) → STT (2)
-    // → the agent reasons (3) → TTS (4) → the spoken reply lands back with
-    // you (5). Steps 1-5 are numbered badges that light up in sequence, so
-    // where the flow starts and which way it runs is readable at a glance
-    // rather than implied. The five spine edges carry the accent colour
-    // (`key`) as one continuous cyan path; grounding/actions stay muted grey
-    // — they're tool calls the agent makes inside step 3, not stages of the
-    // pipeline itself.
+    // A loop that starts and ends with You: ask (1) → STT (2) → the agent
+    // reasons (3) → TTS (4) → the spoken reply lands back with you (5).
+    // Nothing is written on the connectors — text sitting on a line was the
+    // main thing making this hard to read. Every stage word now lives either
+    // in a node's own sub-label ("reasoning", "grounding", "actions") or in
+    // the numbered legend rendered under the figure, so the lines stay clean.
+    // The five spine edges carry the accent as one continuous path; the two
+    // tool-call edges stay muted grey — they happen inside step 3.
     const edges = mobile ? [
-        { d: "M 88 36 L 88 54",                                 key: true },
-        { d: "M 88 84 L 88 102",                                key: true },
-        { d: "M 126 119 L 150 119",                             key: true },
-        { d: "M 88 136 L 88 236",                               key: true },
-        { d: "M 88 266 L 88 288 L 22 288 L 22 22 L 56 22",      key: true },
-        // No grounding/actions text at this width — the labels would land on
-        // top of the step-4 spine. The Corpus/MCP node names carry it, and the
-        // tap tooltips carry the detail.
+        { d: "M 88 36 L 88 54",                            key: true },
+        { d: "M 88 84 L 88 102",                           key: true },
+        { d: "M 126 119 L 150 119",                        key: true },
+        { d: "M 88 136 L 88 236",                          key: true },
+        { d: "M 88 266 L 88 288 L 22 288 L 22 22 L 56 22", key: true },
         { d: "M 100 136 L 150 158" },
         { d: "M 106 136 L 150 198" },
     ] : [
-        { d: "M 82 120 L 104 120",                              key: true },
-        { d: "M 188 120 L 210 120",                             key: true },
-        { d: "M 258 98 L 258 54",   label: "reasoning", lx: 258, ly: 88, bgW: 56, key: true },
-        { d: "M 306 120 L 328 120",                             key: true },
-        { d: "M 370 142 L 370 228 L 44 228 L 44 142", label: "spoken reply", lx: 207, ly: 228, bgW: 76, key: true },
-        { d: "M 240 142 L 206 170", label: "grounding", lx: 223, ly: 158, bgW: 58 },
-        { d: "M 276 142 L 330 170", label: "actions",   lx: 303, ly: 158, bgW: 44 },
+        { d: "M 82 120 L 104 120",                     key: true },
+        { d: "M 188 120 L 210 120",                    key: true },
+        { d: "M 258 98 L 258 54",                      key: true },
+        { d: "M 306 120 L 328 120",                    key: true },
+        { d: "M 370 142 L 370 228 L 44 228 L 44 142",  key: true },
+        { d: "M 240 142 L 206 170" },
+        { d: "M 276 142 L 330 170" },
     ];
-    edges.forEach(({ d, label, lx, ly, bgW, key }) => {
+    edges.forEach(({ d, key }) => {
         svg.appendChild(el("path", { class: key ? "ad-edge ad-edge--key" : "ad-edge", d }));
-        if (!label) return;
-        svg.appendChild(el("rect", {
-            class: "ad-label-bg",
-            x: String(lx - bgW / 2), y: String(ly - 9),
-            width: String(bgW), height: "13", rx: "3",
-        }));
-        const lbl = el("text", { class: key ? "ad-edge-label ad-edge-label--key" : "ad-edge-label", x: String(lx), y: String(ly) });
-        lbl.textContent = label;
-        svg.appendChild(lbl);
     });
 
-    // Numbered step badges. Each lights in turn on a 5s loop (delay = n-1
-    // seconds), so the eye is walked 1 → 5 in pipeline order.
+    // Static numbered markers keyed to the legend below the figure. No
+    // animation: the order is carried by the numerals and the legend, and a
+    // looping highlight read as decoration rather than information.
     const step = (n, cx, cy) => {
         const g = el("g", { class: "ad-step" });
         g.appendChild(el("circle", { cx: String(cx), cy: String(cy), r: "8" }));
         const t = el("text", { x: String(cx), y: String(cy + 3), "text-anchor": "middle" });
         t.textContent = String(n);
         g.appendChild(t);
-        if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
         return g;
     };
     const steps = mobile
         ? [[1, 88, 45], [2, 88, 93], [3, 138, 119], [4, 88, 215], [5, 22, 150]]
         // 5 sits on the final leg arriving back at You — the descent at x=370
         // runs behind the MCP Server node, which draws over it.
-        : [[1, 93, 120], [2, 199, 120], [3, 258, 66], [4, 317, 120], [5, 44, 190]];
+        : [[1, 93, 120], [2, 199, 120], [3, 258, 76], [4, 317, 120], [5, 44, 190]];
     steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
 
     const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details) => {
@@ -1679,8 +1670,8 @@ function buildAgentDiagram() {
         svg.appendChild(node("ad-node--key",  56,  54, 64, 30, "STT",        "Gemini 3.5", "Gemini 3.5 Transcribe — converts mic input to text", 88, TIPS.stt));
         svg.appendChild(node("ad-node--hub",  50, 102, 76, 34, "Agent",      "ADK",        "ADK agent on Cloud Run — orchestrates all tool calls", 88, TIPS.agent));
         svg.appendChild(node("ad-node--key", 150, 102, 94, 34, "Gemini 3.7", "reasoning",  "Google Gemini — reasoning and language generation", 197, TIPS.llm));
-        svg.appendChild(node(null,           150, 150, 94, 30, "Corpus",     "live JSON",  "Live JSON fetch — grounding source for every reply", 197, TIPS.corpus));
-        svg.appendChild(node(null,           150, 190, 94, 30, "MCP",        "email",      "MCP-compatible Resend server — fires email on agent request", 197, TIPS.mcp));
+        svg.appendChild(node(null,           150, 150, 94, 30, "Corpus",     "grounding",  "Live JSON fetch — grounding source for every reply", 197, TIPS.corpus));
+        svg.appendChild(node(null,           150, 190, 94, 30, "MCP",        "actions",    "MCP-compatible Resend server — fires email on agent request", 197, TIPS.mcp));
         svg.appendChild(node("ad-node--key",  56, 236, 64, 30, "TTS",        "Gemini 3.1", "Gemini 3.1 Flash TTS — converts the reply to speech", 88, TIPS.tts));
     } else {
         // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
@@ -1690,12 +1681,90 @@ function buildAgentDiagram() {
         svg.appendChild(node("ad-node--key", 104,  98,  84, 44, "STT",              "Gemini 3.5",      "Gemini 3.5 Transcribe — converts mic input to text", 146, TIPS.stt));
         svg.appendChild(node("ad-node--hub", 210,  98,  96, 44, "Agent",            "ADK loop",        "ADK agent on Cloud Run — orchestrates all tool calls", 258, TIPS.agent));
         svg.appendChild(node("ad-node--key", 328,  98,  84, 44, "TTS",              "Gemini 3.1",      "Gemini 3.1 Flash TTS — converts the reply to speech", 370, TIPS.tts));
-        svg.appendChild(node("ad-node--key", 196,  14, 124, 40, "Gemini 3.7 Flash", "generation",      "Google Gemini — reasoning and language generation", 258, TIPS.llm));
-        svg.appendChild(node(null,           150, 170, 112, 38, "Data Corpus",      "profile · posts", "Live JSON fetch — grounding source for every reply", 206, TIPS.corpus));
-        svg.appendChild(node(null,           278, 170, 104, 38, "MCP Server",       "Resend email",    "MCP-compatible Resend server — fires email on agent request", 330, TIPS.mcp));
+        svg.appendChild(node("ad-node--key", 196,  14, 124, 40, "Gemini 3.7 Flash", "reasoning", "Google Gemini — reasoning and language generation", 258, TIPS.llm));
+        svg.appendChild(node(null,           150, 170, 112, 38, "Data Corpus",      "grounding", "Live JSON fetch — grounding source for every reply", 206, TIPS.corpus));
+        svg.appendChild(node(null,           278, 170, 104, 38, "MCP Server",       "actions",   "MCP-compatible Resend server — fires email on agent request", 330, TIPS.mcp));
     }
 
     return svg;
+}
+
+// The five pipeline steps, written once and used by both the legend under
+// the diagram and the fullscreen view. Numbers match the badges in the SVG.
+const AGENT_STEPS = [
+    ["You ask", "typed, or held down the mic"],
+    ["STT", "Gemini 3.5 turns the recording into text"],
+    ["Agent reasons", "Gemini 3.7 plans, grounded on the corpus, acting through MCP"],
+    ["TTS", "Gemini 3.1 turns the finished reply into speech"],
+    ["Back to you", "text streams in, audio plays alongside it"],
+];
+
+function buildAgentLegend() {
+    const ol = document.createElement("ol");
+    ol.className = "ad-legend";
+    AGENT_STEPS.forEach(([name, detail], i) => {
+        const li = document.createElement("li");
+        const n = document.createElement("span");
+        n.className = "ad-legend-n";
+        n.textContent = String(i + 1);
+        const txt = document.createElement("span");
+        const strong = document.createElement("strong");
+        strong.textContent = name;
+        txt.append(strong, ` — ${detail}`);
+        li.append(n, txt);
+        ol.appendChild(li);
+    });
+    return ol;
+}
+
+// Wraps the SVG with an expand control. The diagram is dense at the modal's
+// 520px width, so fullscreen is the escape hatch rather than the only way to
+// read it — and the fullscreen copy is always built with the roomy desktop
+// layout, so a phone gets the readable version too.
+function buildAgentFigure(parentDialog) {
+    const fig = document.createElement("div");
+    fig.className = "ad-figure";
+    const svg = buildAgentDiagram();
+    fig.appendChild(svg);
+    _setupDiagramTooltips(svg, parentDialog);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ad-expand";
+    btn.setAttribute("aria-label", "View the diagram full screen");
+    btn.innerHTML = `
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/>
+        </svg>
+        <span>Expand</span>`;
+    btn.addEventListener("click", () => openAgentDiagramZoom());
+    fig.appendChild(btn);
+    return fig;
+}
+
+let _zoomDialog = null;
+function openAgentDiagramZoom() {
+    if (!_zoomDialog) {
+        _zoomDialog = document.createElement("dialog");
+        _zoomDialog.className = "ad-zoom-dialog";
+
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "agent-explainer-close ad-zoom-close";
+        close.setAttribute("aria-label", "Close");
+        close.textContent = "×";
+        close.addEventListener("click", () => _zoomDialog.close());
+
+        const svg = buildAgentDiagram({ wide: true });
+        _zoomDialog.append(close, svg, buildAgentLegend());
+        // Backdrop click closes, matching the explainer dialog's behaviour.
+        _zoomDialog.addEventListener("click", (e) => {
+            if (e.target === _zoomDialog) _zoomDialog.close();
+        });
+        document.body.appendChild(_zoomDialog);
+        _setupDiagramTooltips(svg, _zoomDialog);
+    }
+    _zoomDialog.showModal();
 }
 
 function setupExplainerModal(dom, agentExplainer) {
@@ -1712,9 +1781,8 @@ function setupExplainerModal(dom, agentExplainer) {
     if (titleEl && agentExplainer.title) titleEl.textContent = agentExplainer.title;
     if (bodyEl && Array.isArray(agentExplainer.body)) {
         bodyEl.replaceChildren();
-        bodyEl.appendChild(buildAgentDiagram());
-        const diagSvg = bodyEl.querySelector(".ad-svg");
-        if (diagSvg) _setupDiagramTooltips(diagSvg, dialog);
+        bodyEl.appendChild(buildAgentFigure(dialog));
+        bodyEl.appendChild(buildAgentLegend());
         agentExplainer.body.forEach(para => {
             const p = document.createElement("p");
             p.appendChild(parseEmphasis(para));
