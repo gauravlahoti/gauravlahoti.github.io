@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<!--
+  LinkedIn card template for the "Inside Atlas" diagram (1080x1350, 4:5).
+  Rendered to a PNG frame sequence by scripts/atlas-diagram-video/render.sh,
+  then encoded to MP4 by encode.swift.
+
+  The diagram itself is NOT duplicated here. It is imported from
+  assets/js/agent-widget.js (buildAgentDiagram) so this card can never drift
+  from what the site actually shows.
+
+  ?t=<seconds> freezes every diagram animation at that point in its 7s cycle.
+  Must be served over http (ES module imports are blocked on file://).
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://rsms.me">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .card {
+    width: 1080px;
+    height: 1350px;
+    box-sizing: border-box;
+    padding: var(--space-10);
+    display: flex;
+    flex-direction: column;
+    background:
+      radial-gradient(100% 55% at 50% 50%, var(--accent-soft) 0%, transparent 60%),
+      var(--bg);
+  }
+
+  /* The diagram is the whole image now, so the stage takes all the height it
+     can and centres the (2.16:1) diagram inside it. Without this the card
+     would read as a small strip stranded in a tall empty frame. */
+  .stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 24px;
+    padding: var(--space-8);
+    box-shadow: 0 0 100px rgba(0, 255, 209, 0.07);
+  }
+  /* components.css caps .ad-svg at 46vh for the in-page modal. This card is a
+     fixed 1350px canvas, so that cap would shrink the diagram to nothing. */
+  .stage .ad-svg {
+    max-height: none !important;
+    height: auto !important;
+    width: 100%;
+    display: block;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: center;
+    padding-top: var(--space-8);
+  }
+  .url {
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="stage" id="stage"></div>
+
+  <footer class="footer">
+    <span class="url">gauravlahoti.dev</span>
+  </footer>
+
+</div>
+
+<script type="module">
+import { buildAgentDiagram } from "/assets/js/agent-widget.js";
+
+// ?layout=vertical uses the diagram's own narrow layout (viewBox 300x320,
+// nearly square), which fills a 4:5 canvas. The default wide layout is
+// 540x250 (2.16:1) and strands a lot of empty space on a tall canvas unless
+// there is text beside it.
+//
+// buildAgentDiagram picks its layout from window.innerWidth at call time and
+// exposes no option for it, so the narrow layout is selected by shadowing
+// innerWidth for the duration of the call and restoring it after.
+const vertical = new URLSearchParams(location.search).get("layout") === "vertical";
+let svg;
+if (vertical) {
+    const real = Object.getOwnPropertyDescriptor(window, "innerWidth");
+    Object.defineProperty(window, "innerWidth", { value: 400, configurable: true });
+    svg = buildAgentDiagram({});
+    if (real) Object.defineProperty(window, "innerWidth", real);
+    else delete window.innerWidth;
+} else {
+    svg = buildAgentDiagram({ wide: true });
+}
+svg.removeAttribute("height");
+document.getElementById("stage").appendChild(svg);
+
+// Freeze every diagram animation at ?t=<seconds> in its 7s cycle.
+//
+// Pausing with a NEGATIVE animation-delay renders exactly the frame at time t.
+// The original delay is read from the *computed* style rather than recomputed,
+// so this never has to know how agent-widget.js staggers the badges and the
+// speech strips, and therefore cannot drift from it.
+const t = parseFloat(new URLSearchParams(location.search).get("t") || "0");
+
+for (const node of svg.querySelectorAll("*")) {
+    const cs = getComputedStyle(node);
+    if (!cs.animationName || cs.animationName === "none") continue;
+    const orig = parseFloat(cs.animationDelay) || 0;   // seconds
+    node.style.animationDelay = `${orig - t}s`;
+    node.style.animationPlayState = "paused";
+}
+
+// Signal readiness for the renderer (fonts included, so text is never
+// screenshotted mid-fallback).
+document.fonts.ready.then(() => { document.documentElement.dataset.ready = "1"; });
+</script>
+</body>
+</html>

@@ -1569,7 +1569,7 @@ function _setupDiagramTooltips(svg, dialog) {
     });
 }
 
-function buildAgentDiagram(opts) {
+export function buildAgentDiagram(opts) {
     // opts.wide forces the roomy desktop layout regardless of viewport — the
     // fullscreen view uses it so a phone still gets the readable version.
     const wide = !!(opts && opts.wide);
@@ -1600,14 +1600,17 @@ function buildAgentDiagram(opts) {
     // own sub-label or in the numbered legend under the figure, so the lines
     // stay clean. All seven edges are numbered steps, so all seven carry the
     // accent; nothing here is a silent side-path any more.
+    // The two speech boxes are taller than the rest (two-line model names), so
+    // the spine legs meeting them are shorter: STT spans y 60..102 and TTS
+    // y 248..290, against 66..96 / 254..284 before.
     const edges = mobile ? [
-        { d: "M 96 36 L 96 66" },
-        { d: "M 96 96 L 96 126" },
+        { d: "M 96 36 L 96 60" },
+        { d: "M 96 102 L 96 126" },
         { d: "M 108 160 L 176 186" },
         { d: "M 114 160 L 176 226" },
         { d: "M 152 143 L 176 143" },
-        { d: "M 96 160 L 96 254" },
-        { d: "M 96 284 L 96 306 L 18 306 L 18 21 L 40 21" },
+        { d: "M 96 160 L 96 248" },
+        { d: "M 96 290 L 96 306 L 18 306 L 18 21 L 40 21" },
     ] : [
         { d: "M 101 120 L 135 120" },
         { d: "M 243 120 L 277 120" },
@@ -1727,15 +1730,29 @@ function buildAgentDiagram(opts) {
     // "person" for You, "gemini" for the model nodes. The pair is centred as a
     // unit, so the offset is derived from the name's own width rather than a
     // fixed nudge (a fixed one only ever looks right for one label length).
+    // `name` is a string, or [line1, line2] for the model nodes whose full name
+    // is too wide for the box on one line. "Gemini 3.5 Transcribe" is ~141
+    // units against a 108 box; split, the widest line is 75 and the sub-label
+    // (~96) stays the widest thing in the box, so no box has to grow wider.
     const LEAD_SIZE = 11, LEAD_GAP = 4, NAME_ADVANCE = 6; // 10px mono ≈ 6px/char
     const node = (cls, rx, ry, rw, rh, name, sub, tip, cx, details, lead) => {
         const g = el("g", { class: cls ? `ad-node ${cls}` : "ad-node" });
         const t = el("title", {}); t.textContent = tip; g.appendChild(t);
         g.appendChild(el("rect", { x: String(rx), y: String(ry), width: String(rw), height: String(rh), rx: "6" }));
-        const nameY = ry + Math.floor(rh * 0.42);
+
+        const lines = Array.isArray(name) ? name : [name];
+        const two = lines.length > 1;
+        // Two lines need a tighter rhythm to keep all three rows inside the box.
+        const nameY = ry + Math.floor(rh * (two ? 0.30 : 0.42));
+        const subY  = ry + Math.floor(rh * (two ? 0.80 : 0.75));
+        const lineH = Math.floor(rh * 0.25);
+
         let nameCx = cx;
         if (lead) {
-            const nameW = name.length * NAME_ADVANCE;
+            // Centre the glyph+name pair on the FIRST line only; the second
+            // line centres on the box, so the mark stays tight to the name it
+            // belongs to instead of floating beside a two-line block.
+            const nameW = lines[0].length * NAME_ADVANCE;
             const total = LEAD_SIZE + LEAD_GAP + nameW;
             const left = cx - total / 2;
             nameCx = left + LEAD_SIZE + LEAD_GAP + nameW / 2;
@@ -1743,9 +1760,18 @@ function buildAgentDiagram(opts) {
             if (lead === "person") g.appendChild(personGlyph(gx, nameY - 3));
             else g.appendChild(geminiLogo(gx, nameY - 3.5, LEAD_SIZE));
         }
-        const nm = el("text", { class: "ad-node-name", x: String(nameCx), y: String(nameY), "text-anchor": "middle" });
-        nm.textContent = name; g.appendChild(nm);
-        const sb = el("text", { class: "ad-node-sub", x: String(cx), y: String(ry + Math.floor(rh * 0.75)), "text-anchor": "middle" });
+        lines.forEach((line, i) => {
+            const nm = el("text", {
+                class: "ad-node-name",
+                x: String(i === 0 ? nameCx : cx),
+                y: String(nameY + i * lineH),
+                "text-anchor": "middle",
+            });
+            nm.textContent = line;
+            g.appendChild(nm);
+        });
+
+        const sb = el("text", { class: "ad-node-sub", x: String(cx), y: String(subY), "text-anchor": "middle" });
         sb.textContent = sub; g.appendChild(sb);
         if (details?.length) g.setAttribute("data-ad-tip", details.join("\n"));
         return g;
@@ -1770,12 +1796,12 @@ function buildAgentDiagram(opts) {
         // to the right of the Agent, and the step-7 return path running back up
         // the clear left corridor at x=18.
         svg.appendChild(node("ad-node--you",  40,   6, 112, 30, "You",        "ask · listen",         "You: type a question or hold the mic", 96, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",  40,  66, 112, 30, "Gemini 3.5", "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--key",  40,  60, 112, 42, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",  40, 126, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 176, 126, 116, 34, "Gemini 3.7", "reasoning",            "Google Gemini, reasoning and language generation", 234, TIPS.llm, "gemini"));
+        svg.appendChild(node("ad-node--key", 176, 126, 116, 34, "Gemini 3.7 Flash", "reasoning",      "Google Gemini, reasoning and language generation", 234, TIPS.llm, "gemini"));
         svg.appendChild(node(null,           176, 174, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 234, TIPS.corpus));
         svg.appendChild(node(null,           176, 214, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 234, TIPS.mcp));
-        svg.appendChild(node("ad-node--key",  40, 254, 112, 30, "Gemini 3.1", "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key",  40, 248, 112, 42, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
         // Beside the boxes here, not above: step badge 1 and the spine edge
         // already occupy the space over the STT node at this width.
         svg.appendChild(xformStrip(226,  81, "to-text",  2));
@@ -1786,9 +1812,9 @@ function buildAgentDiagram(opts) {
         // looping along y=228 back to You. 34px between boxes leaves the step
         // badges room to sit clear of both, so the connectors stay readable.
         svg.appendChild(node("ad-node--you",  25,  98,  76, 44, "You",              "ask · listen",         "You: type a question or hold the mic", 63, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key", 135,  98, 108, 44, "Gemini 3.5",       "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 189, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--key", 135,  92, 108, 56, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 189, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub", 277,  98,  96, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 325, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 407,  98, 108, 44, "Gemini 3.1",       "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 461, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key", 407,  92, 108, 56, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 461, TIPS.tts, "gemini"));
         svg.appendChild(node("ad-node--key", 263,  14, 124, 40, "Gemini 3.7 Flash", "reasoning",            "Google Gemini, reasoning and language generation", 325, TIPS.llm, "gemini"));
         svg.appendChild(node(null,           217, 170, 112, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 273, TIPS.corpus));
         svg.appendChild(node(null,           345, 170, 104, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 397, TIPS.mcp));
@@ -1807,10 +1833,10 @@ function buildAgentDiagram(opts) {
 // the model decides in step 3, then calls whichever tools it needs.
 const AGENT_STEPS = [
     ["You ask", "typed, or held down the mic"],
-    ["Speech-to-Text (STT)", "Gemini 3.5 turns the recording into text"],
-    ["Reasoning", "Gemini 3.7 works out what it needs and what to call"],
+    ["Speech-to-Text (STT)", "Gemini 3.5 Transcribe turns the recording into text"],
+    ["Reasoning", "Gemini 3.7 Flash works out what it needs and what to call"],
     ["Tools", "it reads the live corpus for facts, and calls the MCP server when something needs doing, like emailing the resume"],
-    ["Text-to-Speech (TTS)", "Gemini 3.1 turns the finished reply into speech"],
+    ["Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS turns the finished reply into speech"],
     ["Back to you", "text streams in, audio plays alongside it"],
 ];
 

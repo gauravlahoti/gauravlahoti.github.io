@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+  Geometry regression check for the Inside Atlas diagram.
+
+  Builds BOTH layouts (wide 540x250 and vertical 300x320) and asserts, via
+  getBBox(), that every label sits inside its own node rect and that nothing
+  overlaps anything it shouldn't. This is the check that caught the earlier
+  label-overflow bugs, kept as a file so it can be re-run after any layout edit.
+
+  Run:  serve the repo, load this page, read the <pre> (or --dump-dom | grep).
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  body { background: #000; color: #ddd; font: 13px/1.5 monospace; padding: 16px; }
+  .rig { position: absolute; left: -4000px; top: 0; width: 1000px; }
+  .rig .ad-svg { max-height: none !important; height: auto !important; width: 100%; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="rig" id="rig"></div>
+<pre id="out">running...</pre>
+
+<script type="module">
+import { buildAgentDiagram } from "/assets/js/agent-widget.js";
+
+const lines = [];
+let failures = 0;
+const ok = (cond, msg) => { if (!cond) failures++; lines.push(`${cond ? "PASS" : "FAIL"}  ${msg}`); };
+
+// Rect intersection with a small tolerance: strokes and rounded corners make
+// exact adjacency normal, so only real overlap should register.
+const hit = (a, b, pad = 0) =>
+    a.x < b.x + b.width - pad && a.x + a.width - pad > b.x &&
+    a.y < b.y + b.height - pad && a.y + a.height - pad > b.y;
+
+function check(label, svg) {
+    lines.push(`\n=== ${label} (viewBox ${svg.getAttribute("viewBox")}) ===`);
+    const nodes = [...svg.querySelectorAll(".ad-node")];
+
+    // 1. every label inside its own rect
+    for (const n of nodes) {
+        const rect = n.querySelector("rect").getBBox();
+        const name = n.querySelector(".ad-node-name")?.textContent ?? "?";
+        for (const t of n.querySelectorAll("text")) {
+            const b = t.getBBox();
+            const inside = b.x >= rect.x - 0.5 && b.x + b.width <= rect.x + rect.width + 0.5 &&
+                           b.y >= rect.y - 0.5 && b.y + b.height <= rect.y + rect.height + 0.5;
+            ok(inside, `"${t.textContent}" inside [${name}] box` +
+                (inside ? "" : ` (text ${b.x.toFixed(1)}..${(b.x + b.width).toFixed(1)} x ` +
+                                `${b.y.toFixed(1)}..${(b.y + b.height).toFixed(1)} vs box ` +
+                                `${rect.x}..${rect.x + rect.width} x ${rect.y}..${rect.y + rect.height})`));
+        }
+    }
+
+    // 2. no node overlaps another node
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i].querySelector("rect").getBBox();
+            const b = nodes[j].querySelector("rect").getBBox();
+            const an = nodes[i].querySelector(".ad-node-name").textContent;
+            const bn = nodes[j].querySelector(".ad-node-name").textContent;
+            ok(!hit(a, b), `[${an}] does not overlap [${bn}]`);
+        }
+    }
+
+    // 3. no xform strip overlaps a node
+    for (const s of svg.querySelectorAll(".ad-xform")) {
+        const sb = s.getBBox();
+        for (const n of nodes) {
+            const nb = n.querySelector("rect").getBBox();
+            const nn = n.querySelector(".ad-node-name").textContent;
+            ok(!hit(sb, nb, 0.5), `speech strip clear of [${nn}]`);
+        }
+    }
+
+    // 4. every step badge is inside the viewBox
+    const [, , vw, vh] = svg.getAttribute("viewBox").split(" ").map(Number);
+    for (const s of svg.querySelectorAll(".ad-step")) {
+        const b = s.getBBox();
+        ok(b.x >= 0 && b.y >= 0 && b.x + b.width <= vw && b.y + b.height <= vh,
+           `badge "${s.textContent}" inside viewBox`);
+    }
+
+    // 5. the model names actually read correctly now
+    const names = [...svg.querySelectorAll(".ad-node-name")].map(t => t.textContent);
+    ok(names.includes("Gemini 3.5") && names.includes("Transcribe"), `STT reads "Gemini 3.5 Transcribe"`);
+    ok(names.includes("Gemini 3.1") && names.includes("Flash TTS"), `TTS reads "Gemini 3.1 Flash TTS"`);
+    ok(names.some(n => n.startsWith("Gemini 3.7")), `reasoning model present`);
+    ok(!names.some(n => n === "Gemini 3.7"), `reasoning is not the bare "Gemini 3.7"`);
+}
+
+const rig = document.getElementById("rig");
+
+const wide = buildAgentDiagram({ wide: true });
+rig.appendChild(wide);
+check("wide", wide);
+
+const realIW = Object.getOwnPropertyDescriptor(window, "innerWidth");
+Object.defineProperty(window, "innerWidth", { value: 400, configurable: true });
+const vert = buildAgentDiagram({});
+if (realIW) Object.defineProperty(window, "innerWidth", realIW); else delete window.innerWidth;
+rig.appendChild(vert);
+check("vertical", vert);
+
+lines.push(`\nRESULT: ${failures === 0 ? "ALL PASS" : failures + " FAILURE(S)"}`);
+document.getElementById("out").textContent = lines.join("\n");
+</script>
+</body>
+</html>
