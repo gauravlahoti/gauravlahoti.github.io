@@ -1587,7 +1587,12 @@ export function buildAgentDiagram(opts) {
     // (STT)" / "Text-to-Speech (TTS)" sub-labels are ~96 units at the sub font
     // size, so the model boxes grew and the viewBox grew with them.
     const VW = mobile ? 300 : 540;
-    const VH = mobile ? 320 : 250;
+    // Mobile grew from 320 to 332: the You->STT and STT->Agent gaps needed 6
+    // more units each to stop badges 1 and 2 sitting almost flush against the
+    // STT box (see the edges/steps below), and that extra 12 carries through
+    // everything from Agent down so the existing internal rhythm elsewhere
+    // (the 20/18 right-column gaps, the Agent->TTS descent) stays unchanged.
+    const VH = mobile ? 332 : 250;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
@@ -1606,14 +1611,16 @@ export function buildAgentDiagram(opts) {
     // Right column (Flash/Corpus/MCP) sits at x=180 rather than 176 — a wider
     // gap off the Agent box gives the two diagonal edges below more room to
     // fan out before they converge, which was the main source of clutter.
+    // You->STT and STT->Agent are each 30 now (was 24), so badges 1 and 2 sit
+    // with even clearance instead of nearly touching the STT box on one side.
     const edges = mobile ? [
-        { d: "M 96 36 L 96 60" },
-        { d: "M 96 102 L 96 126" },
-        { d: "M 108 160 L 180 195" },
-        { d: "M 114 160 L 180 243" },
-        { d: "M 152 143 L 180 143" },
-        { d: "M 96 160 L 96 248" },
-        { d: "M 96 290 L 96 306 L 18 306 L 18 21 L 40 21" },
+        { d: "M 96 36 L 96 66" },
+        { d: "M 96 108 L 96 138" },
+        { d: "M 108 172 L 180 207" },
+        { d: "M 114 172 L 180 255" },
+        { d: "M 152 155 L 180 155" },
+        { d: "M 96 172 L 96 260" },
+        { d: "M 96 302 L 96 318 L 18 318 L 18 21 L 40 21" },
     ] : [
         { d: "M 101 120 L 135 120" },
         { d: "M 243 120 L 277 120" },
@@ -1646,7 +1653,7 @@ export function buildAgentDiagram(opts) {
     // when something needs doing, like emailing the resume). Sharing the
     // number also means both badges light together, which is the intent.
     const steps = mobile
-        ? [[4, 148, 179], [4, 150, 206], [1, 96, 51], [2, 96, 111], [3, 166, 143], [5, 96, 215], [6, 18, 160]]
+        ? [[4, 148, 191], [4, 150, 218], [1, 96, 51], [2, 96, 123], [3, 166, 155], [5, 96, 216], [6, 18, 160]]
         // 6 sits on the final leg arriving back at You — the descent at x=461
         // runs behind the MCP Server node, which draws over it.
         : [[4, 290, 156], [4, 370, 156], [1, 118, 120], [2, 260, 120], [3, 325, 76], [5, 390, 120], [6, 63, 190]];
@@ -1799,16 +1806,16 @@ export function buildAgentDiagram(opts) {
         // to the right of the Agent, and the step-7 return path running back up
         // the clear left corridor at x=18.
         svg.appendChild(node("ad-node--you",  40,   6, 112, 30, "You",        "ask · listen",         "You: type a question or hold the mic", 96, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",  40,  60, 112, 42, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
-        svg.appendChild(node("ad-node--hub",  40, 126, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 180, 126, 116, 34, "Gemini 3.7 Flash", "reasoning",      "Google Gemini, reasoning and language generation", 238, TIPS.llm, "gemini"));
-        svg.appendChild(node(null,           180, 180, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
-        svg.appendChild(node(null,           180, 228, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp));
-        svg.appendChild(node("ad-node--key",  40, 248, 112, 42, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key",  40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--hub",  40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
+        svg.appendChild(node("ad-node--key", 180, 138, 116, 34, "Gemini 3.7 Flash", "reasoning",      "Google Gemini, reasoning and language generation", 238, TIPS.llm, "gemini"));
+        svg.appendChild(node(null,           180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
+        svg.appendChild(node(null,           180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp));
+        svg.appendChild(node("ad-node--key",  40, 260, 112, 42, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
         // Beside the boxes here, not above: step badge 1 and the spine edge
         // already occupy the space over the STT node at this width.
-        svg.appendChild(xformStrip(226,  81, "to-text",  2));
-        svg.appendChild(xformStrip(226, 269, "to-voice", 5));
+        svg.appendChild(xformStrip(226,  87, "to-text",  2));
+        svg.appendChild(xformStrip(226, 281, "to-voice", 5));
     } else {
         // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
         // above the Agent, Corpus/MCP below it, and the step-7 return path

@@ -87,7 +87,8 @@ kill $SRV 2>/dev/null || true
 wait $SRV 2>/dev/null || true
 
 echo "Encoding..."
-swift "$HERE/encode.swift" "$FRAMES" "$OUTDIR/atlas-pipeline.mp4"      "$FPS" 1
+# Only the looped version is produced — that's the one that gets posted, and
+# a single unlooped cut has no use once the loop exists.
 swift "$HERE/encode.swift" "$FRAMES" "$OUTDIR/atlas-pipeline-loop.mp4" "$FPS" "$LOOPS"
 
 echo
