@@ -3182,10 +3182,16 @@ sup.agent-cite a:focus-visible {
     width: min(720px, 94vw);
     max-height: 88vh;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
     padding: var(--space-5);
     z-index: 100;
+}
+/* The flex layout MUST be scoped to [open]. An unconditional `display: flex`
+   here overrides the UA's `dialog:not([open]) { display: none }` — author
+   styles beat user-agent styles regardless of specificity — which left the
+   dialog permanently on screen and made close() look broken. */
+.agent-explainer-dialog[open] {
+    display: flex;
+    flex-direction: column;
 }
 .agent-explainer-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
 @media (max-width: 540px) {
