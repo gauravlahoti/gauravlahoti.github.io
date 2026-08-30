@@ -1646,6 +1646,61 @@ function buildAgentDiagram(opts) {
         : [[4, 290, 156], [4, 370, 156], [1, 118, 120], [2, 260, 120], [3, 325, 76], [5, 390, 120], [6, 63, 190]];
     steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
 
+    // A waveform converting into text lines (or the reverse), shown beside the
+    // speech nodes so they say what they do, not just which model does it.
+    // `step` ties it to that stage's badge: same 7s cycle, same delay, so the
+    // conversion plays while its number is lit and rests still otherwise.
+    const BAR_W = 3, BAR_GAP = 4, BAR_HEIGHTS = [7, 13, 18, 11, 6];
+    const LINE_WS = [30, 22, 26], LINE_GAP = 7;
+    const xformStrip = (cx, cy, dir, step) => {
+        const toText = dir === "to-text";
+        const g = el("g", { class: `ad-xform ad-xform--${dir}` });
+        if (!REDUCE_MOTION) g.style.animationDelay = `${step - 1}s`;
+
+        const waveW = BAR_HEIGHTS.length * BAR_W + (BAR_HEIGHTS.length - 1) * BAR_GAP;
+        const textW = Math.max(...LINE_WS);
+        const GAP = 12;
+        const total = waveW + GAP + textW;
+        // Waveform on the left when converting to text; mirrored otherwise.
+        const waveX = cx - total / 2 + (toText ? 0 : textW + GAP);
+        const textX = cx - total / 2 + (toText ? waveW + GAP : 0);
+
+        const wave = el("g", { class: "ad-xform-wave" });
+        BAR_HEIGHTS.forEach((h, i) => {
+            const r = el("rect", {
+                x: String(waveX + i * (BAR_W + BAR_GAP)), y: String(cy - h / 2),
+                width: String(BAR_W), height: String(h), rx: "1.5",
+            });
+            // Stagger the bars so the group reads as audio, not one solid block.
+            if (!REDUCE_MOTION) r.style.animationDelay = `${step - 1 + i * 0.08}s`;
+            wave.appendChild(r);
+        });
+
+        const text = el("g", { class: "ad-xform-text" });
+        LINE_WS.forEach((w, i) => {
+            const y = cy - LINE_GAP + i * LINE_GAP;
+            const r = el("rect", {
+                x: String(textX), y: String(y - 1), width: String(w), height: "2", rx: "1",
+            });
+            if (!REDUCE_MOTION) r.style.animationDelay = `${step - 1 + i * 0.1}s`;
+            text.appendChild(r);
+        });
+
+        // A chevron in the gap between the halves. Without it the strip is just
+        // bars next to lines — the arrow is what makes it read as "becomes",
+        // and it points the same way the pipeline runs in both directions.
+        const arrowX = cx - total / 2 + (toText ? waveW : textW) + GAP / 2;
+        const arrow = el("path", {
+            class: "ad-xform-arrow",
+            d: `M ${arrowX - 2} ${cy - 3.5} L ${arrowX + 2} ${cy} L ${arrowX - 2} ${cy + 3.5}`,
+        });
+        if (!REDUCE_MOTION) arrow.style.animationDelay = `${step - 1}s`;
+
+        // Drawn in flow order: the source half first, then what it becomes.
+        g.append(...(toText ? [wave, arrow, text] : [text, arrow, wave]));
+        return g;
+    };
+
     // Small stick figure marking the human end of the loop, drawn to the left
     // of the node's name so "You" reads as a person, not another service.
     const personGlyph = (cx, cy) => {
@@ -1721,6 +1776,10 @@ function buildAgentDiagram(opts) {
         svg.appendChild(node(null,           176, 174, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 234, TIPS.corpus));
         svg.appendChild(node(null,           176, 214, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 234, TIPS.mcp));
         svg.appendChild(node("ad-node--key",  40, 254, 112, 30, "Gemini 3.1", "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
+        // Beside the boxes here, not above: step badge 1 and the spine edge
+        // already occupy the space over the STT node at this width.
+        svg.appendChild(xformStrip(226,  81, "to-text",  2));
+        svg.appendChild(xformStrip(226, 269, "to-voice", 5));
     } else {
         // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
         // above the Agent, Corpus/MCP below it, and the step-7 return path
@@ -1733,6 +1792,10 @@ function buildAgentDiagram(opts) {
         svg.appendChild(node("ad-node--key", 263,  14, 124, 40, "Gemini 3.7 Flash", "reasoning",            "Google Gemini, reasoning and language generation", 325, TIPS.llm, "gemini"));
         svg.appendChild(node(null,           217, 170, 112, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 273, TIPS.corpus));
         svg.appendChild(node(null,           345, 170, 104, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 397, TIPS.mcp));
+        // Above each speech box — the space over them is clear at this width
+        // (the Gemini 3.7 box starts at x=263, well right of the STT strip).
+        svg.appendChild(xformStrip(189, 73, "to-text",  2));
+        svg.appendChild(xformStrip(461, 73, "to-voice", 5));
     }
 
     return svg;
