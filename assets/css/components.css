@@ -2510,17 +2510,17 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-send:disabled { opacity: 0.4; cursor: progress; }
 .agent-send:hover:not(:disabled) { filter: brightness(1.1); }
 
-/* Spec: match the mic button's idle/active language — muted outline when
-   there's no text to send, cyan border + icon once there is (or while
-   streaming, where is-empty is never applied so the stop control stays
-   obviously actionable). Neither state uses a full solid fill — the
-   accent lives on the border/icon so both buttons read as siblings,
-   matching .agent-mic's recording/busy treatment below rather than the
-   old always-solid-cyan look. */
+/* Spec: match the mic button's idle/active language. Both controls keep a
+   permanent cyan border (signals "these are the important controls" even
+   at rest) but neither uses a full solid fill — the icon/background only
+   go full accent once the button is actually doing something (text typed,
+   or streaming, where is-empty is never applied so the stop control stays
+   obviously actionable), matching .agent-mic's recording/busy treatment
+   below rather than the old always-solid-cyan look. */
 .agent-send.is-empty {
     background: transparent;
     color: var(--ink-muted);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--accent);
 }
 .agent-send.is-empty:hover:not(:disabled) {
     color: var(--ink);
@@ -2553,8 +2553,10 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     }
 }
 
-/* Spec 48: mic button. Secondary styling (transparent + muted border) so
-   the cyan send button stays the one primary action in the row. */
+/* Spec 48: mic button. Permanent cyan border (matches .agent-send.is-empty)
+   with a muted icon at rest — secondary to send's icon/background, which
+   go full accent once active, but not muted to the point of looking like
+   a disabled control. */
 .agent-mic {
     position: relative;
     flex: 0 0 auto;
@@ -2562,7 +2564,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     height: 44px;
     background: transparent;
     color: var(--ink-muted);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--accent);
     border-radius: var(--radius-md);
     cursor: pointer;
     display: inline-flex;
