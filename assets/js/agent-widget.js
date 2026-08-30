@@ -247,6 +247,15 @@ export function initAgentWidget(root, profile, sessionId) {
     function setSendMode(mode) {
         sendBtn.dataset.mode = mode;
         sendBtn.setAttribute("aria-label", mode === "stop" ? "Stop generating" : "Send");
+        updateSendReadiness();
+    }
+
+    // Mirrors the mic button's idle/active look: muted while there's
+    // nothing to send, full accent once there's text — or always while
+    // mode is "stop", since that's a live cancel control.
+    function updateSendReadiness() {
+        const hasText = !!(input.value || "").trim();
+        sendBtn.classList.toggle("is-empty", sendBtn.dataset.mode !== "stop" && !hasText);
     }
 
     function stopStreaming() {
@@ -613,6 +622,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function autoGrowInput() {
         input.style.height = "auto";
         input.style.height = input.scrollHeight + "px";
+        updateSendReadiness();
     }
 
     // Sets the composer text and focuses it without sending. Shared by the
@@ -1796,7 +1806,7 @@ function renderShell(root, agentExplainer) {
     input.setAttribute("spellcheck", "true");
     const sendBtn = document.createElement("button");
     sendBtn.type = "submit";
-    sendBtn.className = "agent-send";
+    sendBtn.className = "agent-send is-empty";
     sendBtn.dataset.mode = "send";
     sendBtn.setAttribute("aria-label", "Send");
     sendBtn.innerHTML = `
