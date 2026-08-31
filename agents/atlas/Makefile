@@ -69,6 +69,14 @@ lint: ## Lint with ruff (auto-fix).
 audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit log).
 	uv run python -m app.app_utils.audit_log_smoke
 
+# min-instances=1: spec 51 originally chose 0 (+ a keep-warm scheduler ping)
+# to avoid paying for idle time, and named min-instances=1 at 512Mi
+# (~$8.70/month) as the explicit fallback if keep-warm proved unreliable.
+# Cold starts kept recurring in practice (surfaced twice: noticed directly,
+# then flagged as latency from a visitor in India), so this deploy target
+# now bakes in that fallback. Do not revert to 0 without re-reading spec 51
+# first — a bare `make deploy` used to silently undo a manual gcloud fix
+# here, which is the whole reason this is spelled out.
 deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1).
 	gcloud beta run deploy atlas \
 		--project gcp-experiments-490306 \
@@ -80,7 +88,7 @@ deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1)
 		--cpu-boost \
 		--execution-environment gen2 \
 		--concurrency 80 \
-		--min-instances 0 \
+		--min-instances 1 \
 		--max-instances 5 \
 		--update-env-vars "^;^AGENT_VERSION=0.1.0;APP_URL=https://atlas-lw4bt7nrba-uc.a.run.app;ALLOW_ORIGINS=https://gauravlahoti.dev,https://gauravlahoti.github.io,http://localhost:5173;AGENT_LOG_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-log;AGENT_STATS_URL=https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/agent-stats;RESEND_FROM_ADDRESS=resume@gauravlahoti.dev;RESUME_PDF_URL=https://gauravlahoti.dev/assets/img/resume.pdf;RESEND_MCP_URL=https://resend-mcp-server-593919045544.us-central1.run.app/mcp;NOTE_FROM_ADDRESS=agent@gauravlahoti.dev" \
 		--update-secrets GEMINI_API_KEY=gemini-api-key:latest,AGENT_LOG_TOKEN=agent-log-token:latest,GAURAV_CONTACT_EMAIL=gaurav-contact-email:latest,MCP_CALLER_TOKEN=resend-mcp-caller-token:latest \

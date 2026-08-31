@@ -1,6 +1,6 @@
 # atlas (chat-widget agent)
 
-Google ADK Python agent powering the portfolio chat widget. Answers questions about Gaurav using live retrieval tools that fetch `content/*.json` from the site at request time (`app/corpus_live.py`, short TTL + bundled snapshot as offline fallback), so content edits reflect with NO redeploy. Deployed on Cloud Run (`min-instances=0`).
+Google ADK Python agent powering the portfolio chat widget. Answers questions about Gaurav using live retrieval tools that fetch `content/*.json` from the site at request time (`app/corpus_live.py`, short TTL + bundled snapshot as offline fallback), so content edits reflect with NO redeploy. Deployed on Cloud Run (`min-instances=1`, escalated from spec 51's original 0 after recurring cold-start reports — see the `deploy` target's comment in `Makefile`).
 
 ## Commands
 
