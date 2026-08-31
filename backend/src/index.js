@@ -76,6 +76,10 @@ export default {
             return handleAgentStats(request, env, corsHeaders);
         }
 
+        if (url.pathname === "/api/agent-geo-stats" && request.method === "GET") {
+            return handleAgentGeoStats(request, env, corsHeaders);
+        }
+
         if (url.pathname === "/api/ambient/interactions" && request.method === "GET") {
             return handleAmbientInteractions(request, env);
         }
@@ -896,6 +900,55 @@ async function handleAgentStats(request, env, corsHeaders) {
         });
     } catch (err) {
         console.error("[agent-stats] D1 query failed", err);
+        return json({ ok: false, error: "Internal" }, 500, corsHeaders);
+    }
+}
+
+// ─── GET /api/agent-geo-stats ────────────────────────────────────────────────
+// Public endpoint — all-time count of distinct countries/cities that have
+// chatted with Atlas, plus a top-N breakdown. Aggregate-only: country and
+// city, never a per-row question/response/ip/email, so this is safe to
+// expose with no token (same posture as /api/agent-stats). 1h CDN cache.
+//
+// Unlike /api/agent-stats, this is a direct unwindowed query over
+// agent_interactions rather than daily_stats + live tail — country/city
+// have no rollup column yet (Tier 2, deferred; see .claude/docs/backend.md's
+// note on page_views.unique_locations, same situation here), so this figure
+// will start shrinking once individual rows cross the 365-day full delete.
+// It is accurate today; it is not retention-proof the way total_conversations
+// is. Revisit if that matters before this endpoint is a year old.
+
+async function handleAgentGeoStats(request, env, corsHeaders) {
+    try {
+        const totals = await env.DB.prepare(
+            `SELECT COUNT(DISTINCT country) AS countries,
+                    COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,'')) AS cities
+             FROM agent_interactions
+             WHERE country IS NOT NULL AND country != ''`
+        ).all();
+        const top = await env.DB.prepare(
+            `SELECT country, city, COUNT(*) AS count
+             FROM agent_interactions
+             WHERE country IS NOT NULL AND country != ''
+             GROUP BY country, city
+             ORDER BY count DESC
+             LIMIT 10`
+        ).all();
+        return new Response(JSON.stringify({
+            ok: true,
+            countries: totals.results?.[0]?.countries ?? 0,
+            cities: totals.results?.[0]?.cities ?? 0,
+            top: top.results || []
+        }), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+                "Cache-Control": "public, max-age=3600",
+                ...corsHeaders
+            }
+        });
+    } catch (err) {
+        console.error("[agent-geo-stats] D1 query failed", err);
         return json({ ok: false, error: "Internal" }, 500, corsHeaders);
     }
 }
