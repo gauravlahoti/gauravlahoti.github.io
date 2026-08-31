@@ -447,24 +447,25 @@ export function initAgentWidget(root, profile, sessionId) {
             speakerOn = false;
             writeSpeakerPref(false);
             if (speaker) speaker.cancel();
+            // cancel()'s onStateChange calls revealQueue.stop() but never
+            // nulls the module variable — without this, onDelta's
+            // `if (!revealQueue)` check stays false and text stops updating
+            // for whatever's left of a turn muted mid-stream.
+            if (revealQueue) { revealQueue.stop(); revealQueue = null; }
             clearSpeakingIndicator();
             setSpeakerMode("off");
             showVoiceNote("Spoken replies off.", 2500);
             return;
         }
-        // First time ever: say plainly what is about to happen and let the
-        // visitor agree to it. Sound starting off one unlabelled icon click
-        // isn't consent. Asked once, then remembered.
-        if (!hasConsented()) {
-            renderConsentCard();
-            return;
-        }
+        // No separate consent gate here any more — enableSpeaker() records
+        // consent itself the moment it actually turns sound on, and its own
+        // voice note ("Reading answers aloud...") is the notice. There's no
+        // reply in flight to pace text to from this icon alone, so unlike
+        // sendCurrent()'s heads-up there's nothing else to show here.
         await enableSpeaker();
     }
 
-    // The half of toggleSpeaker that actually turns sound on. Split out so the
-    // consent card's "Turn on" button can call it directly — that click is
-    // itself a user gesture, which is exactly what unlock() needs.
+    // The half of toggleSpeaker that actually turns sound on.
     async function enableSpeaker() {
         const ok = await ensureSpeaker();
         if (!ok) return;
@@ -475,6 +476,7 @@ export function initAgentWidget(root, profile, sessionId) {
         speakerOn = true;
         writeSpeakerPref(true);
         setSpeakerMode("on");
+        try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
         showVoiceNote("Reading answers aloud. Click the speaker to stop.", 4000);
         liveRegion.textContent = "Spoken replies on.";
         // Warm the TTS path so the first reply doesn't pay the cold ADC token
@@ -497,6 +499,12 @@ export function initAgentWidget(root, profile, sessionId) {
     // against the viewport, which is why the explainer dialog has to be
     // portalled onto document.body; a one-line consent prompt isn't worth
     // that, and it reads better attached to the control it explains.
+    //
+    // Non-blocking heads-up, not a gate: by the time this renders, the turn
+    // it accompanies is already speaking (sendCurrent() no longer silences
+    // it — see the call site). There's nothing left to agree to, so "Sounds
+    // good" is gone; "Got it" just dismisses, "Not now" is a real, immediate
+    // mute of whatever is currently playing.
     function renderConsentCard() {
         if (dom.panel.querySelector(".agent-consent")) return;
         const card = document.createElement("div");
@@ -511,7 +519,7 @@ export function initAgentWidget(root, profile, sessionId) {
         const yes = document.createElement("button");
         yes.type = "button";
         yes.className = "agent-consent-yes";
-        yes.textContent = "Sounds good";
+        yes.textContent = "Got it";
         const no = document.createElement("button");
         no.type = "button";
         no.className = "agent-consent-no";
@@ -520,27 +528,23 @@ export function initAgentWidget(root, profile, sessionId) {
         card.append(copy, actions);
         dom.panel.insertBefore(card, dom.inputRow);
 
-        // Declining has to be recorded, not just dismissed. Voice defaults on,
-        // so leaving the pref unwritten would re-arm it and re-prompt on the
-        // next turn — the visitor said no, and that has to stick.
+        // A real mute of the turn in flight, not a pre-emptive block — audio
+        // may already be mid-clip. cancel() drives the speaker to "idle",
+        // whose onStateChange already calls revealQueue.stop() (line ~399),
+        // but never nulls the module variable itself; without that, onDelta's
+        // `if (!revealQueue)` check stays false and text stops updating for
+        // the rest of this turn. Mirrors closePanel()'s teardown exactly.
         no.addEventListener("click", () => {
             card.remove();
-            try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
             speakerOn = false;
             writeSpeakerPref(false);
+            if (speaker) speaker.cancel();
+            if (revealQueue) { revealQueue.stop(); revealQueue = null; }
+            clearSpeakingIndicator();
             setSpeakerMode("off");
+            showVoiceNote("Spoken replies off.", 2500);
         });
-        yes.addEventListener("click", async () => {
-            try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
-            card.remove();
-            await enableSpeaker();
-            // Speak the answer already on screen. Without this, agreeing does
-            // nothing audible until the visitor thinks of something else to
-            // ask, which reads as a broken button.
-            const last = [...messages].reverse().find(m => m.role === "assistant");
-            if (last?.content && speakerOn && speaker) speaker.speak(last.content);
-        });
-        yes.focus();
+        yes.addEventListener("click", () => card.remove());
     }
 
     // Spec 48: mirrors setSendMode's shape for the mic button's three
@@ -920,15 +924,19 @@ export function initAgentWidget(root, profile, sessionId) {
         setSendMode("stop");
         if (FEATURES.voiceInput) micBtn.disabled = true;
 
-        // Voice is on by default, so the first reply a visitor ever gets would
-        // otherwise start talking unannounced. Ask here instead: this turn
-        // stays silent, the card sits above the composer while the answer
-        // streams in, and agreeing speaks that same answer back rather than
-        // making them ask again. Asked once ever, then remembered.
+        // Voice is on by default. This used to silence a visitor's whole
+        // first turn and ask permission before ever making a sound — but
+        // that meant turn 1's text streamed in one unpaced block while turn
+        // 2+ paced text to audio, an inconsistent first impression. The send
+        // click below is itself the unlock gesture ensureSpeaker() needs
+        // (same reasoning enableSpeaker() relies on for the manual toggle),
+        // so turn 1 now speaks in sync like every other turn; this only
+        // surfaces a non-blocking heads-up alongside it. Consent is recorded
+        // right here, not from a button — there's nothing left to agree to
+        // by the time anyone could click one, the turn is already speaking.
         if (FEATURES.speakReplies && speakerOn && !hasConsented()) {
-            speakerOn = false;          // silence THIS turn only
-            setSpeakerMode("off");      // the pref is deliberately not written:
-            renderConsentCard();        // nothing was chosen yet
+            try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
+            renderConsentCard();
         }
 
         // Spec 49: a new turn silences the previous one and rebuilds the
