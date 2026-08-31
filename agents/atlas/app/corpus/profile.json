@@ -202,8 +202,8 @@
   "agentExplainer": {
     "title": "Inside Atlas",
     "body": [
-      "It's built on Google's **Agent Development Kit**, powered by the Gemini model, and lives on **Cloud Run**. When it needs to actually do something, like email you my resume, it reaches through a Resend **MCP** server, with **Model Context Protocol** handling the wiring between the agent and its tools. The first reply might lag a moment while it warms up. That's just the cold start.",
-      "**Grounded**, not guessing. Every response draws from a versioned snapshot of my profile, projects, certifications, and recent writing, rebuilt fresh on every deploy. Each turn, it decides what to cite, what you might want to ask next, and when the right move is to send you straight to me. Watch the follow-up chips and the inline [1] markers. They show what it's confident about and exactly where it's pulling from.",
+      "It's built on Google's **Agent Development Kit**, powered by the Gemini model, and lives on **Cloud Run**. It can talk too: replies are read aloud with Gemini's text-to-speech, and you can ask by voice instead of typing. When it needs to actually do something, like email you my resume, it reaches through a Resend **MCP** server, with **Model Context Protocol** handling the wiring between the agent and its tools. The first reply might lag while it warms up, that's just the cold start.",
+      "**Grounded**, not guessing. Every response draws from my profile, projects, certifications, and recent writing, fetched live off this site, so an edit shows up within minutes with no redeploy needed. Each turn, it decides what's worth citing and when the right move is to send you straight to me. Watch the inline [1] markers, and open Sources to see exactly where an answer comes from.",
       "It knows where it ends. It won't quote a salary, book my calendar, or invent opinions I've never voiced. Step outside that fence and it'll point you to the real me."
     ]
   },
