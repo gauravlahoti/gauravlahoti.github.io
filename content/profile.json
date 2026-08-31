@@ -86,6 +86,14 @@
       "credlyUrl": "https://www.credly.com/badges/7b67699d-af26-4b77-8451-a6619f13a499/public_url"
     },
     {
+      "name": "Claude Certified Developer — Foundations",
+      "issuer": "Anthropic",
+      "category": "ai",
+      "slug": "claude-certified-developer",
+      "badge": "assets/img/badges/claude-certified-developer.png",
+      "credlyUrl": "https://www.credly.com/badges/2a9c013c-5829-4135-ba0e-aa1055a1e48b/public_url"
+    },
+    {
       "name": "AWS Certified Machine Learning — Specialty",
       "issuer": "AWS",
       "category": "ai",
