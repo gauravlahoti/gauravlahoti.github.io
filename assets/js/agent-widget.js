@@ -393,18 +393,22 @@ export function initAgentWidget(root, profile, sessionId) {
                         // its paced text — is fully done" signal, and it must
                         // fire even when speakerOn just flipped false (the
                         // speaker-off toggle cancels() before this callback
-                        // runs). Without it, whenDrained() could hang forever
-                        // and stray reveal timers would keep firing after
-                        // finalizeAssistant() has already replaced the DOM.
-                        if (state === "idle" && revealQueue) revealQueue.stop();
-                        if (!speakerOn) return;
-                        setSpeakerMode(state === "speaking" ? "speaking" : "on");
-                        if (state !== "speaking") {
+                        // runs). Without it, whenDrained() could hang forever,
+                        // stray reveal timers would keep firing after
+                        // finalizeAssistant() has already replaced the DOM,
+                        // and the per-message "Reading aloud" strip would be
+                        // left stuck on screen — clearSpeakingIndicator() used
+                        // to sit behind the speakerOn guard below even though
+                        // this comment already explained why nothing here can.
+                        if (state === "idle") {
+                            if (revealQueue) revealQueue.stop();
                             clearSpeakingIndicator();
                             if (voiceStatus.textContent === "Speaking…") {
                                 voiceStatus.classList.add("is-hidden");
                             }
                         }
+                        if (!speakerOn) return;
+                        setSpeakerMode(state === "speaking" ? "speaking" : "on");
                     },
                     // Fires only when audio genuinely starts, so the status
                     // line distinguishes "synthesizing" from "actually
