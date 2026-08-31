@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 
 import google.auth
@@ -26,6 +27,10 @@ from app.app_utils.typing import Feedback
 setup_telemetry()
 _, project_id = google.auth.default()
 logging_client = google_cloud_logging.Client()
+# Same fix as atlas/app/fast_api_app.py: without this, constructing the
+# client alone never attaches a handler to Python's root logger, so every
+# app_utils module's logger.info() was silently discarded.
+logging_client.setup_logging(log_level=logging.INFO)
 logger = logging_client.logger(__name__)
 allow_origins = (
     os.getenv("ALLOW_ORIGINS", "").split(",") if os.getenv("ALLOW_ORIGINS") else None

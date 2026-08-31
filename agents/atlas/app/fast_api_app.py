@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 
 import google.auth
@@ -26,6 +27,13 @@ from app.app_utils.typing import Feedback
 setup_telemetry()
 _, project_id = google.auth.default()
 logging_client = google_cloud_logging.Client()
+# Every app_utils module's `logging.getLogger(__name__).info(...)` (13 call
+# sites — transcribe.py's model=/fell_back=/chars_out= line among them) was
+# silently discarded without this: constructing the client alone doesn't
+# attach a handler to Python's root logger. WARNING/ERROR still reached Cloud
+# Logging via Python's built-in stderr fallback, which is why failures were
+# visible but successes, and which model actually answered them, were not.
+logging_client.setup_logging(log_level=logging.INFO)
 logger = logging_client.logger(__name__)
 allow_origins = (
     os.getenv("ALLOW_ORIGINS", "").split(",") if os.getenv("ALLOW_ORIGINS") else None
