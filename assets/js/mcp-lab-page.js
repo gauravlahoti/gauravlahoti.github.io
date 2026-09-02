@@ -4,7 +4,7 @@
 // chrome (year, nav drawer, resume redirect, Insights flyout), fetches the
 // lab content, then lazy-imports the visualization module.
 
-import { playEntranceWipe, runPageTransition } from "./page-transition.js";
+import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
 
 // Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
@@ -122,6 +122,17 @@ async function init() {
         runPageTransition(href);
     });
 
+    try {
+        await initLab();
+    } finally {
+        // Fires on every exit path (missing root, failed content fetch,
+        // failed viz import, or success) — an in-flight transition waiting
+        // on this signal must not hang because the page had nothing to show.
+        signalPageReady();
+    }
+}
+
+async function initLab() {
     const root = document.querySelector("[data-mcp-root]");
     if (!root) return;
 

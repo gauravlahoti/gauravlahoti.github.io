@@ -4,7 +4,7 @@
 // content/ai-concepts.json. Mirrors agents-page.js for page chrome + the
 // Neural-Slash page transition.
 
-import { playEntranceWipe, runPageTransition } from "./page-transition.js";
+import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
@@ -161,6 +161,17 @@ async function init() {
         runPageTransition(href);
     });
 
+    try {
+        await initGrid();
+    } finally {
+        // Fires on every exit path (missing root, failed fetch, or
+        // success) — an in-flight transition waiting on this signal must
+        // not hang because the page had nothing to show.
+        signalPageReady();
+    }
+}
+
+async function initGrid() {
     const root = document.querySelector("[data-concepts-root]");
     if (!root) return;
 

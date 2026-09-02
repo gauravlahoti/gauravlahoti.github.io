@@ -5,7 +5,7 @@
 // fetches the lab content plus profile.json, registers this page's own
 // WebMCP tools (scope "lab-agent-ready"), then lazy-imports the lab engine.
 
-import { playEntranceWipe, runPageTransition } from "./page-transition.js";
+import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
 
 // Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
@@ -113,6 +113,18 @@ async function init() {
         runPageTransition(href);
     });
 
+    try {
+        await initLab();
+    } finally {
+        // Fires on every exit path (missing root, failed content fetch,
+        // failed lab UI import, or success) — an in-flight transition
+        // waiting on this signal must not hang because the page had
+        // nothing to show.
+        signalPageReady();
+    }
+}
+
+async function initLab() {
     const root = document.querySelector("[data-webmcp-lab-root]");
     if (!root) return;
 

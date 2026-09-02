@@ -1,6 +1,6 @@
 // agents-page.js — /live-agents/ bootstrap
 
-import { playEntranceWipe, runPageTransition } from "./page-transition.js";
+import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -954,6 +954,26 @@ async function init() {
     initPageChrome();
     initWebMcp();
 
+    try {
+        await initGrid();
+    } finally {
+        // Fires on every exit path from initGrid (missing root, failed
+        // fetch, or success) — an in-flight transition waiting on this
+        // signal must not hang because the page had nothing to show.
+        signalPageReady();
+    }
+
+    document.addEventListener("click", async e => {
+        const a = e.target.closest("[data-page-link]");
+        if (!a) return;
+        const href = a.getAttribute("href");
+        if (!href) return;
+        e.preventDefault();
+        runPageTransition(href);
+    });
+}
+
+async function initGrid() {
     const root = document.querySelector("[data-agents-root]");
     if (!root) return;
 
@@ -1007,15 +1027,6 @@ async function init() {
         window.addEventListener("load", () => runEntranceAnimation(grid), { once: true });
         setTimeout(() => runEntranceAnimation(grid), 800);
     }
-
-    document.addEventListener("click", async e => {
-        const a = e.target.closest("[data-page-link]");
-        if (!a) return;
-        const href = a.getAttribute("href");
-        if (!href) return;
-        e.preventDefault();
-        runPageTransition(href);
-    });
 }
 
 function _openVideoModal(src) {

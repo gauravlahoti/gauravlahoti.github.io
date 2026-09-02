@@ -488,7 +488,7 @@ export function defineTools(ctx) {
 
                     try {
                         const { runPageTransition } = await import(_vq("./page-transition.js"));
-                        runPageTransition(c.href); // navigates ~0.7s later; we return well before that
+                        runPageTransition(c.href); // navigates ~0.35s later; we return well before that
                     } catch (_) {
                         location.href = c.href;
                     }
