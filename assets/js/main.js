@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "279";
+const ASSET_VERSION = "280";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -55,43 +55,59 @@ window.__portfolioSessionId = uuidv4();
 // index.html <head> — runs before auto-restore + bfcache restore.)
 
 (async function bootstrap() {
-    let profile;
+    // Kick off the page-transition module in parallel with everything else
+    // (never awaited on the critical path — most loads arrive with no
+    // transition in flight, and playEntranceWipe() is a no-op then). If a
+    // transition IS in flight it starts animating as soon as this resolves,
+    // running concurrently with the profile fetch below; signalPageReady()
+    // in the finally block is what lets it land.
+    const transitionModP = import(v("./page-transition.js")).catch(() => null);
+    transitionModP.then(mod => mod?.playEntranceWipe());
+
     try {
-        profile = await fetch("content/profile.json", { cache: "no-cache" }).then(r => r.json());
-    } catch (err) {
-        console.warn("[portfolio] profile.json missing or invalid", err);
-        return;
+        let profile;
+        try {
+            profile = await fetch("content/profile.json", { cache: "no-cache" }).then(r => r.json());
+        } catch (err) {
+            console.warn("[portfolio] profile.json missing or invalid", err);
+            return;
+        }
+
+        bindDOM(profile);
+        setTitle(profile);
+        setYear();
+        initWebMcp(profile);
+        initLenis();
+        initAnchorScroll();
+        scheduleHeroReveal();
+        initHeroGraphWhenVisible();
+
+        initTrajectoryWhenVisible(profile);
+        initSkillsHexWhenVisible();
+        initPostsListWhenVisible(profile);
+        initPostsFlyoutEager();
+        initNavDrawer();
+        initCapabilities(profile);
+        initCertRail(profile);
+        initCertTilesTouch();
+        initOffscreenAnimationPause();
+        initScrollStateClass();
+        wireScrollTo();
+        initCursorAsync();
+        initRevealWhenIdle();
+        initAgentWidgetWhenIdle(profile, window.__portfolioSessionId);
+        initMobileEnhancements(profile);
+        initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
+        initAgentStat(profile);
+        initPageLinks();
+        initLoadHashScroll();
+        auditConsole();
+    } finally {
+        // Fires whether the try body completed or returned early (e.g.
+        // profile.json failed to load) — a transition waiting on this
+        // signal must not hang just because the page had nothing to show.
+        transitionModP.then(mod => mod?.signalPageReady());
     }
-
-    bindDOM(profile);
-    setTitle(profile);
-    setYear();
-    initWebMcp(profile);
-    initLenis();
-    initAnchorScroll();
-    scheduleHeroReveal();
-    initHeroGraphWhenVisible();
-
-    initTrajectoryWhenVisible(profile);
-    initSkillsHexWhenVisible();
-    initPostsListWhenVisible(profile);
-    initPostsFlyoutEager();
-    initNavDrawer();
-    initCapabilities(profile);
-    initCertRail(profile);
-    initCertTilesTouch();
-    initOffscreenAnimationPause();
-    initScrollStateClass();
-    wireScrollTo();
-    initCursorAsync();
-    initRevealWhenIdle();
-    initAgentWidgetWhenIdle(profile, window.__portfolioSessionId);
-    initMobileEnhancements(profile);
-    initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
-    initAgentStat(profile);
-    initPageLinks();
-    initLoadHashScroll();
-    auditConsole();
 })();
 
 // WebMCP (spec 45). Feature-detect first: on a browser with no model context
