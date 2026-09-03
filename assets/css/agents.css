@@ -113,21 +113,16 @@
 .console-corner--bl { bottom: 7px; left: 7px;    border-right: none; border-top: none; }
 .console-corner--br { bottom: 7px; right: 7px;   border-left: none;  border-top: none; }
 
-/* slow scan sweep */
-.console-scan {
-    position: absolute;
-    top: 0; left: -30%;
-    width: 30%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 209, 0.06), transparent);
-    pointer-events: none;
-    z-index: 0;
-    animation: console-sweep 6.5s var(--ease-out) infinite;
-}
-@keyframes console-sweep {
-    0%   { left: -30%; }
-    55%, 100% { left: 130%; }
-}
+/* .console-scan / @keyframes console-sweep intentionally NOT duplicated here.
+   The canonical, GPU-composited (transform-based) version lives in
+   components.css and applies everywhere this class is used, including on
+   this page. An older left-based copy used to live here — it forced a full
+   layout recalculation every animation frame for its whole 6.5s duration,
+   and being the later stylesheet in the cascade (agents.css loads after
+   components.css), it silently overrode the already-fixed version. That
+   reflow was very likely the real cause of reported page-transition jank:
+   the orbit loader's own rAF work was competing with this for main-thread
+   time on every frame. Do not re-add a console-scan rule here. */
 
 /* Input row */
 .agent-search-input-wrap {
