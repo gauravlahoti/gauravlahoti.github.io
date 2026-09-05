@@ -218,7 +218,8 @@
   "agentCopy": {
     "cta": {
       "topmate":  { "label": "Book a Topmate call →", "url": "https://topmate.io/gaurav_lahoti25" },
-      "linkedin": { "label": "Continue on LinkedIn →", "url": "https://www.linkedin.com/in/glahoti/" }
+      "linkedin": { "label": "Continue on LinkedIn →", "url": "https://www.linkedin.com/in/glahoti/" },
+      "resume":   { "label": "Open Resume →", "url": "https://gauravlahoti.dev/resume.pdf" }
     },
     "nudge": {
       "label":  "Want a TL;DR of his career arc?",

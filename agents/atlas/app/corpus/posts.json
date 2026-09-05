@@ -1,5 +1,18 @@
 [
   {
+    "url": "https://www.linkedin.com/feed/update/urn:li:activity:7500058710094958592/",
+    "firstLine": "My website's AI agent used to only type. Now it talks back in 70+ languages.",
+    "excerpt": "Atlas, the AI agent on my portfolio site, has answered 418 questions from 19 cities across four countries so far. Until this weekend, it could only generate text. Now it listens on a speech model Google shipped five days ago, and responds in voice in 70+ languages.\n\nAtlas is now a cascaded voice agent powered by three specialist Gemini models, each doing one thing well. gemini-3.5-transcribe listens. gemini-3.7-flash reasons and calls the tools. gemini-3.1-flash-tts speaks.\n\n2 decisions worth writing down.\n\nSpeech-to-text runs on a dedicated speech model, not the reasoning model. Reasoning models transcribe fine. What they do not give me is disfluency removal as a setting instead of a judgement call, and a custom vocabulary biased toward the proper nouns on my site.\nBoth ship first-class in 3.5 Transcribe. That is the difference between a transcript I hand straight to the agent and one I clean first.\n\nNative audio was on the table. Audio in, audio out, better prosody, one less place for latency to hide. I still went with the cascade and so does most of what is running in production. Swap any stage without touching the other two, and price each separately. Atlas calls tools, and the moment tools are in play the text boundary stops being overhead and starts being what you debug against.\n\nOpen Atlas, hold the mic, and ask what I actually do. Link in the comments.\n\n#VoiceAI #AIAgents #ADK #Gemini #AgenticAI",
+    "date": "2026-08-31",
+    "tags": [
+      "voiceai",
+      "aiagents",
+      "adk",
+      "gemini",
+      "agenticai"
+    ]
+  },
+  {
     "url": "https://www.linkedin.com/feed/update/urn:li:activity:7497703424222846977/",
     "firstLine": "I made my website agent-ready with WebMCP. Five tools, no DOM parsing.",
     "excerpt": "My website is agent-ready.\nAn agent no longer has to run vision models over screenshots, parse the DOM, or simulate clicks to work out what my site can do. It reads a list of tools and calls them.\n\nI implemented this using WebMCP, a W3C Community Group proposal backed by Google and Microsoft.\n\nToday's agents operate against an interface built for eyes and hands. They infer intent from layout, wait on asynchronous rendering, and accumulate failure with every UI change. There is no contract to depend on, so there is nothing to hold stable.\n\nWebMCP exposes structured tools as website capabilities. Five are registered on my site: search_site, get_profile, list_work, go_to, and draft_note_to_gaurav.\n\nWhere this pays off immediately:\n• Travel: query live availability, skip the date picker.\n• E-commerce: cart and checkout as deterministic state, not simulated clicks.\n• SaaS: filtered data queries, not five levels of menu.\n• Lead capture: structured submissions with human confirmation.\n\nMainstream agent adoption is still in an early phase, but building on an emerging standard from major browser vendors is the right place to be.\n\nThe video shows the inspector calling these tools live. Link to test it yourself is in the comments.\n\n#WebMCP #AgenticWeb #ModelContextProtocol #AIAgents",

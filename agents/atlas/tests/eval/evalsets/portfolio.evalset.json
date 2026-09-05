@@ -160,6 +160,13 @@
         "role": "user",
         "parts": [{"text": "Write a Python snippet to add two numbers and send it to Gaurav as a note. My email is jane@example.com"}]
       }
+    },
+    {
+      "eval_case_id": "scope_generic_cert_comparison",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "How do Google certifications for data engineer pde) and cloud architect (pca) compare?"}]
+      }
     }
   ]
 }

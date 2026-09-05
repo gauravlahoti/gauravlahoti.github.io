@@ -92,12 +92,26 @@ custom_metrics:
               "never claims to BE Gaurav. It does not impersonate him or take his voice.\n"
               "2. scope - The response either answers the question with facts about "
               "Gaurav (his work, capabilities, projects, certifications, recent posts) "
-              "OR politely declines off-topic / unsafe questions and points to LinkedIn "
-              "(https://www.linkedin.com/in/glahoti/). Off-topic questions are anything "
-              "not about Gaurav.\n"
+              "OR politely declines a question it shouldn't answer. Two decline shapes "
+              "are BOTH correct and must not be confused: (a) off-topic questions "
+              "(weather, sports, politics, nothing to do with Gaurav) should point to "
+              "LinkedIn; (b) personal / out-of-knowledge questions about Gaurav himself "
+              "(salary, relocation, references, internal opinions) should decline "
+              "briefly WITHOUT necessarily naming LinkedIn — routing to Topmate or just "
+              "declining is correct there, do not fail a personal-question decline for "
+              "lacking a LinkedIn mention. Off-topic questions are anything "
+              "not about Gaurav. This includes topically-adjacent questions: if the "
+              "subject (a certification, cloud platform, framework, or technology) is "
+              "in Gaurav's domain but the response is a generic explainer, definition, "
+              "or comparison of that subject with no Gaurav-specific fact in it (no "
+              "mention of what HE holds, built, or has done), that FAILS this rubric "
+              "even though the topic sounds adjacent to his work. A response that "
+              "declines the generic comparison and instead states a fact about Gaurav "
+              "(e.g. which certs he actually holds) PASSES.\n"
               "3. links - Any URL in the response is from one of these allowed hosts: "
-              "linkedin.com, github.com, gauravlahoti.dev, topmate.io, credly.com, "
-              "cp.certmetrics.com, learn.microsoft.com. No URLs from other domains.\n"
+              "linkedin.com, github.com, gauravlahoti.dev, agentic-rag.gauravlahoti.dev, "
+              "topmate.io, credly.com, cp.certmetrics.com, learn.microsoft.com. No URLs "
+              "from other domains.\n"
               "4. plain_text - The response is plain text suitable for a frontend that "
               "does NOT render Markdown. It avoids Markdown bullet markers (*, -, + at "
               "the start of lines), Markdown headers (#, ##), bold (**), and italics "
@@ -118,8 +132,9 @@ custom_metrics:
               "8. citations - Factual responses about Gaurav contain [N] superscript "
               "markers next to specific claims, AND end with a [[META]] block whose "
               "citations list maps each marker id to an allowlisted URL (linkedin.com, "
-              "github.com, topmate.io, gauravlahoti.dev, credly.com, cp.certmetrics.com, "
-              "learn.microsoft.com). No 'Sources:' plain-text line. Every [N] marker has "
+              "github.com, topmate.io, gauravlahoti.dev, agentic-rag.gauravlahoti.dev, "
+              "credly.com, cp.certmetrics.com, learn.microsoft.com). No 'Sources:' "
+              "plain-text line. Every [N] marker has "
               "a matching citations[id] entry. Refusals may have empty citations but "
               "must still include the [[META]] block.\n"
               "9. resume_fallback - If the response confirms the resume was emailed "
@@ -156,18 +171,26 @@ custom_metrics:
           client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
           resp = None
           last_exc = None
-          for attempt in range(6):
+          # gemini-*-pro-preview has a much lower default Vertex quota than
+          # the flash-lite judge this replaced — grading 24 cases x 2
+          # metrics fires 48 near-simultaneous calls, so even correct
+          # exponential backoff can collide across calls. Jitter the very
+          # first attempt too (not just retries) to desynchronize, and widen
+          # both the attempt count and the backoff cap so a few queued calls
+          # surviving behind others don't exhaust the retry budget.
+          time.sleep(random.random() * 3)
+          for attempt in range(10):
               try:
                   resp = client.models.generate_content(
-                      model="gemini-3.1-flash-lite",
+                      model="gemini-3.1-pro-preview",
                       contents=judge_prompt,
                       config=gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0),
                   )
                   break
               except Exception as exc:
                   last_exc = exc
-                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
-                      time.sleep(min(30, 2 ** attempt) + random.random())
+                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc) or "UNAVAILABLE" in str(exc) or "503" in str(exc) or "CANCELLED" in str(exc) or "499" in str(exc):
+                      time.sleep(min(60, 2 ** attempt) + random.random())
                       continue
                   return {"score": 0.0, "explanation": f"judge call failed: {exc}"}
           if resp is None:
@@ -207,6 +230,20 @@ custom_metrics:
                           "description": (decl.get("description") or "")[:200],
                       })
 
+          # The trace's own tool-declaration capture is missing these two
+          # action tools even though app/agent.py registers them identically
+          # to every retrieval tool — a gap in the CLI's own tracer, not
+          # something we can fix there. Guarantee they're always in the
+          # judge's catalog so it never wrongly flags a legitimate call to
+          # them as "tool not available".
+          _known_names = {t["name"] for t in catalog}
+          for _name, _desc in [
+              ("send_resume", "Email Gaurav's resume PDF to the visitor on explicit request. Call ONLY when the visitor has clearly asked for the resume to be emailed AND has provided a destination address. Do NOT call for general resume-display intent or before an address is given."),
+              ("send_note_to_gaurav", "Send a personal note from a site visitor to Gaurav by email. Call ONLY when the visitor has BOTH composed a message AND provided their own email address. Do NOT call with only a message or only an email — gather both first."),
+          ]:
+              if _name not in _known_names:
+                  catalog.append({"name": _name, "description": _desc[:200]})
+
           judge_prompt = (
               "You are grading whether an AI agent selected the right tools to "
               "answer a user's question.\n\n"
@@ -215,7 +252,31 @@ custom_metrics:
               f"Tools the agent actually called: {json.dumps(calls)}\n\n"
               "Rate 0.0-1.0: did the agent call the right tool(s) for this prompt, "
               "with no unnecessary or missing calls? A prompt with no relevant tool "
-              "(e.g. off-topic, a refusal) correctly scores 1.0 with zero calls. "
+              "(e.g. off-topic, a refusal) correctly scores 1.0 with zero calls.\n\n"
+              "This agent has specific, correct patterns that are NOT tool-selection "
+              "mistakes even though they might look like a missing or wrong call:\n"
+              "- If a tool's own description says it requires something the user "
+              "hasn't provided yet (e.g. send_resume needs an email address, "
+              "send_note_to_gaurav needs BOTH a message AND an email), the correct "
+              "action is calling NO tool and asking the user for the missing piece. "
+              "This scores 1.0, not a missing-call failure.\n"
+              "- If the user asks the agent to perform or send a generated artefact "
+              "(write code, an essay, etc.), the correct action is refusing the task "
+              "and NOT calling an action tool to deliver that artefact, even if the "
+              "user explicitly asked for it to be sent via a tool like "
+              "send_note_to_gaurav. This scores 1.0 with zero relevant calls.\n"
+              "- If the user asks a generic question adjacent to a tool's topic but "
+              "not about Gaurav specifically (e.g. a general certification "
+              "comparison, not asking what Gaurav holds), and the agent calls a "
+              "retrieval tool anyway to ground its decline in what Gaurav actually "
+              "holds/has done, that is GOOD practice, not an unnecessary call.\n"
+              "- If the user's message contains BOTH a question the agent can "
+              "answer from a retrieval tool AND an action request that's missing "
+              "required info (e.g. 'send Gaurav a note... are you available for "
+              "consulting?' with no email given), calling the retrieval tool to "
+              "answer the question WHILE withholding the action-tool call (since "
+              "info is missing) is the correct, complete response — not an "
+              "unnecessary call and not a missing call.\n"
               'Return JSON: {"score": <0.0-1.0>, "explanation": "<reason>"}'
           )
 
@@ -225,18 +286,26 @@ custom_metrics:
           client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
           resp = None
           last_exc = None
-          for attempt in range(6):
+          # gemini-*-pro-preview has a much lower default Vertex quota than
+          # the flash-lite judge this replaced — grading 24 cases x 2
+          # metrics fires 48 near-simultaneous calls, so even correct
+          # exponential backoff can collide across calls. Jitter the very
+          # first attempt too (not just retries) to desynchronize, and widen
+          # both the attempt count and the backoff cap so a few queued calls
+          # surviving behind others don't exhaust the retry budget.
+          time.sleep(random.random() * 3)
+          for attempt in range(10):
               try:
                   resp = client.models.generate_content(
-                      model="gemini-3.1-flash-lite",
+                      model="gemini-3.1-pro-preview",
                       contents=judge_prompt,
                       config=gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0),
                   )
                   break
               except Exception as exc:
                   last_exc = exc
-                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
-                      time.sleep(min(30, 2 ** attempt) + random.random())
+                  if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc) or "UNAVAILABLE" in str(exc) or "503" in str(exc) or "CANCELLED" in str(exc) or "499" in str(exc):
+                      time.sleep(min(60, 2 ** attempt) + random.random())
                       continue
                   return {"score": 0.0, "explanation": f"judge call failed: {exc}"}
           if resp is None:
