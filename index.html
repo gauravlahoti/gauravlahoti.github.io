@@ -50,6 +50,11 @@
     </script>
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="preconnect" href="https://rsms.me">
+    <!-- Chat widget is normally lazy-loaded (idle callback or first tap, see
+         main.js). Preloading it here lets the browser fetch/parse it during
+         idle page-load time instead, so a fast visitor's very first tap
+         doesn't pay a cold module-fetch cost on top of the network request. -->
+    <link rel="modulepreload" href="assets/js/agent-widget.js?v=280">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css"
           integrity="sha384-STiTZ2kjdnc/em4jSELZZ6VypRToc92cA0m6Nppx3J8C4mt0fjMNUm1xnm1yoP96"
           crossorigin="anonymous">

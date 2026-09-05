@@ -38,7 +38,7 @@
 // prosody reset — the model synthesizes each in isolation — so fewer, longer
 // chunks sound markedly more natural. Growth stays under the ~1.45x-per-chunk
 // ceiling the starvation rule allows. Capped at the last value.
-const CHUNK_RAMP = [36, 140, 240, 350];
+const CHUNK_RAMP = [24, 140, 240, 350];
 
 // How far past a ramp limit we will wait for a *natural* boundary before
 // giving up and breaking on a bare word. Splitting mid-sentence is the one

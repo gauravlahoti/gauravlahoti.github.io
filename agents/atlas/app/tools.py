@@ -14,9 +14,9 @@ resume-gate Worker for rate-limit bookkeeping.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -41,10 +41,19 @@ _STATS_URL = os.getenv(
 )
 _STATS_TTL = 60  # seconds — short in-process cache on top of the Worker's CDN cache
 _stats_cache: dict[str, Any] = {"value": None, "ts": 0.0}
-_stats_lock = threading.Lock()
+_stats_lock = asyncio.Lock()
+
+_stats_client: httpx.AsyncClient | None = None
 
 
-def get_profile() -> dict:
+def _get_stats_client() -> httpx.AsyncClient:
+    global _stats_client
+    if _stats_client is None:
+        _stats_client = httpx.AsyncClient(timeout=3.0)
+    return _stats_client
+
+
+async def get_profile() -> dict:
     """Return Gaurav Lahoti's identity, headline, bio, capability groups, and public links.
 
     Use this when the visitor asks who Gaurav is, what his headline is, where
@@ -59,7 +68,7 @@ def get_profile() -> dict:
         availability (status, consulting, advisory, route — the ONLY source
         of truth on whether Gaurav takes outside work; may be empty if unset).
     """
-    profile = corpus_live.get_profile()
+    profile = await corpus_live.get_profile()
     return {
         "name": profile.get("name"),
         "title": profile.get("title"),
@@ -79,7 +88,7 @@ def get_profile() -> dict:
     }
 
 
-def get_work_history(role_filter: str | None = None) -> list[dict]:
+async def get_work_history(role_filter: str | None = None) -> list[dict]:
     """Return Gaurav's work history, optionally filtered by a substring match.
 
     The filter, if provided, matches case-insensitively against role title or
@@ -92,7 +101,7 @@ def get_work_history(role_filter: str | None = None) -> list[dict]:
         A flat list of role dicts. Each: {company, title, start, end, duration,
         location, skills, workMode}. `end` is None for the current role.
     """
-    profile = corpus_live.get_profile()
+    profile = await corpus_live.get_profile()
     flat: list[dict] = []
     for emp in profile.get("experience", []):
         company = emp.get("company")
@@ -122,7 +131,7 @@ def get_work_history(role_filter: str | None = None) -> list[dict]:
     ]
 
 
-def get_projects(domain: str | None = None) -> list[dict]:
+async def get_projects(domain: str | None = None) -> list[dict]:
     """Return notable projects Gaurav has shipped, optionally filtered by domain.
 
     Domains include "agentic-ai", "cloud-architecture", "enterprise-integration",
@@ -136,7 +145,7 @@ def get_projects(domain: str | None = None) -> list[dict]:
         company (resolved from edges), domains (list of domain labels), skills
         (list of skill labels)}.
     """
-    graph = corpus_live.get_graph()
+    graph = await corpus_live.get_graph()
     nodes = {n["id"]: n for n in graph.get("nodes", [])}
     edges = graph.get("edges", [])
 
@@ -183,7 +192,7 @@ def get_projects(domain: str | None = None) -> list[dict]:
     ]
 
 
-def get_recent_posts(limit: int = 5) -> list[dict]:
+async def get_recent_posts(limit: int = 5) -> list[dict]:
     """Return Gaurav's most recent LinkedIn posts (his public perspectives).
 
     Use this for questions about his recent thinking, his takes, what he's
@@ -196,7 +205,7 @@ def get_recent_posts(limit: int = 5) -> list[dict]:
         A list of post dicts, most-recent first. Each: {url, firstLine,
         excerpt, date}.
     """
-    posts = corpus_live.get_posts()
+    posts = await corpus_live.get_posts()
     return list(posts[: max(1, min(limit, len(posts)))])
 
 
@@ -263,13 +272,14 @@ async def send_note_to_gaurav(
     return await send_note_email(visitor_email, message, session_id=tool_context.session.id)
 
 
-def get_certifications() -> list[dict]:
+async def get_certifications() -> list[dict]:
     """Return all of Gaurav's certifications.
 
     Returns:
         A list of certification dicts, each: {name, issuer, category (ai /
         cloud / security), credlyUrl}.
     """
+    profile = await corpus_live.get_profile()
     return [
         {
             "name": c.get("name"),
@@ -277,11 +287,11 @@ def get_certifications() -> list[dict]:
             "category": c.get("category"),
             "credlyUrl": c.get("credlyUrl"),
         }
-        for c in corpus_live.get_profile().get("certifications", [])
+        for c in profile.get("certifications", [])
     ]
 
 
-def get_live_agents() -> list[dict]:
+async def get_live_agents() -> list[dict]:
     """Return the production AI agents Gaurav has built and deployed.
 
     Use this for questions about what agents Gaurav has shipped, the agents
@@ -293,7 +303,7 @@ def get_live_agents() -> list[dict]:
         A list of agent dicts, each: {name, role, status, headline,
         description, value, stack, liveUrl}.
     """
-    agents = corpus_live.get_agents()
+    agents = await corpus_live.get_agents()
     out = []
     for a in agents:
         # The live link is whichever link points off-site to a running demo,
@@ -317,7 +327,7 @@ def get_live_agents() -> list[dict]:
     return out
 
 
-def get_site_stats() -> dict:
+async def get_site_stats() -> dict:
     """Return live usage stats for this portfolio site.
 
     Use this when the visitor asks about Atlas's own activity or how busy the
@@ -336,12 +346,12 @@ def get_site_stats() -> dict:
     cached = _stats_cache["value"]
     if cached is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
         return {"total_questions": cached}
-    with _stats_lock:
+    async with _stats_lock:
         cached = _stats_cache["value"]
         if cached is not None and (now - _stats_cache["ts"]) < _STATS_TTL:
             return {"total_questions": cached}
         try:
-            resp = httpx.get(_STATS_URL, timeout=3.0)
+            resp = await _get_stats_client().get(_STATS_URL)
             resp.raise_for_status()
             total = resp.json().get("total_conversations")
             if isinstance(total, int) and total >= 0:

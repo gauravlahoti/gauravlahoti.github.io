@@ -13,10 +13,10 @@ Env vars:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -34,32 +34,44 @@ _FILES = ("profile.json", "graph.json", "posts.json", "agents.json")
 
 _cache: dict[str, Any] = {}
 _cache_ts: dict[str, float] = {}
-_lock = threading.Lock()
+_lock = asyncio.Lock()
+
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Cached keep-alive client — a fresh `httpx.AsyncClient` per call means a
+    full TLS handshake to gauravlahoti.dev every time. Never explicitly
+    closed; the process dies with the Cloud Run container."""
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=3.0)
+    return _client
 
 
 def _load_bundled(name: str) -> Any:
     return json.loads((_CORPUS_DIR / name).read_text(encoding="utf-8"))
 
 
-def _fetch_live(name: str) -> Any:
+async def _fetch_live(name: str) -> Any:
     url = f"{_BASE}/content/{name}"
-    resp = httpx.get(url, timeout=3.0)
+    resp = await _get_client().get(url)
     resp.raise_for_status()
     return resp.json()
 
 
-def _get(name: str) -> Any:
+async def _get(name: str) -> Any:
     now = time.time()
     cached = _cache.get(name)
     if cached is not None and (now - _cache_ts.get(name, 0)) < _TTL:
         return cached
-    with _lock:
+    async with _lock:
         cached = _cache.get(name)
         if cached is not None and (now - _cache_ts.get(name, 0)) < _TTL:
             return cached
         if not _DISABLED:
             try:
-                data = _fetch_live(name)
+                data = await _fetch_live(name)
                 _cache[name] = data
                 _cache_ts[name] = now
                 return data
@@ -73,26 +85,45 @@ def _get(name: str) -> Any:
         return data
 
 
-def get_profile() -> dict:
-    return _get("profile.json")
+async def get_profile() -> dict:
+    return await _get("profile.json")
 
 
-def get_graph() -> dict:
-    return _get("graph.json")
+async def get_graph() -> dict:
+    return await _get("graph.json")
 
 
-def get_posts() -> list:
-    return _get("posts.json")
+async def get_posts() -> list:
+    return await _get("posts.json")
 
 
-def get_agents() -> list:
-    return _get("agents.json")
+async def get_agents() -> list:
+    return await _get("agents.json")
+
+
+async def _prime_async() -> None:
+    for name in _FILES:
+        try:
+            await _get(name)
+        except Exception:
+            pass
 
 
 def prime() -> None:
-    """Best-effort warm fetch — call at startup so first user request is fast."""
-    for name in _FILES:
-        try:
-            _get(name)
-        except Exception:
-            pass
+    """Best-effort warm fetch — call at startup so first user request is fast.
+
+    Called once at process import time (see `agent.py`). Whether that import
+    happens before any event loop exists (a bare script/REPL) or from inside
+    one that's already running (uvicorn imports the app module from within
+    its own startup coroutine) varies by how the process was launched, so
+    this handles both: run synchronously via `asyncio.run` if no loop is
+    running yet, otherwise schedule as a background task on the existing loop
+    rather than raising `asyncio.run() cannot be called from a running event
+    loop`.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(_prime_async())
+    else:
+        loop.create_task(_prime_async())

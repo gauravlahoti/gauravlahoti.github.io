@@ -142,7 +142,7 @@ def _sse(data: dict[str, Any]) -> str:
 # Sentinel constants for the Spec #24 meta-block protocol.
 _META_OPEN  = "[[META]]"
 _META_CLOSE = "[[/META]]"
-_ALLOWED_CTA = {"topmate", "linkedin"}
+_ALLOWED_CTA = {"topmate", "linkedin", "resume"}
 _ALLOWED_CITE_HOSTS = {
     "linkedin.com", "www.linkedin.com",
     "github.com", "topmate.io",
@@ -561,15 +561,22 @@ def register_routes(app: FastAPI) -> None:
         # resend-mcp-server, which is a second min-instances=0 service on the
         # send path: warming it here means an actual resume request later doesn't
         # have to wait out its cold start.
-        mcp_ready = await warm_mcp_server()
+        #
         # Spec 50: prime the TTS credentials/client too. The first Vertex call
         # in a container costs ~3s more than a warm one, and with sentence
-        # chunking that lands on the first clip a visitor hears.
-        speak_ready = warm_speak()
-        # Same tax, same fix, for transcription — voice input is mic-tap-gated
-        # and mobile-heavy, so without this most real transcribe requests were
-        # each container's first-ever call, paying the cold ADC/TLS cost.
-        transcribe_ready = warm_transcribe()
+        # chunking that lands on the first clip a visitor hears. Same tax, same
+        # fix, for transcription — voice input is mic-tap-gated and
+        # mobile-heavy, so without this most real transcribe requests were each
+        # container's first-ever call, paying the cold ADC/TLS cost.
+        # All three are independent, so run them concurrently rather than
+        # awaiting each in turn; warm_speak/warm_transcribe are sync functions
+        # doing blocking ADC calls, offloaded to a thread so they can't stall
+        # the event loop for other concurrent requests.
+        mcp_ready, speak_ready, transcribe_ready = await asyncio.gather(
+            warm_mcp_server(),
+            asyncio.to_thread(warm_speak),
+            asyncio.to_thread(warm_transcribe),
+        )
         return {
             "ok": True,
             "mcpReady": mcp_ready,
@@ -758,21 +765,28 @@ def register_routes(app: FastAPI) -> None:
         )
 
         raw_ip = _client_ip(request)
-        # Best-effort geo on the untruncated IP. Never blocks the request:
-        # bounded by lookup_geo's 250ms timeout and exception-swallowing.
-        geo = await lookup_geo(raw_ip)
-        client_meta = {
-            "ip_truncated": _truncate_ip(raw_ip),
-            "ua":           (request.headers.get("user-agent") or "")[:500],
-            "ref":          (request.headers.get("referer") or "")[:500],
-            "country":      (geo or {}).get("country"),
-            "region":       (geo or {}).get("region"),
-            "city":         (geo or {}).get("city"),
-        }
 
+        # Rate-limit first — this needs only raw_ip, no geo, and is effectively
+        # free (in-memory), so it's the cheapest possible early-exit.
         ip_hash = limiter.hash_ip(raw_ip)
         allowed, _reason = limiter.check_and_record(session_id, ip_hash)
+
+        # Best-effort geo on the untruncated IP, only for the audit log — it
+        # never feeds the model. Kick it off now so it runs concurrently with
+        # _ensure_session below instead of serially gating the stream start;
+        # bounded by lookup_geo's 250ms timeout and exception-swallowing.
+        geo_task = asyncio.create_task(lookup_geo(raw_ip))
+
         if not allowed:
+            geo = await geo_task
+            client_meta = {
+                "ip_truncated": _truncate_ip(raw_ip),
+                "ua":           (request.headers.get("user-agent") or "")[:500],
+                "ref":          (request.headers.get("referer") or "")[:500],
+                "country":      (geo or {}).get("country"),
+                "region":       (geo or {}).get("region"),
+                "city":         (geo or {}).get("city"),
+            }
             # Both session and IP buckets cap at 10/24h, so the user-facing
             # message is the same regardless of which one fired.
             msg = (
@@ -812,7 +826,15 @@ def register_routes(app: FastAPI) -> None:
                 status_code=429, content={"error": msg}
             )
 
-        await _ensure_session(session_id)
+        _, geo = await asyncio.gather(_ensure_session(session_id), geo_task)
+        client_meta = {
+            "ip_truncated": _truncate_ip(raw_ip),
+            "ua":           (request.headers.get("user-agent") or "")[:500],
+            "ref":          (request.headers.get("referer") or "")[:500],
+            "country":      (geo or {}).get("country"),
+            "region":       (geo or {}).get("region"),
+            "city":         (geo or {}).get("city"),
+        }
 
         return StreamingResponse(
             _stream_agent(
