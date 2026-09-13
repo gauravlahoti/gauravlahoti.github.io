@@ -3108,6 +3108,99 @@ sup.agent-cite a:focus-visible {
     padding: var(--space-2) var(--space-3);
 }
 
+/* Certification badge strip (spec 56) — badge art on certification answers.
+   Same visual language as the hero cert rail (.cert-tile), rebuilt at panel
+   scale: the rail's 104px tiles and custom hover popover don't fit 380px, so
+   these are 60px with a native title tooltip instead. */
+.agent-badges {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+.agent-badge-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+/* Issuer name — a technical label, so mono per the type rule. Only rendered
+   when the reply spans more than one issuer. */
+.agent-badge-group-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+}
+/* Fixed-width tiles rather than a 1fr grid: a group with a single badge
+   (Microsoft) would otherwise stretch it across the whole panel. */
+.agent-badge-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+/* Four per row at the 380px panel width (4×78 + 3×8 gap = 336, inside the
+   ~346px of usable transcript width). Four matters: it's what makes the
+   Anthropic set land as one clean row instead of wrapping 3+1. Fixed width
+   rather than 1fr so a single-badge group (Microsoft) doesn't stretch across
+   the panel. */
+.agent-badge-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 0 78px;
+    width: 78px;
+    padding: var(--space-2) var(--space-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    text-decoration: none;
+    outline: none;
+    transition:
+        border-color var(--dur-fast) var(--ease-out),
+        box-shadow var(--dur-fast) var(--ease-out),
+        transform var(--dur-fast) var(--ease-out);
+}
+.agent-badge-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+}
+.agent-badge-tile img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+/* The credential name — the whole point of the caption, so it must stay
+   legible in a screenshot where the title tooltip can't be seen. */
+.agent-badge-name {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    line-height: 1.25;
+    color: var(--ink);
+    text-align: center;
+    text-wrap: balance;
+}
+/* Only the linked tiles react — the one cert with no verification URL renders
+   as a <div> and should not pretend to be clickable. */
+a.agent-badge-tile:hover,
+a.agent-badge-tile:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--accent-glow);
+    transform: translateY(-2px);
+}
+a.agent-badge-tile:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-badge-tile { transition: none; }
+    a.agent-badge-tile:hover,
+    a.agent-badge-tile:focus-visible { transform: none; }
+}
+
 /* CTA button — Topmate / LinkedIn off-ramp on personal/off-topic punts. */
 .agent-cta-action {
     display: inline-flex;

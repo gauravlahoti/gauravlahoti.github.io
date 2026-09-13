@@ -22,11 +22,16 @@ const FEATURES = Object.freeze({
     thinking:        true,
     voiceInput:      true,
     speakReplies:    true,
+    badges:          true, // spec 56: cert badge art on certification answers
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
                        "credly.com", "cp.certmetrics.com", "learn.microsoft.com"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
+
+// Spec 56: issuer grouping order for the certification badge strip. Anything
+// not listed sorts after these, in the order it first appears in the reply.
+const ISSUER_ORDER = ["Anthropic", "AWS", "Google Cloud", "Microsoft"];
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -108,11 +113,6 @@ export function initAgentWidget(root, profile, sessionId) {
     // callback fires asynchronously and needs to know which message to hang
     // the "Reading aloud" strip on.
     let currentAssistantLi = null;
-    // Spec 55: paces the current turn's reply text to the speaker's audio
-    // schedule instead of showing it instantly. Only set while speaking is
-    // active for the turn in flight; null means "stream text instantly" (the
-    // pre-spec-55 behavior), which is also what a speaker-off visitor gets.
-    let revealQueue = null;
 
     // Mobile TTS fix: the AudioContext must be created and resume()d
     // synchronously inside a real user gesture, or Safari/iOS refuse to play
@@ -278,9 +278,10 @@ export function initAgentWidget(root, profile, sessionId) {
     // behind an unlabelled icon meant almost nobody found it.
     //
     // "On by default" still does not mean "audio with no warning": the first
-    // time a reply would ever be spoken, sendMessage() shows the consent card
-    // and keeps that turn silent. Consent is asked once, then remembered, so
-    // this costs a returning visitor nothing.
+    // time a reply would ever be spoken, sendMessage() shows the consent card,
+    // whose "Not now" mutes the turn already in flight. Consent is asked once,
+    // then remembered, so this costs a returning visitor nothing. (The card
+    // no longer pre-emptively silences turn one — it is shown alongside it.)
     const SPEAK_DEFAULT_ON = true;
 
     // Note this is only ever *applied* inside a click — see toggleSpeaker() and
@@ -389,19 +390,15 @@ export function initAgentWidget(root, profile, sessionId) {
                     audioContext: primedCtx,
                     onStateChange: (state) => {
                         // Unconditional, ahead of the speakerOn guard below:
-                        // this is the authoritative "the turn's audio — and so
-                        // its paced text — is fully done" signal, and it must
-                        // fire even when speakerOn just flipped false (the
-                        // speaker-off toggle cancels() before this callback
-                        // runs). Without it, whenDrained() could hang forever,
-                        // stray reveal timers would keep firing after
-                        // finalizeAssistant() has already replaced the DOM,
-                        // and the per-message "Reading aloud" strip would be
-                        // left stuck on screen — clearSpeakingIndicator() used
-                        // to sit behind the speakerOn guard below even though
-                        // this comment already explained why nothing here can.
+                        // this is the authoritative "the turn's audio is fully
+                        // done" signal, and it must fire even when speakerOn
+                        // just flipped false (the speaker-off toggle cancels()
+                        // before this callback runs). Without it the
+                        // per-message "Reading aloud" strip would be left stuck
+                        // on screen — clearSpeakingIndicator() used to sit
+                        // behind the speakerOn guard below even though this
+                        // comment already explained why nothing here can.
                         if (state === "idle") {
-                            if (revealQueue) revealQueue.stop();
                             clearSpeakingIndicator();
                             if (voiceStatus.textContent === "Speaking…") {
                                 voiceStatus.classList.add("is-hidden");
@@ -414,10 +411,9 @@ export function initAgentWidget(root, profile, sessionId) {
                     // line distinguishes "synthesizing" from "actually
                     // audible" — the two are indistinguishable otherwise.
                     // The per-message "Reading aloud" strip lives here too
-                    // (not on the earlier "speaking"/enqueued state above):
-                    // spec 55 holds text back until this same moment, so
-                    // showing the strip any earlier left it sitting over a
-                    // still-empty, caret-only message.
+                    // (not on the earlier "speaking"/enqueued state above), so
+                    // it appears when the voice does rather than while the
+                    // first chunk is still being synthesized.
                     onPlaying: () => {
                         showVoiceNote("Speaking…", 0);
                         showSpeakingIndicator(currentAssistantLi);
@@ -426,12 +422,6 @@ export function initAgentWidget(root, profile, sessionId) {
                         // The reply is already on screen, so a synthesis
                         // failure is a note, not an error state.
                         showVoiceNote(message);
-                    },
-                    // Spec 55: the exact schedule each audio chunk plays on —
-                    // handed to whichever reveal queue is active for the
-                    // current turn so its text can be paced to match.
-                    onChunkScheduled: (info) => {
-                        if (revealQueue) revealQueue.scheduleChunk(info);
                     },
                 });
                 return true;
@@ -451,11 +441,6 @@ export function initAgentWidget(root, profile, sessionId) {
             speakerOn = false;
             writeSpeakerPref(false);
             if (speaker) speaker.cancel();
-            // cancel()'s onStateChange calls revealQueue.stop() but never
-            // nulls the module variable — without this, onDelta's
-            // `if (!revealQueue)` check stays false and text stops updating
-            // for whatever's left of a turn muted mid-stream.
-            if (revealQueue) { revealQueue.stop(); revealQueue = null; }
             clearSpeakingIndicator();
             setSpeakerMode("off");
             showVoiceNote("Spoken replies off.", 2500);
@@ -533,17 +518,13 @@ export function initAgentWidget(root, profile, sessionId) {
         dom.panel.insertBefore(card, dom.inputRow);
 
         // A real mute of the turn in flight, not a pre-emptive block — audio
-        // may already be mid-clip. cancel() drives the speaker to "idle",
-        // whose onStateChange already calls revealQueue.stop() (line ~399),
-        // but never nulls the module variable itself; without that, onDelta's
-        // `if (!revealQueue)` check stays false and text stops updating for
-        // the rest of this turn. Mirrors closePanel()'s teardown exactly.
+        // may already be mid-clip. cancel() drives the speaker to "idle".
+        // Mirrors closePanel()'s teardown exactly.
         no.addEventListener("click", () => {
             card.remove();
             speakerOn = false;
             writeSpeakerPref(false);
             if (speaker) speaker.cancel();
-            if (revealQueue) { revealQueue.stop(); revealQueue = null; }
             clearSpeakingIndicator();
             setSpeakerMode("off");
             showVoiceNote("Spoken replies off.", 2500);
@@ -743,14 +724,6 @@ export function initAgentWidget(root, profile, sessionId) {
         if (speaker) {
             speaker.dispose();
             speaker = null;
-        }
-        // dispose() (unlike cancel()) never emits a state change, so it is
-        // the one teardown path that needs an explicit stop() — otherwise a
-        // reveal queue mid-turn would sit waiting on a schedule that will
-        // never arrive.
-        if (revealQueue) {
-            revealQueue.stop();
-            revealQueue = null;
         }
         clearSpeakingIndicator();
         if (speakerOn) setSpeakerMode("on");
@@ -984,12 +957,11 @@ export function initAgentWidget(root, profile, sessionId) {
             }
         }
 
-        // Drops the loading dots/canned copy and folds the Thoughts panel —
-        // normally fired on the first raw delta, but when a reveal queue is
-        // pacing text to audio (spec 55) it's held for the first word that
-        // actually reaches the screen instead, so the loading state doesn't
-        // vanish into blank silence while the first audio chunk is still
-        // buffering.
+        // Drops the loading dots/canned copy and folds the Thoughts panel, on
+        // the first raw delta — always, whether or not this turn is spoken.
+        // Spec 57: it used to be held until the first *spoken* word reached the
+        // screen, which meant the loading dots sat there for the whole first
+        // synthesis round trip.
         function markFirstDelta() {
             if (!firstDelta) return;
             firstDelta = false;
@@ -998,12 +970,6 @@ export function initAgentWidget(root, profile, sessionId) {
             settleThinking();
         }
 
-        // Spec 55: only paces text when this turn will actually be spoken —
-        // mirrors the exact `speaker` truthiness check onDelta already uses,
-        // now that ensureSpeaker() above has settled either way.
-        revealQueue = (FEATURES.speakReplies && speakerOn && speaker)
-            ? createRevealQueue(assistant, markFirstDelta)
-            : null;
         let errorShown = false;
         let midStreamError = false;
         let pendingCitations = {};
@@ -1011,7 +977,7 @@ export function initAgentWidget(root, profile, sessionId) {
         let lastUserText = text;
 
         // Per-turn state holders written by SSE callbacks
-        const turnState = { citations: {}, suggestions: [], cta: null };
+        const turnState = { citations: {}, suggestions: [], cta: null, badges: [] };
 
         try {
             await streamAgent({
@@ -1037,18 +1003,17 @@ export function initAgentWidget(root, profile, sessionId) {
                     scrollToEnd();
                 },
                 onDelta(delta) {
-                    // Spec 55: when a reveal queue is active, the raw delta
-                    // must NOT also be painted directly — its text arrives on
-                    // screen only via the queue's onChunkScheduled-paced
-                    // reveal (which fires markFirstDelta itself, on the first
-                    // word actually shown), so voice and text stay in step.
-                    // No queue means speaking is off (or unavailable) this
-                    // turn, so this is exactly the original instant-append
-                    // behavior, first delta included.
-                    if (!revealQueue) {
-                        markFirstDelta();
-                        appendDelta(assistant, delta, FEATURES.typingCursor);
-                    }
+                    // Spec 57: text is painted the moment it streams, whether
+                    // or not this turn is spoken. Spec 55 used to route it
+                    // through a queue paced to the audio clock, which kept
+                    // voice and text in lockstep but meant the first word
+                    // couldn't appear until a full /api/agent-speak round trip
+                    // had returned (~2.4s warm, ~5.6s cold). Reading is never
+                    // worth blocking on synthesis; the voice trails instead,
+                    // and the "Reading aloud" strip is what keeps the
+                    // relationship between the two legible.
+                    markFirstDelta();
+                    appendDelta(assistant, delta, FEATURES.typingCursor);
                     // Chunking happens inside the speaker; this just hands it
                     // the raw stream. Sanitization is server-side, so what is
                     // spoken and what is shown stay in sync.
@@ -1063,6 +1028,9 @@ export function initAgentWidget(root, profile, sessionId) {
                 },
                 onCta(cta) {
                     turnState.cta = cta;
+                },
+                onBadges(badges) {
+                    turnState.badges = badges;
                 },
                 async onDone(full) {
                     stages.cancel();
@@ -1084,12 +1052,12 @@ export function initAgentWidget(root, profile, sessionId) {
                         input.focus();
                         return;
                     }
-                    // Spec 55: hold the DOM finalization — everything below
-                    // this line — until the reveal queue reports every
-                    // scheduled chunk has been shown (or superseded by a
-                    // stop()). Text-off turns have no queue and fall straight
-                    // through, unchanged.
-                    if (revealQueue) await revealQueue.whenDrained();
+                    // Spec 57: finalization runs at end-of-stream, not
+                    // end-of-audio. This used to await the reveal queue
+                    // draining, which meant citations, follow-up chips, the CTA
+                    // and the cert badge strip all waited for the last audio
+                    // sample to play — up to tens of seconds after the reply
+                    // had finished arriving.
                     if (!full && !errorShown) {
                         appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
                     }
@@ -1104,6 +1072,13 @@ export function initAgentWidget(root, profile, sessionId) {
                         // not on empty/errored turns), so the count reflects
                         // real responses, matching the backend's logged total.
                         document.dispatchEvent(new CustomEvent("portfolio:agent-question"));
+
+                        // Render certification badge art (spec 56). Above the
+                        // chips and CTA so the badges read as part of the
+                        // answer rather than as another action row.
+                        if (FEATURES.badges && turnState.badges.length) {
+                            renderBadgeStrip(assistant, turnState.badges);
+                        }
 
                         // Render follow-up chips
                         if (FEATURES.suggestions && turnState.suggestions.length) {
@@ -1122,11 +1097,6 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Remove cursor if streaming was interrupted
                     removeCaret(assistant);
                     if (isMidStream) {
-                        // A broken connection isn't worth pacing text for —
-                        // stop() lets onDone's already-pending await resolve
-                        // immediately so the retry button doesn't sit above
-                        // reply text still trickling in.
-                        if (revealQueue) revealQueue.stop();
                         // Keep partial text; append retry button
                         appendRetryButton(assistant, lastUserText);
                     } else {
@@ -1255,129 +1225,6 @@ export function initAgentWidget(root, profile, sessionId) {
         if (caret) caret.remove();
     }
 
-    // Spec 55: paces one turn's reply text to agent-speech.js's own audio
-    // schedule instead of the instant per-delta append `appendDelta` does.
-    //
-    // Each chunk gets its own independent timer, armed the moment
-    // onChunkScheduled fires — mirroring exactly how agent-speech.js's own
-    // schedule() arms every audio buffer's source.start() up front, against
-    // an accumulating clock cursor, with no chunk's start ever waiting on a
-    // previous chunk's callback. An earlier version chained each chunk's
-    // timer off the previous chunk's reveal *finishing*, using a delay that
-    // had gone stale by the time it was armed — the two waits compounded
-    // every chunk, and text visibly stalled while audio (on its own,
-    // unrelated clock) kept playing. finishActive() is the safety net for
-    // any residual drift: if a new chunk's timer fires before the previous
-    // one's word-by-word reveal finished, the remainder is dumped instantly
-    // rather than left to fall further behind.
-    //
-    // finalizeAssistant() always eventually replaces this queue's DOM output
-    // with the authoritative full-text render, in every completion path
-    // (normal, stopped, or mid-stream error) — so stop() only has to silence
-    // this queue's own timers before that happens, never force-append
-    // anything itself.
-    function createRevealQueue(li, onFirstReveal) {
-        const p = li.querySelector(".agent-message-text");
-        const timers = new Set(); // setTimeout ids waiting on a chunk's start
-        let rafId = null;
-        let active = null;        // { words, idx } of the reveal in progress
-        let stopped = false;
-        let revealed = false;
-        let resolveDrained = null;
-        const drained = new Promise((resolve) => { resolveDrained = resolve; });
-
-        function settle() {
-            if (resolveDrained) { resolveDrained(); resolveDrained = null; }
-        }
-
-        function appendWord(word) {
-            if (!p || !word) return;
-            if (!revealed) {
-                revealed = true;
-                if (typeof onFirstReveal === "function") onFirstReveal();
-            }
-            p.appendChild(document.createTextNode(word));
-            scrollToEnd();
-        }
-
-        // Instantly shows whatever the current reveal hasn't gotten to yet.
-        // Called before starting a new chunk's reveal (so two never overlap)
-        // and from stop() — never leaves this queue's idea of "shown" behind
-        // what should already be visible.
-        function finishActive() {
-            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-            if (!active) return;
-            const { words } = active;
-            while (active.idx < words.length) {
-                appendWord(words[active.idx]);
-                active.idx += 1;
-            }
-            active = null;
-        }
-
-        function runReveal(words, durationMs) {
-            finishActive();
-            const start = performance.now();
-            const total = words.length;
-            const mine = { words, idx: 0 };
-            active = mine;
-            function step(now) {
-                if (stopped || active !== mine) return; // stopped or superseded
-                const elapsed = now - start;
-                const targetIdx = total <= 1 || durationMs <= 0
-                    ? total
-                    : Math.min(total, Math.ceil((elapsed / durationMs) * total));
-                while (mine.idx < targetIdx) {
-                    appendWord(words[mine.idx]);
-                    mine.idx += 1;
-                }
-                if (mine.idx < total) {
-                    rafId = requestAnimationFrame(step);
-                } else {
-                    rafId = null;
-                    active = null;
-                }
-            }
-            rafId = requestAnimationFrame(step);
-        }
-
-        return {
-            // Arms this chunk's own timer immediately — ctxNow/ctxStartAt
-            // are a fresh read from the instant onChunkScheduled fired, so
-            // there is no deferral gap for them to go stale in.
-            scheduleChunk({ text, ctxNow, ctxStartAt, durationSec }) {
-                if (stopped) return;
-                const delayMs = Math.max(0, (ctxStartAt - ctxNow) * 1000);
-                const words = text.split(/(\s+)/).filter((w) => w !== "");
-                const id = setTimeout(() => {
-                    timers.delete(id);
-                    if (stopped) return;
-                    runReveal(words, Math.max(0, durationSec * 1000));
-                }, delayMs);
-                timers.add(id);
-            },
-            // Resolves once every scheduled chunk (including the tail from
-            // speaker.flush()) has either been revealed or superseded by
-            // stop() — the signal onDone() waits on before finalizing.
-            whenDrained() {
-                return drained;
-            },
-            // Silences this queue: clears pending timers/animation, so a
-            // straggling callback can never append a stray word after
-            // finalizeAssistant() has already replaced the message's DOM.
-            stop() {
-                if (stopped) { settle(); return; }
-                stopped = true;
-                timers.forEach((id) => clearTimeout(id));
-                timers.clear();
-                if (rafId) cancelAnimationFrame(rafId);
-                rafId = null;
-                active = null;
-                settle();
-            },
-        };
-    }
-
     function finalizeAssistant(li, fullText, citations) {
         const p = li.querySelector(".agent-message-text");
         if (!p) return;
@@ -1464,6 +1311,103 @@ export function initAgentWidget(root, profile, sessionId) {
         });
         assistantLi.appendChild(row);
         scrollToEnd();
+    }
+
+    // Spec 56: certification badge art.
+    //
+    // Atlas only ever sends slugs. Every image path and verification link is
+    // resolved HERE, against the widget's own copy of profile.json, so a slug
+    // the model invented resolves to nothing and renders nothing — the model
+    // cannot introduce a URL into the page. Deliberately mirrors
+    // renderCertTile() in main.js so the chat badges and the hero rail read as
+    // one system rather than two lookalike implementations.
+    function renderBadgeStrip(assistantLi, slugs) {
+        const certs = (profile && profile.certifications) || [];
+        if (!certs.length) return;
+        const bySlug = new Map(
+            certs.filter(c => c.slug && c.badge).map(c => [c.slug, c])
+        );
+        const matched = slugs.map(s => bySlug.get(s)).filter(Boolean);
+        if (!matched.length) return;
+
+        // Group by issuer: the known issuers in a fixed order, then anything
+        // unrecognised appended in first-seen order rather than dropped.
+        const groups = new Map();
+        for (const c of matched) {
+            const issuer = c.issuer || "Other";
+            if (!groups.has(issuer)) groups.set(issuer, []);
+            groups.get(issuer).push(c);
+        }
+        const rank = (issuer) => {
+            const i = ISSUER_ORDER.indexOf(issuer);
+            return i === -1 ? ISSUER_ORDER.length : i;
+        };
+        const ordered = [...groups.keys()].sort((a, b) => rank(a) - rank(b));
+
+        const wrap = document.createElement("div");
+        wrap.className = "agent-badges";
+        // One group renders as a bare grid — a lone "Anthropic" header above
+        // four Anthropic badges is just noise.
+        const showLabels = ordered.length > 1;
+
+        for (const issuer of ordered) {
+            const group = document.createElement("div");
+            group.className = "agent-badge-group";
+            if (showLabels) {
+                const label = document.createElement("div");
+                label.className = "agent-badge-group-label";
+                label.textContent = issuer;
+                group.appendChild(label);
+            }
+            const grid = document.createElement("div");
+            grid.className = "agent-badge-grid";
+            groups.get(issuer).forEach(c => grid.appendChild(buildBadgeTile(c)));
+            group.appendChild(grid);
+            wrap.appendChild(group);
+        }
+        assistantLi.appendChild(wrap);
+        scrollToEnd();
+    }
+
+    function buildBadgeTile(c) {
+        const art = document.createElement("span");
+        art.className = "agent-badge-art";
+        const img = document.createElement("img");
+        img.src = c.badge;
+        img.alt = "";           // the caption below carries the name
+        img.loading = "lazy";
+        img.decoding = "async";
+        art.appendChild(img);
+
+        // Visible caption, not just a title tooltip. The badge art alone is
+        // unreadable at 56px, and hover doesn't exist in a screenshot or on
+        // touch — so the name has to be on the page. `shortName` drops the
+        // vendor prefix ("Claude Certified Architect — Professional" →
+        // "Architect Pro") because the issuer is already the group heading.
+        const caption = document.createElement("span");
+        caption.className = "agent-badge-name";
+        caption.textContent = c.shortName || c.name || "";
+
+        // Real <a> when there's a credential record to verify against, plain
+        // wrapper when there isn't — the same fallback the hero rail uses for
+        // the one cert with no public verification URL.
+        const wrapper = c.credlyUrl
+            ? document.createElement("a")
+            : document.createElement("div");
+        wrapper.className = "agent-badge-tile";
+        if (c.credlyUrl) {
+            wrapper.href = escapeUrl(c.credlyUrl);
+            wrapper.target = "_blank";
+            wrapper.rel = "noopener noreferrer";
+            wrapper.setAttribute(
+                "aria-label",
+                `${c.name} — verify credential (opens in new tab)`
+            );
+        }
+        // Full name on hover, since the caption is the abbreviated form.
+        wrapper.title = c.name || "";
+        wrapper.append(art, caption);
+        return wrapper;
     }
 
     function renderCta(assistantLi, cta, agentCopy) {
@@ -2348,7 +2292,7 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
@@ -2424,6 +2368,8 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onTh
                     onSuggestions(evt.suggestions);
                 } else if (evt.cta && FEATURES.cta) {
                     onCta(evt.cta);
+                } else if (evt.badges && FEATURES.badges) {
+                    onBadges(evt.badges);
                 } else if (evt.done === true) {
                     done = true;
                     break;

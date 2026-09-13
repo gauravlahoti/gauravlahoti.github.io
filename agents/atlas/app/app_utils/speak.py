@@ -54,9 +54,16 @@ VOICE_NAME = "Charon"
 # Gemini TTS takes its style direction as plain language prefixed to the text.
 # Kept deliberately plain: the failure mode of an over-directed prompt is the
 # model performing the instruction rather than reading the sentence.
+#
+# Spec 57: "Unhurried" used to sit in here and it did its job too well — the
+# delivery dragged. This surface has no numeric rate control (speakingRate is a
+# Cloud TTS audioConfig field, which this path doesn't use), so the wording is
+# the only server-side lever; the deterministic trim is SPEECH_RATE in
+# assets/js/agent-speech.js. Ask for a natural pace here and let that do the
+# fine adjustment, rather than pushing either one hard on its own.
 STYLE_PROMPT = (
     "Read the following aloud like a calm, precise cloud architect explaining "
-    "something to a peer. Unhurried and warm, no hype, no salesmanship. "
+    "something to a peer. Natural pace, warm, no hype, no salesmanship. "
     "Read only the text, do not add commentary:"
 )
 

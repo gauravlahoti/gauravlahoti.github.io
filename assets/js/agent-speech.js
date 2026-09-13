@@ -33,6 +33,18 @@
 // Lazy-loaded: agent-widget.js only import()s this when the speaker is first
 // switched on, so none of it ships in the initial page payload.
 
+// Playback speed multiplier (spec 57). The Gemini generateContent TTS surface
+// exposes no numeric rate control — speakingRate belongs to Cloud TTS's
+// audioConfig, which this path doesn't use — so the only server-side lever is
+// the wording of STYLE_PROMPT, and prompts are a suggestion rather than a
+// setting. This is the deterministic trim on top of it.
+//
+// Keep it modest: past ~1.2 the voice starts to sound processed rather than
+// brisk, which costs more than the seconds it saves. Any change here must keep
+// the `nextStartTime` accumulation in schedule() dividing by the same factor,
+// or consecutive chunks overlap.
+const SPEECH_RATE = 1.1;
+
 // Chunk size ramp, in characters. The first is small so speech starts fast
 // (~1.4s to synthesize); later ones grow because every chunk boundary is a
 // prosody reset — the model synthesizes each in isolation — so fewer, longer
@@ -142,7 +154,7 @@ function base64ToArrayBuffer(b64) {
 // `onStateChange` fires with "speaking" | "idle"; `onPlaying()` fires when
 // audio genuinely starts; `onError(message)` fires once per turn on failure
 // and is always followed by an "idle" state change.
-export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying, onChunkScheduled, audioContext }) {
+export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlaying, audioContext }) {
     let buffer = "";          // text received but not yet chunked
     let chunkIndex = 0;       // position in CHUNK_RAMP for the current turn
     let pending = [];         // {seq, text} awaiting synthesis
@@ -249,7 +261,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     // buffer durations rather than being recomputed from the clock, clips join
     // sample-accurately instead of drifting apart by however long each
     // play() call happened to take.
-    function schedule(audioBuffer, text) {
+    function schedule(audioBuffer) {
         if (disposed) return;
         // Should never happen — unlock() runs from the click that enables the
         // speaker — but dropping audio silently because a context was missing
@@ -261,15 +273,9 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         // forward. This is the only place a gap can appear.
         if (nextStartTime < now + START_LEAD_S) nextStartTime = now + START_LEAD_S;
 
-        // Spec 55: this is the exact schedule a text-reveal queue needs to
-        // pace words against the voice — the same cursor and duration that
-        // drive playback itself, not a second, independently-guessed timing.
-        if (typeof onChunkScheduled === "function") {
-            onChunkScheduled({ text, ctxNow: now, ctxStartAt: nextStartTime, durationSec: audioBuffer.duration });
-        }
-
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
+        source.playbackRate.value = SPEECH_RATE;
         source.connect(gain);
         source.start(nextStartTime);
         sources.add(source);
@@ -297,7 +303,10 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
             }, delayMs);
         }
 
-        nextStartTime += audioBuffer.duration;
+        // Divided by SPEECH_RATE because playbackRate compresses wall-clock
+        // playback by exactly that factor. Accumulating the raw duration here
+        // would leave a widening silent gap between every chunk.
+        nextStartTime += audioBuffer.duration / SPEECH_RATE;
     }
 
     // Producer: keeps up to LOOKAHEAD requests outstanding, independent of
@@ -309,7 +318,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         try {
             while (mine === generation && !disposed) {
                 if (!pending.length || inFlight >= LOOKAHEAD) break;
-                const { seq, text, rawText } = pending.shift();
+                const { seq, text } = pending.shift();
                 inFlight += 1;
                 // Deliberately not awaited: several may be in flight at once,
                 // which is the point.
@@ -329,10 +338,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
                     if (mine !== generation || disposed) return;
                     // Recorded even when null, so drainReady() can skip past a
                     // failed chunk instead of stalling the whole reply on it.
-                    // `rawText` (not the trimmed `text` sent to synthesize()),
-                    // so the boundary whitespace/paragraph break this chunk
-                    // started with survives to the screen.
-                    decoded.set(seq, { buf, text: rawText });
+                    decoded.set(seq, buf);
                     drainReady();
                     produce();
                     settleIfDone();
@@ -348,23 +354,14 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     // every later chunk behind it forever.
     function drainReady() {
         while (decoded.has(nextSeq)) {
-            const { buf, text } = decoded.get(nextSeq);
+            const buf = decoded.get(nextSeq);
             decoded.delete(nextSeq);
             nextSeq += 1;
-            if (buf) {
-                schedule(buf, text);
-            } else if (typeof onChunkScheduled === "function") {
-                // Synthesis failed for this chunk: no audio to schedule, but
-                // the text still needs to surface so a reveal queue tied to
-                // this callback doesn't stall on it forever.
-                const ctxNow = ctx ? ctx.currentTime : 0;
-                onChunkScheduled({
-                    text,
-                    ctxNow,
-                    ctxStartAt: ctxNow,
-                    durationSec: text.length / CHARS_PER_SEC_OF_SPEECH,
-                });
-            }
+            // A null buffer means synthesis failed for this chunk. Nothing to
+            // schedule, and nothing else to do: text reaches the screen from
+            // the SSE stream now (spec 57), not from this callback, so a failed
+            // chunk just goes unspoken instead of stalling the reply.
+            if (buf) schedule(buf);
         }
     }
 
@@ -378,14 +375,13 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     function enqueue(text) {
         const trimmed = text.trim();
         if (!trimmed) return;
-        // `rawText` (untrimmed) is what ends up on screen via
-        // onChunkScheduled; `trimmed` is only ever sent to /api/agent-speak.
-        // Chunk boundaries fall right after a sentence/clause end, so the
-        // separating whitespace — a space, or a paragraph's \n\n — lands as
-        // the *next* chunk's leading edge. Trimming that away before it
-        // reaches the reveal queue glued adjacent chunks together on screen
-        // and ate paragraph breaks entirely.
-        pending.push({ seq: seqCounter++, text: trimmed, rawText: text });
+        // Only the trimmed form matters now: this text is sent to
+        // /api/agent-speak and never rendered. Spec 55 also carried the
+        // untrimmed `rawText` through, because chunk boundaries fall just after
+        // a sentence end and the separating whitespace was the next chunk's
+        // leading edge — losing it glued chunks together on screen. Text comes
+        // from the SSE stream since spec 57, so that no longer applies.
+        pending.push({ seq: seqCounter++, text: trimmed });
         chunkIndex += 1;
         if (!scheduledCount && !announcedPlaying) emitState("speaking");
         produce();
@@ -411,7 +407,13 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         const scheduledLeft = ctx ? Math.max(0, nextStartTime - ctx.currentTime) : 0;
         let queuedChars = 0;
         pending.forEach((c) => { queuedChars += c.text.length; });
-        return scheduledLeft + queuedChars / CHARS_PER_SEC_OF_SPEECH;
+        // Both terms are wall-clock seconds. `scheduledLeft` already is, since
+        // nextStartTime accumulates rate-adjusted durations; the queued
+        // estimate has to be divided by SPEECH_RATE to match, or runway reads
+        // ~10% longer than it is and drain() waits too long before emitting —
+        // erring toward starvation, which is the failure this margin exists
+        // to prevent.
+        return scheduledLeft + queuedChars / CHARS_PER_SEC_OF_SPEECH / SPEECH_RATE;
     }
 
     function drain(final) {

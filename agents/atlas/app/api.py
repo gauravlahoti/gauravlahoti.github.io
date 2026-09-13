@@ -143,6 +143,14 @@ def _sse(data: dict[str, Any]) -> str:
 _META_OPEN  = "[[META]]"
 _META_CLOSE = "[[/META]]"
 _ALLOWED_CTA = {"topmate", "linkedin", "resume"}
+# Certification badge slugs (spec 56). The model may only name a slug it saw in
+# a get_certifications() result; this regex is a format check, not an authority
+# check. Authorization is structural: the widget resolves each slug against its
+# own copy of profile.json and silently drops anything that doesn't match, so a
+# slug invented here can never become an image path or a link.
+_SLUG_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+_MAX_BADGES = 16  # profile.json currently holds 14; leaves headroom without being unbounded
+
 _ALLOWED_CITE_HOSTS = {
     "linkedin.com", "www.linkedin.com",
     "github.com", "topmate.io",
@@ -170,8 +178,8 @@ def _is_offscope_suggestion(s: str) -> bool:
     return bool(_DEFINITION_STEM_RE.match(s)) and not _GAURAV_REF_RE.search(s)
 
 
-def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None]:
-    """Parse a raw meta-block JSON string into (citations, suggestions, cta).
+def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]:
+    """Parse a raw meta-block JSON string into (citations, suggestions, cta, badges).
 
     Returns empty collections on any failure — never raises.
     Uses rfind so the LAST [[META]] in the full response wins (defends
@@ -205,10 +213,24 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None]:
         # cta: null or one of the allowed values
         raw_cta = obj.get("cta")
         cta = raw_cta if isinstance(raw_cta, str) and raw_cta in _ALLOWED_CTA else None
-        return citations, suggestions, cta
+        # badges: certification slugs to render as badge art. De-duplicated with
+        # order preserved — the model emits them in the order it discussed them,
+        # and the widget's own issuer grouping is what actually sets layout.
+        raw_badges = obj.get("badges") or []
+        badges: list[str] = []
+        for b in raw_badges:
+            if not isinstance(b, str):
+                continue
+            slug = b.strip().lower()
+            if not _SLUG_RE.match(slug) or slug in badges:
+                continue
+            badges.append(slug)
+            if len(badges) >= _MAX_BADGES:
+                break
+        return citations, suggestions, cta, badges
     except Exception:
         logger.warning("meta-block parse failed on: %r", raw[:200])
-        return [], [], None
+        return [], [], None, []
 
 
 async def _stream_agent(
@@ -468,6 +490,7 @@ async def _stream_agent(
     citations_payload: list[dict] = []
     suggestions_payload: list[str] = []
     cta_payload: str | None = None
+    badges_payload: list[str] = []
 
     if status == "ok" and meta_parts:
         raw_meta = "".join(meta_parts)
@@ -475,7 +498,9 @@ async def _stream_agent(
         close_idx = raw_meta.find(_META_CLOSE)
         if close_idx != -1:
             raw_meta = raw_meta[:close_idx]
-        citations_payload, suggestions_payload, cta_payload = _parse_meta(raw_meta.strip())
+        citations_payload, suggestions_payload, cta_payload, badges_payload = _parse_meta(
+            raw_meta.strip()
+        )
 
     # Emit structured events before done.
     if citations_payload:
@@ -484,6 +509,8 @@ async def _stream_agent(
         yield _sse({"suggestions": suggestions_payload})
     if cta_payload:
         yield _sse({"cta": cta_payload})
+    if badges_payload:
+        yield _sse({"badges": badges_payload})
 
     yield _sse({"done": True})
 
