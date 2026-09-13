@@ -8,7 +8,13 @@ Run with: uv run pytest tests/unit/test_meta_parser.py -v
 """
 
 
-from app.api import _ALLOWED_CITE_HOSTS, _META_CLOSE, _META_OPEN, _parse_meta
+from app.api import (
+    _ALLOWED_CITE_HOSTS,
+    _MAX_BADGES,
+    _META_CLOSE,
+    _META_OPEN,
+    _parse_meta,
+)
 
 # ---------------------------------------------------------------------------
 # _parse_meta unit tests
@@ -22,7 +28,7 @@ def test_well_formed():
         "suggestions": ["What projects has he shipped?", "Which certs does he hold?"],
         "cta": null
     }"""
-    citations, suggestions, cta = _parse_meta(raw)
+    citations, suggestions, cta, _ = _parse_meta(raw)
     assert len(citations) == 1
     assert citations[0]["id"] == 1
     assert "linkedin.com" in citations[0]["url"]
@@ -31,14 +37,14 @@ def test_well_formed():
 
 
 def test_missing_block_returns_empty():
-    citations, suggestions, cta = _parse_meta("")
+    citations, suggestions, cta, _ = _parse_meta("")
     assert citations == []
     assert suggestions == []
     assert cta is None
 
 
 def test_malformed_json_returns_empty():
-    citations, suggestions, cta = _parse_meta("{not valid json")
+    citations, suggestions, cta, _ = _parse_meta("{not valid json")
     assert citations == []
     assert suggestions == []
     assert cta is None
@@ -47,7 +53,7 @@ def test_malformed_json_returns_empty():
 def test_truncated_block_returns_empty():
     # Simulates a block cut off mid-JSON by max_output_tokens
     raw = '{"citations":[{"id":1,"url":"https://github.com","label":"GH'
-    citations, suggestions, cta = _parse_meta(raw)
+    citations, suggestions, cta, _ = _parse_meta(raw)
     assert citations == []
     assert suggestions == []
     assert cta is None
@@ -62,7 +68,7 @@ def test_off_allowlist_citation_dropped():
         "suggestions": ["Q?"],
         "cta": null
     }"""
-    citations, suggestions, cta = _parse_meta(raw)
+    citations, suggestions, cta, _ = _parse_meta(raw)
     assert len(citations) == 1
     assert citations[0]["id"] == 2
     assert "github.com" in citations[0]["url"]
@@ -70,32 +76,32 @@ def test_off_allowlist_citation_dropped():
 
 def test_bogus_cta_coerced_to_none():
     raw = '{"citations":[],"suggestions":["A?","B?"],"cta":"phishingurl"}'
-    _, _, cta = _parse_meta(raw)
+    _, _, cta, _ = _parse_meta(raw)
     assert cta is None
 
 
 def test_valid_cta_topmate():
     raw = '{"citations":[],"suggestions":["A?","B?"],"cta":"topmate"}'
-    _, _, cta = _parse_meta(raw)
+    _, _, cta, _ = _parse_meta(raw)
     assert cta == "topmate"
 
 
 def test_valid_cta_linkedin():
     raw = '{"citations":[],"suggestions":["A?","B?"],"cta":"linkedin"}'
-    _, _, cta = _parse_meta(raw)
+    _, _, cta, _ = _parse_meta(raw)
     assert cta == "linkedin"
 
 
 def test_suggestions_trimmed_to_three():
     raw = '{"citations":[],"suggestions":["A?","B?","C?","D?","E?"],"cta":null}'
-    _, suggestions, _ = _parse_meta(raw)
+    _, suggestions, _, _ = _parse_meta(raw)
     assert len(suggestions) == 3
 
 
 def test_label_truncated_to_80_chars():
     long_label = "X" * 200
     raw = f'{{"citations":[{{"id":1,"url":"https://github.com","label":"{long_label}"}}],"suggestions":[],"cta":null}}'
-    citations, _, _ = _parse_meta(raw)
+    citations, _, _, _ = _parse_meta(raw)
     assert len(citations[0]["label"]) == 80
 
 
@@ -105,7 +111,7 @@ def test_multiple_sentinels_last_wins():
     # We test _parse_meta directly on the final meta content (the caller
     # in api.py already uses rfind to isolate the last block).
     canonical = '{"citations":[],"suggestions":["Real Q?","Real Q2?"],"cta":null}'
-    _, suggestions, _ = _parse_meta(canonical)
+    _, suggestions, _, _ = _parse_meta(canonical)
     assert "Real Q?" in suggestions
 
 
@@ -120,14 +126,77 @@ def test_citation_count_capped_at_three():
         "suggestions":["Q?","Q2?"],
         "cta":null
     }"""
-    citations, _, _ = _parse_meta(raw)
+    citations, _, _, _ = _parse_meta(raw)
     assert len(citations) == 3
 
 
 def test_empty_suggestions_dropped():
     raw = '{"citations":[],"suggestions":["","  ","Valid Q?"],"cta":null}'
-    _, suggestions, _ = _parse_meta(raw)
+    _, suggestions, _, _ = _parse_meta(raw)
     assert suggestions == ["Valid Q?"]
+
+
+# ---------------------------------------------------------------------------
+# badges (spec 56) — certification slugs the frontend renders as badge art.
+# The parser is a format gate only; the widget resolves each slug against its
+# own profile.json copy, so an unknown-but-well-formed slug renders nothing.
+# ---------------------------------------------------------------------------
+
+def test_badges_parsed():
+    raw = '{"citations":[],"suggestions":[],"cta":null,"badges":["claude-certified-associate","aws-ml-specialty"]}'
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == ["claude-certified-associate", "aws-ml-specialty"]
+
+
+def test_badges_absent_returns_empty():
+    raw = '{"citations":[],"suggestions":["A?","B?"],"cta":null}'
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == []
+
+
+def test_badges_non_string_entries_dropped():
+    raw = '{"citations":[],"suggestions":[],"cta":null,"badges":["gcp-digital-leader",42,null,{"a":1},["x"]]}'
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == ["gcp-digital-leader"]
+
+
+def test_badges_malformed_slugs_dropped():
+    # Path traversal, absolute URLs, spaces and uppercase-with-symbols are all
+    # rejected by the slug regex — nothing here can become an image path.
+    raw = (
+        '{"citations":[],"suggestions":[],"cta":null,"badges":['
+        '"../../etc/passwd","https://evil.com/x.png","has space","under_score",'
+        '"claude-certified-developer"]}'
+    )
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == ["claude-certified-developer"]
+
+
+def test_badges_deduplicated_preserving_order():
+    raw = (
+        '{"citations":[],"suggestions":[],"cta":null,"badges":['
+        '"aws-ai-practitioner","gcp-digital-leader","aws-ai-practitioner"]}'
+    )
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == ["aws-ai-practitioner", "gcp-digital-leader"]
+
+
+def test_badges_case_normalized():
+    raw = '{"citations":[],"suggestions":[],"cta":null,"badges":["  Claude-Certified-Architect  "]}'
+    _, _, _, badges = _parse_meta(raw)
+    assert badges == ["claude-certified-architect"]
+
+
+def test_badges_capped():
+    slugs = ",".join(f'"cert-{i}"' for i in range(40))
+    raw = f'{{"citations":[],"suggestions":[],"cta":null,"badges":[{slugs}]}}'
+    _, _, _, badges = _parse_meta(raw)
+    assert len(badges) == _MAX_BADGES
+
+
+def test_badges_empty_on_malformed_json():
+    _, _, _, badges = _parse_meta("{not valid json")
+    assert badges == []
 
 
 # ---------------------------------------------------------------------------
@@ -149,5 +218,5 @@ def test_allowlist_contains_expected_hosts():
 def test_subdomain_of_allowed_host_rejected():
     # e.g. evil.linkedin.com.attacker.com — the host check uses endswith
     raw = '{"citations":[{"id":1,"url":"https://linkedin.com.evil.com/phish","label":"Fake"}],"suggestions":[],"cta":null}'
-    citations, _, _ = _parse_meta(raw)
+    citations, _, _, _ = _parse_meta(raw)
     assert citations == []

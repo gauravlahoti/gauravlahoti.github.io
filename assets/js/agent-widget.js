@@ -22,11 +22,16 @@ const FEATURES = Object.freeze({
     thinking:        true,
     voiceInput:      true,
     speakReplies:    true,
+    badges:          true, // spec 56: cert badge art on certification answers
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
                        "credly.com", "cp.certmetrics.com", "learn.microsoft.com"];
 const URL_RE = /https?:\/\/[^\s<>()\[\]]+/gi;
+
+// Spec 56: issuer grouping order for the certification badge strip. Anything
+// not listed sorts after these, in the order it first appears in the reply.
+const ISSUER_ORDER = ["Anthropic", "AWS", "Google Cloud", "Microsoft"];
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -1011,7 +1016,7 @@ export function initAgentWidget(root, profile, sessionId) {
         let lastUserText = text;
 
         // Per-turn state holders written by SSE callbacks
-        const turnState = { citations: {}, suggestions: [], cta: null };
+        const turnState = { citations: {}, suggestions: [], cta: null, badges: [] };
 
         try {
             await streamAgent({
@@ -1064,6 +1069,9 @@ export function initAgentWidget(root, profile, sessionId) {
                 onCta(cta) {
                     turnState.cta = cta;
                 },
+                onBadges(badges) {
+                    turnState.badges = badges;
+                },
                 async onDone(full) {
                     stages.cancel();
                     settleThinking();
@@ -1104,6 +1112,13 @@ export function initAgentWidget(root, profile, sessionId) {
                         // not on empty/errored turns), so the count reflects
                         // real responses, matching the backend's logged total.
                         document.dispatchEvent(new CustomEvent("portfolio:agent-question"));
+
+                        // Render certification badge art (spec 56). Above the
+                        // chips and CTA so the badges read as part of the
+                        // answer rather than as another action row.
+                        if (FEATURES.badges && turnState.badges.length) {
+                            renderBadgeStrip(assistant, turnState.badges);
+                        }
 
                         // Render follow-up chips
                         if (FEATURES.suggestions && turnState.suggestions.length) {
@@ -1464,6 +1479,103 @@ export function initAgentWidget(root, profile, sessionId) {
         });
         assistantLi.appendChild(row);
         scrollToEnd();
+    }
+
+    // Spec 56: certification badge art.
+    //
+    // Atlas only ever sends slugs. Every image path and verification link is
+    // resolved HERE, against the widget's own copy of profile.json, so a slug
+    // the model invented resolves to nothing and renders nothing — the model
+    // cannot introduce a URL into the page. Deliberately mirrors
+    // renderCertTile() in main.js so the chat badges and the hero rail read as
+    // one system rather than two lookalike implementations.
+    function renderBadgeStrip(assistantLi, slugs) {
+        const certs = (profile && profile.certifications) || [];
+        if (!certs.length) return;
+        const bySlug = new Map(
+            certs.filter(c => c.slug && c.badge).map(c => [c.slug, c])
+        );
+        const matched = slugs.map(s => bySlug.get(s)).filter(Boolean);
+        if (!matched.length) return;
+
+        // Group by issuer: the known issuers in a fixed order, then anything
+        // unrecognised appended in first-seen order rather than dropped.
+        const groups = new Map();
+        for (const c of matched) {
+            const issuer = c.issuer || "Other";
+            if (!groups.has(issuer)) groups.set(issuer, []);
+            groups.get(issuer).push(c);
+        }
+        const rank = (issuer) => {
+            const i = ISSUER_ORDER.indexOf(issuer);
+            return i === -1 ? ISSUER_ORDER.length : i;
+        };
+        const ordered = [...groups.keys()].sort((a, b) => rank(a) - rank(b));
+
+        const wrap = document.createElement("div");
+        wrap.className = "agent-badges";
+        // One group renders as a bare grid — a lone "Anthropic" header above
+        // four Anthropic badges is just noise.
+        const showLabels = ordered.length > 1;
+
+        for (const issuer of ordered) {
+            const group = document.createElement("div");
+            group.className = "agent-badge-group";
+            if (showLabels) {
+                const label = document.createElement("div");
+                label.className = "agent-badge-group-label";
+                label.textContent = issuer;
+                group.appendChild(label);
+            }
+            const grid = document.createElement("div");
+            grid.className = "agent-badge-grid";
+            groups.get(issuer).forEach(c => grid.appendChild(buildBadgeTile(c)));
+            group.appendChild(grid);
+            wrap.appendChild(group);
+        }
+        assistantLi.appendChild(wrap);
+        scrollToEnd();
+    }
+
+    function buildBadgeTile(c) {
+        const art = document.createElement("span");
+        art.className = "agent-badge-art";
+        const img = document.createElement("img");
+        img.src = c.badge;
+        img.alt = "";           // the caption below carries the name
+        img.loading = "lazy";
+        img.decoding = "async";
+        art.appendChild(img);
+
+        // Visible caption, not just a title tooltip. The badge art alone is
+        // unreadable at 56px, and hover doesn't exist in a screenshot or on
+        // touch — so the name has to be on the page. `shortName` drops the
+        // vendor prefix ("Claude Certified Architect — Professional" →
+        // "Architect Pro") because the issuer is already the group heading.
+        const caption = document.createElement("span");
+        caption.className = "agent-badge-name";
+        caption.textContent = c.shortName || c.name || "";
+
+        // Real <a> when there's a credential record to verify against, plain
+        // wrapper when there isn't — the same fallback the hero rail uses for
+        // the one cert with no public verification URL.
+        const wrapper = c.credlyUrl
+            ? document.createElement("a")
+            : document.createElement("div");
+        wrapper.className = "agent-badge-tile";
+        if (c.credlyUrl) {
+            wrapper.href = escapeUrl(c.credlyUrl);
+            wrapper.target = "_blank";
+            wrapper.rel = "noopener noreferrer";
+            wrapper.setAttribute(
+                "aria-label",
+                `${c.name} — verify credential (opens in new tab)`
+            );
+        }
+        // Full name on hover, since the caption is the abbreviated form.
+        wrapper.title = c.name || "";
+        wrapper.append(art, caption);
+        return wrapper;
     }
 
     function renderCta(assistantLi, cta, agentCopy) {
@@ -2348,7 +2460,7 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
@@ -2424,6 +2536,8 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onTh
                     onSuggestions(evt.suggestions);
                 } else if (evt.cta && FEATURES.cta) {
                     onCta(evt.cta);
+                } else if (evt.badges && FEATURES.badges) {
+                    onBadges(evt.badges);
                 } else if (evt.done === true) {
                     done = true;
                     break;

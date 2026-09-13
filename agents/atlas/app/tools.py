@@ -277,7 +277,10 @@ async def get_certifications() -> list[dict]:
 
     Returns:
         A list of certification dicts, each: {name, issuer, category (ai /
-        cloud / security), credlyUrl}.
+        cloud / security), credlyUrl, slug}. `slug` is the stable id for the
+        cert's badge image — list the slugs of the certs you mention in the
+        `badges` key of the trailing meta block and the frontend renders the
+        badge art. Only ever emit a slug that appeared in this tool result.
     """
     profile = await corpus_live.get_profile()
     return [
@@ -286,6 +289,7 @@ async def get_certifications() -> list[dict]:
             "issuer": c.get("issuer"),
             "category": c.get("category"),
             "credlyUrl": c.get("credlyUrl"),
+            "slug": c.get("slug"),
         }
         for c in profile.get("certifications", [])
     ]
