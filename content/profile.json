@@ -78,6 +78,14 @@
       "credlyUrl": "https://www.credly.com/badges/876dce5a-06b4-4ad4-a7b7-e3a08495e580/public_url"
     },
     {
+      "name": "Claude Certified Developer — Foundations",
+      "issuer": "Anthropic",
+      "category": "ai",
+      "slug": "claude-certified-developer",
+      "badge": "assets/img/badges/claude-certified-developer.png",
+      "credlyUrl": "https://www.credly.com/badges/2a9c013c-5829-4135-ba0e-aa1055a1e48b/public_url"
+    },
+    {
       "name": "Claude Certified Architect — Foundations",
       "issuer": "Anthropic",
       "category": "ai",
@@ -86,12 +94,12 @@
       "credlyUrl": "https://www.credly.com/badges/7b67699d-af26-4b77-8451-a6619f13a499/public_url"
     },
     {
-      "name": "Claude Certified Developer — Foundations",
+      "name": "Claude Certified Architect — Professional",
       "issuer": "Anthropic",
       "category": "ai",
-      "slug": "claude-certified-developer",
-      "badge": "assets/img/badges/claude-certified-developer.png",
-      "credlyUrl": "https://www.credly.com/badges/2a9c013c-5829-4135-ba0e-aa1055a1e48b/public_url"
+      "slug": "claude-certified-architect-professional",
+      "badge": "assets/img/badges/claude-certified-architect-professional.png",
+      "credlyUrl": "https://www.credly.com/badges/8e1ea0ea-5fda-40e8-ace2-a12dc9be6de1/public_url"
     },
     {
       "name": "AWS Certified Machine Learning — Specialty",
