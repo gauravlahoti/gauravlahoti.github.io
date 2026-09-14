@@ -309,27 +309,34 @@ async def get_live_agents(agent_name: str | None = None) -> list[dict]:
     Agentic RAG). Each entry carries a `liveUrl` — the link to try that agent
     live, when one exists. Cite `liveUrl` verbatim.
 
-    Pass `agent_name` to narrow to one agent AND get its build detail:
-    `techDecisions` (the recorded architecture reasoning — why ADK, why a
-    tiered model cascade, why voice bypasses the agent loop) and `steps` (how
-    a request flows through it). Use that for "why did he build it that way?"
-    questions; it is the rationale he wrote down, not something to
-    reconstruct. Called with no argument you get every agent, without that
-    detail — so don't pull the whole list when the question is about one.
+    Pass `agent_name` to narrow to one agent AND get its `techDecisions` — the
+    architecture reasoning Gaurav recorded (why ADK, why a tiered model
+    cascade, why voice bypasses the agent loop). Use that for "why did he
+    build it that way?" questions; it is the rationale he wrote down, not
+    something to reconstruct. Called with no argument you get every agent
+    without that detail, so don't pull the whole list to answer about one.
 
     Args:
-        agent_name: Optional case-insensitive substring of an agent's name
-            (e.g. "atlas", "rag"). If None, return all agents in summary form.
+        agent_name: Optional agent name, matched case-insensitively as an
+            exact name or a prefix of at least 3 characters (e.g. "atlas",
+            "pulse"). If None or unmatched, return all agents in summary form.
 
     Returns:
         A list of agent dicts, each: {name, role, status, headline,
         description, value, stack, liveUrl}. When `agent_name` matched, each
-        also carries {techDecisions, steps}.
+        also carries {techDecisions}.
     """
     agents = await corpus_live.get_agents()
     if agent_name:
-        needle = agent_name.lower()
-        matched = [a for a in agents if needle in (a.get("name") or "").lower()]
+        needle = agent_name.strip().lower()
+        # Require a real prefix, not any substring: a one- or two-character
+        # probe used to match several agents at once and return detail for all
+        # of them. Exact name first, then prefix.
+        matched = [a for a in agents if (a.get("name") or "").lower() == needle]
+        if not matched and len(needle) >= 3:
+            matched = [
+                a for a in agents if (a.get("name") or "").lower().startswith(needle)
+            ]
         # An unmatched name is more useful answered from the full list than
         # with an empty result the model has to guess its way out of.
         agents = matched or agents
@@ -360,8 +367,15 @@ async def get_live_agents(agent_name: str | None = None) -> list[dict]:
             # Only on a targeted lookup: carrying the rationale for all four
             # agents is ~4x the payload of the summary list, on a tool that
             # answers plenty of questions that never need it.
+            #
+            # `steps` is deliberately NOT returned. It is the request-flow
+            # narration written for the diagram on the /live-agents/ page, and
+            # it names live endpoint paths, D1 table names, the retention
+            # window, the per-session rate-limit number, and where injection
+            # stripping sits in the pipeline. That is a reconnaissance map, and
+            # none of it helps answer "why did he build it this way?".
+            # `techDecisions` is the part that actually answers that.
             entry["techDecisions"] = a.get("techDecisions", [])
-            entry["steps"] = a.get("steps", [])
         out.append(entry)
     return out
 

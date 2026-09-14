@@ -31,7 +31,7 @@
     {
       "key": "commands",
       "label": "The workflow itself is automated",
-      "detail": "Six slash commands carry a feature end to end. /create-spec scaffolds the spec and the branch, /implement-spec plans and builds it, /ship commits, opens the PR and squash-merges. The repetitive parts stopped being manual early."
+      "detail": "Scaffolding a spec, implementing against it, and getting it reviewed and merged all run as automated workflows rather than by hand. The repetitive parts stopped being manual early, which is most of why the pace held."
     },
     {
       "key": "review",
@@ -48,7 +48,7 @@
     {
       "key": "skills",
       "label": "Eight custom skills",
-      "detail": "Repeatable jobs got promoted into skills: booting the site, updating content safely, troubleshooting a broken deploy, generating an architecture diagram from a repo, drafting a LinkedIn post in his voice, running a goal as a loop until a machine-checkable definition of done passes."
+      "detail": "Jobs he found himself doing over and over got turned into skills, so the knowledge of how to do them correctly lives in the repo instead of in his head. They cover routine operational work and content changes."
     },
     {
       "key": "forked",
@@ -58,13 +58,13 @@
     {
       "key": "docs",
       "label": "Reference docs for the parts that bite",
-      "detail": "Two long-form docs cover the backend and the agents: endpoints, migrations, rate-limit buckets, the audit log schema, and the footguns worth writing down. They exist because the same questions kept coming up."
+      "detail": "Two long-form docs cover the backend and the agents in depth, including the footguns worth writing down. They exist because the same questions kept coming up."
     }
   ],
   "highlights": [
     {
       "label": "A visitor found a hole, so it became a spec",
-      "detail": "Someone asked Atlas to write them a Python function. It did. That turned into a spec that locked the agent's scope down to talking about Gaurav's work rather than doing work, backed by a server-side check that holds even when the prompt is talked around."
+      "detail": "Someone got Atlas to do a coding task for them. That turned into a spec that locked the agent's scope down to talking about Gaurav's work rather than doing work. Found in the wild, fixed properly, written up rather than quietly patched."
     },
     {
       "label": "Cold starts got measured, then escalated",

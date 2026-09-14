@@ -74,8 +74,8 @@
         "why": "The corpus is exposed as on-demand tools reading the live site content, not a per-turn full-corpus dump or a frozen deploy-time snapshot. The model calls only the tool it needs, cutting prompt tokens while staying current with content edits."
       },
       {
-        "tech": "Cloud Run (min-instances=0)",
-        "why": "Zero idle cost. A scheduled ping every five minutes keeps an instance warm, which buys the same latency that minimum instances would charge for."
+        "tech": "Cloud Run (always-on instance)",
+        "why": "The first attempt was zero idle cost plus a scheduled ping to keep an instance warm. That kept failing in practice, so it now runs a permanent minimum instance for a few dollars a month. Cold starts became structurally impossible instead of merely unlikely, and the cheaper option was tried honestly first."
       },
       {
         "tech": "Model Context Protocol (MCP)",
