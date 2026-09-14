@@ -28,6 +28,7 @@ AudioWorklet, and no PCM handling of its own.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import re
@@ -285,7 +286,15 @@ async def speak_text(text: str) -> tuple[str | None, str]:
         return None, ""
 
     try:
-        token = _get_credentials().token
+        # Off-thread on purpose. `_get_credentials` can call `_creds.refresh()`,
+        # a SYNCHRONOUS network round-trip to Google's token endpoint, and ADC
+        # tokens expire roughly hourly. Called inline it blocked the uvicorn
+        # event loop for the whole refresh, stalling every in-flight SSE chat
+        # stream and every other concurrent speak request — not just this one.
+        # The warm route at api.py already wraps this same call in to_thread;
+        # this is the hot path finally doing the same.
+        creds = await asyncio.to_thread(_get_credentials)
+        token = creds.token
     except Exception:
         logger.exception("speak: failed to obtain ADC token")
         return None, ""

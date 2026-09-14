@@ -140,4 +140,22 @@ root_agent = Agent(
 app = App(
     root_agent=root_agent,
     name="app",
+    # NO context_cache_config — this was tried and measured, and it made things
+    # dramatically worse. Enabling ContextCacheConfig(cache_intervals=10,
+    # ttl_seconds=1800, min_tokens=4096) took turn 2 from 13.6s to 34.3s in
+    # production (revision atlas-00042-p6l). The `chat-timing` log line shows
+    # why it was not a generation problem at all:
+    #
+    #   turn=0 latency_ms=5661  ttf_delta_ms=4691  tokens_in=15895 thinking=21 out=164
+    #   turn=1 latency_ms=33838 ttf_delta_ms=32352 tokens_in=17113 thinking=32 out=196
+    #
+    # 32 seconds to the first token while generating 196 output tokens from a
+    # barely-larger prompt. The cost sits before generation: the cached prefix
+    # appears to be rewritten per turn rather than reused, since conversation
+    # history grows and shifts the prefix every time. So every turn pays a
+    # cache WRITE and none of them get a hit.
+    #
+    # Do not re-enable it on the assumption that a static system instruction
+    # makes this a good fit. It is @experimental in this ADK version, and the
+    # numbers above are the measurement, not a guess.
 )
