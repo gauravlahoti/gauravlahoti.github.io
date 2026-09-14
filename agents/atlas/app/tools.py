@@ -33,6 +33,12 @@ log = logging.getLogger(__name__)
 _CORPUS_DIR = Path(__file__).parent / "corpus"
 _RESUME_MD: str = (_CORPUS_DIR / "resume.md").read_text(encoding="utf-8")
 
+# Public site origin, used to resolve the site-relative `href` values in
+# ai-concepts.json into absolute URLs before they reach the model. Deliberately
+# not CORPUS_LIVE_BASE: that may point at localhost during development, and a
+# localhost link in a visible reply would be wrong (and stripped anyway).
+_SITE_BASE = "https://gauravlahoti.dev"
+
 # Live site-stats endpoint (resume-gate Worker). Public, 1h CDN-cached. Returns
 # {"ok": true, "total_conversations": N}. Mirrors profile.json links.agentStatsApi.
 _STATS_URL = os.getenv(
@@ -295,7 +301,7 @@ async def get_certifications() -> list[dict]:
     ]
 
 
-async def get_live_agents() -> list[dict]:
+async def get_live_agents(agent_name: str | None = None) -> list[dict]:
     """Return the production AI agents Gaurav has built and deployed.
 
     Use this for questions about what agents Gaurav has shipped, the agents
@@ -303,11 +309,33 @@ async def get_live_agents() -> list[dict]:
     Agentic RAG). Each entry carries a `liveUrl` — the link to try that agent
     live, when one exists. Cite `liveUrl` verbatim.
 
+    Pass `agent_name` to narrow to one agent AND get its build detail:
+    `techDecisions` (the recorded architecture reasoning — why ADK, why a
+    tiered model cascade, why voice bypasses the agent loop) and `steps` (how
+    a request flows through it). Use that for "why did he build it that way?"
+    questions; it is the rationale he wrote down, not something to
+    reconstruct. Called with no argument you get every agent, without that
+    detail — so don't pull the whole list when the question is about one.
+
+    Args:
+        agent_name: Optional case-insensitive substring of an agent's name
+            (e.g. "atlas", "rag"). If None, return all agents in summary form.
+
     Returns:
         A list of agent dicts, each: {name, role, status, headline,
-        description, value, stack, liveUrl}.
+        description, value, stack, liveUrl}. When `agent_name` matched, each
+        also carries {techDecisions, steps}.
     """
     agents = await corpus_live.get_agents()
+    if agent_name:
+        needle = agent_name.lower()
+        matched = [a for a in agents if needle in (a.get("name") or "").lower()]
+        # An unmatched name is more useful answered from the full list than
+        # with an empty result the model has to guess its way out of.
+        agents = matched or agents
+        detailed = bool(matched)
+    else:
+        detailed = False
     out = []
     for a in agents:
         # The live link is whichever link points off-site to a running demo,
@@ -318,7 +346,7 @@ async def get_live_agents() -> list[dict]:
             if href.startswith("http"):
                 live_url = href
                 break
-        out.append({
+        entry = {
             "name": a.get("name"),
             "role": a.get("role"),
             "status": a.get("status"),
@@ -327,6 +355,87 @@ async def get_live_agents() -> list[dict]:
             "value": a.get("value"),
             "stack": a.get("stack", []),
             "liveUrl": live_url,
+        }
+        if detailed:
+            # Only on a targeted lookup: carrying the rationale for all four
+            # agents is ~4x the payload of the summary list, on a tool that
+            # answers plenty of questions that never need it.
+            entry["techDecisions"] = a.get("techDecisions", [])
+            entry["steps"] = a.get("steps", [])
+        out.append(entry)
+    return out
+
+
+async def get_build_story() -> dict:
+    """Return how this portfolio site and its agents were actually built.
+
+    Use this for any question about how the site was made, what it was built
+    with, the spec-driven workflow behind it, Claude Code, the custom skills
+    and slash commands, or the engineering conventions the project holds
+    itself to. Also use it for "what did Gaurav build with his Anthropic
+    certifications?" — this site and its agent fleet are the answer, and they
+    are his largest public artifact.
+
+    This is Gaurav's own build, so answer with the specifics rather than
+    deflecting. The facts here are checkable against the public repo.
+
+    Gaurav built this, not the agent. Describe it in the third person ("he
+    built it spec-driven"), never as your own work or "my site".
+
+    Returns:
+        A dict with keys: summary (list of sentences), stats (asOf,
+        startedOn, commits, claudeCoAuthored, specs, skills, slashCommands,
+        subagents, claudeMdFiles, buildSteps, npmDependencies), method (list
+        of {key, label, detail} — the workflow), harness (list of
+        {key, label, detail} — the context and tooling layer), highlights
+        (list of {label, detail} — concrete, checkable moments), constraints
+        (list of {label, detail} — the rules the project holds), and
+        sourceUrl (the public repo).
+
+        `stats` counts are accurate as of `asOf`. Date them when you quote
+        them rather than asserting them as current, and never round a count
+        up.
+    """
+    return await corpus_live.get_build_story()
+
+
+async def get_ai_labs() -> list[dict]:
+    """Return the interactive AI Labs that Gaurav built and published.
+
+    These are hands-on visual explainers authored by Gaurav, not third-party
+    content: Model Context Protocol, Agentic RAG, Engineering Loops, and
+    Agent-Ready Web (WebMCP). Call this for questions about the labs, the AI
+    Lab section, or any one of them by name.
+
+    They are Gaurav's work, not the agent's. Describe them in the third
+    person ("the lab Gaurav built"), never as something you made.
+
+    Also call it when a visitor asks for a generic explanation of a topic a
+    lab covers (e.g. "explain MCP"). Answering the generic question is still
+    out of scope, but pointing them at the lab Gaurav built about it is a
+    better reply than a flat decline.
+
+    Each entry carries an absolute `url`. Share it verbatim; never construct
+    or guess a URL on the portfolio domain.
+
+    Returns:
+        A list of lab dicts, each: {id, title, tagline, description, tags,
+        status, url}.
+    """
+    data = await corpus_live.get_ai_concepts()
+    out = []
+    for c in data.get("concepts", []):
+        href = c.get("href", "")
+        out.append({
+            "id": c.get("id"),
+            "title": c.get("title"),
+            "tagline": c.get("tagline"),
+            "description": c.get("description"),
+            "tags": c.get("tags", []),
+            "status": c.get("status"),
+            # Resolved server-side so the model never builds a portfolio URL
+            # itself — the guardrail only lets through paths it recognises.
+            "url": f"{_SITE_BASE}{href}" if href.startswith("/") else href,
         })
     return out
 

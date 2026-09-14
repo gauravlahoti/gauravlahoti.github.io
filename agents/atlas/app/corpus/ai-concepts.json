@@ -1,0 +1,58 @@
+{
+  "intro": {
+    "tag": "// interactive explainers",
+    "title": "AI Lab",
+    "sub": "Hard AI ideas, demystified. Each concept is a hands-on visual you can step through — built to make the abstract click in a couple of minutes."
+  },
+  "concepts": [
+    {
+      "id": "mcp",
+      "num": "01",
+      "status": "LIVE",
+      "title": "Model Context Protocol",
+      "tagline": "The USB-C port for AI",
+      "description": "Why agents needed a standard, how the handshake works, and whether MCP rewrites your backend — a guided six-act walkthrough.",
+      "tags": ["Protocol", "Agents", "Tooling"],
+      "href": "/ai-labs/mcp-lab/",
+      "internal": true,
+      "cta": "Open MCP Lab"
+    },
+    {
+      "id": "rag",
+      "num": "02",
+      "status": "LIVE",
+      "title": "Agentic RAG",
+      "tagline": "Watch retrieval happen in 3D",
+      "description": "Documents become vectors in space, a query lights up its nearest neighbours, hybrid search fuses results, and the model streams a grounded answer — every RAG stage, visualized.",
+      "tags": ["Retrieval", "Embeddings", "Vector space"],
+      "href": "/ai-labs/rag-lab/",
+      "internal": false,
+      "cta": "Open RAG Lab"
+    },
+    {
+      "id": "loops",
+      "num": "03",
+      "status": "LIVE",
+      "title": "Engineering Loops",
+      "tagline": "How agents grew up, in four nested loops",
+      "description": "Prompt, context, harness, loop. Four ways to steer an AI, each one wrapping the last in a bigger loop. Focus a ring or take the guided tour from the center out.",
+      "tags": ["Agents", "Prompting", "Harness"],
+      "href": "/ai-labs/engineering-loops/",
+      "internal": true,
+      "cta": "Open Engineering Loops"
+    },
+    {
+      "id": "webmcp",
+      "num": "04",
+      "status": "LIVE",
+      "title": "Agent-Ready Web",
+      "tagline": "This page talks to agents directly",
+      "description": "Most agents read a website by scraping the screen and guessing. WebMCP lets a page hand the agent real tools instead. This site registers its own, and here you can see them and run them yourself.",
+      "tags": ["WebMCP", "Agents", "Browser"],
+      "href": "/ai-labs/agent-ready/",
+      "internal": true,
+      "cta": "Open Agent-Ready Lab"
+    }
+  ],
+  "teaser": "// more concepts in flight — added as I find better ways to explain them"
+}

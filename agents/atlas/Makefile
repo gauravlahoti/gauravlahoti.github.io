@@ -11,6 +11,8 @@ corpus: ## Refresh the bundled corpus snapshot (offline fallback only — Atlas 
 	cp ../../content/graph.json   app/corpus/graph.json
 	cp ../../content/posts.json   app/corpus/posts.json
 	cp ../../content/agents.json  app/corpus/agents.json
+	cp ../../content/build-story.json  app/corpus/build-story.json
+	cp ../../content/ai-concepts.json  app/corpus/ai-concepts.json
 	@echo "Corpus snapshot refreshed. Atlas reads content live (corpus_live); this snapshot is only the network-failure fallback, so a redeploy is NOT required for content changes."
 
 install: ## Install Python deps (uv sync).

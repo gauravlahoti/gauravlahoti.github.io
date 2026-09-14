@@ -1,6 +1,7 @@
 """Live corpus loader.
 
-Fetches the canonical JSON data (profile, graph, posts) from the public
+Fetches the canonical JSON data (profile, graph, posts, agents, build story,
+AI labs) from the public
 portfolio site with a short TTL cache, so the agent always works against the
 latest content without redeploying. Falls back to the bundled snapshot in
 `app/corpus/` if the network fetch fails or is disabled.
@@ -30,7 +31,14 @@ _TTL = int(os.getenv("CORPUS_LIVE_TTL", "60"))
 _DISABLED = os.getenv("CORPUS_LIVE_OFF") == "1"
 _CORPUS_DIR = Path(__file__).parent / "corpus"
 
-_FILES = ("profile.json", "graph.json", "posts.json", "agents.json")
+_FILES = (
+    "profile.json",
+    "graph.json",
+    "posts.json",
+    "agents.json",
+    "build-story.json",
+    "ai-concepts.json",
+)
 
 _cache: dict[str, Any] = {}
 _cache_ts: dict[str, float] = {}
@@ -99,6 +107,14 @@ async def get_posts() -> list:
 
 async def get_agents() -> list:
     return await _get("agents.json")
+
+
+async def get_build_story() -> dict:
+    return await _get("build-story.json")
+
+
+async def get_ai_concepts() -> dict:
+    return await _get("ai-concepts.json")
 
 
 async def _prime_async() -> None:
