@@ -28,3 +28,8 @@ _site/
 # Claude Code internal tooling.
 .claude/*.lock
 .claude/scheduled_tasks.lock
+
+# Agent working memory: local notes, not project source.
+# Untracked deliberately — security-cost-auditor/ holds an endpoint-to-auth map
+# and an audit findings list, and this repo is public.
+.claude/agent-memory/
