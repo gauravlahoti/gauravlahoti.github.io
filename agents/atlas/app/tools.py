@@ -381,14 +381,19 @@ async def get_live_agents(agent_name: str | None = None) -> list[dict]:
 
 
 async def get_build_story() -> dict:
-    """Return how this portfolio site and its agents were actually built.
+    """Return how this site was built, and what Gaurav built with his Claude certifications.
 
-    Use this for any question about how the site was made, what it was built
-    with, the spec-driven workflow behind it, Claude Code, the custom skills
-    and slash commands, or the engineering conventions the project holds
-    itself to. Also use it for "what did Gaurav build with his Anthropic
-    certifications?" — this site and its agent fleet are the answer, and they
-    are his largest public artifact.
+    Call this for "how was this site made?", "what's it built with?", "how
+    does he work?", and for "what did he build with his Anthropic
+    certifications?" — this site and its agent fleet ARE the answer to that
+    last one, and they are his largest public artifact.
+
+    Also covers the spec-driven workflow behind it, Claude Code, the custom
+    skills and commands, and the engineering conventions the project holds
+    itself to.
+
+    (The first ~200 characters of this docstring are what a tool-selection
+    judge sees, so the two distinct jobs are named up front on purpose.)
 
     This is Gaurav's own build, so answer with the specifics rather than
     deflecting. The facts here are checkable against the public repo.
