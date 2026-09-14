@@ -4,24 +4,11 @@
     "Nothing here is a template. Every feature started as a written spec, got implemented against it, and got reviewed before it shipped.",
     "That is also the honest answer to what he did with the Anthropic certifications. He built this."
   ],
-  "stats": {
-    "asOf": "2026-09-14",
-    "startedOn": "2026-05-01",
-    "commits": 369,
-    "claudeCoAuthored": 339,
-    "specs": 53,
-    "skills": 8,
-    "slashCommands": 6,
-    "subagents": 1,
-    "claudeMdFiles": 8,
-    "buildSteps": 0,
-    "npmDependencies": 0
-  },
   "method": [
     {
       "key": "spec-driven",
       "label": "Every feature ships through a spec",
-      "detail": "53 numbered specs in the repo, one per feature, each with a definition of done. The spec gets written first, then implemented against, then checked. Nothing goes in on a whim."
+      "detail": "A written spec comes first, with a definition of done. Then it gets implemented against that spec, then checked against it. Nothing goes in on a whim."
     },
     {
       "key": "append-only",
@@ -36,29 +23,29 @@
     {
       "key": "review",
       "label": "A reviewer agent gates the work",
-      "detail": "A dedicated code-reviewer subagent checks correctness, style, security and the project's own conventions before anything merges. It keeps persistent notes on the repo, so recurring mistakes get caught by name instead of rediscovered."
+      "detail": "A dedicated reviewer agent checks correctness, style, security and the project's own conventions before anything merges. It keeps persistent notes on the repo, so recurring mistakes get caught by name instead of rediscovered."
     }
   ],
   "harness": [
     {
       "key": "claude-md",
-      "label": "Eight CLAUDE.md files, scoped to their surface",
-      "detail": "One at the root for the project rules, then one each for the agents and the individual labs. Context lives next to the code it describes, so a change to the MCP Lab does not have to load the whole project to make sense."
+      "label": "Project context lives next to the code",
+      "detail": "Each surface carries its own guidance file: one for the project rules overall, then one each for the agents and the individual labs. A change to one lab does not have to load the whole project to make sense."
     },
     {
       "key": "skills",
-      "label": "Eight custom skills",
+      "label": "Repeatable jobs became reusable skills",
       "detail": "Jobs he found himself doing over and over got turned into skills, so the knowledge of how to do them correctly lives in the repo instead of in his head. They cover routine operational work and content changes."
     },
     {
       "key": "forked",
-      "label": "Skills were earned, not designed up front",
-      "detail": "Several skills still carry a line saying which slash command they were forked from. They started as commands, got used enough to be worth hardening, and graduated. The harness grew out of the work rather than ahead of it."
+      "label": "The harness was earned, not designed up front",
+      "detail": "Skills started life as one-off commands, got used enough to be worth hardening, and graduated. The tooling grew out of the work rather than ahead of it."
     },
     {
       "key": "docs",
       "label": "Reference docs for the parts that bite",
-      "detail": "Two long-form docs cover the backend and the agents in depth, including the footguns worth writing down. They exist because the same questions kept coming up."
+      "detail": "Long-form docs cover the backend and the agents in depth, including the footguns worth writing down. They exist because the same questions kept coming up."
     }
   ],
   "highlights": [
@@ -68,18 +55,18 @@
     },
     {
       "label": "Cold starts got measured, then escalated",
-      "detail": "The first fix was a keep-warm ping on a scheduler, chosen to stay on the free tier. It kept failing in practice, so Atlas now runs a minimum instance at about nine dollars a month. The cheaper option was tried honestly before the paid one was accepted."
+      "detail": "The first fix was a keep-warm ping on a scheduler, chosen to stay on the free tier. It kept failing in practice, so the agent now runs a permanent warm instance instead. The cheaper option was tried honestly before the paid one was accepted."
     },
     {
       "label": "Fewer tools beat more tools",
-      "detail": "The site's WebMCP registry started at thirteen definitions. Chrome's own guidance warns that overlapping tools confuse agents, and real adopters cluster at one to four. It got cut to five hand-authored tools."
+      "detail": "The site's agent-facing tool registry started out far too large. Chrome's own guidance warns that overlapping tools confuse agents, and real adopters keep their sets small. It got cut back to a handful of hand-authored tools."
     },
     {
       "label": "A shipped approach got reversed",
       "detail": "One spec synced Atlas's streamed text to its audio clock. A later spec undid exactly that and decoupled them, because the sync made the text feel slower than it was. Both specs are still in the repo."
     },
     {
-      "label": "A 500 got a postmortem",
+      "label": "An outage got a postmortem",
       "detail": "The live stats endpoint started failing because a rollup table had never actually been created by a migration. That got written up as its own spec rather than quietly patched."
     }
   ],

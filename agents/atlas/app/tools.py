@@ -381,14 +381,19 @@ async def get_live_agents(agent_name: str | None = None) -> list[dict]:
 
 
 async def get_build_story() -> dict:
-    """Return how this portfolio site and its agents were actually built.
+    """Return how this site was built, and what Gaurav built with his Claude certifications.
 
-    Use this for any question about how the site was made, what it was built
-    with, the spec-driven workflow behind it, Claude Code, the custom skills
-    and slash commands, or the engineering conventions the project holds
-    itself to. Also use it for "what did Gaurav build with his Anthropic
-    certifications?" — this site and its agent fleet are the answer, and they
-    are his largest public artifact.
+    Call this for "how was this site made?", "what's it built with?", "how
+    does he work?", and for "what did he build with his Anthropic
+    certifications?" — this site and its agent fleet ARE the answer to that
+    last one, and they are his largest public artifact.
+
+    Also covers the spec-driven workflow behind it, Claude Code, the custom
+    skills and commands, and the engineering conventions the project holds
+    itself to.
+
+    (The first ~200 characters of this docstring are what a tool-selection
+    judge sees, so the two distinct jobs are named up front on purpose.)
 
     This is Gaurav's own build, so answer with the specifics rather than
     deflecting. The facts here are checkable against the public repo.
@@ -397,18 +402,18 @@ async def get_build_story() -> dict:
     built it spec-driven"), never as your own work or "my site".
 
     Returns:
-        A dict with keys: summary (list of sentences), stats (asOf,
-        startedOn, commits, claudeCoAuthored, specs, skills, slashCommands,
-        subagents, claudeMdFiles, buildSteps, npmDependencies), method (list
-        of {key, label, detail} — the workflow), harness (list of
+        A dict with keys: summary (list of sentences), method (list of
+        {key, label, detail} — the workflow), harness (list of
         {key, label, detail} — the context and tooling layer), highlights
-        (list of {label, detail} — concrete, checkable moments), constraints
-        (list of {label, detail} — the rules the project holds), and
-        sourceUrl (the public repo).
+        (list of {label, detail} — concrete moments, including the parts that
+        got reversed), constraints (list of {label, detail} — the rules the
+        project holds), and sourceUrl (the public repo).
 
-        `stats` counts are accurate as of `asOf`. Date them when you quote
-        them rather than asserting them as current, and never round a count
-        up.
+        Deliberately carries NO counts, dates or cost figures. How many specs,
+        commits or skills there are is repo telemetry, not portfolio value,
+        and it ages into a false claim the moment anything ships. Answer with
+        the method, never a tally — and never supply a number from your own
+        memory to fill the gap.
     """
     return await corpus_live.get_build_story()
 

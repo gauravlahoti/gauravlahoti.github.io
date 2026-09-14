@@ -16,6 +16,7 @@ Two things here are easy to get subtly wrong and invisible when they break:
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -109,16 +110,8 @@ class TestGetBuildStory:
     @pytest.mark.asyncio
     async def test_returns_the_shape_the_instruction_promises(self) -> None:
         story = await tools.get_build_story()
-        for key in ("summary", "stats", "method", "harness", "highlights", "sourceUrl"):
+        for key in ("summary", "method", "harness", "highlights", "sourceUrl"):
             assert key in story, f"build-story.json is missing {key!r}"
-
-    @pytest.mark.asyncio
-    async def test_stats_are_dated(self) -> None:
-        # Atlas is told to quote these as-of rather than as-live. Without asOf
-        # it has nothing to date them with and will assert a stale count.
-        stats = (await tools.get_build_story())["stats"]
-        assert stats.get("asOf"), "stats must carry an asOf date"
-        assert stats["commits"] > 0
 
     @pytest.mark.asyncio
     async def test_source_url_is_citable(self) -> None:
@@ -192,3 +185,34 @@ class TestBuildStoryIsNotAnInventory:
         blob = json.dumps(await tools.get_build_story()).lower()
         for token in (".claude/", "agent_interactions", "audit log schema", "/api/"):
             assert token not in blob, f"build story still exposes {token!r}"
+
+    @pytest.mark.asyncio
+    async def test_no_stats_block(self) -> None:
+        # Counts are repo telemetry, not portfolio value, and they age into
+        # false claims. The whole block was removed rather than kept fresh.
+        assert "stats" not in await tools.get_build_story()
+
+    @pytest.mark.asyncio
+    async def test_carries_no_counts_dates_or_costs(self) -> None:
+        """No tallies anywhere in the corpus text.
+
+        This is the guard that matters long-term: a later edit adding "eight
+        skills" back would pass every other test here. Counts crept back in
+        twice already — spec 58 wrote a full inventory, spec 59 removed the
+        listing but kept the numbers on the argument that they were "the
+        credibility". They aren't; a count is just a smaller inventory.
+        """
+        story = await tools.get_build_story()
+        story.pop("sourceUrl", None)  # a URL, not a claim
+        blob = json.dumps(story)
+
+        assert not re.search(r"\d", blob), (
+            f"build story contains digits: {re.findall(r'[^,.]*\\d[^,.]*', blob)[:3]}"
+        )
+
+        # Spelled-out tallies: a count word directly qualifying a noun.
+        # Bare "one" is allowed — it's grammatical ("one-off", "One spec"),
+        # not a tally.
+        counts = r"\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|dozens?)\s+\w"
+        found = re.findall(counts, blob, re.I)
+        assert not found, f"build story states a count: {found}"
