@@ -15,6 +15,8 @@ Two things here are easy to get subtly wrong and invisible when they break:
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app import guardrails, tools
@@ -145,10 +147,48 @@ class TestLiveAgentsCarryRationale:
         # unfiltered call cheap.
         for agent in await tools.get_live_agents():
             assert "techDecisions" not in agent
-            assert "steps" not in agent
 
     @pytest.mark.asyncio
     async def test_unmatched_name_falls_back_to_full_list(self) -> None:
         # Better than an empty result the model has to guess its way out of.
         agents = await tools.get_live_agents(agent_name="nonexistent-agent")
         assert len(agents) > 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("probe", ["a", "at", ""])
+    async def test_short_probe_does_not_unlock_detail(self, probe: str) -> None:
+        # A one- or two-character probe used to substring-match several agents
+        # at once and return build detail for all of them. A prefix that short
+        # now falls back to the plain summary list.
+        for agent in await tools.get_live_agents(agent_name=probe):
+            assert "techDecisions" not in agent
+
+    @pytest.mark.asyncio
+    async def test_steps_are_never_returned(self) -> None:
+        # `steps` is the request-flow narration for the diagram page. It names
+        # live endpoint paths, D1 tables, the retention window and the rate
+        # limit — a reconnaissance map that answers no question a visitor
+        # actually asks. It must not reach the model on any code path.
+        for name in (None, "atlas", "pulse", "nope"):
+            for agent in await tools.get_live_agents(agent_name=name):
+                assert "steps" not in agent, name
+
+
+class TestBuildStoryIsNotAnInventory:
+    """The corpus text itself must not read out as a directory listing.
+
+    Prompt rules alone can't hold this: `content/*.json` ships to Pages and is
+    fetchable by URL, so the source text is the real control surface.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_literal_slash_command_names(self) -> None:
+        blob = json.dumps(await tools.get_build_story())
+        for token in ("/create-spec", "/implement-spec", "/ship", "/publish"):
+            assert token not in blob, f"build story still names {token}"
+
+    @pytest.mark.asyncio
+    async def test_no_internal_paths_or_schema_terms(self) -> None:
+        blob = json.dumps(await tools.get_build_story()).lower()
+        for token in (".claude/", "agent_interactions", "audit log schema", "/api/"):
+            assert token not in blob, f"build story still exposes {token!r}"

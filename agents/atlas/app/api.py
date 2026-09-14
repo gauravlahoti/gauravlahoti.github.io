@@ -233,6 +233,28 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]
         return [], [], None, []
 
 
+async def _log_turn(geo_task: asyncio.Task | None, payload: dict[str, Any]) -> None:
+    """Resolve the pending geo lookup, then write the audit row.
+
+    Split out so `lookup_geo` stays off the request's critical path. It is
+    telemetry — country/region/city never feed the model — so it belongs
+    after the SSE stream has closed, not before it opens.
+
+    Never raises: this runs detached, and `log_interaction` already swallows
+    its own errors. A failed geo lookup logs the row without geo rather than
+    losing the row.
+    """
+    if geo_task is not None:
+        try:
+            geo = await geo_task
+        except Exception:
+            geo = None
+        payload["country"] = (geo or {}).get("country")
+        payload["region"] = (geo or {}).get("region")
+        payload["city"] = (geo or {}).get("city")
+    await log_interaction(payload)
+
+
 async def _stream_agent(
     session_id: str,
     user_text: str,
@@ -240,6 +262,7 @@ async def _stream_agent(
     turn_index: int,
     identity: dict[str, str] | None,
     client_meta: dict[str, str],
+    geo_task: asyncio.Task | None = None,
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
@@ -254,6 +277,13 @@ async def _stream_agent(
     )
 
     start = time.monotonic()
+    # Time-to-first-token, split two ways. `latencyMs` alone is whole-turn wall
+    # clock, which can't tell "the model is slow" apart from "our pre-stream
+    # work is slow" — and the widget's stall message is driven purely by how
+    # long the FIRST event takes, not by total duration. Record both so a
+    # latency regression can be attributed instead of guessed at.
+    ttf_thinking_ms: int | None = None
+    ttf_delta_ms: int | None = None
     # user_visible: text actually forwarded to the client (excludes meta block)
     user_visible: list[str] = []
     # pending: holds back chars that might be the start of [[META]]
@@ -434,6 +464,8 @@ async def _stream_agent(
                     # the answer stream and is untouched by this.
                     cleaned = new_thought.replace("[[META]]", "").replace("[[/META]]", "")
                     if cleaned:
+                        if ttf_thinking_ms is None:
+                            ttf_thinking_ms = int((time.monotonic() - start) * 1000)
                         yield _sse({"thinking": cleaned})
 
             if not answer_texts:
@@ -456,6 +488,8 @@ async def _stream_agent(
 
             for chunk in _absorb(new_text):
                 if chunk:
+                    if ttf_delta_ms is None:
+                        ttf_delta_ms = int((time.monotonic() - start) * 1000)
                     yield _sse({"delta": chunk})
 
     except Exception as exc:
@@ -536,9 +570,32 @@ async def _stream_agent(
         _MODEL_CANDIDATES.index(usage["model"]) if usage["model"] in _MODEL_CANDIDATES else None
     )
 
-    # Fire-and-forget audit log after the response is fully streamed.
+    # Time-to-first-token goes to Cloud Logging, not the audit row: the Worker
+    # persists a fixed column set and would silently drop unknown keys, and
+    # adding a D1 column for a diagnostic is more migration than it is worth.
+    # `turn` is here because the whole question is how turn 2+ differs from
+    # turn 1 — the replayed history is what made it slow.
+    logger.info(
+        "chat-timing: turn=%s latency_ms=%d ttf_thinking_ms=%s ttf_delta_ms=%s "
+        "tokens_in=%s thinking=%s out=%s model=%s",
+        turn_index,
+        int((time.monotonic() - start) * 1000),
+        ttf_thinking_ms,
+        ttf_delta_ms,
+        usage["input"],
+        usage["thinkingTokens"],
+        usage["output"],
+        usage["model"],
+    )
+
+    # Fire-and-forget audit log after the response is fully streamed. The geo
+    # lookup is resolved HERE rather than before the stream opens: it is a
+    # third-party HTTP call whose result never reaches the model, so making
+    # every visitor wait on it to see their first token was pure dead time.
+    # It is already bounded (250ms timeout, swallows its own exceptions), and
+    # by this point the client has had `done` for a while.
     asyncio.create_task(
-        log_interaction({
+        _log_turn(geo_task, {
             "sessionId":      session_id,
             "turnIndex":      turn_index,
             "question":       user_text[:4000],
@@ -557,9 +614,6 @@ async def _stream_agent(
             "userAgent":      client_meta.get("ua"),
             "referrer":       client_meta.get("ref"),
             "ip":             client_meta.get("ip_truncated"),
-            "country":        client_meta.get("country"),
-            "region":         client_meta.get("region"),
-            "city":           client_meta.get("city"),
             "agentVersion":   _AGENT_VERSION,
             "citationsCount": len(citations_payload),
             "suggestionsCount": len(suggestions_payload),
@@ -853,14 +907,13 @@ def register_routes(app: FastAPI) -> None:
                 status_code=429, content={"error": msg}
             )
 
-        _, geo = await asyncio.gather(_ensure_session(session_id), geo_task)
+        # Only the session is on the critical path. `geo_task` keeps running in
+        # the background and is awaited by `_log_turn` after the stream closes.
+        await _ensure_session(session_id)
         client_meta = {
             "ip_truncated": _truncate_ip(raw_ip),
             "ua":           (request.headers.get("user-agent") or "")[:500],
             "ref":          (request.headers.get("referer") or "")[:500],
-            "country":      (geo or {}).get("country"),
-            "region":       (geo or {}).get("region"),
-            "city":         (geo or {}).get("city"),
         }
 
         return StreamingResponse(
@@ -870,6 +923,7 @@ def register_routes(app: FastAPI) -> None:
                 turn_index=turn_index,
                 identity=identity,
                 client_meta=client_meta,
+                geo_task=geo_task,
             ),
             media_type="text/event-stream",
             headers={
