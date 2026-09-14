@@ -1,0 +1,97 @@
+{
+  "summary": [
+    "This site is the portfolio piece, not the frame around it. Gaurav built the whole thing, the static site, the Cloudflare backend, and the agents running on it, spec-driven with Claude Code.",
+    "Nothing here is a template. Every feature started as a written spec, got implemented against it, and got reviewed before it shipped.",
+    "That is also the honest answer to what he did with the Anthropic certifications. He built this."
+  ],
+  "stats": {
+    "asOf": "2026-09-14",
+    "startedOn": "2026-05-01",
+    "commits": 369,
+    "claudeCoAuthored": 339,
+    "specs": 53,
+    "skills": 8,
+    "slashCommands": 6,
+    "subagents": 1,
+    "claudeMdFiles": 8,
+    "buildSteps": 0,
+    "npmDependencies": 0
+  },
+  "method": [
+    {
+      "key": "spec-driven",
+      "label": "Every feature ships through a spec",
+      "detail": "53 numbered specs in the repo, one per feature, each with a definition of done. The spec gets written first, then implemented against, then checked. Nothing goes in on a whim."
+    },
+    {
+      "key": "append-only",
+      "label": "Specs are append-only",
+      "detail": "An old spec never gets rewritten to match what happened later. If the approach changes, that is a new spec. The result is a readable trail of why things are the way they are, including the reversals."
+    },
+    {
+      "key": "commands",
+      "label": "The workflow itself is automated",
+      "detail": "Six slash commands carry a feature end to end. /create-spec scaffolds the spec and the branch, /implement-spec plans and builds it, /ship commits, opens the PR and squash-merges. The repetitive parts stopped being manual early."
+    },
+    {
+      "key": "review",
+      "label": "A reviewer agent gates the work",
+      "detail": "A dedicated code-reviewer subagent checks correctness, style, security and the project's own conventions before anything merges. It keeps persistent notes on the repo, so recurring mistakes get caught by name instead of rediscovered."
+    }
+  ],
+  "harness": [
+    {
+      "key": "claude-md",
+      "label": "Eight CLAUDE.md files, scoped to their surface",
+      "detail": "One at the root for the project rules, then one each for the agents and the individual labs. Context lives next to the code it describes, so a change to the MCP Lab does not have to load the whole project to make sense."
+    },
+    {
+      "key": "skills",
+      "label": "Eight custom skills",
+      "detail": "Repeatable jobs got promoted into skills: booting the site, updating content safely, troubleshooting a broken deploy, generating an architecture diagram from a repo, drafting a LinkedIn post in his voice, running a goal as a loop until a machine-checkable definition of done passes."
+    },
+    {
+      "key": "forked",
+      "label": "Skills were earned, not designed up front",
+      "detail": "Several skills still carry a line saying which slash command they were forked from. They started as commands, got used enough to be worth hardening, and graduated. The harness grew out of the work rather than ahead of it."
+    },
+    {
+      "key": "docs",
+      "label": "Reference docs for the parts that bite",
+      "detail": "Two long-form docs cover the backend and the agents: endpoints, migrations, rate-limit buckets, the audit log schema, and the footguns worth writing down. They exist because the same questions kept coming up."
+    }
+  ],
+  "highlights": [
+    {
+      "label": "A visitor found a hole, so it became a spec",
+      "detail": "Someone asked Atlas to write them a Python function. It did. That turned into a spec that locked the agent's scope down to talking about Gaurav's work rather than doing work, backed by a server-side check that holds even when the prompt is talked around."
+    },
+    {
+      "label": "Cold starts got measured, then escalated",
+      "detail": "The first fix was a keep-warm ping on a scheduler, chosen to stay on the free tier. It kept failing in practice, so Atlas now runs a minimum instance at about nine dollars a month. The cheaper option was tried honestly before the paid one was accepted."
+    },
+    {
+      "label": "Fewer tools beat more tools",
+      "detail": "The site's WebMCP registry started at thirteen definitions. Chrome's own guidance warns that overlapping tools confuse agents, and real adopters cluster at one to four. It got cut to five hand-authored tools."
+    },
+    {
+      "label": "A shipped approach got reversed",
+      "detail": "One spec synced Atlas's streamed text to its audio clock. A later spec undid exactly that and decoupled them, because the sync made the text feel slower than it was. Both specs are still in the repo."
+    },
+    {
+      "label": "A 500 got a postmortem",
+      "detail": "The live stats endpoint started failing because a rollup table had never actually been created by a migration. That got written up as its own spec rather than quietly patched."
+    }
+  ],
+  "constraints": [
+    {
+      "label": "No build step, no bundler, no npm",
+      "detail": "Clone the repo, run a static file server, and the site is running. If a feature needs a build step, the rule is to find a simpler approach. It has held for the whole project."
+    },
+    {
+      "label": "Content lives in JSON, never in HTML",
+      "detail": "Everything the site says about Gaurav comes from a handful of JSON files. The agent reads the same files live, so a content edit reaches Atlas without a redeploy."
+    }
+  ],
+  "sourceUrl": "https://github.com/gauravlahoti/gauravlahoti.github.io"
+}

@@ -167,6 +167,41 @@
         "role": "user",
         "parts": [{"text": "How do Google certifications for data engineer pde) and cloud architect (pca) compare?"}]
       }
+    },
+    {
+      "eval_case_id": "build_story",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "How was this site built?"}]
+      }
+    },
+    {
+      "eval_case_id": "certs_to_artifact",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Which Anthropic certifications does Gaurav have, and what did he build with them?"}]
+      }
+    },
+    {
+      "eval_case_id": "ai_labs_list",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What are the AI Labs on this site?"}]
+      }
+    },
+    {
+      "eval_case_id": "generic_explainer_routes_to_lab",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Can you explain what MCP is?"}]
+      }
+    },
+    {
+      "eval_case_id": "agent_tech_decision",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Why did Gaurav build Atlas on ADK?"}]
+      }
     }
   ]
 }

@@ -63,6 +63,8 @@ _tools = [
     portfolio_tools.get_recent_posts,
     portfolio_tools.get_certifications,
     portfolio_tools.get_live_agents,
+    portfolio_tools.get_build_story,
+    portfolio_tools.get_ai_labs,
     portfolio_tools.get_site_stats,
     portfolio_tools.send_resume,
     portfolio_tools.send_note_to_gaurav,

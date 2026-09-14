@@ -77,16 +77,24 @@ _ALLOWED_HOSTS = (
     "learn.microsoft.com", # Microsoft/Azure cert verify
 )
 
-# Defense against the model hallucinating a direct PDF or download path on
-# the portfolio domain (observed: it invented `gauravlahoti.dev/resume.pdf`
-# which doesn't exist). Only the bare root URL is legitimate; any path that
-# looks like a download or a deep link is treated as a hallucination and
-# replaced with a navigation hint.
-_HALLUCINATED_PORTFOLIO_PATH_RE = re.compile(
-    r"https?://(?:www\.)?gauravlahoti\.(?:dev|github\.io)/[^\s<>()\[\]]*"
-    r"(?:\.pdf|/resume|/download|/file)[^\s<>()\[\]]*",
+# Defense against the model hallucinating a path on the portfolio domain
+# (observed: it invented `gauravlahoti.dev/resume.pdf`, which doesn't exist).
+# The host is on _ALLOWED_HOSTS, so the general filter below would happily let
+# any path through — this is the only thing gating them.
+#
+# Deliberately a positive allowlist, not a deny-pattern. The earlier version
+# stripped only paths matching `.pdf|/resume|/download|/file`, which meant every
+# other invented path sailed past. These are the real deep links Atlas is
+# allowed to emit; everything else on the domain is treated as invented.
+_ALLOWED_PORTFOLIO_PATHS = ("/live-agents", "/ai-labs")
+
+_PORTFOLIO_URL_RE = re.compile(
+    r"https?://(?:www\.)?gauravlahoti\.(?:dev|github\.io)(/[^\s<>()\[\]]*)?",
     re.IGNORECASE,
 )
+# A resume-shaped hallucination gets a useful nudge; anything else falls back
+# to the same "(link removed)" the general host filter uses.
+_RESUME_PATH_RE = re.compile(r"\.pdf|/resume|/download|/file", re.IGNORECASE)
 _RESUME_HINT = "(click the Resume button on this page)"
 
 _MAX_USER_CHARS = 1000
@@ -168,10 +176,27 @@ def before_model_callback(
 
 
 def _strip_disallowed_urls(text: str) -> str:
-    # First: catch hallucinated portfolio paths (resume.pdf etc.) before the
-    # general filter would let them through (the host IS allowed, but the
-    # path is fictional).
-    text = _HALLUCINATED_PORTFOLIO_PATH_RE.sub(_RESUME_HINT, text)
+    # First: gate paths on the portfolio domain before the general filter would
+    # wave them through (the host IS allowed, the path may be fictional).
+    def _replace_portfolio(match: re.Match[str]) -> str:
+        url = match.group(0)
+        path = match.group(1) or ""
+        # Same streaming caveat as below: a URL flush against the end of the
+        # chunk may still be growing, and a half-arrived `/ai-labs/mcp-lab/`
+        # must not be judged on its prefix. Re-evaluated on the next chunk.
+        if match.end() == len(text):
+            return url
+        # Bare root, or a same-page anchor like /#insights.
+        if path in ("", "/") or path.startswith("/#"):
+            return url
+        # Prefix match on a path SEGMENT, so "/ai-labs-phishing" doesn't ride
+        # in on "/ai-labs". The path must be the prefix exactly, or continue
+        # with a "/".
+        if any(path == p or path.startswith(p + "/") for p in _ALLOWED_PORTFOLIO_PATHS):
+            return url
+        return _RESUME_HINT if _RESUME_PATH_RE.search(path) else "(link removed)"
+
+    text = _PORTFOLIO_URL_RE.sub(_replace_portfolio, text)
 
     def _replace(match: re.Match[str]) -> str:
         url = match.group(0)
