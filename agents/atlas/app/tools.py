@@ -402,18 +402,18 @@ async def get_build_story() -> dict:
     built it spec-driven"), never as your own work or "my site".
 
     Returns:
-        A dict with keys: summary (list of sentences), stats (asOf,
-        startedOn, commits, claudeCoAuthored, specs, skills, slashCommands,
-        subagents, claudeMdFiles, buildSteps, npmDependencies), method (list
-        of {key, label, detail} — the workflow), harness (list of
+        A dict with keys: summary (list of sentences), method (list of
+        {key, label, detail} — the workflow), harness (list of
         {key, label, detail} — the context and tooling layer), highlights
-        (list of {label, detail} — concrete, checkable moments), constraints
-        (list of {label, detail} — the rules the project holds), and
-        sourceUrl (the public repo).
+        (list of {label, detail} — concrete moments, including the parts that
+        got reversed), constraints (list of {label, detail} — the rules the
+        project holds), and sourceUrl (the public repo).
 
-        `stats` counts are accurate as of `asOf`. Date them when you quote
-        them rather than asserting them as current, and never round a count
-        up.
+        Deliberately carries NO counts, dates or cost figures. How many specs,
+        commits or skills there are is repo telemetry, not portfolio value,
+        and it ages into a false claim the moment anything ships. Answer with
+        the method, never a tally — and never supply a number from your own
+        memory to fill the gap.
     """
     return await corpus_live.get_build_story()
 

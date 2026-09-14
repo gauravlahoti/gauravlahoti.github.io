@@ -36,7 +36,7 @@ python3 -m http.server 5173
 | JS modules | `assets/js/{main,trajectory,hero-graph,cursor,agent-widget}.js` | One module per surface. (`resume-gate.js` deleted 2026-08-09 — the Google Sign-In download gate it powered was retired 2026-06-10; the Resume link goes straight to `/resume.pdf` now.) |
 | Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/live-agents/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
-| Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`, `build-story.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. `build-story.json` is corpus-only (no page renders it) and answers "how was this site built?" via Atlas's `get_build_story` tool; refresh its counts with `node scripts/refresh-build-stats.mjs`. |
+| Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`, `build-story.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. `build-story.json` is corpus-only (no page renders it) and answers "how was this site built?" via Atlas's `get_build_story` tool. It deliberately carries **no counts, dates or cost figures** — spec 61 stripped them as repo telemetry, and a unit test enforces it. |
 | Static media | `assets/img/`, `diagram-icons/`, `agent-portfolio/diagrams/` | Resume PDF, OG image, favicon, badges (`assets/img/`); vendor/cloud logos for architecture art (`diagram-icons/`); per-agent architecture SVGs referenced by `agents.json` → `diagramSvg` (`agent-portfolio/diagrams/`) |
 | Backend | `backend/` | Resume-gate + agent audit log + analytics + GCP cost alerts |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
@@ -74,8 +74,6 @@ Use the exact `google/<id>@default` name, and check the **second** column says `
 ## Standalone scripts (`scripts/`)
 
 `scripts/add-post.mjs` — Node script that fetches Open Graph metadata from a LinkedIn URL and prepends a post entry to `posts.json`. The `/add-post` slash command wraps this. Supports `--print` flag for preview without writing.
-
-`scripts/refresh-build-stats.mjs` — recounts commits, specs, skills, commands and CLAUDE.md files from the repo and rewrites only the `stats` block of `content/build-story.json` (the rest is hand-written prose). Atlas cites those numbers, so refresh them before a deploy that touches the build story. Also supports `--print`. Deliberately not wired into `/publish`.
 
 ## Design system
 

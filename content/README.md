@@ -15,7 +15,7 @@ These files are served as static assets, so they're fetchable in production at
 | `graph.json` | Career knowledge graph — 29 nodes / 52 edges (companies, projects, skills, domains). | Chat agent corpus **only** — not fetched by the frontend. | `/add-project` skill. |
 | `posts.json` | LinkedIn posts shown in the Perspectives section. | `assets/js/posts-list.js`; chat agent corpus; the ambient agent's `post_metrics.py`. | `/add-post` (`scripts/add-post.mjs`). |
 | `agents.json` | Cards + architecture diagrams for the `/live-agents/` page, including per-agent `techDecisions` (the recorded architecture rationale). | `assets/js/agents-page.js`; chat agent corpus. | By hand. |
-| `build-story.json` | How this site and its agents were built: the spec-driven workflow, the skill/command harness, the counts behind it. | Chat agent corpus **only** — no page renders it. | Prose by hand; the `stats` block by `node scripts/refresh-build-stats.mjs`. |
+| `build-story.json` | How this site and its agents were built: the spec-driven workflow and the harness behind it. **No counts, dates or cost figures** — those are repo telemetry, they age into false claims, and a unit test enforces their absence. | Chat agent corpus **only** — no page renders it. | By hand. |
 | `ai-concepts.json` | AI Lab hub cards (MCP, Agentic RAG, Engineering Loops, Agent-Ready Web). | `ai-labs/index.html`; chat agent corpus. | By hand. |
 | `mcp-lab.json`, `engineering-loops.json`, `webmcp-lab.json` | Per-lab page content. | That lab's own JS module only. | By hand. |
 
