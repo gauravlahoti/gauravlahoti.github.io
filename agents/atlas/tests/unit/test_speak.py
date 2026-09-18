@@ -148,3 +148,93 @@ class TestExtractAudio:
     def test_empty_payload_returns_no_audio(self) -> None:
         assert speak._extract_audio({})[0] == b""
         assert speak._extract_audio({"candidates": []})[0] == b""
+
+
+class TestNormalizeEdges:
+    """Edge silence is the seam problem (spec #62).
+
+    A reply is several independently-synthesized clips butted together
+    sample-accurately in the browser. Sample-accurate is not silence-accurate:
+    each clip arrives with whatever lead-in and tail the model emitted, and
+    those stack up into audible dead air at every seam — worse the longer the
+    reply, because a long reply has more seams.
+    """
+
+    @staticmethod
+    def _tone(samples: int, amplitude: int = 8000) -> bytes:
+        # Alternating polarity so it is unambiguously above the noise floor
+        # in both directions, which is what the scanners test.
+        out = bytearray()
+        for i in range(samples):
+            value = amplitude if i % 2 == 0 else -amplitude
+            out += value.to_bytes(2, "little", signed=True)
+        return bytes(out)
+
+    @staticmethod
+    def _silence(samples: int) -> bytes:
+        return b"\x00\x00" * samples
+
+    def _pause_bytes(self, rate: int = speak.DEFAULT_SAMPLE_RATE) -> int:
+        return (rate * speak.SEAM_PAUSE_MS // 1000) * speak.SAMPLE_WIDTH_BYTES
+
+    def _guard_bytes(self, rate: int = speak.DEFAULT_SAMPLE_RATE) -> int:
+        return (rate * speak.LEAD_GUARD_MS // 1000) * speak.SAMPLE_WIDTH_BYTES
+
+    def test_strips_leading_silence_down_to_the_guard(self) -> None:
+        pcm = self._silence(12000) + self._tone(2400)
+        out = speak.normalize_edges(pcm)
+        # Everything before the first audible sample goes except LEAD_GUARD_MS.
+        assert len(out) == self._guard_bytes() + 2400 * 2 + self._pause_bytes()
+
+    def test_keeps_a_guard_so_the_attack_is_not_clipped(self) -> None:
+        # Cutting flush to the first sample above the floor shaves the onset of
+        # a plosive and the word starts mid-consonant.
+        pcm = self._silence(12000) + self._tone(2400)
+        out = speak.normalize_edges(pcm)
+        assert out[: self._guard_bytes()] == b"\x00" * self._guard_bytes()
+
+    def test_normalizes_trailing_silence_to_a_fixed_pause(self) -> None:
+        long_tail = speak.normalize_edges(self._tone(2400) + self._silence(24000))
+        short_tail = speak.normalize_edges(self._tone(2400) + self._silence(120))
+        # Both end up the same length: the model's tail is replaced, not
+        # trimmed to nothing. Chunks break at sentence boundaries, where a
+        # speaker would pause anyway, so removing the pause sounds hurried.
+        assert len(long_tail) == len(short_tail)
+        assert len(long_tail) == 2400 * 2 + self._pause_bytes()
+        assert long_tail[-self._pause_bytes():] == b"\x00" * self._pause_bytes()
+
+    def test_low_level_noise_counts_as_silence(self) -> None:
+        # Model "silence" carries a noise floor; a bare `== 0` test finds
+        # nothing to trim and the whole thing is a no-op in production.
+        noise = b"".join(
+            (40 if i % 2 else -40).to_bytes(2, "little", signed=True)
+            for i in range(6000)
+        )
+        out = speak.normalize_edges(noise + self._tone(2400))
+        assert len(out) < len(noise + self._tone(2400))
+
+    def test_audio_above_the_floor_is_never_cut(self) -> None:
+        body = self._tone(2400)
+        out = speak.normalize_edges(body)
+        assert out.startswith(body)
+
+    def test_entirely_silent_clip_is_returned_unchanged(self) -> None:
+        # Nothing audible means no edges to find. Guessing here would emit a
+        # buffer of the wrong length for the text that produced it.
+        pcm = self._silence(4800)
+        assert speak.normalize_edges(pcm) == pcm
+
+    def test_empty_and_truncated_input_do_not_raise(self) -> None:
+        assert speak.normalize_edges(b"") == b""
+        assert speak.normalize_edges(b"\x01") == b"\x01"
+
+    def test_pause_length_follows_the_sample_rate(self) -> None:
+        out = speak.normalize_edges(self._tone(1000), sample_rate=16000)
+        assert out[-self._pause_bytes(16000):] == b"\x00" * self._pause_bytes(16000)
+
+    def test_output_stays_sample_aligned(self) -> None:
+        # An odd-length buffer would shift every subsequent sample by a byte
+        # and play as noise.
+        for pad in (0, 1, 7, 33):
+            pcm = self._silence(pad) + self._tone(500) + self._silence(pad)
+            assert len(speak.normalize_edges(pcm)) % speak.SAMPLE_WIDTH_BYTES == 0

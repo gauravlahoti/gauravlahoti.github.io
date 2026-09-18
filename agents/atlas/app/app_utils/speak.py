@@ -192,6 +192,74 @@ def pcm_to_wav(pcm: bytes, sample_rate: int = DEFAULT_SAMPLE_RATE) -> bytes:
     return wav_header(len(pcm), sample_rate) + pcm
 
 
+# --- Edge silence ---------------------------------------------------------
+#
+# A reply is spoken as several clips synthesized independently, and the
+# browser butts them together sample-accurately (`nextStartTime` in
+# assets/js/agent-speech.js). Sample-accurate is not the same as
+# silence-accurate: each clip arrives with whatever lead-in and tail the model
+# felt like emitting, and those add up into audible dead air at every seam —
+# worse the longer the reply, because a long reply has more seams.
+#
+# Trailing silence is NORMALIZED rather than removed. Chunks break at sentence
+# boundaries, where a speaker would pause anyway, so cutting the tail to zero
+# makes the delivery sound hurried and clipped. One fixed, predictable pause
+# per seam is the thing to aim for.
+
+# ~1% of full scale. Model "silence" is not digital zero — it carries a low
+# noise floor — so a bare `== 0` test finds nothing to trim.
+SILENCE_PEAK = 320
+
+# Kept in front of the first audible sample. Speech onsets ramp up, and the
+# quietest part of a plosive or fricative sits below the threshold above;
+# cutting flush to it shaves the attack and the word starts mid-consonant.
+LEAD_GUARD_MS = 20
+
+# The pause left at the end of every clip, replacing whatever the model sent.
+SEAM_PAUSE_MS = 120
+
+
+def _first_audible(pcm: bytes) -> int:
+    """Index of the first sample above the noise floor, or -1 if none is."""
+    for i in range(0, len(pcm) - 1, SAMPLE_WIDTH_BYTES):
+        if abs(int.from_bytes(pcm[i:i + 2], "little", signed=True)) > SILENCE_PEAK:
+            return i
+    return -1
+
+
+def _last_audible(pcm: bytes) -> int:
+    """Index of the last sample above the noise floor, or -1 if none is."""
+    for i in range((len(pcm) // SAMPLE_WIDTH_BYTES - 1) * SAMPLE_WIDTH_BYTES,
+                   -1, -SAMPLE_WIDTH_BYTES):
+        if abs(int.from_bytes(pcm[i:i + 2], "little", signed=True)) > SILENCE_PEAK:
+            return i
+    return -1
+
+
+def normalize_edges(pcm: bytes, sample_rate: int = DEFAULT_SAMPLE_RATE) -> bytes:
+    """Trim the model's leading silence and fix the trailing pause at SEAM_PAUSE_MS.
+
+    Returns `pcm` unchanged when it is entirely silence (or too short to hold a
+    sample) — a clip with nothing audible in it has no edges to find, and
+    guessing here would mean emitting a buffer of the wrong length for the
+    text that produced it.
+    """
+    if len(pcm) < SAMPLE_WIDTH_BYTES:
+        return pcm
+    start = _first_audible(pcm)
+    end = _last_audible(pcm)
+    if start < 0 or end < 0:
+        return pcm
+
+    def ms_to_bytes(ms: int) -> int:
+        return (sample_rate * ms // 1000) * SAMPLE_WIDTH_BYTES
+
+    start = max(0, start - ms_to_bytes(LEAD_GUARD_MS))
+    # `end` indexes the sample's first byte; keep the whole sample.
+    body = pcm[start:end + SAMPLE_WIDTH_BYTES]
+    return body + b"\x00" * ms_to_bytes(SEAM_PAUSE_MS)
+
+
 def _sample_rate_from_mime(mime: str) -> int:
     """`audio/L16;codec=pcm;rate=24000` → 24000.
 
@@ -326,10 +394,13 @@ async def speak_text(text: str) -> tuple[str | None, str]:
         logger.warning("speak: %s returned no audio", model_used)
         return None, model_used
 
+    raw_bytes = len(pcm)
+    pcm = normalize_edges(pcm, sample_rate)
     wav_b64 = base64.b64encode(pcm_to_wav(pcm, sample_rate)).decode("ascii")
     logger.info(
-        "speak: model=%s fell_back=%s chars_in=%d rate=%d pcm_bytes=%d duration_ms=%d",
+        "speak: model=%s fell_back=%s chars_in=%d rate=%d pcm_bytes=%d "
+        "raw_pcm_bytes=%d duration_ms=%d",
         model_used, fell_back, len(clean), sample_rate, len(pcm),
-        int((time.monotonic() - start) * 1000),
+        raw_bytes, int((time.monotonic() - start) * 1000),
     )
     return wav_b64, model_used

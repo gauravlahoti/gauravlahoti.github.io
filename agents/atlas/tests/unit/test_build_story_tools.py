@@ -20,7 +20,7 @@ import re
 
 import pytest
 
-from app import guardrails, tools
+from app import corpus_live, guardrails, tools
 
 
 class TestPortfolioPathAllowlist:
@@ -110,15 +110,73 @@ class TestGetBuildStory:
     @pytest.mark.asyncio
     async def test_returns_the_shape_the_instruction_promises(self) -> None:
         story = await tools.get_build_story()
-        for key in ("summary", "method", "harness", "highlights", "sourceUrl"):
-            assert key in story, f"build-story.json is missing {key!r}"
+        for key in ("summary", "sections", "sourceUrl"):
+            assert key in story, f"the bare call is missing {key!r}"
+        assert story["summary"], "summary carries the whole default answer"
+
+    @pytest.mark.asyncio
+    async def test_bare_call_carries_no_detail_prose(self) -> None:
+        # The reason this parameter exists (spec #62). Handed four sections of
+        # {label, detail} at once, the model mirrors that structure straight
+        # into the reply — label becomes a heading, detail becomes a paragraph
+        # — and a 4-sentence answer turns into a ~190-word outline. Long
+        # replies are also what makes the spoken version stutter, since every
+        # extra chunk is another prosody reset and another rate-limited call.
+        story = await tools.get_build_story()
+        for key in ("method", "harness", "highlights", "constraints"):
+            assert key not in story, f"bare call leaked the {key!r} detail"
+
+    @pytest.mark.asyncio
+    async def test_sections_advertise_what_can_be_expanded(self) -> None:
+        # The model needs to know depth is available without fetching it,
+        # or it cannot offer a sensible follow-up.
+        story = await tools.get_build_story()
+        assert set(story["sections"]) == {
+            "method", "harness", "highlights", "constraints",
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "section", ["method", "harness", "highlights", "constraints"]
+    )
+    async def test_named_section_returns_its_items(self, section: str) -> None:
+        story = await tools.get_build_story(section=section)
+        assert story[section], f"{section} came back empty"
+        for item in story[section]:
+            assert item.get("label") and item.get("detail"), item
+        # Still only the one section — asking for depth on the workflow must
+        # not hand back the other three as well.
+        others = {"method", "harness", "highlights", "constraints"} - {section}
+        assert not (others & story.keys())
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("section", ["nonsense", "", "  ", "summary", "sourceUrl"])
+    async def test_unknown_section_falls_back_to_the_summary(self, section: str) -> None:
+        # Same rationale as get_live_agents' unmatched agent_name: a usable
+        # answer beats an empty result the model has to guess its way out of.
+        # "summary"/"sourceUrl" are checked too — they are keys of the result,
+        # not sections, and must not be treated as expandable.
+        story = await tools.get_build_story(section=section)
+        assert story["summary"]
+        for key in ("method", "harness", "highlights", "constraints"):
+            assert key not in story
+
+    @pytest.mark.asyncio
+    async def test_section_is_case_and_whitespace_tolerant(self) -> None:
+        story = await tools.get_build_story(section="  Method ")
+        assert story["method"]
 
     @pytest.mark.asyncio
     async def test_source_url_is_citable(self) -> None:
         # The instruction maps get_build_story to this field for its citation,
-        # so it has to be on the citation host allowlist.
-        story = await tools.get_build_story()
-        assert story["sourceUrl"].startswith("https://github.com/")
+        # so it has to be on the citation host allowlist. Present on every
+        # call shape, because every build-story claim is citable.
+        for story in (
+            await tools.get_build_story(),
+            await tools.get_build_story(section="method"),
+            await tools.get_build_story(section="nope"),
+        ):
+            assert story["sourceUrl"].startswith("https://github.com/")
 
 
 class TestLiveAgentsCarryRationale:
@@ -172,17 +230,22 @@ class TestBuildStoryIsNotAnInventory:
 
     Prompt rules alone can't hold this: `content/*.json` ships to Pages and is
     fetchable by URL, so the source text is the real control surface.
+
+    These read the CORPUS, not `tools.get_build_story()`. Since spec #62 the
+    tool returns only the summary unless a section is named, so scanning its
+    output would quietly stop covering the four detail sections — the tests
+    would still pass while guarding almost nothing.
     """
 
     @pytest.mark.asyncio
     async def test_no_literal_slash_command_names(self) -> None:
-        blob = json.dumps(await tools.get_build_story())
+        blob = json.dumps(await corpus_live.get_build_story())
         for token in ("/create-spec", "/implement-spec", "/ship", "/publish"):
             assert token not in blob, f"build story still names {token}"
 
     @pytest.mark.asyncio
     async def test_no_internal_paths_or_schema_terms(self) -> None:
-        blob = json.dumps(await tools.get_build_story()).lower()
+        blob = json.dumps(await corpus_live.get_build_story()).lower()
         for token in (".claude/", "agent_interactions", "audit log schema", "/api/"):
             assert token not in blob, f"build story still exposes {token!r}"
 
@@ -190,7 +253,17 @@ class TestBuildStoryIsNotAnInventory:
     async def test_no_stats_block(self) -> None:
         # Counts are repo telemetry, not portfolio value, and they age into
         # false claims. The whole block was removed rather than kept fresh.
-        assert "stats" not in await tools.get_build_story()
+        assert "stats" not in await corpus_live.get_build_story()
+
+    @pytest.mark.asyncio
+    async def test_every_section_is_reachable_and_scanned(self) -> None:
+        # Guards the guard: if a section is added to build-story.json and not
+        # to _BUILD_STORY_SECTIONS, it becomes unreachable through the tool
+        # while still shipping to Pages — and the scans below would be the
+        # only thing looking at it.
+        corpus = await corpus_live.get_build_story()
+        extra = set(corpus) - set(tools._BUILD_STORY_SECTIONS) - {"summary", "sourceUrl"}
+        assert not extra, f"build-story.json has sections no tool exposes: {extra}"
 
     @pytest.mark.asyncio
     async def test_carries_no_counts_dates_or_costs(self) -> None:
@@ -202,7 +275,7 @@ class TestBuildStoryIsNotAnInventory:
         listing but kept the numbers on the argument that they were "the
         credibility". They aren't; a count is just a smaller inventory.
         """
-        story = await tools.get_build_story()
+        story = dict(await corpus_live.get_build_story())
         story.pop("sourceUrl", None)  # a URL, not a claim
         blob = json.dumps(story)
 

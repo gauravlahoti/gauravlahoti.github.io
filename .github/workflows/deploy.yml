@@ -36,6 +36,7 @@ jobs:
             --exclude='resend_mcp_server' \
             --exclude='node_modules' \
             --exclude='scripts' \
+            --exclude='tests' \
             --exclude='_site' \
             ./ _site/
 
