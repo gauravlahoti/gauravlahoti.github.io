@@ -2321,7 +2321,17 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     background-clip: padding-box;
 }
 /* Gradient hint shown via JS when content overflows — works on mobile where
-   native overlay scrollbars are invisible by default. */
+   native overlay scrollbars are invisible by default.
+   It is a sticky flex item, so it adds its own height plus one `gap` to the
+   scroll area. That is deliberate (spec 63): those ~52px sit BELOW the last
+   message, so at the bottom of the scroll the fade covers empty space and the
+   final element — usually the CTA — is fully clear of it.
+   What it must never do is appear and disappear while scrolling, which is why
+   syncScrollHint() no longer includes `!atBottom` in the toggle. Removing 52px
+   of content at the exact moment the visitor reaches the bottom shifted
+   everything down by that much, and that jump was half the reported weirdness.
+   Negative margins cannot fix this instead: Chrome does not shrink
+   scrollHeight for a negative end margin, measured at 28px of 52 recovered. */
 .agent-panel-body.has-overflow::after {
     content: '';
     position: sticky;

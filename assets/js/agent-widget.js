@@ -972,8 +972,6 @@ export function initAgentWidget(root, profile, sessionId) {
 
         let errorShown = false;
         let midStreamError = false;
-        let pendingCitations = {};
-        let pendingCta = null;
         let lastUserText = text;
 
         // Per-turn state holders written by SSE callbacks
@@ -1000,7 +998,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     renderThinkingText(thinkingBody, thinkingRaw);
                     const header = latestThoughtHeader(thinkingRaw);
                     if (header && thinkingHint) thinkingHint.textContent = header;
-                    scrollToEnd();
+                    maybeScrollToEnd();
                 },
                 onDelta(delta) {
                     // Spec 57: text is painted the moment it streams, whether
@@ -1118,7 +1116,7 @@ export function initAgentWidget(root, profile, sessionId) {
         note.className = "agent-stopped-note";
         note.textContent = "Stopped.";
         assistantLi.appendChild(note);
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     function appendRetryButton(assistantLi, userText) {
@@ -1133,7 +1131,7 @@ export function initAgentWidget(root, profile, sessionId) {
             sendCurrent();
         });
         assistantLi.appendChild(btn);
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     // ---- DOM helpers -------------------------------------------------------
@@ -1155,7 +1153,7 @@ export function initAgentWidget(root, profile, sessionId) {
         p.textContent = text;
         li.appendChild(p);
         transcript.appendChild(li);
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     function appendAssistantPlaceholder() {
@@ -1200,7 +1198,7 @@ export function initAgentWidget(root, profile, sessionId) {
         p.textContent = "";
         li.appendChild(p);
         transcript.appendChild(li);
-        scrollToEnd();
+        maybeScrollToEnd();
         return li;
     }
 
@@ -1217,7 +1215,7 @@ export function initAgentWidget(root, profile, sessionId) {
             caret.setAttribute("aria-hidden", "true");
             p.appendChild(caret);
         }
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     function removeCaret(li) {
@@ -1310,7 +1308,7 @@ export function initAgentWidget(root, profile, sessionId) {
             row.appendChild(btn);
         });
         assistantLi.appendChild(row);
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     // Spec 56: certification badge art.
@@ -1366,7 +1364,7 @@ export function initAgentWidget(root, profile, sessionId) {
             wrap.appendChild(group);
         }
         assistantLi.appendChild(wrap);
-        scrollToEnd();
+        maybeScrollToEnd();
     }
 
     function buildBadgeTile(c) {
@@ -1413,31 +1411,130 @@ export function initAgentWidget(root, profile, sessionId) {
     function renderCta(assistantLi, cta, agentCopy) {
         const entry = agentCopy?.cta?.[cta];
         if (!entry?.url) return;
+        // Drop an earlier button for the SAME target before adding this one.
+        // The prompt sets cta "linkedin" for availability questions, off-topic
+        // declines and after a note send (instruction.py), so two turns in a
+        // row both offering "Continue on LinkedIn →" is easy to hit and reads
+        // as a rendering bug.
+        //
+        // Matched on target rather than clearing every prior CTA the way
+        // sendCurrent() clears .agent-suggestions: a Topmate button from two
+        // turns back is still a live offer worth keeping, while a second
+        // identical LinkedIn button directly above the new one is only noise.
+        dom.transcript
+            .querySelectorAll(`.agent-cta-action[data-cta="${CSS.escape(cta)}"]`)
+            .forEach((el) => el.remove());
         const btn = document.createElement("a");
         btn.className = "agent-cta-action";
+        btn.dataset.cta = cta;
         btn.href = entry.url;
         btn.target = "_blank";
         btn.rel = "noopener noreferrer";
         btn.textContent = entry.label || "Open →";
         assistantLi.appendChild(btn);
-        scrollToEnd();
+        maybeScrollToEnd();
+    }
+
+    // --- Transcript scroll (spec #63) --------------------------------------
+    //
+    // The panel used to rely on each insertion site remembering to call
+    // scrollToEnd() by hand, and four of the seven end-of-stream paths didn't:
+    // finalizeAssistant (which rebuilds the whole <p> with citation markers and
+    // re-wraps every line), renderCitationList, renderFallbackSource, and the
+    // async showSpeakingIndicator. So the last scroll of a turn ran against the
+    // pre-finalization height and the transcript was left short of its own
+    // bottom — which is also what switched the has-overflow fade on, since that
+    // class means "overflowing AND not at the bottom". The visible symptom was
+    // the CTA looking half-cut and dimmed at the bottom edge.
+    //
+    // Sprinkling three more calls would have fixed that screenshot and broken
+    // again at the next insertion site, which is how it broke in the first
+    // place. A ResizeObserver reacts to the height change itself, so it also
+    // covers what nobody enumerated: the composer growing a line for
+    // "Speaking…", the textarea growing with a long draft, and the mobile
+    // keyboard resizing the panel.
+
+    const AT_BOTTOM_SLOP_PX = 8;
+
+    // True while the visitor is following along at the bottom. Goes false the
+    // moment they scroll up to re-read something, and that is what stops a late
+    // badge or CTA render from yanking the view away from them — the old
+    // scrollToEnd() was unconditional and did exactly that.
+    let stickToBottom = true;
+    // Direction, not a flag. Our own scrollTop writes fire the same scroll
+    // event a human does, and a "we're scrolling programmatically" boolean
+    // cannot be cleared safely: scroll events dispatch asynchronously and
+    // arrive after the next animation frame, so any timer-based guard is a
+    // race. Caught live — a reply that grew once more between the auto-scroll
+    // and its own scroll event read as "not at bottom", cleared the flag, and
+    // the transcript stopped following mid-turn.
+    //
+    // An auto-scroll only ever moves DOWN, so treating "scrolled up" as the
+    // signal to stop following is immune to the ordering entirely.
+    let lastScrollTop = 0;
+
+    function isAtBottom() {
+        const b = dom.body;
+        return b.scrollTop + b.clientHeight >= b.scrollHeight - AT_BOTTOM_SLOP_PX;
     }
 
     function syncScrollHint() {
         const b = dom.body;
-        const overflows = b.scrollHeight > b.clientHeight + 8;
-        const atBottom  = b.scrollTop + b.clientHeight >= b.scrollHeight - 8;
-        b.classList.toggle("has-overflow", overflows && !atBottom);
+        // Measured from the transcript, not from b.scrollHeight, because the
+        // fade this class switches on is itself ~52px of that scrollHeight.
+        // Feeding it back in makes the test self-referential: once shown, the
+        // fade keeps itself shown even after the content shrinks below the
+        // fold.
+        const contentH = dom.transcript ? dom.transcript.scrollHeight : b.scrollHeight;
+        b.classList.toggle("has-overflow", contentH > b.clientHeight);
     }
 
+    function onTranscriptScroll() {
+        const top = dom.body.scrollTop;
+        if (isAtBottom()) {
+            stickToBottom = true;
+        } else if (top < lastScrollTop - 1) {
+            // Moved away from the bottom deliberately. Anything else — growing
+            // content, our own catch-up scrolls — leaves the choice alone.
+            stickToBottom = false;
+        }
+        lastScrollTop = top;
+        syncScrollHint();
+    }
+
+    // Force the view down regardless of where the visitor was. Only correct
+    // when they've just acted — sending a message, or opening the panel.
     function scrollToEnd() {
+        stickToBottom = true;
         requestAnimationFrame(() => {
-            dom.body.scrollTop = dom.body.scrollHeight;
+            // Settle the fade BEFORE scrolling, not after. Switching the class
+            // on adds ~52px to the scroll area, so doing it second left every
+            // auto-scroll exactly that far short of the bottom — the last
+            // element ended up under the fade, which is the bug this is all
+            // about. Reading scrollHeight next forces the reflow.
             syncScrollHint();
+            dom.body.scrollTop = dom.body.scrollHeight;
+            lastScrollTop = dom.body.scrollTop;
         });
     }
 
-    dom.body.addEventListener("scroll", syncScrollHint, { passive: true });
+    // The default. Follows new content only if the visitor hadn't scrolled up.
+    function maybeScrollToEnd() {
+        if (stickToBottom) scrollToEnd();
+        else syncScrollHint();
+    }
+
+    dom.body.addEventListener("scroll", onTranscriptScroll, { passive: true });
+
+    // Observes the scrollport and its content separately: the content grows
+    // when a reply renders, the scrollport shrinks when the composer does.
+    // Both leave the bottom out of view, and neither is an insertion site
+    // anyone would think to annotate.
+    if (typeof ResizeObserver === "function") {
+        const ro = new ResizeObserver(() => maybeScrollToEnd());
+        ro.observe(dom.body);
+        if (dom.transcript) ro.observe(dom.transcript);
+    }
 
     return { open: openPanel, close: closePanel, prefill: prefillComposer, stop: stopStreaming };
 }
