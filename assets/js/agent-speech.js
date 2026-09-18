@@ -45,12 +45,29 @@
 // or consecutive chunks overlap.
 const SPEECH_RATE = 1.1;
 
-// Chunk size ramp, in characters. The first is small so speech starts fast
-// (~1.4s to synthesize); later ones grow because every chunk boundary is a
-// prosody reset — the model synthesizes each in isolation — so fewer, longer
-// chunks sound markedly more natural. Growth stays under the ~1.45x-per-chunk
-// ceiling the starvation rule allows. Capped at the last value.
-const CHUNK_RAMP = [24, 140, 240, 350];
+// Chunk size ramp, in characters. The first is small so speech starts fast;
+// later ones grow because every chunk boundary is a prosody reset — the model
+// synthesizes each in isolation — so fewer, longer chunks sound markedly more
+// natural. Capped at the last value.
+//
+// Spec 62 re-tuned this against the simulation in tests/. The old ramp was
+// [24, 140, 240, 350], and that second step is a 5.8x jump: a 24-char opener
+// plays for ~1.6s while a 140-char follow-up takes ~7.6s to synthesize, so the
+// listener reliably heard the opening words and then four seconds of nothing.
+// It broke the file's own rule, stated above, that chunk N+1 must synthesize
+// faster than chunk N plays.
+//
+// Measured over a ~1,200-char reply (worst gap between consecutive clips):
+//
+//   [24, 140, 240, 350]        first audio 2.75s   worst gap 4.11s
+//   [70, 120, 200, 300, 350]   first audio 3.88s   worst gap 0.83s
+//
+// and with synthesis latency stressed to 1.4x, 6.07s against 2.04s. The trade
+// is ~1.1s more before the first word for the removal of a four-second hole
+// mid-sentence, which is the right way round: text is already on screen the
+// instant it streams (spec 57), so the voice starting a beat later costs the
+// visitor nothing they can see.
+const CHUNK_RAMP = [70, 120, 200, 300, 350];
 
 // How far past a ramp limit we will wait for a *natural* boundary before
 // giving up and breaking on a bare word. Splitting mid-sentence is the one
@@ -64,6 +81,28 @@ const NATURAL_BOUNDARY_SLACK = 1.6;
 // first ramp step or a short opening sentence gets merged into the next one
 // and the fast-start win is lost.
 const CHUNK_MIN = 20;
+
+// The smallest chunk drain() will emit once it has given up on filling one.
+//
+// Without a floor, "emit at the first natural boundary" can mean a 25-char
+// fragment, and that is a trap: a fragment that short plays for ~2s but costs
+// ~1.7s to synthesize, so it barely buys back the runway it needed to be
+// emitted in the first place. The next pass is therefore just as short of
+// runway, emits just as small, and the reply degrades into fragments it can
+// never recover from — audible as the voice stuttering more and more the
+// longer the answer runs. A chunk this size plays for ~9s against ~7.6s of
+// synthesis, which is runway-positive, so degraded mode climbs back out.
+//
+// Does not apply to the opening chunk (whose whole job is the fast start), to
+// the final flush, or when playback has genuinely run dry — there, some audio
+// now beats better audio later.
+//
+// Applied as min(EMIT_FLOOR, limit * EMIT_FLOOR_RATIO) so it stays meaningful
+// low on the ramp. A flat floor above the current limit is not a floor at all:
+// the "buffer has outgrown the limit" escape fires first and lets any fragment
+// through, which is how a 29-char clip landed second in a reply during tuning.
+const EMIT_FLOOR = 140;
+const EMIT_FLOOR_RATIO = 0.6;
 
 // How many chunks may be synthesized ahead of playback. Real-world Vertex
 // latency variance can still starve playback at 2 — bumped to 3 for more
@@ -80,8 +119,15 @@ const START_LEAD_S = 0.06;
 // Measured: text runs at ~13.5 characters per second of synthesized speech.
 const CHARS_PER_SEC_OF_SPEECH = 13.5;
 
-// Synthesis costs ~0.69x the audio duration (measured).
-const SYNTH_RATIO = 0.69;
+// Synthesis cost, as a line rather than a ratio. The two measurements in the
+// header (39 chars -> 2.39s, 171 chars -> 9.26s) fit 0.36 + 0.0521*chars. The
+// old pure-ratio form (chars / 13.5 * 0.69) has no intercept, so it read every
+// chunk as ~0.4-0.5s cheaper than it is and, worse, made a tiny chunk look
+// nearly free. It is not: a 25-char fragment still pays a whole round trip and
+// a whole model invocation. That mispricing is what let drain() ratchet down
+// into a stream of fragments and never climb back out.
+const SYNTH_FIXED_S = 0.36;
+const SYNTH_PER_CHAR_S = 0.0521;
 
 // Safety margin on top of the estimated synthesis time, covering network
 // round-trip, decode, and the model's own variance. Widened from 1.0: real
@@ -107,7 +153,7 @@ const SENTENCE_END_FINAL = new RegExp(`(?<!\\b(?:${ABBREV}))(?<![\\s(][A-Za-z])[
 // boundary splits words in half — "e.g." arriving as "...first, e." made the
 // chunker emit "e." and "g. networking..." as two separate clips. Only once
 // the stream is done is the end of the buffer a real end of sentence.
-function findSplit(text, limit, final) {
+export function findSplit(text, limit, final) {
     const re = final ? SENTENCE_END_FINAL : SENTENCE_END_MID;
     let best = -1;
     re.lastIndex = 0;
@@ -167,6 +213,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
     let seqCounter = 0;
     let nextSeq = 0;
     let inFlight = 0;         // synthesis requests outstanding
+    let inFlightChars = 0;    // characters those requests are carrying
     let producing = false;
     let disposed = false;
     let errored = false;      // one error message per turn, not one per chunk
@@ -320,11 +367,16 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
                 if (!pending.length || inFlight >= LOOKAHEAD) break;
                 const { seq, text } = pending.shift();
                 inFlight += 1;
+                inFlightChars += text.length;
                 // Deliberately not awaited: several may be in flight at once,
                 // which is the point.
                 (async () => {
                     const b64 = await synthesize(text);
                     inFlight -= 1;
+                    // Released here, not after decode: from this point the
+                    // audio is either scheduled (and counted in nextStartTime)
+                    // or failed. Holding it longer would double-count.
+                    inFlightChars -= text.length;
                     if (mine !== generation || disposed) return;
                     let buf = null;
                     if (b64) {
@@ -393,27 +445,38 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         return !pending.length && !inFlight && !sources.size && !decoded.size;
     }
 
-    // Seconds of audio already scheduled but not yet played, plus a rough
-    // estimate for everything still queued or in flight. This is the runway
-    // the producer has to work with. Text runs at ~13.5 characters per second
-    // of speech (measured), and synthesis costs ~0.69x the audio duration.
-    // How long chunk of `chars` will take to synthesize, from the measured
-    // characters-per-second-of-speech and synthesis ratio.
+    // How long a chunk of `chars` takes to synthesize: a fixed per-request
+    // cost plus a per-character one. See the constants for why the intercept
+    // matters more than it looks like it should.
     function synthCostSec(chars) {
-        return (chars / CHARS_PER_SEC_OF_SPEECH) * SYNTH_RATIO;
+        return SYNTH_FIXED_S + chars * SYNTH_PER_CHAR_S;
+    }
+
+    // Seconds of speech `chars` will play for, once synthesized.
+    function playbackSec(chars) {
+        return chars / CHARS_PER_SEC_OF_SPEECH / SPEECH_RATE;
     }
 
     function runwaySec() {
         const scheduledLeft = ctx ? Math.max(0, nextStartTime - ctx.currentTime) : 0;
         let queuedChars = 0;
         pending.forEach((c) => { queuedChars += c.text.length; });
-        // Both terms are wall-clock seconds. `scheduledLeft` already is, since
-        // nextStartTime accumulates rate-adjusted durations; the queued
-        // estimate has to be divided by SPEECH_RATE to match, or runway reads
-        // ~10% longer than it is and drain() waits too long before emitting —
+        // All terms are wall-clock seconds. `scheduledLeft` already is, since
+        // nextStartTime accumulates rate-adjusted durations; the char-based
+        // estimates go through playbackSec() to match, or runway reads ~10%
+        // longer than it is and drain() waits too long before emitting —
         // erring toward starvation, which is the failure this margin exists
         // to prevent.
-        return scheduledLeft + queuedChars / CHARS_PER_SEC_OF_SPEECH / SPEECH_RATE;
+        //
+        // `inFlightChars` is the part this got wrong for two specs (#62). A
+        // chunk that produce() has dispatched is shifted off `pending`, but it
+        // is not decoded either, so it counted for nothing in either term —
+        // and with LOOKAHEAD 3 that is up to three chunks, easily 40s of real
+        // audio, invisible. The estimate therefore read near-zero whenever the
+        // pipeline was busiest, drain() concluded it was about to starve, and
+        // it emitted at the first boundary it could find. That is where the
+        // fragmenting came from: not a tuning problem, an accounting one.
+        return scheduledLeft + playbackSec(queuedChars + inFlightChars);
     }
 
     function drain(final) {
@@ -431,21 +494,39 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
             // starves (a 130-char chunk needs ~6.6s to synthesize while a
             // 47-char opener only plays for 3.5s); emitting alone produces
             // eight short clips where four long ones sound better.
-            // The threshold is the next chunk's own synthesis cost, not a
-            // flat number: waiting to fill a 240-char chunk is only safe if
-            // there is more than ~12s of audio still ahead of it. A constant
-            // either starves on the long chunks or leaves the short ones
-            // needlessly fragmented.
+            // The threshold scales with the next chunk's own synthesis cost,
+            // not a flat number: a constant either starves on the long chunks
+            // or leaves the short ones needlessly fragmented.
             //
-            // This errs towards emitting. More chunks means more seams, but
-            // seams land on sentence boundaries — where a speaker would pause
-            // anyway — while starving means audible dead air, which is the
-            // thing this spec exists to remove. Safety wins.
+            // The predicate itself is unchanged; what changed in spec 62 is
+            // that runwaySec() now counts in-flight audio, so it stops
+            // reporting a famine that was not happening. See runwaySec.
+            //
+            // This still errs towards emitting. More chunks means more seams,
+            // but seams land on sentence boundaries — where a speaker would
+            // pause anyway — while starving means audible dead air, which is
+            // the thing this file exists to remove. Safety wins.
             if (!final && !starving() && buffer.length < limit
                 && runwaySec() > synthCostSec(limit) + RUNWAY_MARGIN_S) break;
 
             const at = findSplit(buffer, limit, final);
             if (at === -1) break;
+
+            // Emitting early is a concession, not a licence to emit anything.
+            // Hold out for an EMIT_FLOOR-sized chunk unless this is the
+            // fast-start opener, the final flush, or the listener is already
+            // sitting in silence — there, waiting costs more than a short clip.
+            //
+            // Tested on `at` rather than buffer.length on purpose: findSplit
+            // returns the LAST sentence end that fits, so a 200-char buffer
+            // whose only boundary sits at char 30 still yields a fragment. And
+            // gated on the buffer still being under the ramp limit, or a run
+            // of text with one early boundary and none after would be held
+            // back forever instead of eventually speaking.
+            const floor = Math.min(EMIT_FLOOR, Math.round(limit * EMIT_FLOOR_RATIO));
+            if (!final && !starving() && chunkIndex > 0
+                && at < floor
+                && buffer.length < Math.round(limit * NATURAL_BOUNDARY_SLACK)) break;
             enqueue(buffer.slice(0, at));
             buffer = buffer.slice(at);
         }
@@ -468,6 +549,7 @@ export function initSpeaker({ apiUrl, sessionId, onStateChange, onError, onPlayi
         nextSeq = 0;
         buffer = "";
         inFlight = 0;
+        inFlightChars = 0;
         scheduledCount = 0;
         nextStartTime = 0;
         announcedPlaying = false;

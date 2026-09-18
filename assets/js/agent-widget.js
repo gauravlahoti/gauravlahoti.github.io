@@ -1749,7 +1749,7 @@ export function buildAgentDiagram(opts) {
         agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
         corpus: ["profile.json · bio, roles, certs", "graph.json · projects", "posts.json · LinkedIn", "fetched live, short-TTL cache"],
         stt:    ["Gemini 3.5 Transcribe", "speech-to-text · mic input", "runs before the agent reasons, outside the ADK loop"],
-        tts:    ["Gemini 3.1 Flash TTS", "text-to-speech · spoken replies", "runs after the reply streams, chunked via Web Audio API"],
+        tts:    ["Gemini 3.1 Flash TTS", "text-to-speech · spoken replies", "synthesizes while the reply is still streaming"],
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
@@ -1802,7 +1802,7 @@ const AGENT_STEPS = [
     ["Speech-to-Text (STT)", "Gemini 3.5 Transcribe turns the recording into text"],
     ["Reasoning", "Gemini 3.7 Flash works out what it needs and what to call"],
     ["Tools", "it reads the live corpus for facts, and calls the MCP server when something needs doing, like emailing the resume"],
-    ["Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS turns the finished reply into speech"],
+    ["Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS speaks the reply in chunks as it arrives, not after it finishes"],
     ["Back to you", "text streams in, audio plays alongside it"],
 ];
 

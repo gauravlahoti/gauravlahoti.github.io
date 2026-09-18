@@ -380,7 +380,13 @@ async def get_live_agents(agent_name: str | None = None) -> list[dict]:
     return out
 
 
-async def get_build_story() -> dict:
+# The detail sections of the build story, in the order they read. Named here
+# rather than derived from the corpus so an unrecognised `section` can be
+# rejected without a fetch, and so the enum the model sees is stable.
+_BUILD_STORY_SECTIONS = ("method", "harness", "highlights", "constraints")
+
+
+async def get_build_story(section: str | None = None) -> dict:
     """Return how this site was built, and what Gaurav built with his Claude certifications.
 
     Call this for "how was this site made?", "what's it built with?", "how
@@ -401,13 +407,27 @@ async def get_build_story() -> dict:
     Gaurav built this, not the agent. Describe it in the third person ("he
     built it spec-driven"), never as your own work or "my site".
 
+    Call it bare first. `summary` answers the common question on its own, and
+    the `sections` list tells you what depth is available if the visitor wants
+    it. Pass `section` only when they ask about one aspect specifically —
+    never call this twice in a turn to reassemble the whole thing.
+
+    Args:
+        section: Optional aspect to expand, one of "method" (the spec-driven
+            workflow), "harness" (the context and tooling layer), "highlights"
+            (concrete moments, including the parts that got reversed), or
+            "constraints" (the rules the project holds itself to). Unmatched
+            or None returns the summary form.
+
     Returns:
-        A dict with keys: summary (list of sentences), method (list of
-        {key, label, detail} — the workflow), harness (list of
-        {key, label, detail} — the context and tooling layer), highlights
-        (list of {label, detail} — concrete moments, including the parts that
-        got reversed), constraints (list of {label, detail} — the rules the
-        project holds), and sourceUrl (the public repo).
+        Bare: {summary (list of sentences), sections (the names above),
+        sourceUrl (the public repo)}. With a matched `section`: the same, plus
+        that section's list of {label, detail} under its own name.
+
+        The full detail is four sections of several items each, which is why
+        it is not returned by default: handed the whole thing, a reply turns
+        into a label-per-heading outline instead of an answer. Two or three
+        points, written as prose, is the answer.
 
         Deliberately carries NO counts, dates or cost figures. How many specs,
         commits or skills there are is repo telemetry, not portfolio value,
@@ -415,7 +435,20 @@ async def get_build_story() -> dict:
         the method, never a tally — and never supply a number from your own
         memory to fill the gap.
     """
-    return await corpus_live.get_build_story()
+    story = await corpus_live.get_build_story()
+    out: dict = {
+        "summary": story.get("summary", []),
+        "sections": list(_BUILD_STORY_SECTIONS),
+        "sourceUrl": story.get("sourceUrl"),
+    }
+    if section:
+        key = section.strip().lower()
+        # An unrecognised section falls back to the summary form rather than
+        # erroring — same rationale as `get_live_agents`'s unmatched name: a
+        # usable answer beats an empty result the model has to escape from.
+        if key in _BUILD_STORY_SECTIONS:
+            out[key] = story.get(key, [])
+    return out
 
 
 async def get_ai_labs() -> list[dict]:

@@ -12,6 +12,22 @@ Static, single-page portfolio for Gaurav Lahoti (Cloud & AI Architect). Dark "AI
 python3 -m http.server 5173
 ```
 
+## Frontend tests
+
+```bash
+node --test 'tests/**/*.test.mjs'   # no npm, no install — Node's built-in runner
+```
+
+(The glob is required. `node --test tests/` tries to load the directory as a
+module and fails.)
+
+`tests/` holds the few frontend behaviours that can't be eyeballed. Currently
+just `agent-speech.chunker.test.mjs`, which drives the real spoken-reply
+producer against a virtual clock to catch starvation and chunk-size decay
+(spec 62) — a bug whose whole signature is a trend over a long reply, so no
+single-call assertion can see it. Zero dependencies, consistent with the
+no-build-step rule. Excluded from the Pages deploy.
+
 ## Slash commands
 
 | Command | Purpose |
@@ -147,6 +163,7 @@ Specs are append-only. Never rewrite an old spec — write a new one. Zero-padde
 - **Spec 37** — Atlas corpus served via ADK Skills (progressive disclosure, replaces bulk corpus injection)
 - **Spec 38** — Agentic RAG Lab — standalone FastAPI agent + 3D vector-space viz (`agents/rag-lab/`, served off-repo)
 - **Spec 45** — WebMCP: this site registers its own agent-callable tools (`assets/js/webmcp.js`), plus the Agent-Ready Web lab that demos them (`ai-labs/agent-ready/`)
+- **Spec 62** — Spoken replies stop stuttering on long answers: `runwaySec()` now counts in-flight synthesis (it was blind to up to 3 chunks of queued audio), the chunk ramp was retuned against a simulation, clip edge silence is normalized server-side, and `get_build_story(section=)` stops handing the model an outline it copies into headings
 
 > The "Learn AI" game (`/learn/`, specs 35–36) was removed from the site. Specs 35–36 retained as history.
 
