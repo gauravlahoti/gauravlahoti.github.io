@@ -73,7 +73,7 @@ _tools = [
 root_agent = Agent(
     name="root_agent",
     # Both primary (gemini-3.7-flash) and fallback (gemini-3.6-flash) are
-    # pinned to Vertex AI on adk-mas-demo for reliable capacity — 3.7-flash
+    # pinned to Vertex AI on adk-deploy-trail for reliable capacity — 3.7-flash
     # was hitting near-constant 503s on the AI Studio free tier in production.
     # The fallback now exists purely for model-availability redundancy, not a
     # different cost tier: on a 429/503 from the primary we transparently

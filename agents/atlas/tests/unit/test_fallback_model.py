@@ -187,8 +187,8 @@ def test_production_model_chain():
     assert root_agent.model.fallback_models == ["gemini-3.6-flash"]
 
 
-def test_primary_pinned_to_vertex_adk_mas_demo():
-    """The primary always runs on Vertex/adk-mas-demo (reliable capacity),
+def test_primary_pinned_to_vertex_adk_deploy_trail():
+    """The primary always runs on Vertex/adk-deploy-trail (reliable capacity),
     regardless of the AI Studio/Vertex-via-ADC choice agent.py makes based on
     ambient env — that ambient config no longer affects any model in the
     cascade, since every candidate now forces the same Vertex backend.
@@ -196,12 +196,12 @@ def test_primary_pinned_to_vertex_adk_mas_demo():
     model = _model()
     client = model.api_client
     assert client.vertexai is True
-    assert client._api_client.project == "adk-mas-demo"
+    assert client._api_client.project == "adk-deploy-trail"
     assert client._api_client.location == "global"
 
 
 def test_fallback_candidate_also_pinned_to_vertex(monkeypatch):
-    """A fallback attempt must ALSO run on Vertex/adk-mas-demo — the fallback
+    """A fallback attempt must ALSO run on Vertex/adk-deploy-trail — the fallback
     exists for model-availability redundancy, not a different (free-tier)
     cost tier, so ambient env (e.g. GEMINI_API_KEY set -> AI Studio) must NOT
     change its backend, unlike a plain, unmodified Gemini(model=name) would.
@@ -210,4 +210,4 @@ def test_fallback_candidate_also_pinned_to_vertex(monkeypatch):
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     fallback_client = FallbackGemini(model=CHAIN[1]).api_client
     assert fallback_client.vertexai is True
-    assert fallback_client._api_client.project == "adk-mas-demo"
+    assert fallback_client._api_client.project == "adk-deploy-trail"

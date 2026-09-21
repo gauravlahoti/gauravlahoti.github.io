@@ -59,7 +59,7 @@ mounted via GCP Secret Manager (see the `deploy` target in `Makefile`).
 
 | Var | Purpose |
 |-----|---------|
-| `GEMINI_API_KEY` | Gemini API key (AI Studio free tier for local dev) |
+| _(no model key)_ | Pulse calls Vertex AI on `adk-deploy-trail` via ADC. Locally, run `gcloud auth application-default login`; in production the Cloud Run service account is used. |
 | `AGENT_LOG_URL` | Worker endpoint `get_recent_interactions` reads Atlas's conversation data through |
 | `AGENT_LOG_TOKEN` | Shared secret for that endpoint |
 | `ALLOW_ORIGINS` | CORS allowlist (comma-separated) — mostly irrelevant here since nothing calls this from a browser |

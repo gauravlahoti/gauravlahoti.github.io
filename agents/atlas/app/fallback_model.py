@@ -1,7 +1,7 @@
 # ruff: noqa
 """Model cascade for the Atlas chat agent.
 
-Both the primary and fallback models run on Vertex AI / `adk-mas-demo` (paid,
+Both the primary and fallback models run on Vertex AI / `adk-deploy-trail` (paid,
 reliable capacity — see `FallbackGemini.api_client`), after the AI Studio
 free tier proved unreliable for gemini-3.7-flash in production (near-100%
 `503 UNAVAILABLE`). The fallback exists purely for model-availability
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # on the AI Studio free tier (near-100% 503 UNAVAILABLE in production logs
 # shortly after launch); this is the same project tests/eval/eval_config.yaml's
 # judge already runs on, for the same free-tier-unreliability reason.
-ATLAS_VERTEX_PROJECT = "adk-mas-demo"
+ATLAS_VERTEX_PROJECT = "adk-deploy-trail"
 ATLAS_VERTEX_LOCATION = "global"
 # Private aliases kept so existing internal references below are untouched.
 _ATLAS_VERTEX_PROJECT = ATLAS_VERTEX_PROJECT
@@ -47,7 +47,7 @@ class FallbackGemini(Gemini):
     """Gemini model that cascades to `fallback_models` on 429/503 errors.
 
     Every model in the chain — `model` (primary) and each entry in
-    `fallback_models` — runs on Vertex AI / `adk-mas-demo`, forced via
+    `fallback_models` — runs on Vertex AI / `adk-deploy-trail`, forced via
     `api_client` below regardless of ambient env config. Fallback candidates
     are built as fresh `FallbackGemini(model=name)` instances (inheriting the
     same forced-Vertex `api_client`) purely for model-availability
@@ -59,7 +59,7 @@ class FallbackGemini(Gemini):
 
     @cached_property
     def api_client(self) -> Client:
-        """Forces this model onto Vertex/adk-mas-demo, mirroring the base
+        """Forces this model onto Vertex/adk-deploy-trail, mirroring the base
         class's own api_client (same retry_options/tracking headers/base_url
         handling) but with a fixed backend instead of one derived from
         ambient env config. Applies to every instance in the cascade —

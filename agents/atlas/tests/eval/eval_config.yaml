@@ -11,8 +11,8 @@
 # custom_function code below calls Gemini directly, fully bypassing the
 # managed evaluation service. Runs local, in the CLI's own process.
 #
-# Grading calls Vertex AI directly on the `adk-mas-demo` GCP project (via
-# ADC, google.genai.Client(vertexai=True, project="adk-mas-demo",
+# Grading calls Vertex AI directly on the `adk-deploy-trail` GCP project (via
+# ADC, google.genai.Client(vertexai=True, project="adk-deploy-trail",
 # location="global")) rather than the AI Studio free-tier API key the agent
 # itself uses. Two prior approaches were tried and ruled out first:
 #   - AI Studio API key: the free tier caps each model at 20
@@ -25,14 +25,14 @@
 #     resource-name resolution rejects even the SDK's own documented
 #     example value, and the built-in tool-use metric returned a flat 0.0
 #     across dissimilar cases despite complete trace data.
-# Vertex billing here is pay-as-you-go against adk-mas-demo's project
+# Vertex billing here is pay-as-you-go against adk-deploy-trail's project
 # credit balance, NOT the same zero-cost daily-quota model as the AI
 # Studio key — low call volume (32/run) should be trivial, but it is a
 # different cost model, not literally free the way AI Studio is.
 # gemini-3.1-flash-lite / gemini-3.6-flash were confirmed reachable on
 # this project only at location="global" (us-central1 404s).
 #
-# UPDATE: the agent under test now ALSO runs on Vertex/adk-mas-demo
+# UPDATE: the agent under test now ALSO runs on Vertex/adk-deploy-trail
 # unconditionally (app/fallback_model.py's FallbackGemini.api_client forces
 # it, ignoring this Makefile target's GEMINI_API_KEY/GOOGLE_GENAI_USE_VERTEXAI
 # env vars) — both gemini-3.7-flash and gemini-3.6-flash proved unreliable
@@ -40,7 +40,7 @@
 # free-tier API key the agent itself uses" framing above is now historical:
 # agent and judge run on the same project, via separate clients, so a
 # `make eval` run's full cost (agent inference + judge grading) now lands
-# on adk-mas-demo rather than being split across AI Studio (agent, free)
+# on adk-deploy-trail rather than being split across AI Studio (agent, free)
 # and Vertex (judge, paid).
 
 metrics_to_run:
@@ -168,7 +168,7 @@ custom_metrics:
           import time, random
           from google import genai
           from google.genai import types as gtypes
-          client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
+          client = genai.Client(vertexai=True, project="adk-deploy-trail", location="global")
           resp = None
           last_exc = None
           # gemini-*-pro-preview has a much lower default Vertex quota than
@@ -283,7 +283,7 @@ custom_metrics:
           import time, random
           from google import genai
           from google.genai import types as gtypes
-          client = genai.Client(vertexai=True, project="adk-mas-demo", location="global")
+          client = genai.Client(vertexai=True, project="adk-deploy-trail", location="global")
           resp = None
           last_exc = None
           # gemini-*-pro-preview has a much lower default Vertex quota than

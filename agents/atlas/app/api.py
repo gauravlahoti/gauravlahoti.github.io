@@ -47,6 +47,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+from google.genai.errors import APIError
 
 from app.agent import root_agent
 from app.app_utils.audit_log import log_interaction
@@ -66,6 +67,28 @@ from app.rate_limit import limiter
 _AGENT_VERSION = os.environ.get("COMMIT_SHA", "dev")
 
 logger = logging.getLogger(__name__)
+
+# Quota exhaustion (429), a model outage (503), and a rejected project or
+# credential (403) all mean the model is unreachable for everyone, not that
+# this one request was malformed. Asking again won't help, so these get a
+# maintenance notice instead of the generic "try that again" copy.
+_MODEL_UNAVAILABLE_CODES = frozenset({403, 429, 503})
+
+_MAINTENANCE_REPLY = (
+    "I'm down for maintenance right now, so I can't answer that one. "
+    "Please check back in a bit. Gaurav's on LinkedIn if it's urgent."
+)
+_GENERIC_ERROR_REPLY = (
+    "Hmm, something went wrong on my end. Mind trying that again? "
+    "Gaurav's on LinkedIn for anything urgent."
+)
+
+
+def _failure_reply(exc: BaseException) -> str:
+    """Maintenance notice when the model is unreachable, generic retry copy otherwise."""
+    if isinstance(exc, APIError) and getattr(exc, "code", None) in _MODEL_UNAVAILABLE_CODES:
+        return _MAINTENANCE_REPLY
+    return _GENERIC_ERROR_REPLY
 
 
 def _model_candidates() -> list[str]:
@@ -496,12 +519,7 @@ async def _stream_agent(
         logger.exception("agent-chat stream failed")
         status = "error"
         error_message = repr(exc)[:500]
-        yield _sse(
-            {
-                "delta": "Hmm, something went wrong on my end. Mind trying "
-                "that again? Gaurav's on LinkedIn for anything urgent."
-            }
-        )
+        yield _sse({"delta": _failure_reply(exc)})
 
     # Flush any remaining safe pending chars (unlikely but defensive).
     if pending and not meta_open:

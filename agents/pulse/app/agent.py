@@ -17,20 +17,20 @@ import os
 
 from google.adk.apps import App
 
-# Auth path is gated on whether GEMINI_API_KEY is set. In production on Cloud
-# Run the key is wired in from Secret Manager via `--secrets` and we use the
-# AI Studio free tier. For local dev with `gcloud auth application-default
-# login`, fall back to Vertex AI. This block runs at import (app/__init__.py
-# imports this module) so the env is set before the agent's first model call.
-if os.getenv("GEMINI_API_KEY"):
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
-else:
-    import google.auth
+# Pulse runs on Vertex AI against `adk-deploy-trail`, the same project Atlas
+# uses, via ADC — in production the Cloud Run service account, locally
+# `gcloud auth application-default login`. It used to prefer an AI Studio key
+# when one was present, but that tier throttles on a shared spend cap and took
+# the digest down with it. The project is pinned rather than read from ADC so a
+# stray local gcloud config can't silently point Pulse somewhere else. This
+# block runs at import (app/__init__.py imports this module) so the env is set
+# before the agent's first model call.
+PULSE_VERTEX_PROJECT = "adk-deploy-trail"
+PULSE_VERTEX_LOCATION = "global"
 
-    _, project_id = google.auth.default()
-    os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
-    os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+os.environ["GOOGLE_CLOUD_PROJECT"] = PULSE_VERTEX_PROJECT
+os.environ["GOOGLE_CLOUD_LOCATION"] = PULSE_VERTEX_LOCATION
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 from app.ambient_agent import ambient_agent
 
