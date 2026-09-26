@@ -199,6 +199,18 @@ plays it (`atlasAvatarGreeted_v1` in `localStorage`). Switching back to
 Avatar later, re-picking it, or reopening the panel goes straight to the idle
 face, like rejoining a call rather than restarting it.
 
+**Stop and Clear, in every mode.** The send button is the one Stop control:
+it shows Stop while a reply streams and also while Atlas is still talking
+afterwards, by voice or as the avatar (the greeting included), and Escape
+does the same. Typing a new question turns it back into Send. A **Clear
+conversation** button (trash icon) appears in the header once there is a
+conversation: it stops everything, empties the transcript, starts a fresh
+server-side session (new `sessionId`, since Atlas keeps history per session)
+and brings back the intro. Clearing mid-answer stops the turn first and
+clears once it has wound down, so late callbacks can't leak into the new
+conversation. Note: after a clear, `agent_interactions.session_id` no longer
+matches the page view's id for that visitor.
+
 **Over the cap, offer Voice for the same question.** A capped avatar turn
 (per-visitor bucket or the daily budget) no longer runs the agent and shows
 the answer as text. The server replies with only

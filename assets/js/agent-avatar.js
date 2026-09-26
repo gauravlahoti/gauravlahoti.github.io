@@ -65,7 +65,9 @@ function b64ToBytes(b64) {
 //                 hush Atlas's TTS voice.
 // opts.onWords  — the greeting's words as they are said, so the widget can
 //                 add them to the transcript like any other answer.
-export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords } = {}) {
+// opts.onState  — "idle" | "listening" | "speaking" on every change, so the
+//                 widget can offer Stop while the face is busy.
+export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords, onState } = {}) {
     const data = await loadData();
     const clip = (data.chapters || []).find((c) => c.autoplay) || (data.chapters || [])[0];
     if (!clip) throw new Error("avatar.json has no greeting clip");
@@ -102,6 +104,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     function setState(state) {
         stage.dataset.state = state;
         tagState.textContent = LABEL[state] || LABEL.idle;
+        if (onState) onState(state);
     }
 
     // "idle" loops a muted clip cut from a live idle session, so the face

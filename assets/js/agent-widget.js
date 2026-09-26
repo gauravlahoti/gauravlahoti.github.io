@@ -55,7 +55,7 @@ function readIdentity() {
     } catch (_) { return null; }
 }
 
-export function initAgentWidget(root, profile, sessionId) {
+export function initAgentWidget(root, profile, pageSessionId) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
@@ -72,6 +72,9 @@ export function initAgentWidget(root, profile, sessionId) {
     // beacon, so page_views.session_id and agent_interactions.session_id can
     // agree on the same visitor journey. Not persisted to localStorage — a
     // fresh id every page load, same as before.
+    // "Clear conversation" starts a new server-side session (Atlas keeps its
+    // history per sessionId), so this is the page's id until then.
+    let sessionId = pageSessionId;
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
     const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
@@ -88,6 +91,7 @@ export function initAgentWidget(root, profile, sessionId) {
     const sendBtn = dom.sendBtn;
     const micBtn = dom.micBtn;
     const speakerBtn = dom.speakerBtn;
+    const clearBtn = dom.clearBtn;
     const voiceStatus = dom.voiceStatus;
     const liveRegion = dom.liveRegion;
     const promptsEl = dom.prompts;
@@ -109,6 +113,8 @@ export function initAgentWidget(root, profile, sessionId) {
     let speakerOn = false;    // visitor's toggle, mirrored to localStorage
     let speakerLoading = false;
     let isSpeaking = false;
+    // Spec 67: the avatar is thinking or talking (a live turn or the greeting).
+    let avatarBusy = false;
     let voiceNoteTimer = null;
     // The assistant message of the turn in flight. The speaker's state
     // callback fires asynchronously and needs to know which message to hang
@@ -357,6 +363,8 @@ export function initAgentWidget(root, profile, sessionId) {
         syncModeSwitch();
         if (!on) {
             if (avatar) { avatar.dispose(); avatar = null; }
+            avatarBusy = false;
+            refreshSendMode();
             return;
         }
         if (avatar) { if (autoplay) avatar.replay(); return; }
@@ -376,6 +384,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     autoplay,
                     onPlay: () => { if (speaker) speaker.cancel(); },
                     onWords: addGreetingWords,
+                    onState: (state) => { avatarBusy = state !== "idle"; refreshSendMode(); },
                 })
                     .then((stage) => {
                         const unmount = () => {
@@ -475,17 +484,23 @@ export function initAgentWidget(root, profile, sessionId) {
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
-            if (isPending) stopStreaming();
+            if (isPending || atlasTalking()) stopStreaming();
             else closePanel();
         }
     });
 
-    // Sets the send button's icon/behaviour. "stop" while a turn is
-    // streaming, "send" otherwise — the button never disables so a visitor
-    // can always cancel.
-    function setSendMode(mode) {
-        sendBtn.dataset.mode = mode;
-        sendBtn.setAttribute("aria-label", mode === "stop" ? "Stop generating" : "Send");
+    // The send button doubles as the one Stop control. It is "stop" while a
+    // turn streams, and also while Atlas is still talking afterwards, by
+    // voice or as the avatar, so there is always a way to cut it off. Typing
+    // a new question turns it back into Send (sending interrupts anyway).
+    function atlasTalking() { return isSpeaking || avatarBusy; }
+    function refreshSendMode() {
+        const hasText = !!(input.value || "").trim();
+        const stop = isPending || (atlasTalking() && !hasText);
+        sendBtn.dataset.mode = stop ? "stop" : "send";
+        const label = !stop ? "Send" : isPending ? "Stop generating" : "Stop Atlas";
+        sendBtn.setAttribute("aria-label", label);
+        sendBtn.title = label;
         updateSendReadiness();
     }
 
@@ -576,6 +591,7 @@ export function initAgentWidget(root, profile, sessionId) {
     // off | on | speaking. "speaking" is a transient sub-state of on.
     function setSpeakerMode(mode) {
         isSpeaking = mode === "speaking";
+        refreshSendMode();
         speakerBtn.dataset.mode = mode;
         speakerBtn.setAttribute("aria-pressed", mode === "off" ? "false" : "true");
         speakerBtn.setAttribute(
@@ -853,7 +869,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function autoGrowInput() {
         input.style.height = "auto";
         input.style.height = input.scrollHeight + "px";
-        updateSendReadiness();
+        refreshSendMode();
     }
 
     // Sets the composer text and focuses it without sending. Shared by the
@@ -1170,7 +1186,7 @@ export function initAgentWidget(root, profile, sessionId) {
         isPending = true;
         wasStopped = false;
         abortController = new AbortController();
-        setSendMode("stop");
+        refreshSendMode();
         if (FEATURES.voiceInput) micBtn.disabled = true;
 
         // Voice is on by default. This used to silence a visitor's whole
@@ -1198,6 +1214,7 @@ export function initAgentWidget(root, profile, sessionId) {
 
         const userLi = appendUser(text);
         messages.push({ role: "user", content: text });
+        syncClearBtn();
 
         const assistant = appendAssistantPlaceholder();
         currentAssistantLi = assistant;
@@ -1433,11 +1450,13 @@ export function initAgentWidget(root, profile, sessionId) {
             // Spec 67: a turn that ended with nothing spoken must never leave
             // its reply hidden.
             if (avatarVoice && !avatarSpoke) dropAvatar();
-            setSendMode("send");
             isPending = false;
             abortController = null;
+            refreshSendMode();
             if (FEATURES.voiceInput) micBtn.disabled = false;
         }
+        if (clearPending) { clearConversation(); return; }
+        syncClearBtn();
         if (cappedReason && !wasStopped) offerModeSwitch(userLi, text, cappedReason);
     }
 
@@ -1481,6 +1500,39 @@ export function initAgentWidget(root, profile, sessionId) {
         asText.addEventListener("click", () => ask("text"));
         voice.focus({ preventScroll: true });
     }
+
+    // Clear conversation: stop whatever Atlas is doing, forget the history on
+    // both sides (a new sessionId is a fresh server-side session), and start
+    // over from the intro. Mid-turn, the turn is stopped first and the clear
+    // runs once it has wound down, so its late callbacks can't write into the
+    // new conversation.
+    let clearPending = false;
+    function clearConversation() {
+        stopStreaming();
+        if (isPending) { clearPending = true; return; }
+        clearPending = false;
+        messages.length = 0;
+        sessionId = newSessionId();
+        currentAssistantLi = null;
+        greetingWordsEl = null;
+        transcript.replaceChildren();
+        clearSpeakingIndicator();
+        input.value = "";
+        autoGrowInput();
+        if (agentIntro?.text) {
+            renderIntroMessage();
+        } else {
+            promptsEl.classList.remove("is-hidden");
+            renderStarters();
+        }
+        syncClearBtn();
+        liveRegion.textContent = "Conversation cleared.";
+        input.focus();
+    }
+    function syncClearBtn() {
+        clearBtn.hidden = messages.length === 0 && !isPending;
+    }
+    clearBtn.addEventListener("click", clearConversation);
 
     function appendStoppedNote(assistantLi) {
         if (assistantLi.querySelector(".agent-stopped-note")) return;
@@ -2453,6 +2505,11 @@ function renderShell(root, agentExplainer) {
                     <path d="M12.5 4a5.5 5.5 0 0 1 0 8"/>
                 </svg>
             </button>
+            <button type="button" class="agent-panel-clear" aria-label="Clear conversation" title="Clear conversation" hidden>
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4.5M6.8 7v4.5M9.2 7v4.5"/>
+                </svg>
+            </button>
             <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 7 V3 H7 M13 9 V13 H9 M3 3 L7 7 M13 13 L9 9"/>
@@ -2493,6 +2550,7 @@ function renderShell(root, agentExplainer) {
     const modeSwitch = head.querySelector(".agent-mode");
     const expandBtn = head.querySelector(".agent-panel-expand");
     const minimizeBtn = head.querySelector(".agent-panel-minimize");
+    const clearBtn = head.querySelector(".agent-panel-clear");
 
     const body = document.createElement("div");
     body.className = "agent-panel-body";
@@ -2616,7 +2674,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, modeSwitch, voiceStatus, liveRegion, foot,
+        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, clearBtn, modeSwitch, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
@@ -2784,6 +2842,16 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 }
 
 // --- SSE streaming ----------------------------------------------------------
+
+// A fresh chat session id (same shape as main.js's page id).
+function newSessionId() {
+    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 
 async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
     let response;
