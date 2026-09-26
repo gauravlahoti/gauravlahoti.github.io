@@ -10,11 +10,11 @@
     "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, have it talk back, or switch to Avatar mode and hear the answer from a live, lip-synced video avatar. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
     "stack": ["Google ADK", "Gemini 3.6 Flash → 3.5 Flash-Lite", "Gemini 3.8 Live Avatar", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
     "diagramSvg": "agent-portfolio/diagrams/chat-agent-v3.svg",
-    "diagramAlt": "Browser mic, speaker, composer and avatar stage talk to Atlas on Cloud Run. The mic and speaker use two plain REST routes that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly. The composer streams over SSE to the ADK Agent, which reasons on Gemini 3.6 Flash with a 3.5 Flash-Lite fallback, calls retrieval tools and the Resend MCP server, and passes every answer through output checks. In Avatar mode a relay on the same route sends the checked answer to Gemini 3.8 Live Avatar and streams the lip-synced video and timed words back on the same SSE stream to the browser's avatar stage.",
+    "diagramAlt": "Browser mic, speaker, composer and avatar stage talk to Atlas on Cloud Run. The mic and speaker use two plain REST routes that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly. The composer streams over SSE to the ADK Agent, which reasons on Gemini 3.6 Flash with a 3.5 Flash-Lite fallback, calls retrieval tools and the Resend MCP server, and passes every answer through output checks. In Avatar mode a relay on the same route sends the checked answer to Gemini 3.8 Live Avatar and streams the lip-synced video and timed words back on the same SSE stream to the browser's avatar stage. Text, Voice and Avatar are alternative paths back, chosen before the question is asked.",
     "steps": [
       {
         "n": 1,
-        "label": "Visitor taps the mic and speaks",
+        "label": "Optionally, the visitor holds the mic and speaks (any mode)",
         "detail": "MediaRecorder captures a clip in the browser, capped at 30 seconds, and posts it to /api/agent-transcribe. Nothing reaches a model until the visitor stops recording."
       },
       {
@@ -25,7 +25,7 @@
       {
         "n": 3,
         "label": "The message opens an SSE stream",
-        "detail": "The browser opens a Server-Sent Events stream to /api/agent-chat on Cloud Run. Questions are rate-limited per session and per IP, and stripped of injection attempts before reaching the ADK runner. In Avatar mode the same request also opens a Gemini 3.8 Live Avatar session in parallel, so the face is live and idling while Atlas thinks."
+        "detail": "The browser opens a Server-Sent Events stream to /api/agent-chat on Cloud Run. Questions are rate-limited per session and per IP, and stripped of injection attempts before reaching the ADK runner. The visitor picked Text, Voice or Avatar before asking, and that choice sets the answer's way back. In Avatar mode the same request also opens a Gemini 3.8 Live Avatar session in parallel, so the face is live and idling while Atlas thinks."
       },
       {
         "n": 4,
@@ -39,27 +39,27 @@
       },
       {
         "n": 6,
-        "label": "The reply streams back with citations",
+        "label": "The answer streams back with citations. In Text mode, that is the whole trip",
         "detail": "Tokens stream through SSE as they are generated. A [[META]] block carries citation URLs and follow-up chip suggestions, which the widget validates and renders as UI. In Avatar mode the same stream also carries the video and the timed words."
       },
       {
         "n": 7,
-        "label": "The browser cuts the reply into sentences and sends them to be spoken",
+        "label": "Voice mode: the browser cuts the reply into sentences and sends them to be spoken",
         "detail": "If the visitor has turned on spoken replies, the widget splits the stream at sentence boundaries and posts each chunk to /api/agent-speak while the rest of the answer is still arriving. Chunk sizes ramp up, so the first words start playing after the first short sentence rather than after the whole answer."
       },
       {
         "n": 8,
-        "label": "Gemini 3.1 Flash TTS returns audio, Web Audio plays it seamlessly",
+        "label": "Voice mode: Gemini 3.1 Flash TTS returns audio, Web Audio plays it seamlessly",
         "detail": "Each chunk comes back as 24 kHz PCM in the Charon voice. The browser decodes it and schedules it on the Web Audio clock at the exact moment the previous chunk ends, so there is no gap between sentences. Up to two syntheses run ahead of playback to keep it that way."
       },
       {
         "n": 9,
-        "label": "In Avatar mode, the checked answer becomes the avatar's script",
-        "detail": "A relay on the chat route sends the finished, checked answer into the already-open Live Avatar session as a script. Sam, a prebuilt avatar with the Puck voice, says it word for word about a second later. Caps keep it affordable: three avatar answers per visitor a day, and a daily speaking budget."
+        "label": "Avatar mode: the checked answer becomes the avatar's script",
+        "detail": "A relay on the chat route sends the finished, checked answer into the Live Avatar session opened back at step 3 as a script. Sam, a prebuilt avatar with the Puck voice, says it word for word about a second later. Caps keep it affordable: three avatar answers per visitor a day, and a daily speaking budget."
       },
       {
         "n": 10,
-        "label": "Lip-synced video and timed words stream back on the same SSE",
+        "label": "Avatar mode: lip-synced video and timed words stream back on the same SSE",
         "detail": "The avatar's fMP4 video fragments and its speech transcription come back through the relay onto the chat's own stream, so the browser needs no second connection. The server reads each fragment's media time and stamps every caption chunk with when its last word is heard. The browser plays the video through MediaSource and lights each word of the transcript as Sam says it."
       }
     ],

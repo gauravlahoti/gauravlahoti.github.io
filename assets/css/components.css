@@ -3377,9 +3377,18 @@ a.agent-badge-tile:focus-visible {
    cyan reads as the path the request actually travels rather than as stray
    highlights. Tool-call edges (grounding/actions) keep the muted default. */
 .ad-edge--key { stroke: var(--accent); opacity: 0.5; }
+/* Spec 67: the answer's way back is a path chosen by the mode. Each mode's
+   path carries its colour (tokens in base.css); tool calls stay muted; the
+   mic input is dashed (only when used) with a fainter typed bypass. */
+.ad-edge--text   { stroke: var(--mode-text);   opacity: 0.6; }
+.ad-edge--voice  { stroke: var(--mode-voice);  opacity: 0.75; }
+.ad-edge--avatar { stroke: var(--mode-avatar); opacity: 0.75; }
+.ad-edge--plain  { stroke: var(--accent); opacity: 0.35; }
+.ad-edge--optional { stroke: var(--accent); opacity: 0.5; stroke-dasharray: 3 3; }
+.ad-edge--bypass   { stroke: var(--ink-subtle); stroke-width: 1; stroke-dasharray: 2 3; }
 
 /* Numbered step markers, keyed to the .ad-legend list below the figure. They
-   light one after another (JS sets animation-delay to n-1 on a 9s cycle), so
+   light one after another (JS sets animation-delay to n-1 on an 8s cycle), so
    the motion traces the route in order instead of pulsing all at once. */
 .ad-step circle {
     fill: var(--bg-card);
@@ -3397,23 +3406,37 @@ a.agent-badge-tile:focus-visible {
     opacity: 0.5;
     transform-box: fill-box;
     transform-origin: center;
-    /* 9s / 8 steps (spec 67), JS staggers animation-delay by n-1 seconds.
-       The two badges sharing step 4 get the same delay, so they light
-       together. One step is ~11% of the cycle. */
-    animation: ad-step-seq 9s ease-in-out infinite;
+    /* 8s / 7 steps (spec 67), JS staggers animation-delay by n-1 seconds.
+       Badges sharing a number (the two tools at 4, the three mode paths at
+       6) get the same delay, so they light together. One step is 12.5% of
+       the cycle. */
+    animation: ad-step-seq 8s ease-in-out infinite;
 }
 @keyframes ad-step-seq {
     0%        { opacity: 0.5; transform: scale(1); }
     2%        { opacity: 1;   transform: scale(1.2); }
-    9%        { opacity: 1;   transform: scale(1.2); }
-    12%, 100% { opacity: 0.5; transform: scale(1); }
+    10%       { opacity: 1;   transform: scale(1.2); }
+    14%, 100% { opacity: 0.5; transform: scale(1); }
 }
+.ad-step--voice circle  { stroke: var(--mode-voice); }
+.ad-step--voice text    { fill: var(--mode-voice); }
+.ad-step--avatar circle { stroke: var(--mode-avatar); }
+.ad-step--avatar text   { fill: var(--mode-avatar); }
+/* Mode tags at the fork: what makes the three 6s read as a choice. */
+.ad-mode-tag rect { fill: var(--bg-card); stroke-width: 1; }
+.ad-mode-tag text { font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.04em; }
+.ad-mode-tag--text rect   { stroke: var(--mode-text); }
+.ad-mode-tag--text text   { fill: var(--mode-text); }
+.ad-mode-tag--voice rect  { stroke: var(--mode-voice); }
+.ad-mode-tag--voice text  { fill: var(--mode-voice); }
+.ad-mode-tag--avatar rect { stroke: var(--mode-avatar); }
+.ad-mode-tag--avatar text { fill: var(--mode-avatar); }
 @media (prefers-reduced-motion: reduce) {
     /* No sequencing; the numerals and the legend still carry the order. */
     .ad-step { animation: none; opacity: 1; }
 }
 
-/* Waveform <-> text strips beside the speech nodes. Same 9s cycle as the step
+/* Waveform <-> text strips beside the speech nodes. Same 8s cycle as the step
    badges, and JS gives each strip its stage's delay, so the conversion plays
    while that number is lit and sits still (drawn, dim) the rest of the time. */
 .ad-xform rect {
@@ -3423,14 +3446,14 @@ a.agent-badge-tile:focus-visible {
 .ad-xform-wave rect {
     transform-origin: center;
     opacity: 0.35;
-    animation: ad-xform-wave 9s ease-in-out infinite;
+    animation: ad-xform-wave 8s ease-in-out infinite;
 }
 .ad-xform-text rect {
     /* Text builds outward from the side facing the waveform, so the two
        halves read as one left-to-right transform in each direction. */
     transform-origin: left center;
     opacity: 0.35;
-    animation: ad-xform-text 9s ease-in-out infinite;
+    animation: ad-xform-text 8s ease-in-out infinite;
 }
 .ad-xform--to-voice .ad-xform-text rect { transform-origin: right center; }
 /* The "becomes" cue between the two halves. */
@@ -3441,39 +3464,44 @@ a.agent-badge-tile:focus-visible {
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0.35;
-    animation: ad-xform-arrow 9s ease-in-out infinite;
+    animation: ad-xform-arrow 8s ease-in-out infinite;
 }
 @keyframes ad-xform-arrow {
     0%, 100% { opacity: 0.35; }
     4%       { opacity: 1; }
-    11%      { opacity: 1; }
-    15%      { opacity: 0.35; }
+    12%      { opacity: 1; }
+    17%      { opacity: 0.35; }
 }
 @keyframes ad-xform-wave {
     0%,  100% { opacity: 0.35; transform: scaleY(0.55); }
-    2%        { opacity: 1;    transform: scaleY(1); }
-    7%        { opacity: 1;    transform: scaleY(0.7); }
-    12%       { opacity: 0.35; transform: scaleY(0.55); }
+    3%        { opacity: 1;    transform: scaleY(1); }
+    8%        { opacity: 1;    transform: scaleY(0.7); }
+    14%       { opacity: 0.35; transform: scaleY(0.55); }
 }
 @keyframes ad-xform-text {
     0%,  100% { opacity: 0.35; transform: scaleX(1); }
-    2%        { opacity: 0.35; transform: scaleX(0); }
-    9%        { opacity: 1;    transform: scaleX(1); }
-    14%       { opacity: 0.6;  transform: scaleX(1); }
+    3%        { opacity: 0.35; transform: scaleX(0); }
+    10%       { opacity: 1;    transform: scaleX(1); }
+    16%       { opacity: 0.6;  transform: scaleX(1); }
 }
+/* The spoken paths' strips wear their mode colour too. */
+.ad-xform--to-voice rect { fill: var(--mode-voice); }
+.ad-xform--to-voice .ad-xform-arrow { stroke: var(--mode-voice); }
+.ad-xform--to-video .ad-xform-text rect { fill: var(--mode-avatar); }
+.ad-xform--to-video .ad-xform-arrow { stroke: var(--mode-avatar); }
 /* Spec 67: the Live Avatar's strip ends in a video frame with a face that
    comes up while step 7 is lit. */
 .ad-xform-video rect,
 .ad-xform-video circle,
 .ad-xform-video path {
     fill: none;
-    stroke: var(--accent);
+    stroke: var(--mode-avatar);
     stroke-width: 1.3;
     stroke-linecap: round;
 }
 .ad-xform-video {
     opacity: 0.35;
-    animation: ad-xform-arrow 9s ease-in-out infinite;
+    animation: ad-xform-arrow 8s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
     /* Both halves stay drawn and legible; only the conversion motion goes. */
@@ -3510,6 +3538,11 @@ a.agent-badge-tile:focus-visible {
    with the accent stages for attention. */
 .ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
 .ad-node--you rect { stroke: var(--ink-muted); stroke-dasharray: 3 2; }
+/* Spec 67: the two spoken paths' models wear their mode's colour. */
+.ad-node--voice rect { stroke: var(--mode-voice); }
+.ad-node--voice .ad-node-name { fill: var(--mode-voice); }
+.ad-node--avatar rect { stroke: var(--mode-avatar); }
+.ad-node--avatar .ad-node-name { fill: var(--mode-avatar); }
 /* Spec 67: the gate every answer passes. Accent outline, plain name. */
 .ad-node--checks rect { stroke: var(--accent); stroke-dasharray: 4 2; }
 .ad-check path {

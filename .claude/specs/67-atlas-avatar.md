@@ -414,6 +414,24 @@ Flash, a voice-only speech path):
   output checks in code, word timing from the video), `traits` and alt text
   match. The first-word figure is the measured scorecard median (~3 s).
 
+## Review round: modes are paths, not steps
+
+Gaurav caught that numbering Voice 6 and Avatar 7 read as a sequence. The
+mode is picked BEFORE the question, and after the output checks exactly one
+of three paths runs. Both views now say so:
+- **Inside Atlas**: seven steps. The three mode paths all carry step 6
+  (the same convention as the two tools sharing 4), each in its mode's
+  colour (`--mode-text`/`--mode-voice`/`--mode-avatar`) with a small mode
+  tag at the fork. Speech-to-text is shown as optional input: a dashed edge,
+  "mic only", and a faint typed bypass over it. Voice's TTS is described as
+  browser-driven (a sentence at a time), and the avatar session as opened
+  when the question is asked. 8 s badge cycle.
+- **Deep Dive**: the voice-out lanes are violet with a "Voice mode only"
+  chip, the avatar lanes magenta with "Avatar only", and their travellers
+  play in the same window instead of one after the other. Steps 7-8 and
+  9-10 are labelled "Voice mode:" and "Avatar mode:", step 6 says Text mode
+  ends there, and step 1 says the mic is optional in any mode.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

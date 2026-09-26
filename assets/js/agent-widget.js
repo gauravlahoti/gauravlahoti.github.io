@@ -2129,56 +2129,54 @@ export function buildAgentDiagram(opts) {
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // A loop that starts and ends with You: ask (1) -> speech to text (2) ->
-    // the agent reasons (3) and calls its tools (4) -> every answer passes the
-    // output checks (5) -> it is spoken by TTS in Voice mode (6) or by the
-    // Live Avatar in Avatar mode (7) -> and it comes back to you (8), with
-    // text streaming straight back in every mode.
-    // Nothing is written on the connectors: every stage word lives in a node's
-    // sub-label, its tooltip, or the numbered legend under the figure.
-    // Desktop: main row at y=140 (You, STT, Agent, Output checks); reasoning
-    // above the Agent, corpus and MCP below it; TTS and Live Avatar stacked in
-    // a right column; the return path runs down the right corridor (x=626)
-    // and along the bottom (y=284) back up into You. Mobile: a vertical spine
-    // at x=96 that splits into TTS and Live Avatar under Output checks, with
-    // the return path in the left corridor (x=18), as before.
+    // Spec 67: the answer's way back is a PATH chosen by the mode, not a
+    // sequence of stages. The visitor picks Text, Voice or Avatar before
+    // asking (1); speech-to-text runs only when they use the mic (2, dashed,
+    // with a typed bypass); the agent reasons (3) and calls tools (4); every
+    // answer passes the output checks (5); then exactly ONE of three paths
+    // runs (6, colour-coded by mode, all numbered 6 because they are
+    // alternatives, the same way Corpus and MCP share 4); and it comes back
+    // to you (7). Nothing is written on the connectors except the tiny mode
+    // tags at the fork, which is what makes the fork read as a choice.
     const edges = mobile ? [
-        { d: "M 96 36 L 96 66" },                 // 1 You -> STT
-        { d: "M 96 108 L 96 138" },               // 2 STT -> Agent
-        { d: "M 152 155 L 180 155" },             // 3 Agent -> reasoning
-        { d: "M 152 160 L 180 207" },             // 4 Agent -> corpus
-        { d: "M 152 166 L 180 255" },             // 4 Agent -> MCP
-        { d: "M 96 172 L 96 214" },               // 5 Agent -> Output checks
-        { d: "M 86 248 L 86 310" },               // 6 checks -> TTS
-        { d: "M 110 248 L 110 286 L 226 286 L 226 310" }, // 7 checks -> Live Avatar
-        // 8 back to you: checks (text), TTS and Avatar all join the corridor.
-        { d: "M 40 231 L 18 231" },
+        { d: "M 96 36 L 96 66", cls: "ad-edge--optional" },     // 1 You -> STT (mic only)
+        { d: "M 152 21 L 168 21 L 168 146 L 152 146", cls: "ad-edge--bypass" }, // typed: skips STT
+        { d: "M 96 108 L 96 138" },                              // 2 STT -> Agent
+        { d: "M 152 155 L 180 155" },                            // 3 Agent -> reasoning
+        { d: "M 152 160 L 180 207", cls: "ad-edge--plain" },     // 4 Agent -> corpus
+        { d: "M 152 166 L 180 255", cls: "ad-edge--plain" },     // 4 Agent -> MCP
+        { d: "M 96 172 L 96 214" },                              // 5 Agent -> Output checks
+        { d: "M 60 248 L 60 272 L 18 272", cls: "ad-edge--text" },           // 6 Text
+        { d: "M 86 248 L 86 310", cls: "ad-edge--voice" },                    // 6 Voice
+        { d: "M 110 248 L 110 286 L 226 286 L 226 310", cls: "ad-edge--avatar" }, // 6 Avatar
+        // 7 back to you: all three paths join the left corridor.
         { d: "M 30 331 L 18 331" },
         { d: "M 282 331 L 290 331 L 290 392 L 18 392 L 18 21 L 40 21" },
     ] : [
-        { d: "M 96 140 L 126 140" },              // 1 You -> STT
-        { d: "M 234 140 L 264 140" },             // 2 STT -> Agent
-        { d: "M 310 118 L 310 68" },              // 3 Agent -> reasoning
-        { d: "M 292 162 L 266 208" },             // 4 Agent -> corpus
-        { d: "M 328 162 L 362 208" },             // 4 Agent -> MCP
-        { d: "M 356 140 L 388 140" },             // 5 Agent -> Output checks
-        { d: "M 496 130 L 506 130 L 506 68 L 520 68" },   // 6 checks -> TTS
-        { d: "M 496 150 L 506 150 L 506 212 L 520 212" }, // 7 checks -> Live Avatar
-        // 8 back to you: TTS and Avatar via the right corridor, text straight
-        // down from Output checks, all along the bottom and up into You.
+        { d: "M 96 140 L 126 140", cls: "ad-edge--optional" },  // 1 You -> STT (mic only)
+        { d: "M 58 118 L 58 102 L 296 102 L 296 118", cls: "ad-edge--bypass" }, // typed: skips STT
+        { d: "M 234 140 L 264 140" },                            // 2 STT -> Agent
+        { d: "M 310 118 L 310 68" },                             // 3 Agent -> reasoning
+        { d: "M 292 162 L 266 208", cls: "ad-edge--plain" },     // 4 Agent -> corpus
+        { d: "M 328 162 L 362 208", cls: "ad-edge--plain" },     // 4 Agent -> MCP
+        { d: "M 356 140 L 388 140" },                            // 5 Agent -> Output checks
+        { d: "M 442 162 L 442 284", cls: "ad-edge--text" },                          // 6 Text
+        { d: "M 496 130 L 506 130 L 506 68 L 520 68", cls: "ad-edge--voice" },       // 6 Voice
+        { d: "M 496 150 L 506 150 L 506 212 L 520 212", cls: "ad-edge--avatar" },    // 6 Avatar
+        // 7 back to you: all three paths meet on the bottom line.
         { d: "M 612 68 L 626 68 L 626 284 L 58 284 L 58 162" },
         { d: "M 612 212 L 626 212" },
-        { d: "M 442 162 L 442 284" },
     ];
-    edges.forEach(({ d }) => {
-        svg.appendChild(el("path", { class: "ad-edge ad-edge--key", d }));
+    edges.forEach(({ d, cls }) => {
+        svg.appendChild(el("path", { class: cls ? `ad-edge ${cls}` : "ad-edge ad-edge--key", d }));
     });
 
     // Numbered markers keyed to the legend below the figure. They light one
-    // after another (delay = n-1 on a 9s cycle) so the animation traces the
-    // route in order rather than pulsing everything at once.
-    const step = (n, cx, cy) => {
-        const g = el("g", { class: "ad-step" });
+    // after another (delay = n-1 on an 8s cycle) so the animation traces the
+    // route in order rather than pulsing everything at once. A marker can
+    // carry a mode, which colours it like its path.
+    const step = (n, cx, cy, mode) => {
+        const g = el("g", { class: mode ? `ad-step ad-step--${mode}` : "ad-step" });
         g.appendChild(el("circle", { cx: String(cx), cy: String(cy), r: "8" }));
         const t = el("text", { x: String(cx), y: String(cy + 3), "text-anchor": "middle" });
         t.textContent = String(n);
@@ -2186,19 +2184,33 @@ export function buildAgentDiagram(opts) {
         if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
         return g;
     };
-    // Corpus and MCP deliberately SHARE step 4: the model calls tools as one
-    // step, and they're alternatives rather than a sequence. Sharing the
-    // number means both badges light together, which is the intent.
+    // A small pill naming a mode at the start of its path.
+    const modeTag = (x, y, label, mode) => {
+        const g = el("g", { class: `ad-mode-tag ad-mode-tag--${mode}` });
+        const w = label.length * 4.6 + 8;
+        g.appendChild(el("rect", { x: String(x), y: String(y), width: String(w), height: "11", rx: "5.5" }));
+        const t = el("text", { x: String(x + w / 2), y: String(y + 8), "text-anchor": "middle" });
+        t.textContent = label;
+        g.appendChild(t);
+        return g;
+    };
+    // Corpus and MCP SHARE step 4 (alternative tools), and the three mode
+    // paths SHARE step 6 (exactly one runs): shared numbers light together.
     const steps = mobile
         ? [[1, 96, 51], [2, 96, 123], [3, 166, 155], [4, 166, 183], [4, 165, 207],
-           [5, 96, 193], [6, 86, 279], [7, 168, 286], [8, 18, 160]]
+           [5, 96, 193], [6, 39, 272, "text"], [6, 86, 279, "voice"], [6, 168, 286, "avatar"], [7, 18, 160]]
         : [[1, 111, 140], [2, 249, 140], [3, 310, 93], [4, 280, 183], [4, 343, 183],
-           [5, 372, 140], [6, 506, 100], [7, 506, 181], [8, 58, 223]];
-    steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
+           [5, 372, 140], [6, 442, 200, "text"], [6, 506, 100, "voice"], [6, 506, 181, "avatar"], [7, 58, 223]];
+    steps.forEach(([n, cx, cy, mode]) => svg.appendChild(step(n, cx, cy, mode)));
+    const tags = mobile
+        ? [[24, 283, "Text", "text"], [92, 256, "Voice", "voice"], [180, 292, "Avatar", "avatar"]]
+        : [[450, 214, "Text", "text"], [514, 108, "Voice", "voice"], [514, 166, "Avatar", "avatar"]];
+    tags.forEach(([x, y, label, mode]) => svg.appendChild(modeTag(x, y, label, mode)));
+
 
     // A waveform converting into text lines (or the reverse), shown beside the
     // speech nodes so they say what they do, not just which model does it.
-    // `step` ties it to that stage's badge: same 9s cycle, same delay, so the
+    // `step` ties it to that stage's badge: same 8s cycle, same delay, so the
     // conversion plays while its number is lit and rests still otherwise.
     const BAR_W = 3, BAR_GAP = 4, BAR_HEIGHTS = [7, 13, 18, 11, 6];
     const LINE_WS = [30, 22, 26], LINE_GAP = 7;
@@ -2346,14 +2358,14 @@ export function buildAgentDiagram(opts) {
     };
 
     const TIPS = {
-        you:    ["type, or hold the mic", "pick Text, Voice or Avatar", "the answer returns as text, speech, or video"],
+        you:    ["pick Text, Voice or Avatar first", "then type, or hold the mic", "the mode sets how the answer comes back"],
         llm:    ["Gemini 3.6 Flash · picked for time to first word", "moves to 3.5 Flash-Lite if it stalls 4 s or is busy", "thinking kept LOW for speed"],
         agent:  ["9 tools: profile · work · projects · posts", "certifications · agents · labs · stats · email", "ADK on Cloud Run", "one call per question, whatever the mode"],
         corpus: ["profile.json · bio, roles, certs", "graph.json · projects", "posts.json · LinkedIn", "fetched live, short-TTL cache"],
-        stt:    ["Gemini 3.5 Transcribe", "speech-to-text · mic input", "runs before the agent reasons, outside the ADK loop"],
+        stt:    ["Gemini 3.5 Transcribe", "only when you use the mic, in any mode", "typed questions skip it", "runs outside the ADK loop"],
         checks: ["working note to the Thinking panel", "only Gaurav's real contact email", "one source per citation · no dashes", "answer sized for text or speech"],
-        tts:    ["Gemini 3.1 Flash TTS · Voice mode", "text-to-speech · spoken replies", "synthesizes while the reply is still streaming"],
-        avatar: ["Gemini 3.8 Live Avatar · Sam, voice Puck", "session opens while Atlas thinks", "speaks the checked answer word for word", "fMP4 video on the same SSE stream", "word-timed captions · 3 answers per visitor a day"],
+        tts:    ["Gemini 3.1 Flash TTS · Voice mode only", "the browser sends each sentence as it arrives", "plays while the rest is still streaming"],
+        avatar: ["Gemini 3.8 Live Avatar · Avatar mode only", "session opens when you ask, while Atlas thinks", "Sam speaks the checked answer word for word", "fMP4 video on the same SSE stream", "word-timed captions · 3 answers per visitor a day"],
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
@@ -2362,50 +2374,50 @@ export function buildAgentDiagram(opts) {
     // ad-node--checks is the gate every answer passes. Data Corpus and MCP
     // Server stay plain so the model stages read as the primary path.
     if (mobile) {
-        svg.appendChild(node("ad-node--you",    40,   6, 112, 30, "You",        "ask · listen",         "You: type a question or hold the mic", 96, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--you",    40,   6, 112, 30, "You",        "mode · ask",           "You: pick a mode, then type or hold the mic", 96, TIPS.you, "person"));
+        svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
         svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "→ 3.5 Flash-Lite", "Gemini reasoning, with a faster fallback model", 238, TIPS.llm, "gemini"));
         svg.appendChild(node(null,             180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
         svg.appendChild(node(null,             180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp));
         svg.appendChild(node("ad-node--checks", 40, 214, 112, 34, "Checks",     "grounded · clean",     "Output checks every answer passes before you see it", 96, TIPS.checks, "check"));
-        svg.appendChild(node("ad-node--key",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--voice",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
         svg.appendChild(xformStrip(226,  87, "to-text",  2));
         svg.appendChild(xformStrip(86,  370, "to-voice", 6));
-        svg.appendChild(xformStrip(226, 370, "to-video", 7));
+        svg.appendChild(xformStrip(226, 370, "to-video", 6));
     } else {
-        svg.appendChild(node("ad-node--you",     20, 118,  76, 44, "You",              "ask · listen",         "You: type a question or hold the mic", 58, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",    126, 112, 108, 56, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 180, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--you",     20, 118,  76, 44, "You",              "mode · ask",           "You: pick a mode, then type or hold the mic", 58, TIPS.you, "person"));
+        svg.appendChild(node("ad-node--key",    126, 112, 108, 56, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 180, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    264, 118,  92, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 310, TIPS.agent));
         svg.appendChild(node("ad-node--key",    246,  24, 128, 44, "Gemini 3.6 Flash", "→ 3.5 Flash-Lite",     "Gemini reasoning, with a faster fallback model", 310, TIPS.llm, "gemini"));
         svg.appendChild(node(null,              206, 208, 104, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 258, TIPS.corpus));
         svg.appendChild(node(null,              322, 208,  96, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 370, TIPS.mcp));
         svg.appendChild(node("ad-node--checks", 388, 118, 108, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 442, TIPS.checks, "check"));
-        svg.appendChild(node("ad-node--key",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
-        svg.appendChild(xformStrip(180,  96, "to-text",  2));
+        svg.appendChild(node("ad-node--key ad-node--voice",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
+        // Under STT: the typed-input bypass runs over it.
+        svg.appendChild(xformStrip(180, 186, "to-text",  2));
         // On the Voice branch rather than above TTS: the Expand button sits
         // over the diagram's top-right corner.
         svg.appendChild(xformStrip(452,  84, "to-voice", 6));
-        svg.appendChild(xformStrip(566, 260, "to-video", 7));
+        svg.appendChild(xformStrip(566, 260, "to-video", 6));
     }
 
     return svg;
 }
 
-// The eight pipeline steps, written once and used by both the legend under
+// The seven pipeline steps, written once and used by both the legend under
 // the diagram and the fullscreen view. Numbers match the badges in the SVG.
 // Step 4 covers both tool nodes in the diagram, which share that badge:
 // the model decides in step 3, then calls whichever tools it needs.
 const AGENT_STEPS = [
-    ["You ask", "type, or hold the mic, in Text, Voice or Avatar mode"],
-    ["Speech-to-Text (STT)", "Gemini 3.5 Transcribe turns the recording into text"],
+    ["You pick a mode and ask", "Text, Voice or Avatar, chosen before you ask. Type, or hold the mic"],
+    ["Speech-to-Text (STT)", "only when you use the mic: Gemini 3.5 Transcribe turns the recording into text. Typed questions skip it"],
     ["Reasoning", "Gemini 3.6 Flash plans the answer, and hands off to 3.5 Flash-Lite if it stalls"],
     ["Tools", "the live corpus for facts, and the MCP server for actions like emailing the resume"],
     ["Output checks", "the working note moves to the Thinking panel, and only real contact details, clean citations and a length sized for the mode get through"],
-    ["Voice", "Gemini 3.1 Flash TTS reads the answer in chunks as it streams"],
-    ["Avatar", "Gemini 3.8 Live Avatar opens while Atlas thinks, then Sam speaks the answer as lip-synced video"],
+    ["Your mode's path, one of three", "Text streams it · Voice: the browser has Gemini 3.1 Flash TTS read it a sentence at a time · Avatar: Sam speaks it on video through Gemini 3.8 Live Avatar, a session opened while Atlas was thinking"],
     ["Back to you", "text streams in, and audio plays or Sam speaks, with each word lit as it's said"],
 ];
 

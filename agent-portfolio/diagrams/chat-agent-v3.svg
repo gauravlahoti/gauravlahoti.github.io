@@ -16,6 +16,12 @@
     <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
       <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
     </marker>
+    <marker id="arr-voice" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#B69CFF"/>
+    </marker>
+    <marker id="arr-avatar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#FF6FCF"/>
+    </marker>
   </defs>
 
   <!-- Caption -->
@@ -38,7 +44,7 @@
 
   <!-- Voice sub-group: these two routes bypass ADK entirely -->
   <rect x="452" y="158" width="356" height="206" rx="10" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
-  <rect x="466" y="148" width="290" height="20" rx="2" fill="#000000"/>
+  <rect x="466" y="148" width="330" height="20" rx="2" fill="#000000"/>
   <text x="472" y="162" class="caption">voice routes · plain REST, no ADK loop</text>
 
   <!-- Vertex AI -->
@@ -83,8 +89,8 @@
   <line x1="79" y1="458" x2="86" y2="458" stroke="#888888" stroke-width="1"/>
   <text x="104" y="452" class="node-title" style="font-size:13px">composer</text>
   <text x="104" y="468" class="node-sub">SSE client</text>
-  <text x="66" y="491" class="node-sub">Text · Voice · Avatar</text>
-  <text x="66" y="508" class="node-sub">a human sends</text>
+  <text x="66" y="491" class="node-sub">mode picked here</text>
+  <text x="66" y="508" class="node-sub">Text · Voice · Avatar</text>
 
   <!-- avatar stage chip (NEW) -->
   <rect x="56" y="580" width="168" height="110" rx="6" fill="#111111" stroke="#00FFD1" stroke-width="1" stroke-dasharray="4 2"/>
@@ -189,13 +195,19 @@
   <rect x="272" y="222" width="96" height="14" rx="3" fill="#000000"/>
   <text x="320" y="233" class="edge-label" text-anchor="middle">transcript</text>
 
+  <!-- Spec 67: the answer's way back is ONE path, picked by the mode. -->
+  <rect x="252" y="352" width="136" height="16" rx="8" fill="#000000" stroke="#B69CFF" stroke-width="1"/>
+  <text x="320" y="364" text-anchor="middle" style="font-size:10px;fill:#B69CFF">Voice mode only</text>
+  <rect x="826" y="590" width="74" height="16" rx="8" fill="#000000" stroke="#FF6FCF" stroke-width="1"/>
+  <text x="863" y="602" text-anchor="middle" style="font-size:9px;fill:#FF6FCF">Avatar only</text>
+
   <!-- ⑦ reply chunks → /api/agent-speak -->
-  <line x1="240" y1="292" x2="466" y2="292" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="240" y1="292" x2="466" y2="292" stroke="#B69CFF" stroke-width="1.5" marker-end="url(#arr-voice)"/>
   <rect x="266" y="274" width="108" height="14" rx="3" fill="#000000"/>
   <text x="320" y="285" class="edge-label" text-anchor="middle">reply chunks</text>
 
   <!-- ⑧ WAV → Web Audio -->
-  <line x1="468" y1="326" x2="244" y2="326" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="468" y1="326" x2="244" y2="326" stroke="#B69CFF" stroke-width="1.5" marker-end="url(#arr-voice)"/>
   <rect x="272" y="308" width="96" height="14" rx="3" fill="#000000"/>
   <text x="320" y="319" class="edge-label" text-anchor="middle">WAV audio</text>
 
@@ -210,7 +222,7 @@
   <text x="318" y="492" class="edge-label" text-anchor="middle">text · video · words</text>
 
   <!-- composer hands the video to the avatar stage (in the browser) -->
-  <line x1="140" y1="525" x2="140" y2="576" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="140" y1="525" x2="140" y2="576" stroke="#FF6FCF" stroke-width="1.5" marker-end="url(#arr-avatar)"/>
 
   <!-- transcribe → STT model -->
   <line x1="798" y1="223" x2="918" y2="223" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
@@ -218,7 +230,7 @@
   <text x="858" y="216" class="edge-label" text-anchor="middle">STT</text>
 
   <!-- speak → TTS model -->
-  <line x1="798" y1="309" x2="918" y2="309" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="798" y1="309" x2="918" y2="309" stroke="#B69CFF" stroke-width="1.5" marker-end="url(#arr-voice)"/>
   <rect x="840" y="291" width="36" height="14" rx="3" fill="#000000"/>
   <text x="858" y="302" class="edge-label" text-anchor="middle">TTS</text>
 
@@ -240,18 +252,18 @@
   <text x="879" y="741" class="edge-label" text-anchor="middle">MCP call</text>
 
   <!-- ⑨ the checked answer becomes the avatar's script -->
-  <line x1="724" y1="575" x2="724" y2="606" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="724" y1="575" x2="724" y2="606" stroke="#FF6FCF" stroke-width="1.5" marker-end="url(#arr-avatar)"/>
 
   <!-- relay → Live Avatar, and ⑩ video + timed words back -->
-  <line x1="808" y1="636" x2="918" y2="636" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="808" y1="636" x2="918" y2="636" stroke="#FF6FCF" stroke-width="1.5" marker-end="url(#arr-avatar)"/>
   <rect x="834" y="618" width="58" height="14" rx="3" fill="#000000"/>
   <text x="863" y="629" class="edge-label" text-anchor="middle">script</text>
-  <line x1="922" y1="668" x2="812" y2="668" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="922" y1="668" x2="812" y2="668" stroke="#FF6FCF" stroke-width="1.5" marker-end="url(#arr-avatar)"/>
   <rect x="826" y="676" width="74" height="14" rx="3" fill="#000000"/>
   <text x="863" y="687" class="edge-label" text-anchor="middle">fMP4 · words</text>
 
   <!-- relay puts the frames on the chat's own SSE stream -->
-  <line x1="790" y1="610" x2="790" y2="579" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <line x1="790" y1="610" x2="790" y2="579" stroke="#FF6FCF" stroke-width="1.5" marker-end="url(#arr-avatar)"/>
 
   <!-- ═══ STEP CIRCLES ═══ -->
 
@@ -273,17 +285,17 @@
   <circle cx="400" cy="499" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
   <text x="400" y="504" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="6">6</text>
 
-  <circle cx="400" cy="292" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="7"/>
-  <text x="400" y="297" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="7">7</text>
+  <circle cx="400" cy="292" r="11" fill="#0E1A19" stroke="#B69CFF" stroke-width="1.5" data-step-circle="7"/>
+  <text x="400" y="297" class="step-num" text-anchor="middle" fill="#B69CFF" data-step-circle="7">7</text>
 
-  <circle cx="400" cy="326" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="8"/>
-  <text x="400" y="331" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="8">8</text>
+  <circle cx="400" cy="326" r="11" fill="#0E1A19" stroke="#B69CFF" stroke-width="1.5" data-step-circle="8"/>
+  <text x="400" y="331" class="step-num" text-anchor="middle" fill="#B69CFF" data-step-circle="8">8</text>
 
-  <circle cx="704" cy="591" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="9"/>
-  <text x="704" y="596" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="9">9</text>
+  <circle cx="704" cy="591" r="11" fill="#0E1A19" stroke="#FF6FCF" stroke-width="1.5" data-step-circle="9"/>
+  <text x="704" y="596" class="step-num" text-anchor="middle" fill="#FF6FCF" data-step-circle="9">9</text>
 
-  <circle cx="863" cy="652" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="10"/>
-  <text x="863" y="656" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="10" style="font-size:10px">10</text>
+  <circle cx="863" cy="652" r="11" fill="#0E1A19" stroke="#FF6FCF" stroke-width="1.5" data-step-circle="10"/>
+  <text x="863" y="656" class="step-num" text-anchor="middle" fill="#FF6FCF" data-step-circle="10" style="font-size:10px">10</text>
 
   <!-- ═══ Animation flow data ═══ -->
   <g class="anim-data" style="display:none">
@@ -298,16 +310,14 @@
     <g data-traveler-path="600,575 600,724 1070,724 1070,748" data-color="#00FFD1" data-delay="3.0"/>
     <g data-traveler-path="470,543 790,543" data-color="#00FFD1" data-step="5" data-delay="3.4"/>
     <g data-traveler-path="452,499 244,499" data-color="#00FFD1" data-step="6" data-delay="3.8"/>
-    <!-- voice out -->
-    <g data-traveler-path="240,292 466,292" data-color="#00FFD1" data-step="7" data-delay="4.2"/>
-    <g data-traveler-path="798,309 918,309" data-color="#00FFD1" data-delay="4.6"/>
-    <g data-traveler-path="468,326 244,326" data-color="#00FFD1" data-step="8" data-delay="5.1"/>
-    <!-- avatar out -->
-    <g data-traveler-path="724,575 724,606" data-color="#00FFD1" data-step="9" data-delay="5.6"/>
-    <g data-traveler-path="808,636 918,636" data-color="#00FFD1" data-delay="5.9"/>
-    <g data-traveler-path="922,668 812,668" data-color="#00FFD1" data-step="10" data-delay="6.3"/>
-    <g data-traveler-path="790,610 790,579" data-color="#00FFD1" data-delay="6.7"/>
-    <g data-traveler-path="452,499 244,499" data-color="#00FFD1" data-delay="7.0"/>
-    <g data-traveler-path="140,525 140,576" data-color="#00FFD1" data-delay="7.4"/>
+    <!-- the mode's path: Voice OR Avatar, played in the same window -->
+    <g data-traveler-path="240,292 466,292" data-color="#B69CFF" data-step="7" data-delay="4.2"/>
+    <g data-traveler-path="798,309 918,309" data-color="#B69CFF" data-delay="4.6"/>
+    <g data-traveler-path="468,326 244,326" data-color="#B69CFF" data-step="8" data-delay="5.1"/>
+    <g data-traveler-path="724,575 724,606" data-color="#FF6FCF" data-step="9" data-delay="4.2"/>
+    <g data-traveler-path="808,636 918,636" data-color="#FF6FCF" data-delay="4.5"/>
+    <g data-traveler-path="922,668 812,668" data-color="#FF6FCF" data-step="10" data-delay="4.9"/>
+    <g data-traveler-path="790,610 790,579" data-color="#FF6FCF" data-delay="5.3"/>
+    <g data-traveler-path="140,525 140,576" data-color="#FF6FCF" data-delay="5.7"/>
   </g>
 </svg>
