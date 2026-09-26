@@ -1,0 +1,48 @@
+{
+  "_readme": "Spec 67. avatarName/voiceName are PLACEHOLDERS (documented Gemini 3.8 Live example values), not a real pick. Gaurav must choose the actual avatar + voice in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel) before any clip is recorded -- Google doesn't publish the avatar gallery anywhere else. Update this file with the real values first, then run agents/atlas/app/dev_scripts/record_avatar_clips.py.",
+  "model": "gemini-3.8-live",
+  "avatarName": "Ben",
+  "voiceName": "Puck",
+  "captionLabel": "AI avatar, generated with Gemini",
+  "chapters": [
+    {
+      "id": "greeting",
+      "chip": null,
+      "autoplay": true,
+      "script": "Hi, I'm Atlas, Gaurav's AI agent. I can tell you who he is, how this site got built, or just answer whatever you're curious about. Tap a topic, or ask me anything.",
+      "clip": "assets/video/atlas-greeting.mp4",
+      "poster": "assets/video/atlas-greeting.webp",
+      "captions": "assets/video/atlas-greeting.vtt"
+    },
+    {
+      "id": "who-is-gaurav",
+      "chip": "Who is Gaurav",
+      "autoplay": false,
+      "script": "Gaurav is a Cloud and AI architect. He designs and ships autonomous agent systems that connect legacy enterprise stacks to production AI, and this site is one of them, not a page describing one.",
+      "clip": "assets/video/atlas-who-is-gaurav.mp4",
+      "poster": "assets/video/atlas-who-is-gaurav.webp",
+      "captions": "assets/video/atlas-who-is-gaurav.vtt"
+    },
+    {
+      "id": "how-built",
+      "chip": "How this site was built",
+      "autoplay": false,
+      "script": "Gaurav built this whole site himself: the static frontend, the backend, and the agents running on it, spec-driven with Claude Code. Every feature started as a written spec before a line of it existed.",
+      "clip": "assets/video/atlas-how-built.mp4",
+      "poster": "assets/video/atlas-how-built.webp",
+      "captions": "assets/video/atlas-how-built.vtt"
+    },
+    {
+      "id": "what-i-can-do",
+      "chip": "What I can do",
+      "autoplay": false,
+      "script": "Ask me about Gaurav's experience, certifications, or projects, and I'll answer with real citations. I can also send him a note or your resume request, if you'd like.",
+      "clip": "assets/video/atlas-what-i-can-do.mp4",
+      "poster": "assets/video/atlas-what-i-can-do.webp",
+      "captions": "assets/video/atlas-what-i-can-do.vtt"
+    }
+  ],
+  "askAnything": {
+    "chip": "Ask me anything"
+  }
+}

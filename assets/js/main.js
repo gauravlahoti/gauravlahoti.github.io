@@ -96,6 +96,7 @@ window.__portfolioSessionId = uuidv4();
         initCursorAsync();
         initRevealWhenIdle();
         initAgentWidgetWhenIdle(profile, window.__portfolioSessionId);
+        initAvatarGreeterWhenIdle();
         initMobileEnhancements(profile);
         initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
         initAgentStat(profile);
@@ -278,6 +279,27 @@ function initAgentWidgetWhenIdle(profile, sessionId) {
         e.preventDefault();
         Promise.resolve(start()).then((api) => api && api.open && api.open());
     });
+
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(start, { timeout: 2500 });
+    } else {
+        setTimeout(start, 1500);
+    }
+}
+
+// Spec 67: the recorded Atlas video card. Skip on the same bandwidth-saver
+// + reduced-motion combo the chat widget skips on (per spec #20) — there's
+// no point loading a video card nobody will see move.
+function initAvatarGreeterWhenIdle() {
+    if (saveData && reduceMotion) return;
+    const root = document.getElementById("avatar-root");
+    if (!root) return;
+
+    const start = () => {
+        import(v("./avatar-greeter.js"))
+            .then(({ initAvatarGreeter }) => initAvatarGreeter(root))
+            .catch((err) => console.warn("[avatar-greeter] failed to load", err));
+    };
 
     if ("requestIdleCallback" in window) {
         requestIdleCallback(start, { timeout: 2500 });

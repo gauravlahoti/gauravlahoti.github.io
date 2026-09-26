@@ -4535,3 +4535,122 @@ a.agent-badge-tile:focus-visible {
         bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-3));
     }
 }
+
+/* Spec 67: the recorded Atlas video card. Sits above the chat FAB, same
+   corner. Tokens only, matching .agent-panel / .agent-fab. */
+.avatar-card {
+    position: fixed;
+    inset: auto var(--space-4) calc(var(--space-4) + 56px + 64px + env(safe-area-inset-bottom)) auto;
+    width: 280px;
+    background: var(--bg-elev);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 32px var(--accent-glow);
+    padding: var(--space-3);
+    z-index: 40;
+    transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+}
+.avatar-card-dismiss {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    font-size: var(--text-lg);
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+}
+.avatar-card-dismiss:hover,
+.avatar-card-dismiss:focus-visible { color: var(--ink); }
+.avatar-card-video {
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    display: block;
+}
+.avatar-card-sound {
+    position: absolute;
+    right: calc(var(--space-3) + var(--space-2));
+    bottom: calc(var(--space-3) + 64px);
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    color: var(--accent);
+    cursor: pointer;
+}
+.avatar-card-sound.is-muted { opacity: 0.7; }
+.avatar-card-label {
+    margin: var(--space-2) 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    text-align: center;
+}
+.avatar-card-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+.avatar-card-chip {
+    flex: 1 1 auto;
+    padding: var(--space-1) var(--space-2);
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--accent);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out);
+}
+.avatar-card-chip:hover,
+.avatar-card-chip:focus-visible { border-color: var(--border-strong); }
+.avatar-card-chip-ask {
+    flex-basis: 100%;
+    background: transparent;
+    border-color: var(--accent);
+}
+.avatar-launcher {
+    position: fixed;
+    inset: auto var(--space-4) calc(var(--space-4) + 56px + var(--space-2) + env(safe-area-inset-bottom)) auto;
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-card);
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    z-index: 39;
+}
+@media (prefers-reduced-motion: reduce) {
+    .avatar-card { transition: none; }
+}
+@media (max-width: 767px) {
+    .avatar-card {
+        width: calc(100vw - var(--space-4) * 2);
+        max-width: 320px;
+        inset: auto var(--space-3) calc(64px + env(safe-area-inset-bottom) + var(--space-3) + 56px) auto;
+    }
+    .avatar-launcher {
+        right: var(--space-3);
+        bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-3));
+    }
+}
