@@ -2140,7 +2140,7 @@ export function buildAgentDiagram(opts) {
     // to you (7). Nothing is written on the connectors except the tiny mode
     // tags at the fork, which is what makes the fork read as a choice.
     const edges = mobile ? [
-        { d: "M 96 36 L 96 66", cls: "ad-edge--optional" },     // 1 You -> STT (mic only)
+        { d: "M 96 42 L 96 66", cls: "ad-edge--optional" },     // 1 You -> STT (mic only)
         { d: "M 96 108 L 96 138" },                              // 2 STT -> Agent
         { d: "M 152 155 L 180 155" },                            // 3 Agent -> reasoning
         { d: "M 152 160 L 180 207", cls: "ad-edge--plain" },     // 4 Agent -> corpus
@@ -2151,9 +2151,9 @@ export function buildAgentDiagram(opts) {
         { d: "M 110 248 L 110 286 L 226 286 L 226 310", cls: "ad-edge--avatar" }, // 6 Avatar
         // 7 back to you: all three paths join the left corridor.
         { d: "M 30 331 L 18 331" },
-        { d: "M 282 331 L 290 331 L 290 392 L 18 392 L 18 21 L 40 21" },
+        { d: "M 282 331 L 290 331 L 290 392 L 18 392 L 18 26 L 80 26" },
     ] : [
-        { d: "M 100 150 L 130 150", cls: "ad-edge--optional" },  // 1 You -> STT (mic only)
+        { d: "M 86 150 L 130 150", cls: "ad-edge--optional" },   // 1 You -> STT (mic only)
         { d: "M 290 150 L 320 150" },                            // 2 STT -> Agent
         { d: "M 370 128 L 370 68" },                             // 3 Agent -> reasoning
         { d: "M 352 172 L 318 218", cls: "ad-edge--plain" },     // 4 Agent -> corpus
@@ -2163,7 +2163,7 @@ export function buildAgentDiagram(opts) {
         { d: "M 562 140 L 574 140 L 574 70 L 590 70", cls: "ad-edge--voice" },       // 6 Voice
         { d: "M 562 160 L 574 160 L 574 230 L 590 230", cls: "ad-edge--avatar" },    // 6 Avatar
         // 7 back to you: all three paths meet on the bottom line.
-        { d: "M 754 70 L 768 70 L 768 300 L 60 300 L 60 172" },
+        { d: "M 754 70 L 768 70 L 768 300 L 60 300 L 60 180" },
         { d: "M 754 230 L 768 230" },
     ];
     edges.forEach(({ d, cls }) => {
@@ -2196,9 +2196,9 @@ export function buildAgentDiagram(opts) {
     // Corpus and MCP SHARE step 4 (alternative tools), and the three mode
     // paths SHARE step 6 (exactly one runs): shared numbers light together.
     const steps = mobile
-        ? [[1, 96, 51], [2, 96, 123], [3, 166, 155], [4, 166, 183], [4, 165, 207],
+        ? [[1, 96, 54], [2, 96, 123], [3, 166, 155], [4, 166, 183], [4, 165, 207],
            [5, 96, 193], [6, 39, 272, "text"], [6, 86, 279, "voice"], [6, 168, 286, "avatar"], [7, 18, 160]]
-        : [[1, 115, 150], [2, 305, 150], [3, 370, 98], [4, 337, 193], [4, 404, 193],
+        : [[1, 108, 150], [2, 305, 150], [3, 370, 98], [4, 337, 193], [4, 404, 193],
            [5, 435, 150], [6, 506, 214, "text"], [6, 574, 108, "voice"], [6, 574, 192, "avatar"], [7, 60, 236]];
     steps.forEach(([n, cx, cy, mode]) => svg.appendChild(step(n, cx, cy, mode)));
     const tags = mobile
@@ -2297,6 +2297,45 @@ export function buildAgentDiagram(opts) {
         return im;
     };
 
+    // Spec 67: "You" is a person, not a box. A small figure with a speech
+    // bubble that alternates between typing dots and voice bars, because a
+    // question can be typed or spoken, in any mode.
+    const youNode = (cx, cy, tip, details, compact) => {
+        const g = el("g", { class: "ad-node ad-node--you ad-you" });
+        const t = el("title", {}); t.textContent = tip; g.appendChild(t);
+        const k = compact ? 0.72 : 1;
+        // Invisible hit area so the tooltip works over the whole figure.
+        g.appendChild(el("rect", { class: "ad-you-hit", x: String(cx - 16 * k), y: String(cy - 34 * k), width: String(46 * k), height: String(46 * k) }));
+        g.appendChild(el("circle", { class: "ad-you-body", cx: String(cx), cy: String(cy - 8 * k), r: String(6.5 * k) }));
+        g.appendChild(el("path", { class: "ad-you-body", d: `M ${cx - 11 * k} ${cy + 12 * k} v ${-1.5 * k} a ${11 * k} ${9 * k} 0 0 1 ${22 * k} 0 v ${1.5 * k}` }));
+        // The bubble, up and to the right of the head.
+        const bx = cx + 9 * k, by = cy - 34 * k, bw = 28 * k, bh = 16 * k;
+        const bubble = el("g", { class: "ad-you-bubble" });
+        bubble.appendChild(el("rect", { x: String(bx), y: String(by), width: String(bw), height: String(bh), rx: String(4 * k) }));
+        bubble.appendChild(el("path", { d: `M ${bx + 4 * k} ${by + bh} L ${bx + 1 * k} ${by + bh + 5 * k} L ${bx + 9 * k} ${by + bh}` }));
+        const typing = el("g", { class: "ad-you-typing" });
+        [0, 1, 2].forEach((i) => {
+            const dot = el("circle", { cx: String(bx + 8 * k + i * 6 * k), cy: String(by + bh / 2), r: String(1.7 * k) });
+            if (!REDUCE_MOTION) dot.style.animationDelay = `${i * 0.18}s`;
+            typing.appendChild(dot);
+        });
+        const voice = el("g", { class: "ad-you-voice" });
+        [5, 9, 12, 8, 4].forEach((h, i) => {
+            const bar = el("rect", { x: String(bx + 5.5 * k + i * 4 * k), y: String(by + bh / 2 - h * k / 2), width: String(2 * k), height: String(h * k), rx: String(1 * k) });
+            if (!REDUCE_MOTION) bar.style.animationDelay = `${i * 0.1}s`;
+            voice.appendChild(bar);
+        });
+        bubble.append(typing, voice);
+        g.appendChild(bubble);
+        const name = el("text", compact
+            ? { class: "ad-node-name", x: String(cx + 11 * k + 5), y: String(cy + 10 * k), "text-anchor": "start" }
+            : { class: "ad-node-name", x: String(cx), y: String(cy + 26), "text-anchor": "middle" });
+        name.textContent = "You";
+        g.appendChild(name);
+        g.setAttribute("data-ad-tip", details.join("\n"));
+        return g;
+    };
+
     // A small shield with a tick: the Output checks every answer passes.
     const checkGlyph = (cx, cy) => {
         const g = el("g", { class: "ad-check" });
@@ -2389,7 +2428,7 @@ export function buildAgentDiagram(opts) {
     // ad-node--checks is the gate every answer passes. Data Corpus and MCP
     // Server stay plain so the model stages read as the primary path.
     if (mobile) {
-        svg.appendChild(node("ad-node--you",    40,   6, 112, 30, "You",        "mode · ask",           "You: pick a mode, then type or hold the mic", 96, TIPS.you, "person"));
+        svg.appendChild(youNode(96, 30, "You: pick a mode, then type or hold the mic", TIPS.you, true));
         svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "speech-to-text", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent, "adk"));
         svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "reasoning", "Gemini 3.6 Flash works out the answer and writes it", 238, TIPS.llm, "gemini"));
@@ -2402,7 +2441,7 @@ export function buildAgentDiagram(opts) {
         svg.appendChild(xformStrip(86,  370, "to-voice", 6));
         svg.appendChild(xformStrip(226, 370, "to-video", 6));
     } else {
-        svg.appendChild(node("ad-node--you",     20, 128,  80, 44, "You",              "mode · ask",           "You: pick a mode, then type or hold the mic", 60, TIPS.you, "person"));
+        svg.appendChild(youNode(60, 146, "You: pick a mode, then type or hold the mic", TIPS.you));
         svg.appendChild(node("ad-node--key",    130, 124, 160, 52, "Gemini 3.5 Transcribe", "speech-to-text",   "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 210, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    320, 128, 100, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 370, TIPS.agent, "adk"));
         svg.appendChild(node("ad-node--key",    295,  24, 150, 44, "Gemini 3.6 Flash", "reasoning",            "Gemini 3.6 Flash works out the answer and writes it", 370, TIPS.llm, "gemini"));
