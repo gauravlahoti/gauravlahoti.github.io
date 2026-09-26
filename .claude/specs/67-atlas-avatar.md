@@ -211,6 +211,18 @@ clears once it has wound down, so late callbacks can't leak into the new
 conversation. Note: after a clear, `agent_interactions.session_id` no longer
 matches the page view's id for that visitor.
 
+**A mode switch that feels alive.** Each mode has its own colour
+(`--mode-text` cyan, `--mode-voice` violet, `--mode-avatar` magenta to
+amber, in `base.css`). The panel carries the active one as `--mode-c`,
+registered with `@property` so a change cross-fades, and the switch, the
+avatar stage, the karaoke highlight and the answer bar all read it. On every
+change the lit segment springs across with a slight stretch, a sweep of the
+new colour runs over the switch, and the chosen icon greets you: Text's
+lines write themselves in, Voice's equalizer bounces, and Avatar's icon,
+Atlas's own face as a small glossy 3D orb (`assets/video/atlas-face.webp`,
+2 KB) in a spinning ring, pops forward. The avatar stage flips in like a card
+turning over. All of it is off under `prefers-reduced-motion`.
+
 **Over the cap, offer Voice for the same question.** A capped avatar turn
 (per-visitor bucket or the daily budget) no longer runs the agent and shows
 the answer as text. The server replies with only

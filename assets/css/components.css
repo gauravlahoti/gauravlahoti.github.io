@@ -2448,7 +2448,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-message-assistant p {
     color: var(--ink);
     padding: var(--space-2) var(--space-3);
-    border-left: 2px solid var(--accent);
+    border-left: 2px solid var(--mode-c, var(--accent));
 }
 .agent-message-system p {
     color: var(--ink-muted);
@@ -4547,6 +4547,32 @@ a.agent-badge-tile:focus-visible {
 .agent-panel-head { flex-wrap: wrap; row-gap: var(--space-3); }
 .agent-panel.is-minimized .agent-mode { display: none; }
 
+/* Each mode has its own colour (tokens in base.css). The panel carries the
+   active one as --mode-c / --mode-glow / --mode-soft, registered with
+   @property so a mode change cross-fades the colour rather than snapping.
+   The switch, the avatar stage and the panel edge all read it. */
+.agent-panel {
+    --mode-c: var(--mode-text);
+    --mode-glow: var(--mode-text-glow);
+    --mode-soft: var(--mode-text-soft);
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        opacity var(--dur-base) var(--ease-out),
+        --mode-c var(--dur-slow) var(--ease-out),
+        --mode-glow var(--dur-slow) var(--ease-out),
+        --mode-soft var(--dur-slow) var(--ease-out);
+}
+.agent-panel[data-mode="voice"] {
+    --mode-c: var(--mode-voice);
+    --mode-glow: var(--mode-voice-glow);
+    --mode-soft: var(--mode-voice-soft);
+}
+.agent-panel[data-mode="avatar"] {
+    --mode-c: var(--mode-avatar);
+    --mode-glow: var(--mode-avatar-glow);
+    --mode-soft: var(--mode-avatar-soft);
+}
+
 .agent-mode {
     --mode-i: 0;
     position: relative;
@@ -4557,11 +4583,13 @@ a.agent-badge-tile:focus-visible {
     background: var(--bg);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
-    box-shadow: inset 0 0 18px var(--accent-soft);
+    box-shadow: inset 0 0 18px var(--mode-soft);
+    overflow: hidden;
 }
 .agent-mode[data-active="voice"]  { --mode-i: 1; }
 .agent-mode[data-active="avatar"] { --mode-i: 2; }
-/* The lit segment glides between choices rather than jumping. */
+/* The lit segment springs between choices (a slight overshoot), stretching
+   as it travels, and takes on the new mode's colour on the way. */
 .agent-mode-glide {
     position: absolute;
     top: var(--space-1);
@@ -4569,13 +4597,53 @@ a.agent-badge-tile:focus-visible {
     left: var(--space-1);
     width: calc((100% - var(--space-2)) / 3);
     border-radius: var(--radius-md);
-    background: linear-gradient(135deg, var(--accent-soft), transparent 140%);
-    border: 1px solid var(--accent);
-    box-shadow: 0 0 18px var(--accent-glow), inset 0 0 10px var(--accent-soft);
+    background: linear-gradient(135deg, var(--mode-soft), transparent 140%);
+    border: 1px solid var(--mode-c);
+    box-shadow: 0 0 18px var(--mode-glow), inset 0 0 12px var(--mode-soft);
     transform: translateX(calc(var(--mode-i) * 100%));
-    transition: transform var(--dur-base) var(--ease-out);
+    transition: transform 460ms var(--ease-spring);
     pointer-events: none;
 }
+/* Avatar's segment gets a moving magenta-to-amber edge. */
+.agent-mode-glide::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(90deg, var(--mode-avatar), var(--mode-avatar-2), var(--mode-avatar));
+    background-size: 200% 100%;
+    -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
+    opacity: 0;
+    transition: opacity var(--dur-slow) var(--ease-out);
+    animation: agent-mode-edge 3s linear infinite;
+}
+.agent-mode[data-active="avatar"] .agent-mode-glide::before { opacity: 1; }
+@keyframes agent-mode-edge { to { background-position: 200% 0; } }
+.agent-mode.is-flipping .agent-mode-glide { animation: agent-mode-stretch 460ms var(--ease-out); }
+@keyframes agent-mode-stretch {
+    0%   { scale: 1 1; }
+    35%  { scale: 1.16 0.9; }
+    100% { scale: 1 1; }
+}
+/* A sweep of the new colour runs across the switch on every change. */
+.agent-mode::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, var(--mode-soft) 45%, var(--mode-glow) 50%, var(--mode-soft) 55%, transparent 70%);
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+.agent-mode.is-flipping::after { animation: agent-mode-sweep 700ms var(--ease-out); }
+@keyframes agent-mode-sweep {
+    0%   { transform: translateX(-100%); opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+}
+
 .agent-mode-opt {
     position: relative;
     z-index: 1;
@@ -4583,7 +4651,7 @@ a.agent-badge-tile:focus-visible {
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
-    min-height: 36px;
+    min-height: 40px;
     padding: 0 var(--space-2);
     background: none;
     border: 0;
@@ -4594,14 +4662,32 @@ a.agent-badge-tile:focus-visible {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: color var(--dur-fast) var(--ease-out);
+    transition: color var(--dur-base) var(--ease-out), text-shadow var(--dur-base) var(--ease-out);
 }
 .agent-mode-opt[hidden] { display: none; }
-.agent-mode-opt:hover { color: var(--ink); }
-.agent-mode-opt[aria-checked="true"] { color: var(--accent); text-shadow: 0 0 12px var(--accent-glow); }
-.agent-mode-opt:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+/* Each option hints its own colour on hover, and wears it when chosen. */
+.agent-mode-opt[data-mode="text"]   { --opt-c: var(--mode-text);   --opt-glow: var(--mode-text-glow); }
+.agent-mode-opt[data-mode="voice"]  { --opt-c: var(--mode-voice);  --opt-glow: var(--mode-voice-glow); }
+.agent-mode-opt[data-mode="avatar"] { --opt-c: var(--mode-avatar); --opt-glow: var(--mode-avatar-glow); }
+.agent-mode-opt:hover { color: var(--opt-c); }
+.agent-mode-opt[aria-checked="true"] { color: var(--opt-c); text-shadow: 0 0 12px var(--opt-glow); }
+.agent-mode-opt[data-mode="avatar"][aria-checked="true"] span:not(.agent-mode-orb):not(.agent-mode-new) {
+    background: linear-gradient(90deg, var(--mode-avatar), var(--mode-avatar-2));
+    -webkit-background-clip: text;
+            background-clip: text;
+    color: transparent;
+}
+.agent-mode-opt:focus-visible { outline: 1px solid var(--opt-c); outline-offset: 2px; }
 
-/* Voice's icon is a tiny equalizer that comes alive while Atlas talks. */
+/* Text: the lines write themselves in when Text is picked. */
+.agent-mode-opt[data-mode="text"] path { stroke-dasharray: 12; stroke-dashoffset: 0; }
+.agent-mode.is-flipping .agent-mode-opt[data-mode="text"][aria-checked="true"] path {
+    animation: agent-mode-write 520ms var(--ease-out);
+}
+@keyframes agent-mode-write { from { stroke-dashoffset: 12; } }
+
+/* Voice's icon is a tiny equalizer: it says hello when picked, and comes
+   alive while Atlas talks. */
 .agent-mode-bars {
     display: inline-flex;
     align-items: center;
@@ -4620,13 +4706,93 @@ a.agent-badge-tile:focus-visible {
 .agent-mode-bars i:nth-child(2) { transform: scaleY(0.9); }
 .agent-mode-bars i:nth-child(3) { transform: scaleY(0.65); }
 .agent-mode-bars i:nth-child(4) { transform: scaleY(0.35); }
-.agent-mode.is-speaking .agent-mode-bars i { animation: agent-mode-eq 0.9s var(--ease-in-out) infinite; }
-.agent-mode.is-speaking .agent-mode-bars i:nth-child(2) { animation-delay: -0.3s; }
-.agent-mode.is-speaking .agent-mode-bars i:nth-child(3) { animation-delay: -0.6s; }
-.agent-mode.is-speaking .agent-mode-bars i:nth-child(4) { animation-delay: -0.15s; }
+.agent-mode.is-speaking .agent-mode-bars i,
+.agent-mode.is-flipping .agent-mode-opt[data-mode="voice"][aria-checked="true"] .agent-mode-bars i {
+    animation: agent-mode-eq 0.9s var(--ease-in-out) infinite;
+}
+.agent-mode.is-flipping .agent-mode-opt[data-mode="voice"][aria-checked="true"] .agent-mode-bars i {
+    animation-duration: 0.35s;
+    animation-iteration-count: 2;
+}
+.agent-mode-bars i:nth-child(2) { animation-delay: -0.3s; }
+.agent-mode-bars i:nth-child(3) { animation-delay: -0.6s; }
+.agent-mode-bars i:nth-child(4) { animation-delay: -0.15s; }
 @keyframes agent-mode-eq {
     0%, 100% { transform: scaleY(0.3); }
     50%      { transform: scaleY(1); }
+}
+
+/* Avatar's icon is Atlas's own face as a small 3D orb: a glossy sphere that
+   slowly turns, inside a spinning magenta-to-amber ring. Picked, it pops
+   forward and comes into full colour. */
+.agent-mode-orb {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    perspective: 120px;
+}
+.agent-mode-orb::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    padding: 1.5px;
+    background: conic-gradient(var(--mode-avatar), var(--mode-avatar-2), transparent 55%, var(--mode-avatar));
+    -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
+    opacity: 0.55;
+    animation: agent-mode-ring 4s linear infinite;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+.agent-mode-orb-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    box-shadow: inset -3px -4px 6px var(--bg), 0 2px 6px var(--bg);
+    animation: agent-mode-turn 6s var(--ease-in-out) infinite;
+    transition: transform var(--dur-base) var(--ease-spring);
+}
+.agent-mode-orb-face img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(0.6) brightness(0.8);
+    transition: filter var(--dur-base) var(--ease-out);
+}
+/* The gloss that sells the sphere. */
+.agent-mode-orb-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, var(--mode-gloss), transparent 42%);
+    mix-blend-mode: screen;
+}
+.agent-mode-opt[data-mode="avatar"]:hover .agent-mode-orb::before { opacity: 0.9; }
+.agent-mode-opt[data-mode="avatar"]:hover .agent-mode-orb-face img { filter: none; }
+.agent-mode-opt[data-mode="avatar"][aria-checked="true"] .agent-mode-orb::before {
+    opacity: 1;
+    animation-duration: 1.6s;
+    filter: drop-shadow(0 0 4px var(--mode-avatar-glow));
+}
+.agent-mode-opt[data-mode="avatar"][aria-checked="true"] .agent-mode-orb-face img { filter: none; }
+.agent-mode.is-flipping .agent-mode-opt[data-mode="avatar"][aria-checked="true"] .agent-mode-orb {
+    animation: agent-mode-pop 520ms var(--ease-spring);
+}
+@keyframes agent-mode-ring { to { transform: rotate(1turn); } }
+@keyframes agent-mode-turn {
+    0%, 100% { transform: rotateY(-20deg) rotateX(6deg); }
+    50%      { transform: rotateY(20deg) rotateX(-4deg); }
+}
+@keyframes agent-mode-pop {
+    0%   { scale: 0.6; rotate: -25deg; }
+    60%  { scale: 1.3; }
+    100% { scale: 1; rotate: 0deg; }
 }
 
 /* Until a visitor has tried Avatar, it carries a small live beacon. */
@@ -4635,17 +4801,30 @@ a.agent-badge-tile:focus-visible {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent-glow);
+    background: var(--mode-avatar);
+    box-shadow: 0 0 8px var(--mode-avatar-glow);
 }
 .agent-mode.is-avatar-new .agent-mode-new { display: block; animation: agent-mode-beacon 1.8s var(--ease-in-out) infinite; }
 @keyframes agent-mode-beacon {
     0%, 100% { opacity: 1; transform: scale(1); }
     50%      { opacity: 0.35; transform: scale(0.6); }
 }
+/* The panel's top edge carries the mode colour too, so the whole window
+   changes with the mode, not just the switch. */
+.agent-panel.is-open { box-shadow: 0 16px 48px var(--bg), 0 0 32px var(--mode-soft), inset 0 1px 0 var(--mode-c); }
+
 @media (prefers-reduced-motion: reduce) {
+    .agent-panel { transition: none; }
     .agent-mode-glide { transition: none; }
+    .agent-mode-glide::before,
+    .agent-mode.is-flipping .agent-mode-glide,
+    .agent-mode.is-flipping::after,
     .agent-mode.is-speaking .agent-mode-bars i,
+    .agent-mode.is-flipping .agent-mode-opt path,
+    .agent-mode.is-flipping .agent-mode-opt .agent-mode-bars i,
+    .agent-mode.is-flipping .agent-mode-orb,
+    .agent-mode-orb::before,
+    .agent-mode-orb-face,
     .agent-mode.is-avatar-new .agent-mode-new { animation: none; }
 }
 
@@ -4686,10 +4865,10 @@ a.agent-badge-tile:focus-visible {
 .agent-avatar-w.is-ahead { color: var(--ink-subtle); }
 .agent-avatar-w.is-said { color: var(--ink); }
 .agent-avatar-w.is-now {
-    color: var(--accent);
-    background-color: var(--accent-soft);
-    box-shadow: 0 0 0 2px var(--accent-soft);
-    text-shadow: 0 0 14px var(--accent-glow);
+    color: var(--mode-c);
+    background-color: var(--mode-soft);
+    box-shadow: 0 0 0 2px var(--mode-soft);
+    text-shadow: 0 0 14px var(--mode-glow);
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-avatar-w { transition: none; }
@@ -4703,9 +4882,16 @@ a.agent-badge-tile:focus-visible {
     animation: agent-avatar-in var(--dur-slow) var(--ease-out);
 }
 .agent-panel.is-minimized .agent-avatar-slot { display: none; }
+/* Switching to Avatar flips the call in, like a card turning over. */
+.agent-avatar-slot { perspective: 900px; }
+.agent-avatar-slot .agent-avatar { animation: agent-avatar-flip 700ms var(--ease-spring); transform-origin: 50% 0; }
 @keyframes agent-avatar-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to   { opacity: 1; transform: none; }
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes agent-avatar-flip {
+    from { transform: rotateX(-70deg) translateY(-12px); opacity: 0; }
+    to   { transform: none; opacity: 1; }
 }
 /* A video call needs room for its captions: in Avatar mode the panel may grow
    taller than the chat default, and the face gives a little back on short
@@ -4726,7 +4912,7 @@ a.agent-badge-tile:focus-visible {
     overflow: hidden;
     background: var(--bg-elev);
     border: 1px solid var(--border-strong);
-    box-shadow: 0 0 18px var(--accent-glow);
+    box-shadow: 0 0 18px var(--mode-glow);
     transition: border-color var(--dur-base) var(--ease-out);
 }
 .agent-avatar-video {
@@ -4761,21 +4947,21 @@ a.agent-badge-tile:focus-visible {
     color: var(--ink-muted);
     pointer-events: none;
 }
-.agent-avatar-tag strong { color: var(--accent); font-weight: 600; }
+.agent-avatar-tag strong { color: var(--mode-c); font-weight: 600; }
 .agent-avatar-tag-state::before { content: "\00B7\00A0"; }
 .agent-avatar-tag i {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 6px var(--accent-glow);
+    background: var(--mode-c);
+    box-shadow: 0 0 6px var(--mode-glow);
 }
 .agent-avatar:not([data-state="idle"]) .agent-avatar-tag i {
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent-glow);
+    background: var(--mode-c);
+    box-shadow: 0 0 8px var(--mode-glow);
     animation: agent-mode-beacon 1.4s var(--ease-in-out) infinite;
 }
-.agent-avatar:not([data-state="idle"]) .agent-avatar-tag-state { color: var(--accent); }
+.agent-avatar:not([data-state="idle"]) .agent-avatar-tag-state { color: var(--mode-c); }
 
 /* Face states: a scanning ring while Atlas thinks (the face idles live under
    it), a breathing glow while it speaks. The ring is a pseudo-element on the
@@ -4792,14 +4978,14 @@ a.agent-badge-tile:focus-visible {
 .agent-avatar[data-state="listening"] .agent-avatar-frame::after {
     opacity: 1;
     padding: 2px;
-    background: conic-gradient(from var(--avatar-scan, 0deg), transparent 0 65%, var(--accent) 85%, transparent 100%);
+    background: conic-gradient(from var(--avatar-scan, 0deg), transparent 0 65%, var(--mode-c) 85%, transparent 100%);
     -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
     -webkit-mask-composite: xor;
             mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
     animation: agent-avatar-scan 1.4s linear infinite;
 }
 .agent-avatar[data-state="speaking"] .agent-avatar-frame {
-    border-color: var(--accent);
+    border-color: var(--mode-c);
     animation: agent-avatar-breathe 2.4s var(--ease-in-out) infinite;
 }
 @property --avatar-scan {
@@ -4809,14 +4995,15 @@ a.agent-badge-tile:focus-visible {
 }
 @keyframes agent-avatar-scan { to { --avatar-scan: 360deg; } }
 @keyframes agent-avatar-breathe {
-    0%, 100% { box-shadow: 0 0 14px var(--accent-glow); }
-    50%      { box-shadow: 0 0 30px var(--accent-glow), 0 0 4px var(--accent); }
+    0%, 100% { box-shadow: 0 0 14px var(--mode-glow); }
+    50%      { box-shadow: 0 0 30px var(--mode-glow), 0 0 4px var(--mode-c); }
 }
 @media (max-width: 767px) {
     .agent-avatar-frame { width: min(200px, 100%); }
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-avatar-slot,
+    .agent-avatar-slot .agent-avatar,
     .agent-avatar:not([data-state="idle"]) .agent-avatar-tag i,
     .agent-avatar[data-state="listening"] .agent-avatar-frame::after,
     .agent-avatar[data-state="speaking"] .agent-avatar-frame { animation: none; }
@@ -4828,7 +5015,7 @@ a.agent-badge-tile:focus-visible {
 .agent-avatar-offer {
     padding: var(--space-3);
     border: 1px solid var(--border-strong);
-    border-left: 2px solid var(--accent);
+    border-left: 2px solid var(--mode-c, var(--accent));
     border-radius: var(--radius-md);
     background: var(--bg-card);
 }

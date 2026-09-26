@@ -348,9 +348,22 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (avatarOn) return "avatar";
         return speakerOn ? "voice" : "text";
     }
+    // A mode change plays the switch's flip animation (glide stretch, colour
+    // sweep, the new mode's icon greeting); first paint doesn't.
+    let shownMode = null;
+    let flipTimer = null;
     function syncModeSwitch() {
         const mode = currentMode();
+        if (shownMode && mode !== shownMode) {
+            modeSwitch.classList.remove("is-flipping");
+            void modeSwitch.offsetWidth; // restart the animations on a quick re-flip
+            modeSwitch.classList.add("is-flipping");
+            clearTimeout(flipTimer);
+            flipTimer = setTimeout(() => modeSwitch.classList.remove("is-flipping"), 800);
+        }
+        shownMode = mode;
         modeSwitch.dataset.active = mode;
+        panel.dataset.mode = mode;
         panel.classList.toggle("is-avatar-mode", mode === "avatar");
         modeSwitch.classList.toggle("is-speaking", isSpeaking);
         modeSwitch.classList.toggle("is-avatar-new", FEATURES.avatarMode && !avatarTried());
@@ -2439,6 +2452,10 @@ function setupExplainerModal(dom, agentExplainer) {
 
 // --- shell renderer ---------------------------------------------------------
 
+// Spec 67: Atlas's face for the Avatar option (2 KB), resolved from this
+// module so it also works on /live-agents/.
+const AVATAR_FACE_URL = new URL("../video/atlas-face.webp", import.meta.url).href;
+
 function renderShell(root, agentExplainer) {
     root.classList.add("agent-widget-host");
     root.innerHTML = "";
@@ -2535,11 +2552,7 @@ function renderShell(root, agentExplainer) {
                 <span>Voice</span>
             </button>
             <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face">
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="8" cy="6" r="2.75"/>
-                    <path d="M3 14a5 5 0 0 1 10 0"/>
-                    <path d="M1.5 4V2.5a1 1 0 0 1 1-1H4M12 1.5h1.5a1 1 0 0 1 1 1V4"/>
-                </svg>
+                <span class="agent-mode-orb" aria-hidden="true"><span class="agent-mode-orb-face"><img src="${AVATAR_FACE_URL}" alt="" width="22" height="22" decoding="async"></span></span>
                 <span>Avatar</span>
                 <span class="agent-mode-new" aria-hidden="true"></span>
             </button>
