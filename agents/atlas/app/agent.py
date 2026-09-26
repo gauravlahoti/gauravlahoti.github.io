@@ -115,7 +115,11 @@ root_agent = Agent(
         # the level can be dialed down without a redeploy.
         thinking_config=types.ThinkingConfig(
             include_thoughts=True,
-            thinking_level=types.ThinkingLevel[os.environ.get("ATLAS_THINKING_LEVEL", "MEDIUM")],
+            # Spec 67: LOW by default. On real questions MEDIUM spent 140-980
+            # thinking tokens (~4-6s of silence before the first word); LOW
+            # spends ~20-40 and answers in ~3s. Resume/note routing and the
+            # injection refusal were re-checked on LOW. Override per deploy.
+            thinking_level=types.ThinkingLevel[os.environ.get("ATLAS_THINKING_LEVEL", "LOW")],
         ),
         # Disable Gemini's built-in safety filters — the portfolio agent has
         # its own input/output guardrails (see guardrails.py: prompt-injection

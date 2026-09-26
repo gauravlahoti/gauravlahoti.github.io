@@ -157,3 +157,61 @@ class TestBudget:
     def test_default_budget_is_about_five_dollars(self) -> None:
         dollars = avatar_speak.DAILY_BUDGET_SECONDS * avatar_speak.USD_PER_SPEAKING_SECOND
         assert 4.5 <= dollars <= 5.5
+
+
+class TestScriptAligner:
+    SCRIPT = "Gaurav is full-time at Deloitte, but he considers select consulting work."
+
+    def test_restores_the_spaces_the_transcription_dropped(self) -> None:
+        a = avatar_speak.ScriptAligner(self.SCRIPT)
+        chunks = ["Gaurav is", "full-time", "at", "Deloitte,", "but he considers", "select", "consulting work."]
+        assert "".join(a.feed(c) for c in chunks) == self.SCRIPT
+
+    def test_keeps_the_scripts_own_casing_and_punctuation(self) -> None:
+        a = avatar_speak.ScriptAligner(self.SCRIPT)
+        assert a.feed("gaurav IS") == "Gaurav is"
+
+    def test_unplaceable_chunk_passes_through_with_a_space(self) -> None:
+        a = avatar_speak.ScriptAligner(self.SCRIPT)
+        a.feed("Gaurav is")
+        assert a.feed("umm") == " umm"
+
+    def test_rest_completes_captions_the_transcription_skipped(self) -> None:
+        a = avatar_speak.ScriptAligner(self.SCRIPT)
+        a.feed("Gaurav is full-time")
+        assert a.rest() == " at Deloitte, but he considers select consulting work."
+
+    def test_whitespace_only_chunks_add_nothing(self) -> None:
+        a = avatar_speak.ScriptAligner(self.SCRIPT)
+        assert a.feed("   ") == ""
+
+    def test_unspoken_lead_text_never_shreds_the_captions(self) -> None:
+        # The reply opened with text the avatar skipped: every later chunk
+        # still aligns, and nothing is glued together.
+        script = "Availability question, calling get_profile.Gaurav is full-time at Deloitte."
+        a = avatar_speak.ScriptAligner(script)
+        out = "".join(a.feed(c) for c in ["Gaurav is", "full-time", "at", "Deloitte."])
+        assert out == "Gaurav is full-time at Deloitte."
+        assert a.rest() == ""
+
+    def test_fallback_chunks_are_spaced(self) -> None:
+        a = avatar_speak.ScriptAligner("Completely different words.")
+        assert "".join(a.feed(c) for c in ["full-time", "at", "Deloitte"]) == "full-time at Deloitte"
+
+    def test_rest_is_empty_when_nothing_ever_matched(self) -> None:
+        a = avatar_speak.ScriptAligner("Some script.")
+        a.feed("unrelated")
+        assert a.rest() == ""
+
+    def test_paragraph_break_matches_and_is_kept(self) -> None:
+        script = "Depending on scope and timing.\n\nIf you have a project, drop a note."
+        a = avatar_speak.ScriptAligner(script)
+        out = "".join(a.feed(c) for c in ["Depending on scope", "and timing. If you", "have a project,", "drop a note."])
+        assert out == script
+
+    def test_a_passed_through_chunk_is_never_repeated(self) -> None:
+        script = "One two three four five six."
+        a = avatar_speak.ScriptAligner(script)
+        out = "".join(a.feed(c) for c in ["One two", "thre four", "five six."])
+        assert out.count("four") == 1
+        assert out.endswith("five six.")

@@ -203,6 +203,15 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
                 pump(l);
             },
             abort() { if (live === l) endLive(); },
+            // For karaoke captions: where playback is now, and the media time
+            // of the newest frame received (a chunk of words arriving now
+            // will be heard at about that time).
+            time() { return l.closed ? Infinity : liveVideo.currentTime; },
+            edge() {
+                const b = liveVideo.buffered;
+                return b.length ? b.end(b.length - 1) : 0;
+            },
+            get closed() { return l.closed; },
         };
     }
 

@@ -90,6 +90,78 @@ def clip_to_sentences(text: str, limit: int = MAX_SPEECH_CHARS) -> str:
     return out or text[:limit].rsplit(" ", 1)[0]
 
 
+class ScriptAligner:
+    """Turn the avatar's streamed transcription into clean caption text.
+
+    The Live API's output transcription sometimes drops the spaces between
+    chunks ("full-timeat", "considersselect"), and never sees paragraph
+    breaks. The avatar reads a script we wrote, verbatim, so each chunk is
+    matched against that script (ignoring whitespace differences) and the
+    script's own slice is emitted instead: exact spacing, punctuation,
+    casing and paragraph breaks. A chunk that can't be placed is passed
+    through with a space, and is never repeated by a later match.
+    """
+
+    # How far ahead of the last match a chunk may land and still count.
+    MAX_SKIP = 200
+    _WS = re.compile(r"\s+")
+
+    def __init__(self, script: str) -> None:
+        self._script = script
+        # Whitespace-collapsed, lower-cased script, plus where each of its
+        # characters sits in the original, so matches map back exactly.
+        norm, where, prev_ws = [], [], False
+        for i, ch in enumerate(script):
+            if ch.isspace():
+                if not prev_ws and norm:
+                    norm.append(" ")
+                    where.append(i)
+                prev_ws = True
+            else:
+                norm.append(ch.lower())
+                where.append(i)
+                prev_ws = False
+        self._norm = "".join(norm)
+        self._where = where
+        self._at = 0        # original index: end of the last emitted slice
+        self._nat = 0       # normalized index of the same point
+        self._shown = False
+        self._matched = False
+        self._skipped = False  # a chunk was passed through since the last match
+
+    def feed(self, chunk: str) -> str:
+        core = self._WS.sub(" ", chunk).strip()
+        if not core:
+            return ""
+        j = self._norm.find(core.lower(), self._nat)
+        if j == -1 or j - self._nat > self.MAX_SKIP:
+            out = (" " if self._shown and core[0] not in ".,;:!?)" else "") + core
+            self._skipped = True
+        else:
+            nend = j + len(core)
+            end = self._where[nend - 1] + 1
+            # From the last match (keeping the script's spacing and breaks),
+            # unless something was passed through since: then from this
+            # match, so the skipped span is never shown twice.
+            start = self._at if (self._matched and not self._skipped) else self._where[j]
+            out = self._script[start:end]
+            if self._shown and not out[:1].isspace() and out[:1] not in ".,;:!?)":
+                out = " " + out
+            self._at, self._nat = end, nend
+            self._matched, self._skipped = True, False
+        self._shown = True
+        return out
+
+    def rest(self) -> str:
+        """Whatever the transcription skipped at the end, so captions finish
+        complete. Only once the captions were actually tracking the script."""
+        if not self._matched or self._skipped:
+            return ""
+        out = self._script[self._at:]
+        self._at = len(self._script)
+        return out
+
+
 # --- daily budget -----------------------------------------------------------
 
 

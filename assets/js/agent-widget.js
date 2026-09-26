@@ -252,19 +252,71 @@ export function initAgentWidget(root, profile, sessionId) {
     }
     function pauseAvatar() { if (avatar) avatar.pause(); }
 
-    // The greeting lands in the transcript like any answer: as it is said.
+    // Spec 67: karaoke captions. Each chunk of the avatar's words is a span
+    // stamped with the media time it will be heard at; as playback passes a
+    // stamp the chunk lights up, then settles once the next one takes over.
+    function addCaptionChunk(p, text, at) {
+        const span = document.createElement("span");
+        span.className = "agent-avatar-w is-ahead";
+        span.dataset.at = String(at);
+        span.textContent = text;
+        p.appendChild(span);
+        return span;
+    }
+    function paintCaptions(p, now) {
+        const spans = p.querySelectorAll(".agent-avatar-w");
+        let current = null;
+        for (const span of spans) {
+            const said = Number(span.dataset.at) <= now;
+            span.classList.toggle("is-ahead", !said);
+            span.classList.toggle("is-said", said);
+            span.classList.remove("is-now");
+            if (said) current = span;
+        }
+        if (current && Number.isFinite(now)) current.classList.add("is-now");
+        return current;
+    }
+    // Keep the line being spoken in view, just above the bottom of the body.
+    function followCaption(span) {
+        if (!span) return;
+        const body = dom.body;
+        const top = span.offsetTop - body.offsetTop;
+        const target = top - body.clientHeight * 0.55;
+        if (Math.abs(body.scrollTop - target) > 4) body.scrollTop = Math.max(0, target);
+    }
+    const karaokeRunning = new WeakSet();
+    function runKaraoke(p, clock, isDone) {
+        if (karaokeRunning.has(p)) return;
+        karaokeRunning.add(p);
+        const tick = () => {
+            const done = isDone();
+            const current = paintCaptions(p, done ? Infinity : clock());
+            followCaption(current);
+            if (done) { karaokeRunning.delete(p); return; }
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
+
+    // The greeting lands in the transcript like any answer: as it is said,
+    // one caption cue at a time.
     let greetingWordsEl = null;
     function addGreetingWords(text) {
         if (!greetingWordsEl) {
             const li = document.createElement("li");
-            li.className = "agent-message agent-message-assistant is-avatar-turn";
+            li.className = "agent-message agent-message-assistant is-avatar-turn is-avatar-greeting";
             greetingWordsEl = document.createElement("p");
             greetingWordsEl.className = "agent-avatar-words";
             li.appendChild(greetingWordsEl);
             transcript.appendChild(li);
         }
-        greetingWordsEl.textContent += text;
-        dom.body.scrollTop = dom.body.scrollHeight;
+        const p = greetingWordsEl;
+        const cues = p.querySelectorAll(".agent-avatar-w").length;
+        addCaptionChunk(p, text, cues);
+        // Cues arrive exactly as they are spoken, so the newest one is "now".
+        followCaption(paintCaptions(p, cues));
+        clearTimeout(p._settle);
+        p._settle = setTimeout(() => paintCaptions(p, Infinity), 6000);
     }
 
     // Spec 67: the face speaks a finished reply. Anything that stops it from
@@ -341,9 +393,21 @@ export function initAgentWidget(root, profile, sessionId) {
             .finally(() => { avatarLoading = null; });
     }
 
+    // Avatar mode owns the voice outright: turn the TTS speaker off without a
+    // note and without touching its saved preference, so leaving Avatar for
+    // Voice later brings the voice back exactly as the visitor had it.
+    function silenceSpeakerForAvatar() {
+        if (!speakerOn) return;
+        speakerOn = false;
+        if (speaker) speaker.cancel();
+        clearSpeakingIndicator();
+        setSpeakerMode("off");
+    }
+
     // Every branch starts its audio work synchronously inside the click:
     // enableSpeaker() banks the gesture for Web Audio, and the avatar's
-    // greeting needs the same gesture to play with sound.
+    // greeting needs the same gesture to play with sound. The three modes are
+    // exclusive: exactly one of them is ever speaking.
     function selectMode(mode) {
         if (mode === currentMode()) {
             if (mode === "avatar" && avatar) { greetingWordsEl = null; avatar.replay(); } // re-pick = hear it again
@@ -352,12 +416,12 @@ export function initAgentWidget(root, profile, sessionId) {
         if (mode === "text") {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
             if (speakerOn) toggleSpeaker();
+            else writeSpeakerPref(false);
         } else if (mode === "voice") {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
             if (!speakerOn) enableSpeaker();
         } else if (mode === "avatar") {
-            // Answers are still read aloud in avatar mode, so voice comes on too.
-            if (!speakerOn) enableSpeaker();
+            silenceSpeakerForAvatar();
             writeAvatarPref(true);
             greetingWordsEl = null;
             setAvatarMode(true, { autoplay: true });
@@ -843,7 +907,8 @@ export function initAgentWidget(root, profile, sessionId) {
         // speakerOn true, so guarding this on `!speakerOn` skipped the unlock
         // entirely on reopen — synthesis ran, ctx was never created, and
         // every clip was silently dropped.
-        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())) {
+        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())
+            && !(FEATURES.avatarMode && (avatarOn || readAvatarPref()))) {
             speakerOn = true;
             setSpeakerMode("on");
             // Opening the panel is itself a click, so bank it for audio the
@@ -1068,7 +1133,6 @@ export function initAgentWidget(root, profile, sessionId) {
         const liveTurn = avatarVoice ? avatar.startLive() : null;
         let avatarWordsEl = null;
         let avatarSpoke = false;
-        let turnText = ""; // what has streamed so far, for a mid-reply fallback to the voice
         // Remove suggestion chips from the previous assistant message
         transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
 
@@ -1118,20 +1182,17 @@ export function initAgentWidget(root, profile, sessionId) {
             avatarWordsEl.className = "agent-avatar-words";
             assistant.appendChild(avatarWordsEl);
         }
-        // The avatar can't take this turn after all: show the reply as text
-        // and let the voice read it, exactly as Voice mode would have.
-        const dropAvatar = (reason, isFinal = false) => {
+        // The avatar can't take this turn after all: show the reply as text.
+        // Avatar mode never falls back to the TTS voice; the modes stay isolated.
+        const dropAvatar = (reason) => {
             if (!avatarVoice) return;
             avatarVoice = false;
             if (liveTurn) liveTurn.abort();
-            // Deltas were held from the voice while the avatar owned the turn;
-            // hand it everything so far, and onDelta feeds the rest as usual.
-            if (FEATURES.speakReplies && speakerOn && speaker && turnText && !isFinal) speaker.feed(turnText);
             assistant.classList.remove("is-avatar-turn");
             if (avatarWordsEl) avatarWordsEl.remove();
             if (reason && /limit|resting/i.test(reason)) {
                 avatarResting = true;
-                showVoiceNote(`${reason} Atlas will read answers aloud instead.`, 6000);
+                showVoiceNote(`${reason} Answers will show as text.`, 6000);
             }
         };
         // Only the first turn of a session can hit a cold start — the loading
@@ -1195,8 +1256,8 @@ export function initAgentWidget(root, profile, sessionId) {
                     words(text) {
                         if (!avatarVoice) return;
                         if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); }
-                        avatarWordsEl.textContent += text;
-                        maybeScrollToEnd();
+                        addCaptionChunk(avatarWordsEl, text, liveTurn.edge());
+                        runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
                     unavailable(reason) {
@@ -1233,7 +1294,6 @@ export function initAgentWidget(root, profile, sessionId) {
                     // and the "Reading aloud" strip is what keeps the
                     // relationship between the two legible.
                     markFirstDelta();
-                    turnText += delta;
                     appendDelta(assistant, delta, FEATURES.typingCursor);
                     // Chunking happens inside the speaker; this just hands it
                     // the raw stream. Sanitization is server-side, so what is
@@ -1267,9 +1327,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Spec 67: nothing was spoken (an error, a stop, a reply with
                     // nothing to say): show the text instead of an empty turn.
                     if (avatarVoice && !avatarSpoke) {
-                        const fellBack = !wasStopped;
-                        dropAvatar("", true);
-                        if (fellBack && FEATURES.speakReplies && speakerOn && speaker && full) speaker.speak(full);
+                        dropAvatar("");
                     }
                     if (wasStopped) {
                         removeCaret(assistant);

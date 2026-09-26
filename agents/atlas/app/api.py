@@ -54,6 +54,7 @@ from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
+from app.app_utils.lead_note import LeadNoteGuard
 from app.app_utils.resume_send import warm_mcp_server
 from app.app_utils.speak import MAX_TEXT_CHARS, sanitize_for_speech, speak_text
 from app.app_utils.speak import warm as warm_speak
@@ -330,11 +331,13 @@ async def _with_avatar(text_stream: AsyncIterator[str]) -> AsyncIterator[str]:
             started = time.monotonic()
             await live.open()
             logger.info("avatar session open in %d ms", int((time.monotonic() - started) * 1000))
-            reader = asyncio.ensure_future(_relay_avatar(live, out))
+            aligner: list[avatar_speak.ScriptAligner] = []
+            reader = asyncio.ensure_future(_relay_avatar(live, out, aligner))
             text = await script
             if not text:
                 reader.cancel()
                 return
+            aligner.append(avatar_speak.ScriptAligner(text))
             await live.say(text)
             await reader
         except asyncio.CancelledError:
@@ -369,13 +372,26 @@ async def _with_avatar(text_stream: AsyncIterator[str]) -> AsyncIterator[str]:
         )
 
 
-async def _relay_avatar(live: avatar_speak.LiveAvatar, out: asyncio.Queue) -> None:
-    """Forward the avatar's video and spoken words onto the turn's stream."""
+async def _relay_avatar(
+    live: avatar_speak.LiveAvatar,
+    out: asyncio.Queue,
+    aligner: list[avatar_speak.ScriptAligner],
+) -> None:
+    """Forward the avatar's video and spoken words onto the turn's stream.
+
+    Words are aligned to the script the avatar is reading (`aligner` holds
+    it once the reply exists), so captions carry the script's own spacing
+    and punctuation rather than the raw transcription's.
+    """
     async for kind, value in live.events():
         if kind == "video":
             await out.put(_sse({"avatarVideo": base64.b64encode(value).decode("ascii")}))
         else:
-            await out.put(_sse({"avatarWords": value}))
+            words = aligner[0].feed(value) if aligner else value
+            if words:
+                await out.put(_sse({"avatarWords": words}))
+    if aligner and (tail := aligner[0].rest().strip()):
+        await out.put(_sse({"avatarWords": " " + tail}))
     await out.put(_sse({"avatarEnd": True}))
 
 
@@ -411,6 +427,7 @@ async def _stream_agent(
     ttf_delta_ms: int | None = None
     # user_visible: text actually forwarded to the client (excludes meta block)
     user_visible: list[str] = []
+    lead_guard = LeadNoteGuard()
     # pending: holds back chars that might be the start of [[META]]
     pending = ""
     meta_open = False
@@ -613,24 +630,43 @@ async def _stream_agent(
 
             for chunk in _absorb(new_text):
                 if chunk:
-                    if ttf_delta_ms is None:
-                        ttf_delta_ms = int((time.monotonic() - start) * 1000)
-                    yield _sse({"delta": chunk})
+                    # Spec 67: a working note written into the reply goes
+                    # to the Thinking panel instead (see lead_note.py).
+                    shown, note = lead_guard.push(chunk)
+                    if note:
+                        yield _sse({"thinking": note})
+                    if shown:
+                        if ttf_delta_ms is None:
+                            ttf_delta_ms = int((time.monotonic() - start) * 1000)
+                        yield _sse({"delta": shown})
 
     except Exception as exc:
         logger.exception("agent-chat stream failed")
         status = "error"
         error_message = repr(exc)[:500]
+        held, _ = lead_guard.flush()
+        if held:
+            yield _sse({"delta": held})
         yield _sse({"delta": _failure_reply(exc)})
 
     # Flush any remaining safe pending chars (unlikely but defensive).
     if pending and not meta_open:
         user_visible.append(pending)
-        yield _sse({"delta": pending})
+        shown, note = lead_guard.push(pending)
+        if note:
+            yield _sse({"thinking": note})
+        if shown:
+            yield _sse({"delta": shown})
         pending = ""
+    held, note = lead_guard.flush()
+    if note:
+        yield _sse({"thinking": note})
+    if held:
+        yield _sse({"delta": held})
 
-    # Assemble the user-visible response text (no [[META]] content).
-    visible_text = "".join(user_visible)
+    # Assemble the user-visible response text (no [[META]] content, and no
+    # working note the guard diverted).
+    visible_text = lead_guard.without_note("".join(user_visible))
 
     # Detect guardrail short-circuits by matching the canned reply prefixes.
     if status == "ok":

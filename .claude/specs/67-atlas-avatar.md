@@ -146,6 +146,42 @@ before its first frame. Beating that needs a pre-warmed session, which is
 not built: if idle avatar video is billed, an always-open session could cost
 hundreds of dollars a day, so it waits on confirming billing.
 
+## Review round: isolation, karaoke, and clean text
+
+- **The three modes are exclusive.** Picking Avatar silences the TTS speaker
+  (without touching its saved preference, so Voice comes back as it was);
+  opening the panel restores one mode, never two; an avatar turn that can't
+  be spoken (cap, error) shows as text with a note and is never read by the
+  TTS voice. Previously the voice ran behind Avatar as a fallback, which
+  read as two modes on at once.
+- **Each mode renders the whole conversation its own way.** Avatar turns show
+  their karaoke transcript in Avatar mode and the full formatted reply
+  (citations, sources) in Text or Voice. The greeting exists only in Avatar
+  mode. The transcript uses the same message format as Text and Voice
+  (left-aligned, paragraphs, the usual question bubble); centred captions
+  were tried and dropped in review.
+- **Karaoke captions.** Each chunk of the avatar's words is stamped with the
+  live video's buffered edge when it arrives and lights up when playback
+  reaches it: spoken words read normally, the current words glow, upcoming
+  words wait dimmed. The greeting does the same from its caption cues.
+- **Captions are the script, not raw transcription.** The Live API's output
+  transcription drops spaces between chunks and never sees paragraph breaks,
+  so `ScriptAligner` matches each chunk against the script the avatar is
+  reading (whitespace-insensitive) and emits the script's own slice. A chunk
+  it can't place passes through spaced and is never repeated.
+- **Thinking level LOW by default** (`ATLAS_THINKING_LEVEL` still overrides).
+  On real questions MEDIUM spent 140-980 thinking tokens, about 4-6s of
+  silence before the first word; LOW spends ~20-40. Resume and note routing
+  and the injection refusal were re-checked on LOW.
+- **`LeadNoteGuard`.** At LOW the model sometimes writes the prompt's
+  required working note ("Availability question, calling get_profile...")
+  into the reply instead of its thinking. The guard holds only the reply's
+  opening until it can tell, diverts a matching note to the Thinking panel,
+  and keeps it out of speech, captions and the audit log.
+
+Measured end to end on the final config (local Atlas, warm): first word
+3.6-4.1s; the avatar speaking 6.3-7.8s after send on real questions.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

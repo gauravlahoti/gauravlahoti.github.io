@@ -4661,32 +4661,34 @@ a.agent-badge-tile:focus-visible {
 .agent-panel.is-avatar-mode .agent-loading-dots,
 .agent-panel.is-avatar-mode .agent-message-intro { display: none !important; }
 
-/* An avatar turn shows what was said, not the generated reply (which is still
-   rendered, hidden, for history and for a fallback to Text or Voice). */
-.agent-message.is-avatar-turn .agent-message-text { display: none; }
-.agent-message.is-avatar-turn { border-left-color: transparent; padding-left: 0; }
-/* Avatar mode reads like a video call's live captions: centred under the
-   face, Atlas's words clear, the visitor's questions quieter, no chat chrome. */
-.agent-message-assistant p.agent-avatar-words {
-    border-left: 0;
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--text-base);
-    line-height: 1.55;
-    color: var(--ink);
-    text-align: center;
-}
+/* Each mode renders the whole conversation its own way. In Avatar mode an
+   avatar turn shows what was said (karaoke transcript); in Text or Voice the same turn
+   shows the full formatted reply, with citations and sources, like any other.
+   The greeting only exists in Avatar mode. */
+.agent-panel.is-avatar-mode .agent-message.is-avatar-turn .agent-message-text { display: none; }
+.agent-panel:not(.is-avatar-mode) .agent-avatar-words,
+.agent-panel:not(.is-avatar-mode) .agent-message.is-avatar-greeting { display: none; }
+/* Avatar mode's transcript uses the same message format as Text and Voice
+   (left-aligned, paragraphs, the usual bubble for the visitor); only the
+   karaoke highlight on top is its own. */
 .agent-avatar-words:empty { display: none; }
-.agent-panel.is-avatar-mode .agent-message-user p {
-    align-self: center;
-    margin-left: 0;
-    background: none;
-    border: 0;
-    padding: var(--space-1) var(--space-2);
-    color: var(--ink-muted);
-    font-size: var(--text-sm);
-    text-align: center;
+/* Karaoke captions: what's been said reads normally, what's being said now
+   glows, and what's coming waits dimmed just ahead. */
+.agent-avatar-w {
+    border-radius: var(--radius-sm);
+    transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), text-shadow var(--dur-fast) var(--ease-out);
 }
-.agent-panel.is-avatar-mode .agent-message-user p::before { content: "You: "; color: var(--ink-subtle); }
+.agent-avatar-w.is-ahead { color: var(--ink-subtle); }
+.agent-avatar-w.is-said { color: var(--ink); }
+.agent-avatar-w.is-now {
+    color: var(--accent);
+    background-color: var(--accent-soft);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+    text-shadow: 0 0 14px var(--accent-glow);
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-avatar-w { transition: none; }
+}
 
 /* The stage: the header's last row, and in avatar mode the heart of the panel. */
 .agent-avatar-slot {
@@ -4700,11 +4702,16 @@ a.agent-badge-tile:focus-visible {
     from { opacity: 0; transform: scale(0.96); }
     to   { opacity: 1; transform: none; }
 }
-/* Text scrolling up under the face fades out instead of being sliced. */
-.agent-panel.has-avatar .agent-panel-body {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
-            mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
+/* A video call needs room for its captions: in Avatar mode the panel may grow
+   taller than the chat default, and the face gives a little back on short
+   screens, so the transcript under it is several lines, not a sliver. */
+@media (min-width: 768px) {
+    .agent-panel.is-avatar-mode { max-height: min(92vh, 880px); }
 }
+@media (min-width: 768px) and (max-height: 860px) {
+    .agent-panel.is-avatar-mode .agent-avatar-frame { width: min(190px, 100%); }
+}
+.agent-panel.is-avatar-mode .agent-panel-body { min-height: 150px; }
 .agent-avatar { display: flex; justify-content: center; width: 100%; }
 .agent-avatar-frame {
     position: relative;
