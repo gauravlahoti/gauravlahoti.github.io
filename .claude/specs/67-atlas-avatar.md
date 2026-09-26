@@ -235,6 +235,43 @@ Voice's audio gesture) and asks the same question again, so nobody retypes
 it. After that, further Avatar-mode questions go straight to the card
 without a request.
 
+## Review round: exact karaoke, shorter answers, no dashes
+
+**Word-by-word highlight, timed on the server.** Captions used to light
+whole transcription chunks, stamped with the browser's buffered edge, which
+lags behind what has been received. Now the server reads each fMP4
+fragment's media time (`FragmentClock` in `avatar_speak.py`: `tfdt` plus
+`trun` durations) and sends every caption chunk as `{text, at}`, where `at`
+is when its last word is heard. Measured on a recorded answer, a chunk's
+last word is heard ~1.5s after the media edge received with it
+(`WORDS_LEAD_S`), and sentence ends then land within ~0.1-0.3s of the real
+pauses (`silencedetect`). The widget splits chunks into words and spreads
+them across each chunk's span, so exactly one word is lit at a time. The
+greeting does the same inside each caption cue against the video clock. The
+lit word stays clear of the bottom fade, and the view scrolls to the end
+when the answer finishes.
+
+**Answers sized for how they arrive.** The widget sends `mode`
+(text/voice/avatar). Spoken modes get a server-written note on that request
+only (`guardrails.before_model_callback`, never stored in the history):
+1-3 short sentences, about 45 words. Text is now 2-3 sentences, under ~80
+words, planned to fit rather than cut. Measured on 8 questions per mode:
+text 19-71 words, voice 36-48, all ending on a full sentence, all still
+citing Gaurav's data.
+
+**One conversation across modes, labelled.** Switching modes re-shows saved
+answers and never asks again (one Atlas call per question; avatar video is
+billed only in Avatar). Each answer carries a small "via Avatar/Voice/Text"
+tag, visible when looked at from another mode.
+
+**No em or en dashes in anything Atlas writes.** `app_utils/dashes.py`
+filters the streamed reply, the thinking panel, working notes, suggestions,
+citation labels and everything built from the reply (speech, avatar script,
+logs): a dash between numbers becomes a hyphen, any other dash a comma. The
+streaming guard matches the one-shot function for every chunking (tested).
+The prompt says the same, and its own citation label formats and examples
+no longer model dashes. The widget's own status copy lost its dashes too.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

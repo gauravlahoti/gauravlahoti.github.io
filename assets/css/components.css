@@ -4856,11 +4856,12 @@ a.agent-badge-tile:focus-visible {
    (left-aligned, paragraphs, the usual bubble for the visitor); only the
    karaoke highlight on top is its own. */
 .agent-avatar-words:empty { display: none; }
-/* Karaoke captions: what's been said reads normally, what's being said now
-   glows, and what's coming waits dimmed just ahead. */
+/* Karaoke captions, word by word: what's been said reads normally, the one
+   word being said now is lit in the mode's colour, and what's coming waits
+   dimmed just ahead. The tint hugs that single word, never a whole line. */
 .agent-avatar-w {
     border-radius: var(--radius-sm);
-    transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), text-shadow var(--dur-fast) var(--ease-out);
+    transition: color var(--dur-fast) var(--ease-out), text-shadow var(--dur-fast) var(--ease-out);
 }
 .agent-avatar-w.is-ahead { color: var(--ink-subtle); }
 .agent-avatar-w.is-said { color: var(--ink); }
@@ -4868,10 +4869,11 @@ a.agent-badge-tile:focus-visible {
     color: var(--mode-c);
     background-color: var(--mode-soft);
     box-shadow: 0 0 0 2px var(--mode-soft);
-    text-shadow: 0 0 14px var(--mode-glow);
+    text-shadow: 0 0 12px var(--mode-glow);
 }
 @media (prefers-reduced-motion: reduce) {
     .agent-avatar-w { transition: none; }
+    .agent-avatar-w.is-now { text-shadow: none; }
 }
 
 /* The stage: the header's last row, and in avatar mode the heart of the panel. */
@@ -5019,3 +5021,20 @@ a.agent-badge-tile:focus-visible {
     border-radius: var(--radius-md);
     background: var(--bg-card);
 }
+
+/* Spec 67: which mode an answer came from, shown only when viewing it from a
+   different mode (one conversation across modes; nothing is asked twice). */
+.agent-via {
+    display: inline-block;
+    margin-top: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.04em;
+    color: var(--ink-subtle);
+}
+.agent-message[data-via="text"]   .agent-via { color: var(--mode-text); }
+.agent-message[data-via="voice"]  .agent-via { color: var(--mode-voice); }
+.agent-message[data-via="avatar"] .agent-via { color: var(--mode-avatar); }
+.agent-panel[data-mode="text"]   .agent-message[data-via="text"]   .agent-via,
+.agent-panel[data-mode="voice"]  .agent-message[data-via="voice"]  .agent-via,
+.agent-panel[data-mode="avatar"] .agent-message[data-via="avatar"] .agent-via { display: none; }

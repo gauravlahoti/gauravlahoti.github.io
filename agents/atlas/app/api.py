@@ -53,6 +53,7 @@ from google.genai.errors import APIError
 from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
+from app.app_utils.dashes import DashGuard, strip_dashes
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.lead_note import LeadNoteGuard
 from app.app_utils.resume_send import warm_mcp_server
@@ -63,6 +64,7 @@ from app.app_utils.transcribe import warm as warm_transcribe
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
     INJECTION_REPLY_PREFIX,
+    REPLY_MODES,
     TOO_LONG_REPLY_PREFIX,
 )
 from app.rate_limit import limiter
@@ -227,12 +229,12 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]
             host = (url.split("//", 1)[-1].split("/", 1)[0]).lower() if "//" in url else ""
             if not any(host == h or host.endswith("." + h) for h in _ALLOWED_CITE_HOSTS):
                 continue  # server is canonical — drop off-allowlist entries
-            citations.append({"id": cid, "url": url[:500], "label": str(label)[:80]})
+            citations.append({"id": cid, "url": url[:500], "label": strip_dashes(str(label))[:80]})
         # suggestions: 2–3 non-empty strings ≤ 80 chars; drop off-scope
         # (generic tech-definition) suggestions Atlas would only decline.
         raw_sugg = obj.get("suggestions") or []
         suggestions = [
-            str(s)[:80]
+            strip_dashes(str(s))[:80]
             for s in raw_sugg
             if isinstance(s, str) and s.strip() and not _is_offscope_suggestion(s)
         ][:3]
@@ -279,6 +281,14 @@ async def _log_turn(geo_task: asyncio.Task | None, payload: dict[str, Any]) -> N
         payload["region"] = (geo or {}).get("region")
         payload["city"] = (geo or {}).get("city")
     await log_interaction(payload)
+
+
+def _reply_mode(body: Any, want_avatar: bool) -> str:
+    """The widget's mode for this turn: text, voice or avatar (spec 67)."""
+    if want_avatar:
+        return "avatar"
+    mode = (body or {}).get("mode") if isinstance(body, dict) else None
+    return mode if mode in REPLY_MODES else "text"
 
 
 async def _capped_avatar_stream(reason: str) -> AsyncIterator[str]:
@@ -373,6 +383,12 @@ async def _with_avatar(text_stream: AsyncIterator[str]) -> AsyncIterator[str]:
         )
 
 
+def _words_event(text: str, live: avatar_speak.LiveAvatar) -> dict[str, Any]:
+    """A caption chunk plus the media time its last word is heard at, so the
+    widget can highlight each word as it is said (spec 67 karaoke)."""
+    return {"text": text, "at": round(live.clock.edge + avatar_speak.WORDS_LEAD_S, 3)}
+
+
 async def _relay_avatar(
     live: avatar_speak.LiveAvatar,
     out: asyncio.Queue,
@@ -390,9 +406,9 @@ async def _relay_avatar(
         else:
             words = aligner[0].feed(value) if aligner else value
             if words:
-                await out.put(_sse({"avatarWords": words}))
+                await out.put(_sse({"avatarWords": _words_event(words, live)}))
     if aligner and (tail := aligner[0].rest().strip()):
-        await out.put(_sse({"avatarWords": " " + tail}))
+        await out.put(_sse({"avatarWords": _words_event(" " + tail, live)}))
     await out.put(_sse({"avatarEnd": True}))
 
 
@@ -405,6 +421,7 @@ async def _stream_agent(
     client_meta: dict[str, str],
     geo_task: asyncio.Task | None = None,
     avatar: bool = False,
+    reply_mode: str = "text",
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
@@ -429,6 +446,9 @@ async def _stream_agent(
     # user_visible: text actually forwarded to the client (excludes meta block)
     user_visible: list[str] = []
     lead_guard = LeadNoteGuard()
+    # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
+    dash_guard = DashGuard()
+    thought_guard = DashGuard()
     # pending: holds back chars that might be the start of [[META]]
     pending = ""
     meta_open = False
@@ -501,6 +521,9 @@ async def _stream_agent(
             user_id=session_id,
             session_id=session_id,
             new_message=new_message,
+            # Spec 67: how this answer will reach the visitor (guardrails.py
+            # gives spoken modes a tighter length).
+            state_delta={"reply_mode": reply_mode},
             run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
             # Collect tool calls from function_call parts.
@@ -609,7 +632,9 @@ async def _stream_agent(
                     if cleaned:
                         if ttf_thinking_ms is None:
                             ttf_thinking_ms = int((time.monotonic() - start) * 1000)
-                        yield _sse({"thinking": cleaned})
+                        cleaned = thought_guard.push(cleaned)
+                        if cleaned:
+                            yield _sse({"thinking": cleaned})
 
             if not answer_texts:
                 continue
@@ -635,7 +660,8 @@ async def _stream_agent(
                     # to the Thinking panel instead (see lead_note.py).
                     shown, note = lead_guard.push(chunk)
                     if note:
-                        yield _sse({"thinking": note})
+                        yield _sse({"thinking": strip_dashes(note)})
+                    shown = dash_guard.push(shown) if shown else ""
                     if shown:
                         if ttf_delta_ms is None:
                             ttf_delta_ms = int((time.monotonic() - start) * 1000)
@@ -646,6 +672,7 @@ async def _stream_agent(
         status = "error"
         error_message = repr(exc)[:500]
         held, _ = lead_guard.flush()
+        held = dash_guard.push(held) + dash_guard.flush() if held else dash_guard.flush()
         if held:
             yield _sse({"delta": held})
         yield _sse({"delta": _failure_reply(exc)})
@@ -655,19 +682,24 @@ async def _stream_agent(
         user_visible.append(pending)
         shown, note = lead_guard.push(pending)
         if note:
-            yield _sse({"thinking": note})
+            yield _sse({"thinking": strip_dashes(note)})
+        shown = dash_guard.push(shown) if shown else ""
         if shown:
             yield _sse({"delta": shown})
         pending = ""
     held, note = lead_guard.flush()
     if note:
-        yield _sse({"thinking": note})
+        yield _sse({"thinking": strip_dashes(note)})
+    held = (dash_guard.push(held) if held else "") + dash_guard.flush()
     if held:
         yield _sse({"delta": held})
+    tail = thought_guard.flush()
+    if tail:
+        yield _sse({"thinking": tail})
 
     # Assemble the user-visible response text (no [[META]] content, and no
     # working note the guard diverted).
-    visible_text = lead_guard.without_note("".join(user_visible))
+    visible_text = strip_dashes(lead_guard.without_note("".join(user_visible)))
 
     # Detect guardrail short-circuits by matching the canned reply prefixes.
     if status == "ok":
@@ -1035,7 +1067,7 @@ def register_routes(app: FastAPI) -> None:
             # Both session and IP buckets cap at 10/24h, so the user-facing
             # message is the same regardless of which one fired.
             msg = (
-                "Thanks for the conversation — that's the question budget for "
+                "Thanks for the conversation. That's the question budget for "
                 "today (10 per visitor). For anything more, the best place is "
                 "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
                 "tomorrow!"
@@ -1109,6 +1141,7 @@ def register_routes(app: FastAPI) -> None:
             client_meta=client_meta,
             geo_task=geo_task,
             avatar=want_avatar,
+            reply_mode=_reply_mode(body, want_avatar),
         )
         stream = _with_avatar(text_stream) if want_avatar else text_stream
 

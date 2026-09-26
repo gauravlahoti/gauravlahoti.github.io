@@ -274,21 +274,45 @@ export function initAgentWidget(root, profile, pageSessionId) {
     let greetedThisPage = false;
     function pauseAvatar() { if (avatar) avatar.pause(); }
 
-    // Spec 67: karaoke captions. Each chunk of the avatar's words is a span
-    // stamped with the media time it will be heard at; as playback passes a
-    // stamp the chunk lights up, then settles once the next one takes over.
+    // Spec 67: karaoke captions, one word at a time. Every word is a span
+    // stamped with the media time it starts being heard. As the video clock
+    // passes a stamp, that word becomes the one lit word ("is-now"), words
+    // before it read normally and words after it wait dimmed.
+    //
+    // Live answers: each chunk from the server carries `at`, the media time
+    // its last word is heard (server-side, from the fMP4 fragment times plus
+    // the measured transcription lead). The chunk runs from the previous
+    // chunk's end to `at`, and its words are spread across that by length.
+    // The greeting passes its caption cue's start and end instead.
+    const CAPTION_CHARS_PER_S = 15; // only used where the stream gives no time
+    function addWords(p, text, start, end) {
+        const letters = text.replace(/\s+/g, "").length || 1;
+        let seen = 0;
+        for (const piece of text.split(/(\s+)/)) {
+            if (!piece) continue;
+            if (/^\s+$/.test(piece)) { p.appendChild(document.createTextNode(piece)); continue; }
+            const span = document.createElement("span");
+            span.className = "agent-avatar-w is-ahead";
+            span.dataset.at = String(start + (end - start) * (seen / letters));
+            span.textContent = piece;
+            p.appendChild(span);
+            seen += piece.length;
+        }
+    }
     function addCaptionChunk(p, text, at) {
-        const span = document.createElement("span");
-        span.className = "agent-avatar-w is-ahead";
-        span.dataset.at = String(at);
-        span.textContent = text;
-        p.appendChild(span);
-        return span;
+        const k = p._caption || (p._caption = { end: null });
+        const dur = (text.replace(/\s+/g, "").length || 1) / CAPTION_CHARS_PER_S;
+        let end = Number.isFinite(at) ? at : (k.end ?? 0) + dur;
+        if (k.end !== null) end = Math.max(end, k.end + 0.05);
+        // Continuous speech picks up where the last chunk ended; after a gap
+        // (or for the first chunk) it starts a chunk's length before its end.
+        const start = k.end !== null && end - k.end < dur * 2 ? k.end : end - dur;
+        addWords(p, text, start, end);
+        k.end = end;
     }
     function paintCaptions(p, now) {
-        const spans = p.querySelectorAll(".agent-avatar-w");
         let current = null;
-        for (const span of spans) {
+        for (const span of p.querySelectorAll(".agent-avatar-w")) {
             const said = Number(span.dataset.at) <= now;
             span.classList.toggle("is-ahead", !said);
             span.classList.toggle("is-said", said);
@@ -298,32 +322,41 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (current && Number.isFinite(now)) current.classList.add("is-now");
         return current;
     }
-    // Keep the line being spoken in view, just above the bottom of the body.
+    // Keep the word being spoken comfortably in view: when it drifts out of
+    // the band between the top and the bottom fade, bring its line back to
+    // about 40% down. Never scrolls on every frame, so the text doesn't jitter.
+    const CAPTION_FADE_PX = 56;
     function followCaption(span) {
         if (!span) return;
         const body = dom.body;
-        const top = span.offsetTop - body.offsetTop;
-        const target = top - body.clientHeight * 0.55;
-        if (Math.abs(body.scrollTop - target) > 4) body.scrollTop = Math.max(0, target);
+        const box = body.getBoundingClientRect();
+        const r = span.getBoundingClientRect();
+        if (r.top >= box.top + 8 && r.bottom <= box.bottom - CAPTION_FADE_PX - 16) return;
+        body.scrollTop = Math.max(0, body.scrollTop + (r.top - box.top) - body.clientHeight * 0.4);
     }
     const karaokeRunning = new WeakSet();
     function runKaraoke(p, clock, isDone) {
         if (karaokeRunning.has(p)) return;
         karaokeRunning.add(p);
         const tick = () => {
-            const done = isDone();
-            const current = paintCaptions(p, done ? Infinity : clock());
-            followCaption(current);
-            if (done) { karaokeRunning.delete(p); return; }
+            if (isDone()) {
+                // Finished: every word reads as said, and the whole answer is
+                // in view (nothing left under the fade).
+                paintCaptions(p, Infinity);
+                karaokeRunning.delete(p);
+                scrollToEnd();
+                return;
+            }
+            followCaption(paintCaptions(p, clock()));
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
     }
 
-    // The greeting lands in the transcript like any answer: as it is said,
-    // one caption cue at a time.
+    // The greeting lands in the transcript like any answer, word by word, timed
+    // inside each caption cue against the greeting video's own clock.
     let greetingWordsEl = null;
-    function addGreetingWords(text) {
+    function addGreetingWords(text, cue) {
         if (!greetingWordsEl) {
             const li = document.createElement("li");
             li.className = "agent-message agent-message-assistant is-avatar-turn is-avatar-greeting";
@@ -333,12 +366,8 @@ export function initAgentWidget(root, profile, pageSessionId) {
             transcript.appendChild(li);
         }
         const p = greetingWordsEl;
-        const cues = p.querySelectorAll(".agent-avatar-w").length;
-        addCaptionChunk(p, text, cues);
-        // Cues arrive exactly as they are spoken, so the newest one is "now".
-        followCaption(paintCaptions(p, cues));
-        clearTimeout(p._settle);
-        p._settle = setTimeout(() => paintCaptions(p, Infinity), 6000);
+        addWords(p, text, cue.start, cue.end);
+        runKaraoke(p, cue.now, cue.done);
     }
 
     // Spec 67: the face speaks a finished reply. Anything that stops it from
@@ -1160,7 +1189,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const text = (input.value || "").trim();
         if (!text) return;
         if (text.length > 1000) {
-            appendSystem("That message is a bit long for me — could you trim it under ~1000 characters?");
+            appendSystem("That message is a bit long for me. Could you trim it under ~1000 characters?");
             return;
         }
         const emailError = validateEmailInMessage(text);
@@ -1305,12 +1334,13 @@ export function initAgentWidget(root, profile, pageSessionId) {
                 identity,
                 signal: abortController.signal,
                 avatar: avatarVoice,
+                mode: avatarVoice ? "avatar" : (FEATURES.speakReplies && speakerOn ? "voice" : "text"),
                 onAvatar: avatarVoice ? {
                     video(b64) { if (avatarVoice) liveTurn.push(b64); },
-                    words(text) {
+                    words(text, at) {
                         if (!avatarVoice) return;
                         if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); }
-                        addCaptionChunk(avatarWordsEl, text, liveTurn.edge());
+                        addCaptionChunk(avatarWordsEl, text, at);
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
@@ -1412,11 +1442,12 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     // sample to play — up to tens of seconds after the reply
                     // had finished arriving.
                     if (!full && !errorShown) {
-                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
+                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end. Could you try asking again?", false);
                     }
                     if (full) {
                         // Remove typing caret first, then do one-shot render with citations
                         finalizeAssistant(assistant, full, turnState.citations);
+                        tagVia(assistant, avatarVoice ? "avatar" : (FEATURES.speakReplies && speakerOn ? "voice" : "text"));
                         messages.push({ role: "assistant", content: full });
                         liveRegion.textContent = stripUrls(full).slice(0, 240);
 
@@ -1547,6 +1578,19 @@ export function initAgentWidget(root, profile, pageSessionId) {
     }
     clearBtn.addEventListener("click", clearConversation);
 
+    // Spec 67: one conversation across modes. An answer says which mode it
+    // came from ("via Avatar") whenever you're looking at it from another
+    // mode, so it's clear switching re-shows it rather than asking again.
+    const VIA_LABEL = { text: "via Text", voice: "via Voice", avatar: "via Avatar" };
+    function tagVia(li, via) {
+        li.dataset.via = via;
+        if (li.querySelector(".agent-via")) return;
+        const tag = document.createElement("span");
+        tag.className = "agent-via";
+        tag.textContent = VIA_LABEL[via] || "";
+        li.appendChild(tag);
+    }
+
     function appendStoppedNote(assistantLi) {
         if (assistantLi.querySelector(".agent-stopped-note")) return;
         const note = document.createElement("p");
@@ -1560,7 +1604,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "agent-retry-inline";
-        btn.textContent = "Connection slipped — try again?";
+        btn.textContent = "Connection slipped. Try again?";
         btn.addEventListener("click", () => {
             btn.remove();
             // Re-send the last user message; append a fresh assistant bubble
@@ -1682,7 +1726,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         wrap.className = "agent-sources";
         const span = document.createElement("span");
         span.className = "agent-source-internal";
-        span.textContent = "Internal — profile data";
+        span.textContent = "Internal: profile data";
         wrap.appendChild(span);
         assistantLi.appendChild(wrap);
     }
@@ -2547,11 +2591,11 @@ function renderShell(root, agentExplainer) {
                 </svg>
                 <span>Text</span>
             </button>
-            <button type="button" role="radio" class="agent-mode-opt" data-mode="voice" aria-label="Voice" aria-checked="false" title="Atlas reads its answers aloud">
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="voice" aria-label="Voice" aria-checked="false" title="Atlas reads new answers aloud. Earlier answers stay as they are, nothing is asked again.">
                 <span class="agent-mode-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                 <span>Voice</span>
             </button>
-            <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face">
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face. Earlier answers stay as they are, nothing is asked again.">
                 <span class="agent-mode-orb" aria-hidden="true"><span class="agent-mode-orb-face"><img src="${AVATAR_FACE_URL}" alt="" width="22" height="22" decoding="async"></span></span>
                 <span>Avatar</span>
                 <span class="agent-mode-new" aria-hidden="true"></span>
@@ -2834,8 +2878,8 @@ function startLoadingStages(assistantLi, isFirstTurn) {
             // wait that way. Later turns hit a warm container — a slow one is
             // just a complex answer, so stay neutral (no "first answer" claim).
             p.textContent = isFirstTurn
-                ? "Still on it — the first answer of the session takes a few extra seconds. Hang tight."
-                : "Still on it — this one's taking a moment. Hang tight.";
+                ? "Still on it. The first answer of the session takes a few extra seconds, so hang tight."
+                : "Still on it. This one's taking a moment, so hang tight.";
         }
     }, 10000);
     return {
@@ -2866,12 +2910,14 @@ function newSessionId() {
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, mode, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
         // Spec 67: ask this turn to be spoken by the avatar, on this stream.
         if (avatar) reqBody.avatar = true;
+        // How the answer will reach the visitor; spoken modes get shorter ones.
+        if (mode) reqBody.mode = mode;
         response = await fetch(apiUrl, {
             method: "POST",
             mode: "cors",
@@ -2882,7 +2928,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
         });
     } catch (err) {
         if (signal?.aborted) { onDone(""); return; }
-        onError("I can't reach the server right now — might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
+        onError("I can't reach the server right now. It might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
         onDone("");
         return;
     }
@@ -2948,8 +2994,11 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
                     onBadges(evt.badges);
                 } else if (onAvatar && typeof evt.avatarVideo === "string") {
                     onAvatar.video(evt.avatarVideo); // spec 67: live avatar frames
-                } else if (onAvatar && typeof evt.avatarWords === "string") {
-                    onAvatar.words(evt.avatarWords);
+                } else if (onAvatar && evt.avatarWords) {
+                    // { text, at }: `at` is when the chunk's last word is heard.
+                    const w = evt.avatarWords;
+                    if (typeof w === "string") onAvatar.words(w, NaN);
+                    else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
                 } else if (onAvatar && evt.avatarEnd) {
                     onAvatar.end();
                 } else if (onAvatar && evt.avatarUnavailable) {

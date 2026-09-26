@@ -63,8 +63,9 @@ function b64ToBytes(b64) {
 // opts.autoplay — play the greeting now (only pass true from a real click).
 // opts.onPlay   — called whenever the face starts talking, so the widget can
 //                 hush Atlas's TTS voice.
-// opts.onWords  — the greeting's words as they are said, so the widget can
-//                 add them to the transcript like any other answer.
+// opts.onWords  — (text, {start, end, now, done}) for each greeting caption
+//                 cue as it is said, so the widget can add its words to the
+//                 transcript and light them in time with the video.
 // opts.onState  — "idle" | "listening" | "speaking" on every change, so the
 //                 widget can offer Stop while the face is busy.
 export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords, onState } = {}) {
@@ -144,10 +145,16 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     video.addEventListener("ended", () => {
         if (mode === "greeting") showIdle();
     });
+    // The greeting's words, cue by cue, with the timing the widget needs to
+    // light each word as it is said: the cue's span and the video's clock.
+    const greetingClock = () => (mode === "greeting" ? video.currentTime : Infinity);
+    const greetingDone = () => mode !== "greeting";
     track.addEventListener("cuechange", () => {
         if (mode !== "greeting" || !onWords) return;
         const cue = track.track.activeCues && track.track.activeCues[0];
-        if (cue) onWords(cue.text + " ");
+        if (cue) {
+            onWords(cue.text + " ", { start: cue.startTime, end: cue.endTime, now: greetingClock, done: greetingDone });
+        }
     });
 
     // ---- live turns -------------------------------------------------------

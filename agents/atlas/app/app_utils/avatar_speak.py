@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
+import struct
 import threading
 import time
 from collections.abc import AsyncIterator
@@ -162,6 +163,116 @@ class ScriptAligner:
         return out
 
 
+# --- media clock for karaoke ------------------------------------------------
+
+# The Live API's transcription of a stretch of speech arrives ahead of that
+# speech's media: measured on adk-deploy-trail (spec 67), a chunk's last word
+# is heard about 1.5s after the media edge received with it. Sentence ends
+# land within ~0.1-0.3s of the real pauses with this lead.
+WORDS_LEAD_S = 1.5
+
+
+def _boxes(buf: bytes, start: int, end: int):
+    off = start
+    while off + 8 <= end:
+        size, typ = struct.unpack(">I4s", buf[off:off + 8])
+        hdr = 8
+        if size == 1:
+            size = struct.unpack(">Q", buf[off + 8:off + 16])[0]
+            hdr = 16
+        elif size == 0:
+            size = end - off
+        if size < hdr:
+            return
+        yield typ, off + hdr, off + size
+        off += size
+
+
+class FragmentClock:
+    """Media time at the end of an fMP4 stream fed to it chunk by chunk.
+
+    Reads each track's timescale from `moov`, then every fragment's decode
+    time (`tfdt`) plus its sample durations (`trun`, `tfhd`/`trex` defaults).
+    The browser plays the same stream from the same zero, so this is the
+    timeline its `<video>` clock runs on. Anything it can't parse is skipped;
+    the clock only ever moves forward.
+    """
+
+    def __init__(self) -> None:
+        self._buf = b""
+        self._timescale: dict[int, int] = {}
+        self._trex: dict[int, int] = {}
+        self.edge = 0.0
+
+    def feed(self, data: bytes) -> float:
+        self._buf += data
+        pos = 0
+        for typ, a, b in _boxes(self._buf, 0, len(self._buf)):
+            if b > len(self._buf):
+                break
+            try:
+                if typ == b"moov":
+                    self._moov(a, b)
+                elif typ == b"moof":
+                    self._moof(a, b)
+            except (struct.error, IndexError):
+                logger.debug("fragment clock skipped a box", exc_info=True)
+            pos = b
+        self._buf = self._buf[pos:]
+        return self.edge
+
+    def _full_box_u32(self, a: int, v1_off: int, v0_off: int) -> int:
+        off = v1_off if self._buf[a] == 1 else v0_off
+        return struct.unpack(">I", self._buf[a + off:a + off + 4])[0]
+
+    def _moov(self, a: int, b: int) -> None:
+        for typ, ta, tb in _boxes(self._buf, a, b):
+            if typ == b"trak":
+                tid = ts = None
+                for t2, a2, b2 in _boxes(self._buf, ta, tb):
+                    if t2 == b"tkhd":
+                        tid = self._full_box_u32(a2, 20, 12)
+                    elif t2 == b"mdia":
+                        for t3, a3, _b3 in _boxes(self._buf, a2, b2):
+                            if t3 == b"mdhd":
+                                ts = self._full_box_u32(a3, 20, 12)
+                if tid is not None and ts:
+                    self._timescale[tid] = ts
+            elif typ == b"mvex":
+                for t2, a2, _b2 in _boxes(self._buf, ta, tb):
+                    if t2 == b"trex":
+                        tid, _desc, dur = struct.unpack(">III", self._buf[a2 + 4:a2 + 16])
+                        self._trex[tid] = dur
+
+    def _moof(self, a: int, b: int) -> None:
+        for typ, ta, tb in _boxes(self._buf, a, b):
+            if typ != b"traf":
+                continue
+            tid, base, default_dur, total = None, 0, None, 0
+            for t2, p, _b2 in _boxes(self._buf, ta, tb):
+                if t2 == b"tfhd":
+                    flags = int.from_bytes(self._buf[p + 1:p + 4], "big")
+                    tid = struct.unpack(">I", self._buf[p + 4:p + 8])[0]
+                    q = p + 8 + (8 if flags & 0x1 else 0) + (4 if flags & 0x2 else 0)
+                    if flags & 0x8:
+                        default_dur = struct.unpack(">I", self._buf[q:q + 4])[0]
+                elif t2 == b"tfdt":
+                    wide = self._buf[p] == 1
+                    base = struct.unpack(">Q" if wide else ">I", self._buf[p + 4:p + (12 if wide else 8)])[0]
+                elif t2 == b"trun":
+                    flags = int.from_bytes(self._buf[p + 1:p + 4], "big")
+                    count = struct.unpack(">I", self._buf[p + 4:p + 8])[0]
+                    q = p + 8 + (4 if flags & 0x1 else 0) + (4 if flags & 0x4 else 0)
+                    per = sum(4 for f in (0x100, 0x200, 0x400, 0x800) if flags & f)
+                    fallback = default_dur if default_dur is not None else self._trex.get(tid, 0)
+                    for _ in range(count):
+                        total += struct.unpack(">I", self._buf[q:q + 4])[0] if flags & 0x100 else fallback
+                        q += per
+            ts = self._timescale.get(tid)
+            if ts:
+                self.edge = max(self.edge, (base + total) / ts)
+
+
 # --- daily budget -----------------------------------------------------------
 
 
@@ -247,6 +358,9 @@ class LiveAvatar:
         self.words_first_at: float | None = None
         self.last_media_at: float | None = None
         self.bytes = 0
+        # Media time at the end of what has been received, on the browser's
+        # playback timeline (see FragmentClock).
+        self.clock = FragmentClock()
 
     async def open(self) -> None:
         self._cm = _get_client().aio.live.connect(model=AVATAR_MODEL, config=_config())
@@ -277,6 +391,7 @@ class LiveAvatar:
                     data = part.inline_data
                     if data and (data.mime_type or "").startswith("video") and data.data:
                         self.bytes += len(data.data)
+                        self.clock.feed(data.data)
                         if self.words_first_at is not None:
                             self.last_media_at = time.monotonic()
                         yield ("video", data.data)

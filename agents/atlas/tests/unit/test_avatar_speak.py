@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import struct
+from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
@@ -45,6 +47,7 @@ class FakeLive:
         self.words_first_at = None
         self.last_media_at = None
         self.bytes = 0
+        self.clock = SimpleNamespace(edge=2.0)
         FakeLive.instances.append(self)
 
     async def open(self) -> None:
@@ -92,7 +95,8 @@ class TestWithAvatar:
         assert FakeLive.instances[0].said == ["Hello there."]
         videos = [base64.b64decode(e["avatarVideo"]) for e in events if "avatarVideo" in e]
         assert videos == [b"idle", b"talk"]
-        assert {"avatarWords": "Hello there."} in events
+        # Each caption chunk carries when its last word is heard.
+        assert {"avatarWords": {"text": "Hello there.", "at": 2.0 + avatar_speak.WORDS_LEAD_S}} in events
 
     @pytest.mark.asyncio
     async def test_internal_script_event_never_reaches_the_browser(self) -> None:
@@ -132,6 +136,50 @@ class TestCappedAvatarStream:
             {"avatarUnavailable": {"reason": "You've reached today's avatar limit.", "capped": True}},
             {"done": True},
         ]
+
+
+def _box(typ: bytes, *payload: bytes) -> bytes:
+    body = b"".join(payload)
+    return struct.pack(">I4s", 8 + len(body), typ) + body
+
+
+def _init_segment(track_id: int, timescale: int) -> bytes:
+    tkhd = _box(b"tkhd", b"\0\0\0\7", b"\0" * 8, struct.pack(">I", track_id), b"\0" * 68)
+    mdhd = _box(b"mdhd", b"\0" * 4, b"\0" * 8, struct.pack(">I", timescale), b"\0" * 8)
+    trex = _box(b"trex", b"\0" * 4, struct.pack(">III", track_id, 1, 512), b"\0" * 8)
+    return _box(b"ftyp", b"iso6") + _box(b"moov", _box(b"trak", tkhd, _box(b"mdia", mdhd)), _box(b"mvex", trex))
+
+
+def _fragment(track_id: int, decode_time: int, samples: int, sample_dur: int | None = None) -> bytes:
+    flags = 0x8 if sample_dur is not None else 0
+    tfhd = _box(b"tfhd", struct.pack(">I", flags), struct.pack(">I", track_id),
+                struct.pack(">I", sample_dur) if sample_dur is not None else b"")
+    tfdt = _box(b"tfdt", b"\1\0\0\0", struct.pack(">Q", decode_time))
+    trun = _box(b"trun", struct.pack(">I", 0), struct.pack(">I", samples))
+    return _box(b"moof", _box(b"traf", tfhd, tfdt, trun)) + _box(b"mdat", b"\0" * 16)
+
+
+class TestFragmentClock:
+    def test_reads_decode_time_plus_sample_durations(self) -> None:
+        clock = avatar_speak.FragmentClock()
+        assert clock.feed(_init_segment(1, 12288)) == 0.0
+        # 24 samples of 512 ticks at 12288/s = 1s, starting at 2s.
+        assert clock.feed(_fragment(1, 2 * 12288, 24)) == pytest.approx(3.0)
+        # A tfhd default duration overrides trex.
+        assert clock.feed(_fragment(1, 3 * 12288, 10, sample_dur=1229)) == pytest.approx(3 + 10 * 1229 / 12288)
+
+    def test_boxes_split_across_chunks_are_read_once_whole(self) -> None:
+        clock = avatar_speak.FragmentClock()
+        data = _init_segment(1, 12288) + _fragment(1, 0, 24)
+        for i in range(0, len(data), 7):
+            clock.feed(data[i:i + 7])
+        assert clock.edge == pytest.approx(1.0)
+
+    def test_garbage_never_moves_the_clock_back_or_raises(self) -> None:
+        clock = avatar_speak.FragmentClock()
+        clock.feed(_init_segment(1, 12288) + _fragment(1, 0, 48))
+        clock.feed(b"\0\0\0\x10moofgarbage!")
+        assert clock.edge == pytest.approx(2.0)
 
 
 class TestClipToSentences:
