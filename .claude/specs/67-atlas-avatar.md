@@ -272,6 +272,43 @@ streaming guard matches the one-shot function for every chunking (tested).
 The prompt says the same, and its own citation label formats and examples
 no longer model dashes. The widget's own status copy lost its dashes too.
 
+## Review round: an invented email, empty space, Clear chat, a scorecard
+
+**Atlas invented a work email for Gaurav.** Asked for his email, it answered
+with an address built from his name and employer. That address is in no
+corpus file or prompt: the model made it up. Two fixes. The prompt now names
+his one contact address (`get_profile()`'s `email`) and forbids guessing any
+other. And `app_utils/emails.py` filters every output path together with
+the dash filter (`api._OutputFilter`): any address that isn't his contact
+address or one the visitor typed becomes the contact address (on contact
+intent) or a pointer to LinkedIn. It holds back only a half-written trailing
+token, so a split address can never stream out.
+
+**No empty band under the conversation.** Spec 63's bottom fade was a
+sticky 52px spacer inside the scroll area, permanently on, which read as
+empty space under every conversation. It is now a CSS mask over the scroll
+area: no height of its own, shown only while there is more below. A freshly
+opened panel reads from the top of the intro instead of being scrolled past
+it.
+
+**Clear chat, labelled.** The bare trash icon in the header was unclear. It
+is now a "Clear chat" button at the right of the footer, opposite "Powered
+by", shown once there is a conversation.
+
+**Badges in every mode.** Avatar mode had hidden certification badges with
+the other extras; they are the answer's evidence, so every mode shows them.
+
+**End-to-end scorecard** (`agents/atlas/tests/eval/scorecard.py`). `make
+eval` grades the agent in-process; this runs the 31 eval questions through
+a running Atlas's chat API, per answer mode, and scores what a visitor
+actually gets. In code: citations wired, certification badges (present,
+valid, on the vendor asked about), plain text, no dashes, length, full
+sentences, latency. By a judge (gemini-3.1-pro-preview) against the full
+content corpus: accuracy, completeness, precision, quality, citation
+support, scope and safety. Its first run also caught dangling "[4]" markers
+(the server keeps three sources): the widget now drops a marker with no
+source, and the prompt caps markers at [3].
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

@@ -1120,7 +1120,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
             });
 
             if (row.children.length) li.appendChild(row);
-            scrollToEnd();
+            // A fresh panel reads from the top: the intro stays whole, and the
+            // fade says there is more below. Only a panel that already holds a
+            // conversation follows it to the end.
+            if (messages.length) scrollToEnd();
+            else { dom.body.scrollTop = 0; syncScrollHint(); }
         });
     }
 
@@ -1960,15 +1964,13 @@ export function initAgentWidget(root, profile, pageSessionId) {
         return b.scrollTop + b.clientHeight >= b.scrollHeight - AT_BOTTOM_SLOP_PX;
     }
 
+    // Spec 67: the bottom fade is a mask painted over the scroll area, not a
+    // spacer inside it, so it takes no room (the old 52px spacer read as a
+    // band of empty space under every conversation) and can switch on and
+    // off freely: it shows only while there is more below.
     function syncScrollHint() {
         const b = dom.body;
-        // Measured from the transcript, not from b.scrollHeight, because the
-        // fade this class switches on is itself ~52px of that scrollHeight.
-        // Feeding it back in makes the test self-referential: once shown, the
-        // fade keeps itself shown even after the content shrinks below the
-        // fold.
-        const contentH = dom.transcript ? dom.transcript.scrollHeight : b.scrollHeight;
-        b.classList.toggle("has-overflow", contentH > b.clientHeight);
+        b.classList.toggle("has-overflow", b.scrollHeight - b.clientHeight - b.scrollTop > 4);
     }
 
     function onTranscriptScroll() {
@@ -2566,11 +2568,6 @@ function renderShell(root, agentExplainer) {
                     <path d="M12.5 4a5.5 5.5 0 0 1 0 8"/>
                 </svg>
             </button>
-            <button type="button" class="agent-panel-clear" aria-label="Clear conversation" title="Clear conversation" hidden>
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L12 4.5M6.8 7v4.5M9.2 7v4.5"/>
-                </svg>
-            </button>
             <button type="button" class="agent-panel-expand" aria-label="Expand panel" aria-pressed="false" title="Expand">
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 7 V3 H7 M13 9 V13 H9 M3 3 L7 7 M13 13 L9 9"/>
@@ -2607,7 +2604,6 @@ function renderShell(root, agentExplainer) {
     const modeSwitch = head.querySelector(".agent-mode");
     const expandBtn = head.querySelector(".agent-panel-expand");
     const minimizeBtn = head.querySelector(".agent-panel-minimize");
-    const clearBtn = head.querySelector(".agent-panel-clear");
 
     const body = document.createElement("div");
     body.className = "agent-panel-body";
@@ -2696,6 +2692,18 @@ function renderShell(root, agentExplainer) {
     } else {
         foot.textContent = "Powered by ADK + Gemini + MCP";
     }
+    // Spec 67: a labelled control, next to the composer where the chat lives,
+    // rather than a bare trash icon among the window controls.
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "agent-panel-clear";
+    clearBtn.hidden = true;
+    clearBtn.title = "Clear the conversation and start fresh";
+    clearBtn.innerHTML =
+        '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v2.6h2.6"/></svg>'
+        + "<span>Clear chat</span>";
+    foot.appendChild(clearBtn);
 
     const liveRegion = document.createElement("div");
     liveRegion.className = "agent-live";
@@ -3109,8 +3117,15 @@ function renderTextWithLinks(container, text, citations) {
                 a.textContent = `[${seg.n}]`;
                 sup.appendChild(a);
                 container.appendChild(sup);
+            } else if (Object.keys(citationMap).length > 0) {
+                // A marker with no source behind it (the server keeps at most
+                // three): drop it, and the space before it, rather than show a
+                // dead "[4]".
+                const prev = container.lastChild;
+                if (prev && prev.nodeType === Node.TEXT_NODE) prev.nodeValue = prev.nodeValue.replace(/\s+$/, "");
             } else {
-                // No citation data yet (shouldn't happen post-done) — render plain
+                // No citation data at all: render plain (the "Internal:
+                // profile data" source line explains it).
                 container.appendChild(document.createTextNode(seg.raw));
             }
         }

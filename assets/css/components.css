@@ -2241,7 +2241,6 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     gap: var(--space-1);
 }
 .agent-panel-close,
-.agent-panel-clear,
 .agent-panel-expand,
 .agent-panel-minimize,
 .agent-speaker {
@@ -2263,8 +2262,6 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 .agent-panel-close { font-size: 1.5rem; }
 .agent-panel-close:hover,
 .agent-panel-close:focus-visible,
-.agent-panel-clear:hover,
-.agent-panel-clear:focus-visible,
 .agent-panel-expand:hover,
 .agent-panel-expand:focus-visible,
 .agent-panel-minimize:hover,
@@ -2273,8 +2270,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     outline: none;
 }
 .agent-panel-expand[aria-pressed="true"] { color: var(--accent); }
-/* Spec 67: only there once there is a conversation to clear. */
-.agent-panel-clear[hidden] { display: none; }
+
 
 /* Minimized state — only the header bar is visible. */
 .agent-panel.is-minimized {
@@ -2325,28 +2321,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     background: var(--accent);
     background-clip: padding-box;
 }
-/* Gradient hint shown via JS when content overflows — works on mobile where
-   native overlay scrollbars are invisible by default.
-   It is a sticky flex item, so it adds its own height plus one `gap` to the
-   scroll area. That is deliberate (spec 63): those ~52px sit BELOW the last
-   message, so at the bottom of the scroll the fade covers empty space and the
-   final element — usually the CTA — is fully clear of it.
-   What it must never do is appear and disappear while scrolling, which is why
-   syncScrollHint() no longer includes `!atBottom` in the toggle. Removing 52px
-   of content at the exact moment the visitor reaches the bottom shifted
-   everything down by that much, and that jump was half the reported weirdness.
-   Negative margins cannot fix this instead: Chrome does not shrink
-   scrollHeight for a negative end margin, measured at 28px of 52 recovered. */
-.agent-panel-body.has-overflow::after {
-    content: '';
-    position: sticky;
-    bottom: 0;
-    display: block;
-    flex-shrink: 0;
-    align-self: stretch;
-    height: 40px;
-    background: linear-gradient(transparent, var(--bg-elev));
-    pointer-events: none;
+/* Bottom fade while there's more to scroll (spec 67). A mask over the
+   scroll area, not a spacer inside it: it adds no height, so there is no band
+   of empty space under the last message, and toggling it never moves the
+   content (the reason spec 63 kept its spacer permanently on). */
+.agent-panel-body.has-overflow {
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 40px), transparent);
+            mask-image: linear-gradient(to bottom, black calc(100% - 40px), transparent);
 }
 
 .agent-prompts {
@@ -2848,6 +2829,10 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 
 .agent-panel-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
     padding: var(--space-2) var(--space-4);
     border-top: 1px solid var(--border);
     background: var(--bg-card);
@@ -5038,3 +5023,29 @@ a.agent-badge-tile:focus-visible {
 .agent-panel[data-mode="text"]   .agent-message[data-via="text"]   .agent-via,
 .agent-panel[data-mode="voice"]  .agent-message[data-via="voice"]  .agent-via,
 .agent-panel[data-mode="avatar"] .agent-message[data-via="avatar"] .agent-via { display: none; }
+
+/* Spec 67: "Clear chat" sits at the right of the footer, opposite "Powered
+   by", and only once there is a conversation to clear. */
+.agent-panel-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 28px;
+    padding: 0 var(--space-2);
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.agent-panel-clear[hidden] { display: none; }
+.agent-panel-clear:hover,
+.agent-panel-clear:focus-visible {
+    color: var(--mode-c, var(--accent));
+    border-color: var(--mode-c, var(--accent));
+    outline: none;
+}

@@ -54,6 +54,7 @@ from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.dashes import DashGuard, strip_dashes
+from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.lead_note import LeadNoteGuard
 from app.app_utils.resume_send import warm_mcp_server
@@ -66,6 +67,7 @@ from app.guardrails import (
     INJECTION_REPLY_PREFIX,
     REPLY_MODES,
     TOO_LONG_REPLY_PREFIX,
+    has_contact_intent,
 )
 from app.rate_limit import limiter
 
@@ -412,6 +414,27 @@ async def _relay_avatar(
     await out.put(_sse({"avatarEnd": True}))
 
 
+class _OutputFilter:
+    """Everything Atlas shows goes through here (spec 67): no em/en dashes,
+    and no email address other than Gaurav's contact address or one the
+    visitor typed. Streaming push()/flush(), or whole() for finished text."""
+
+    def __init__(self, visitor_emails: frozenset[str], contact_intent: bool) -> None:
+        self._dashes = DashGuard()
+        self._emails = EmailGuard(set(visitor_emails), contact_intent)
+        self._visitor_emails = set(visitor_emails)
+        self._contact = contact_intent
+
+    def push(self, chunk: str) -> str:
+        return self._emails.push(self._dashes.push(chunk))
+
+    def flush(self) -> str:
+        return self._emails.push(self._dashes.flush()) + self._emails.flush()
+
+    def whole(self, text: str) -> str:
+        return fix_emails(strip_dashes(text), self._visitor_emails, self._contact)
+
+
 async def _stream_agent(
     session_id: str,
     user_text: str,
@@ -422,6 +445,8 @@ async def _stream_agent(
     geo_task: asyncio.Task | None = None,
     avatar: bool = False,
     reply_mode: str = "text",
+    visitor_emails: frozenset[str] = frozenset(),
+    contact_intent: bool = False,
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
@@ -447,8 +472,9 @@ async def _stream_agent(
     user_visible: list[str] = []
     lead_guard = LeadNoteGuard()
     # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
-    dash_guard = DashGuard()
-    thought_guard = DashGuard()
+    # Spec 67: and no email address Atlas wasn't given (see emails.py).
+    dash_guard = _OutputFilter(visitor_emails, contact_intent)
+    thought_guard = _OutputFilter(visitor_emails, contact_intent)
     # pending: holds back chars that might be the start of [[META]]
     pending = ""
     meta_open = False
@@ -660,7 +686,7 @@ async def _stream_agent(
                     # to the Thinking panel instead (see lead_note.py).
                     shown, note = lead_guard.push(chunk)
                     if note:
-                        yield _sse({"thinking": strip_dashes(note)})
+                        yield _sse({"thinking": dash_guard.whole(note)})
                     shown = dash_guard.push(shown) if shown else ""
                     if shown:
                         if ttf_delta_ms is None:
@@ -682,14 +708,14 @@ async def _stream_agent(
         user_visible.append(pending)
         shown, note = lead_guard.push(pending)
         if note:
-            yield _sse({"thinking": strip_dashes(note)})
+            yield _sse({"thinking": dash_guard.whole(note)})
         shown = dash_guard.push(shown) if shown else ""
         if shown:
             yield _sse({"delta": shown})
         pending = ""
     held, note = lead_guard.flush()
     if note:
-        yield _sse({"thinking": strip_dashes(note)})
+        yield _sse({"thinking": dash_guard.whole(note)})
     held = (dash_guard.push(held) if held else "") + dash_guard.flush()
     if held:
         yield _sse({"delta": held})
@@ -699,7 +725,7 @@ async def _stream_agent(
 
     # Assemble the user-visible response text (no [[META]] content, and no
     # working note the guard diverted).
-    visible_text = strip_dashes(lead_guard.without_note("".join(user_visible)))
+    visible_text = dash_guard.whole(lead_guard.without_note("".join(user_visible)))
 
     # Detect guardrail short-circuits by matching the canned reply prefixes.
     if status == "ok":
@@ -1142,6 +1168,11 @@ def register_routes(app: FastAPI) -> None:
             geo_task=geo_task,
             avatar=want_avatar,
             reply_mode=_reply_mode(body, want_avatar),
+            visitor_emails=frozenset(
+                e for m in messages if isinstance(m, dict) and m.get("role") == "user"
+                for e in emails_in(str(m.get("content") or ""))
+            ),
+            contact_intent=has_contact_intent(user_text),
         )
         stream = _with_avatar(text_stream) if want_avatar else text_stream
 

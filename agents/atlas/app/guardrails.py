@@ -129,6 +129,11 @@ _EMAIL_REDACT_REPLACEMENT = (
 )
 
 
+def has_contact_intent(text: str) -> bool:
+    """The visitor is asking how to reach, hire or email Gaurav."""
+    return bool(_CONTACT_INTENT_RE.search(text or ""))
+
+
 def _latest_user_text(llm_request: LlmRequest) -> str:
     """Pull the latest user-role message text out of the LLM request."""
     contents = getattr(llm_request, "contents", None) or []
