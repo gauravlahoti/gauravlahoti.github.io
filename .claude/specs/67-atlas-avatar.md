@@ -432,6 +432,13 @@ of three paths runs. Both views now say so:
   9-10 are labelled "Voice mode:" and "Avatar mode:", step 6 says Text mode
   ends there, and step 1 says the mic is optional in any mode.
 
+**Polish.** The Gemini 3.6 Flash box now says "reasoning" like the other
+model boxes say what they do (the Flash-Lite fallback stays in its tooltip
+only). The Agent and MCP nodes carry the official ADK and MCP marks
+(`diagram-icons/adk-64.png`, `mcp-64.png`, 64 px copies of the originals,
+a few KB each; the black MCP mark is inverted for the dark theme, as the
+skills grid does), and the Deep Dive's Resend MCP box uses the MCP mark too.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

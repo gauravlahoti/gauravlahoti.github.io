@@ -174,10 +174,8 @@
 
   <!-- Resend MCP -->
   <rect x="956" y="760" width="228" height="110" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
-  <rect x="972" y="780" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
-  <rect x="977" y="785" width="10" height="14" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
-  <line x1="979" y1="785" x2="979" y2="780" stroke="#888888" stroke-width="1.5"/>
-  <line x1="985" y1="785" x2="985" y2="780" stroke="#888888" stroke-width="1.5"/>
+  <!-- official MCP mark (black on transparent), inverted for the dark theme -->
+  <image href="/diagram-icons/mcp-64.png" x="972" y="778" width="28" height="28" style="filter:invert(1)"/>
   <text x="1010" y="787" class="node-title">Resend MCP</text>
   <text x="1010" y="805" class="node-sub">Node.js · Cloud Run</text>
   <text x="972" y="828" class="node-sub">send-email tool</text>

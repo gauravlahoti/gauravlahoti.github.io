@@ -2284,6 +2284,20 @@ export function buildAgentDiagram(opts) {
         return g;
     };
 
+    // Official marks for the ADK agent and the MCP server (spec 67). The MCP
+    // mark is black on transparent, so it's inverted to read on the dark
+    // theme, the same treatment the skills hex grid gives it.
+    const brandMark = (href, cx, cy, size, extra) => {
+        const im = el("image", {
+            x: String(cx - size / 2), y: String(cy - size / 2),
+            width: String(size), height: String(size),
+            preserveAspectRatio: "xMidYMid meet",
+            class: extra ? `ad-brand ${extra}` : "ad-brand",
+        });
+        im.setAttribute("href", href);
+        return im;
+    };
+
     // A small shield with a tick: the Output checks every answer passes.
     const checkGlyph = (cx, cy) => {
         const g = el("g", { class: "ad-check" });
@@ -2338,6 +2352,8 @@ export function buildAgentDiagram(opts) {
             const gx = left + LEAD_SIZE / 2;
             if (lead === "person") g.appendChild(personGlyph(gx, nameY - 3));
             else if (lead === "check") g.appendChild(checkGlyph(gx, nameY - 3.5));
+            else if (lead === "adk") g.appendChild(brandMark("/diagram-icons/adk-64.png", gx, nameY - 3.5, LEAD_SIZE + 1));
+            else if (lead === "mcp") g.appendChild(brandMark("/diagram-icons/mcp-64.png", gx, nameY - 3.5, LEAD_SIZE, "ad-brand--mono"));
             else g.appendChild(geminiLogo(gx, nameY - 3.5, LEAD_SIZE));
         }
         lines.forEach((line, i) => {
@@ -2359,7 +2375,7 @@ export function buildAgentDiagram(opts) {
 
     const TIPS = {
         you:    ["pick Text, Voice or Avatar first", "then type, or hold the mic", "the mode sets how the answer comes back"],
-        llm:    ["Gemini 3.6 Flash · picked for time to first word", "moves to 3.5 Flash-Lite if it stalls 4 s or is busy", "thinking kept LOW for speed"],
+        llm:    ["Gemini 3.6 Flash writes every answer", "in Text mode, its answer is what streams back", "picked for time to first word", "falls back to 3.5 Flash-Lite if it stalls"],
         agent:  ["9 tools: profile · work · projects · posts", "certifications · agents · labs · stats · email", "ADK on Cloud Run", "one call per question, whatever the mode"],
         corpus: ["profile.json · bio, roles, certs", "graph.json · projects", "posts.json · LinkedIn", "fetched live, short-TTL cache"],
         stt:    ["Gemini 3.5 Transcribe", "only when you use the mic, in any mode", "typed questions skip it", "runs outside the ADK loop"],
@@ -2376,10 +2392,10 @@ export function buildAgentDiagram(opts) {
     if (mobile) {
         svg.appendChild(node("ad-node--you",    40,   6, 112, 30, "You",        "mode · ask",           "You: pick a mode, then type or hold the mic", 96, TIPS.you, "person"));
         svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
-        svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
-        svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "→ 3.5 Flash-Lite", "Gemini reasoning, with a faster fallback model", 238, TIPS.llm, "gemini"));
+        svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent, "adk"));
+        svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "reasoning", "Gemini 3.6 Flash works out the answer and writes it", 238, TIPS.llm, "gemini"));
         svg.appendChild(node(null,             180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
-        svg.appendChild(node(null,             180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp));
+        svg.appendChild(node(null,             180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp, "mcp"));
         svg.appendChild(node("ad-node--checks", 40, 214, 112, 34, "Checks",     "grounded · clean",     "Output checks every answer passes before you see it", 96, TIPS.checks, "check"));
         svg.appendChild(node("ad-node--key ad-node--voice",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
         svg.appendChild(node("ad-node--key ad-node--avatar",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
@@ -2389,10 +2405,10 @@ export function buildAgentDiagram(opts) {
     } else {
         svg.appendChild(node("ad-node--you",     20, 118,  76, 44, "You",              "mode · ask",           "You: pick a mode, then type or hold the mic", 58, TIPS.you, "person"));
         svg.appendChild(node("ad-node--key",    126, 112, 108, 56, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 180, TIPS.stt, "gemini"));
-        svg.appendChild(node("ad-node--hub",    264, 118,  92, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 310, TIPS.agent));
-        svg.appendChild(node("ad-node--key",    246,  24, 128, 44, "Gemini 3.6 Flash", "→ 3.5 Flash-Lite",     "Gemini reasoning, with a faster fallback model", 310, TIPS.llm, "gemini"));
+        svg.appendChild(node("ad-node--hub",    264, 118,  92, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 310, TIPS.agent, "adk"));
+        svg.appendChild(node("ad-node--key",    246,  24, 128, 44, "Gemini 3.6 Flash", "reasoning",     "Gemini 3.6 Flash works out the answer and writes it", 310, TIPS.llm, "gemini"));
         svg.appendChild(node(null,              206, 208, 104, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 258, TIPS.corpus));
-        svg.appendChild(node(null,              322, 208,  96, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 370, TIPS.mcp));
+        svg.appendChild(node(null,              322, 208,  96, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 370, TIPS.mcp, "mcp"));
         svg.appendChild(node("ad-node--checks", 388, 118, 108, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 442, TIPS.checks, "check"));
         svg.appendChild(node("ad-node--key ad-node--voice",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
         svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
@@ -2414,7 +2430,7 @@ export function buildAgentDiagram(opts) {
 const AGENT_STEPS = [
     ["You pick a mode and ask", "Text, Voice or Avatar, chosen before you ask. Type, or hold the mic"],
     ["Speech-to-Text (STT)", "only when you use the mic: Gemini 3.5 Transcribe turns the recording into text. Typed questions skip it"],
-    ["Reasoning", "Gemini 3.6 Flash plans the answer, and hands off to 3.5 Flash-Lite if it stalls"],
+    ["Reasoning", "Gemini 3.6 Flash works out the answer and writes it"],
     ["Tools", "the live corpus for facts, and the MCP server for actions like emailing the resume"],
     ["Output checks", "the working note moves to the Thinking panel, and only real contact details, clean citations and a length sized for the mode get through"],
     ["Your mode's path, one of three", "Text streams it · Voice: the browser has Gemini 3.1 Flash TTS read it a sentence at a time · Avatar: Sam speaks it on video through Gemini 3.8 Live Avatar, a session opened while Atlas was thinking"],

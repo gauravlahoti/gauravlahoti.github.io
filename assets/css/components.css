@@ -3538,6 +3538,8 @@ a.agent-badge-tile:focus-visible {
    with the accent stages for attention. */
 .ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
 .ad-node--you rect { stroke: var(--ink-muted); stroke-dasharray: 3 2; }
+/* Spec 67: the MCP mark is black on transparent; invert it for the dark theme. */
+.ad-brand--mono { filter: invert(1); opacity: 0.9; }
 /* Spec 67: the two spoken paths' models wear their mode's colour. */
 .ad-node--voice rect { stroke: var(--mode-voice); }
 .ad-node--voice .ad-node-name { fill: var(--mode-voice); }
