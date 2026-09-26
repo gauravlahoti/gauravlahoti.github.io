@@ -2418,7 +2418,7 @@ export function buildAgentDiagram(opts) {
         // Above TTS, mirroring the video strip under Live Avatar. The Expand
         // button moves to the empty top-left corner on this layout to make
         // room (see buildAgentFigure).
-        svg.appendChild(xformStrip(566,  24, "to-voice", 6));
+        svg.appendChild(xformStrip(566,  20, "to-voice", 6));
         svg.appendChild(xformStrip(566, 260, "to-video", 6));
     }
 
