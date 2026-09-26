@@ -2127,6 +2127,7 @@ export function buildAgentDiagram(opts) {
     const VH = mobile ? 404 : 300;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
+                             "data-layout": mobile ? "mobile" : "desktop",
                              class: "ad-svg", "aria-hidden": "true" });
 
     // Spec 67: the answer's way back is a PATH chosen by the mode, not a
@@ -2414,9 +2415,10 @@ export function buildAgentDiagram(opts) {
         svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
         // Under STT: the typed-input bypass runs over it.
         svg.appendChild(xformStrip(180, 186, "to-text",  2));
-        // On the Voice branch rather than above TTS: the Expand button sits
-        // over the diagram's top-right corner.
-        svg.appendChild(xformStrip(452,  84, "to-voice", 6));
+        // Above TTS, mirroring the video strip under Live Avatar. The Expand
+        // button moves to the empty top-left corner on this layout to make
+        // room (see buildAgentFigure).
+        svg.appendChild(xformStrip(566,  24, "to-voice", 6));
         svg.appendChild(xformStrip(566, 260, "to-video", 6));
     }
 
@@ -2475,6 +2477,9 @@ function buildAgentFigure(parentDialog) {
             <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/>
         </svg>
         <span>Expand</span>`;
+    // Desktop keeps the top-right corner for the Voice strip, and its
+    // top-left corner is empty, so Expand sits there.
+    if (svg.getAttribute("data-layout") === "desktop") btn.classList.add("ad-expand--left");
     btn.addEventListener("click", () => openAgentDiagramZoom());
     fig.appendChild(btn);
     return fig;
