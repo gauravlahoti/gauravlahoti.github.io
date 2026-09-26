@@ -236,8 +236,10 @@ export function initAgentWidget(root, profile, sessionId) {
     let avatarLoading = null;
     let avatarOn = false;
     // Set once the server says this visitor (or the day's budget) is out of
-    // avatar answers; later turns go straight to the voice for the session.
+    // avatar answers. Later Avatar-mode questions go straight to the offer to
+    // switch modes, without another request.
     let avatarResting = false;
+    let avatarRestReason = "";
     function readAvatarPref() {
         try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
@@ -408,7 +410,9 @@ export function initAgentWidget(root, profile, sessionId) {
     // enableSpeaker() banks the gesture for Web Audio, and the avatar's
     // greeting needs the same gesture to play with sound. The three modes are
     // exclusive: exactly one of them is ever speaking.
+    // Resolves once the new mode can speak (Voice loads its engine first).
     function selectMode(mode) {
+        let ready = null;
         if (mode === currentMode()) {
             if (mode === "avatar" && avatar) { greetingWordsEl = null; avatar.replay(); } // re-pick = hear it again
             return;
@@ -419,7 +423,7 @@ export function initAgentWidget(root, profile, sessionId) {
             else writeSpeakerPref(false);
         } else if (mode === "voice") {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
-            if (!speakerOn) enableSpeaker();
+            if (!speakerOn) ready = enableSpeaker();
         } else if (mode === "avatar") {
             silenceSpeakerForAvatar();
             writeAvatarPref(true);
@@ -427,6 +431,7 @@ export function initAgentWidget(root, profile, sessionId) {
             setAvatarMode(true, { autoplay: true });
         }
         syncModeSwitch();
+        return ready;
     }
     modeSwitch.addEventListener("click", (e) => {
         const opt = e.target.closest(".agent-mode-opt");
@@ -1124,6 +1129,14 @@ export function initAgentWidget(root, profile, sessionId) {
             return;
         }
         pauseAvatar(); // spec 67: asking something stops a recorded clip mid-sentence
+        // Spec 67: out of avatar answers for today. Don't spend a request
+        // finding that out again; offer the other modes for this question.
+        if (FEATURES.avatarMode && avatarOn && avatarResting) {
+            input.value = "";
+            autoGrowInput();
+            offerModeSwitch(appendUser(text), text, avatarRestReason);
+            return;
+        }
         // Spec 67: in Avatar mode the face speaks this answer instead of the
         // TTS voice. Decided once per turn; the voice stays loaded as the
         // fallback for when the avatar can't (cap, budget, error, browser).
@@ -1133,6 +1146,9 @@ export function initAgentWidget(root, profile, sessionId) {
         const liveTurn = avatarVoice ? avatar.startLive() : null;
         let avatarWordsEl = null;
         let avatarSpoke = false;
+        // Set when the server says this avatar turn is over the cap. It then
+        // sends no answer, and the turn becomes an offer to switch modes.
+        let cappedReason = "";
         // Remove suggestion chips from the previous assistant message
         transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
 
@@ -1168,7 +1184,7 @@ export function initAgentWidget(root, profile, sessionId) {
             await ensureSpeaker();
         }
 
-        appendUser(text);
+        const userLi = appendUser(text);
         messages.push({ role: "user", content: text });
 
         const assistant = appendAssistantPlaceholder();
@@ -1184,16 +1200,12 @@ export function initAgentWidget(root, profile, sessionId) {
         }
         // The avatar can't take this turn after all: show the reply as text.
         // Avatar mode never falls back to the TTS voice; the modes stay isolated.
-        const dropAvatar = (reason) => {
+        const dropAvatar = () => {
             if (!avatarVoice) return;
             avatarVoice = false;
             if (liveTurn) liveTurn.abort();
             assistant.classList.remove("is-avatar-turn");
             if (avatarWordsEl) avatarWordsEl.remove();
-            if (reason && /limit|resting/i.test(reason)) {
-                avatarResting = true;
-                showVoiceNote(`${reason} Answers will show as text.`, 6000);
-            }
         };
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
@@ -1260,11 +1272,16 @@ export function initAgentWidget(root, profile, sessionId) {
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
-                    unavailable(reason) {
+                    unavailable(reason, capped) {
+                        if (capped) {
+                            cappedReason = reason || "The avatar has reached its limit for today.";
+                            avatarResting = true;
+                            avatarRestReason = cappedReason;
+                        }
                         // Mid-answer failures just end the face; before it
-                        // spoke, the whole turn moves to the voice.
+                        // spoke, the reply shows as text.
                         if (avatarSpoke) { liveTurn.end(); return; }
-                        dropAvatar(reason);
+                        dropAvatar();
                     },
                 } : null,
                 onThinking(chunk) {
@@ -1317,6 +1334,13 @@ export function initAgentWidget(root, profile, sessionId) {
                 async onDone(full) {
                     stages.cancel();
                     settleThinking();
+                    // Spec 67: a capped avatar turn has no answer. It is asked
+                    // again in whichever mode the visitor picks from the offer.
+                    if (cappedReason) {
+                        assistant.remove();
+                        messages.pop();
+                        return;
+                    }
                     // The tail after the last sentence boundary only becomes
                     // speakable once the stream is closed. Skipped on stop:
                     // stopStreaming() has already cancelled playback, and
@@ -1327,7 +1351,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Spec 67: nothing was spoken (an error, a stop, a reply with
                     // nothing to say): show the text instead of an empty turn.
                     if (avatarVoice && !avatarSpoke) {
-                        dropAvatar("");
+                        dropAvatar();
                     }
                     if (wasStopped) {
                         removeCaret(assistant);
@@ -1381,7 +1405,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     stages.cancel();
                     errorShown = true;
                     // Spec 67: the avatar won't be saying an error, so show it now.
-                    if (avatarVoice && !avatarSpoke) dropAvatar("");
+                    if (avatarVoice && !avatarSpoke) dropAvatar();
                     midStreamError = !!isMidStream;
                     // Remove cursor if streaming was interrupted
                     removeCaret(assistant);
@@ -1396,12 +1420,54 @@ export function initAgentWidget(root, profile, sessionId) {
         } finally {
             // Spec 67: a turn that ended with nothing spoken must never leave
             // its reply hidden.
-            if (avatarVoice && !avatarSpoke) dropAvatar("");
+            if (avatarVoice && !avatarSpoke) dropAvatar();
             setSendMode("send");
             isPending = false;
             abortController = null;
             if (FEATURES.voiceInput) micBtn.disabled = false;
         }
+        if (cappedReason && !wasStopped) offerModeSwitch(userLi, text, cappedReason);
+    }
+
+    // Spec 67: the avatar is out of answers for today. Offer Voice (or Text)
+    // for the question just asked, and ask it again there, so nobody has to
+    // retype it. The click is also the gesture Voice needs to play audio.
+    function offerModeSwitch(userLi, question, reason) {
+        transcript.querySelectorAll(".agent-avatar-offer").forEach((el) => el.remove());
+        const li = document.createElement("li");
+        li.className = "agent-message agent-avatar-offer";
+        li.setAttribute("role", "group");
+        li.setAttribute("aria-label", "Avatar limit reached");
+        const copy = document.createElement("p");
+        copy.className = "agent-consent-copy";
+        copy.textContent = `${reason} Want me to answer this in Voice mode instead?`;
+        const actions = document.createElement("div");
+        actions.className = "agent-consent-actions";
+        const asText = document.createElement("button");
+        asText.type = "button";
+        asText.className = "agent-consent-no";
+        asText.textContent = "Show as text";
+        const voice = document.createElement("button");
+        voice.type = "button";
+        voice.className = "agent-consent-yes";
+        voice.textContent = "Switch to Voice";
+        actions.append(asText, voice);
+        li.append(copy, actions);
+        transcript.appendChild(li);
+        liveRegion.textContent = copy.textContent;
+        scrollToEnd();
+
+        const ask = async (mode) => {
+            if (isPending) return;
+            li.remove();
+            if (userLi) userLi.remove(); // sendCurrent() shows the question again
+            await selectMode(mode);
+            input.value = question;
+            sendCurrent();
+        };
+        voice.addEventListener("click", () => ask("voice"));
+        asText.addEventListener("click", () => ask("text"));
+        voice.focus({ preventScroll: true });
     }
 
     function appendStoppedNote(assistantLi) {
@@ -1438,6 +1504,7 @@ export function initAgentWidget(root, profile, sessionId) {
         li.appendChild(p);
         transcript.appendChild(li);
         scrollToEnd();
+        return li;
     }
 
     function appendSystem(text) {
@@ -2793,7 +2860,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
                 } else if (onAvatar && evt.avatarEnd) {
                     onAvatar.end();
                 } else if (onAvatar && evt.avatarUnavailable) {
-                    onAvatar.unavailable(evt.avatarUnavailable.reason || "");
+                    onAvatar.unavailable(evt.avatarUnavailable.reason || "", evt.avatarUnavailable.capped === true);
                 } else if (evt.done === true) {
                     done = true;
                     break;

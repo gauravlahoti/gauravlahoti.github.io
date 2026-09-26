@@ -16,7 +16,8 @@ Before running this:
        gcloud ai model-garden models list --project=<PROJECT> | grep live
 
 Usage:
-  python record_avatar_clips.py --project <PROJECT> --location <LOCATION>
+  cd agents/atlas && .venv/bin/python -m app.dev_scripts.record_avatar_clips \
+      --project <PROJECT> [--location us-central1] [--only greeting]
 
 Requires ffmpeg on PATH if the raw video parts need remuxing into a
 browser-playable .mp4 container — check the actual server_content video
@@ -34,15 +35,16 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
+from app.app_utils.avatar_speak import SCRIPT_INSTRUCTION
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 AVATAR_JSON = REPO_ROOT / "content" / "avatar.json"
 VIDEO_DIR = REPO_ROOT / "assets" / "video"
 
-SYSTEM_INSTRUCTION = (
-    "You are recording a single scripted line for a portfolio site. "
-    "Say the following text verbatim, once, in a warm and natural tone, "
-    "then stop. Do not add anything before or after it: {script!r}"
-)
+# The same "say each message verbatim" instruction the live avatar uses, with
+# the script sent as the user turn. Putting the script in the system
+# instruction and nudging with "Go ahead" let the model improvise around it.
+SYSTEM_INSTRUCTION = SCRIPT_INSTRUCTION
 
 
 async def record_chapter(client: genai.Client, model: str, avatar_name: str,
@@ -56,7 +58,7 @@ async def record_chapter(client: genai.Client, model: str, avatar_name: str,
         ),
         avatar_config=types.AvatarConfig(avatar_name=avatar_name),
         system_instruction=types.Content(
-            parts=[types.Part.from_text(text=SYSTEM_INSTRUCTION.format(script=chapter["script"]))]
+            parts=[types.Part.from_text(text=SYSTEM_INSTRUCTION)]
         ),
         output_audio_transcription={},
     )
@@ -65,10 +67,8 @@ async def record_chapter(client: genai.Client, model: str, avatar_name: str,
     transcript = ""
 
     async with client.aio.live.connect(model=model, config=config) as session:
-        # Nudge it to start talking — the system instruction already carries
-        # the script, so this just triggers the turn.
         await session.send_client_content(
-            turns=types.Content(role="user", parts=[types.Part.from_text(text="Go ahead.")]),
+            turns=types.Content(role="user", parts=[types.Part.from_text(text=chapter["script"])]),
             turn_complete=True,
         )
         async for msg in session.receive():
@@ -107,12 +107,15 @@ async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True)
     parser.add_argument("--location", default="us-central1")
+    parser.add_argument("--only", help="record just this chapter id")
     args = parser.parse_args()
 
     data = json.loads(AVATAR_JSON.read_text(encoding="utf-8"))
     client = genai.Client(vertexai=True, project=args.project, location=args.location)
 
     for chapter in data["chapters"]:
+        if args.only and chapter["id"] != args.only:
+            continue
         await record_chapter(client, data["model"], data["avatarName"], data["voiceName"], chapter)
 
 

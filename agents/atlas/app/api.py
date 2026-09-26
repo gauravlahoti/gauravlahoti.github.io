@@ -281,10 +281,11 @@ async def _log_turn(geo_task: asyncio.Task | None, payload: dict[str, Any]) -> N
     await log_interaction(payload)
 
 
-async def _prepend(first: str, rest: AsyncIterator[str]) -> AsyncIterator[str]:
-    yield first
-    async for chunk in rest:
-        yield chunk
+async def _capped_avatar_stream(reason: str) -> AsyncIterator[str]:
+    """The whole reply to an avatar turn over its cap: `capped` tells the
+    widget to offer Voice mode for this same question."""
+    yield _sse({"avatarUnavailable": {"reason": reason, "capped": True}})
+    yield _sse({"done": True})
 
 
 _AVATAR_SCRIPT_KEY = "_avatarScript"
@@ -1079,17 +1080,26 @@ def register_routes(app: FastAPI) -> None:
             "ref":          (request.headers.get("referer") or "")[:500],
         }
 
-        # Spec 67: Avatar mode. Refusals are not errors: the turn still runs,
-        # it just tells the widget up front to use the voice instead.
+        # Spec 67: Avatar mode. A capped avatar turn is not an error and does
+        # not run the agent: the widget offers Voice mode and re-asks the same
+        # question there, so answering it here too would be paid for twice
+        # (and put the question in the session history twice).
         avatar_refusal: str | None = None
         want_avatar = (body or {}).get("avatar") is True
         if want_avatar:
             ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
             if not ok_visitor:
-                avatar_refusal = "That's the avatar's limit for today."
+                avatar_refusal = "You've reached today's avatar limit."
             elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
-                avatar_refusal = "The avatar is resting for today."
+                avatar_refusal = "The avatar has reached its limit for today."
                 logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
+        if avatar_refusal:
+            geo_task.cancel()
+            return StreamingResponse(
+                _capped_avatar_stream(avatar_refusal),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+            )
 
         text_stream = _stream_agent(
             session_id,
@@ -1098,14 +1108,9 @@ def register_routes(app: FastAPI) -> None:
             identity=identity,
             client_meta=client_meta,
             geo_task=geo_task,
-            avatar=want_avatar and avatar_refusal is None,
+            avatar=want_avatar,
         )
-        if want_avatar and avatar_refusal is None:
-            stream = _with_avatar(text_stream)
-        elif avatar_refusal:
-            stream = _prepend(_sse({"avatarUnavailable": {"reason": avatar_refusal}}), text_stream)
-        else:
-            stream = text_stream
+        stream = _with_avatar(text_stream) if want_avatar else text_stream
 
         return StreamingResponse(
             stream,

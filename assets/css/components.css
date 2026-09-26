@@ -4816,3 +4816,14 @@ a.agent-badge-tile:focus-visible {
     .agent-avatar[data-state="listening"] .agent-avatar-frame::after,
     .agent-avatar[data-state="speaking"] .agent-avatar-frame { animation: none; }
 }
+
+/* Spec 67: the avatar is out of answers for today. The offer to switch modes
+   sits in the conversation, right under the question it will re-ask, and
+   reuses the consent card's copy and buttons. */
+.agent-avatar-offer {
+    padding: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-left: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+}

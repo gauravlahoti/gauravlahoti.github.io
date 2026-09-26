@@ -182,6 +182,30 @@ hundreds of dollars a day, so it waits on confirming billing.
 Measured end to end on the final config (local Atlas, warm): first word
 3.6-4.1s; the avatar speaking 6.3-7.8s after send on real questions.
 
+## Review round: greeting and the daily cap
+
+**Greeting re-recorded.** It now only says who Atlas is and what it can do
+(his experience, projects and agents, certifications, emailing the resume,
+passing a note), with no build story and no "tap a topic", since Avatar mode
+has no topic chips. Script in `content/avatar.json`. The recorder now sends
+the script as the user turn under the live path's `SCRIPT_INSTRUCTION`
+(the old "script in the system prompt, then 'Go ahead'" could improvise),
+takes `--only <chapter>`, and the clip is trimmed of its ~0.75s of leading
+silence. Caption cues are timed to the pauses `silencedetect` finds, which
+also confirm the sentence structure was read verbatim.
+
+**Over the cap, offer Voice for the same question.** A capped avatar turn
+(per-visitor bucket or the daily budget) no longer runs the agent and shows
+the answer as text. The server replies with only
+`avatarUnavailable {reason, capped: true}` and `done`, so the question is
+never paid for twice or put in the session history twice. The widget drops
+the empty turn and shows a card under the question: "You've reached today's
+avatar limit. Want me to answer this in Voice mode instead?" with **Switch
+to Voice** and **Show as text**. Either button switches modes (the click is
+Voice's audio gesture) and asks the same question again, so nobody retypes
+it. After that, further Avatar-mode questions go straight to the card
+without a request.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented
@@ -214,7 +238,9 @@ executed as part of implementing this spec.
 - [x] Idle loop so the face never looks frozen; greeting once, transcribed.
 - [x] Live answers on the chat's own SSE stream, session opened in parallel
       with the agent, idle frames relayed, cross-fade in, verbatim speech.
-- [x] Per-visitor cap, daily budget, graceful fallback to the voice.
+- [x] Per-visitor cap and daily budget; over the cap, a card offers Voice
+      (or Text) and re-asks the same question there.
+- [x] Greeting says who Atlas is and what it can do, nothing about the build.
 - [x] Model cascade 3.6-flash -> 3.5-flash-lite -> 3.7-flash plus a
       first-token watchdog, with measurements recorded above.
 - [x] Unit tests: stream merge, fallback, budget, watchdog (169 pass);

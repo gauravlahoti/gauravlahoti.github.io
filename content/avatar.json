@@ -12,7 +12,7 @@
       "id": "greeting",
       "chip": null,
       "autoplay": true,
-      "script": "Hi, I'm Atlas, Gaurav's AI agent. I can tell you who he is, how this site got built, or just answer whatever you're curious about. Tap a topic, or ask me anything.",
+      "script": "Hi, I'm Atlas, Gaurav's AI agent. Ask me about his experience, the projects and AI agents he's built, or the certifications he holds. I can also email you his resume, or pass a note straight to him. So, what would you like to know?",
       "clip": "assets/video/atlas-greeting.mp4",
       "poster": "assets/video/atlas-greeting.webp",
       "captions": "assets/video/atlas-greeting.vtt"

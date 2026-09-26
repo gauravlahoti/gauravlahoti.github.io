@@ -122,6 +122,18 @@ class TestWithAvatar:
         assert avatar_speak.budget.used_seconds == pytest.approx(2.0)
 
 
+class TestCappedAvatarStream:
+    @pytest.mark.asyncio
+    async def test_capped_turn_only_offers_voice_and_ends(self) -> None:
+        # The widget re-asks the same question in Voice mode, so the capped
+        # turn must carry no answer of its own.
+        events = await _collect(api._capped_avatar_stream("You've reached today's avatar limit."))
+        assert events == [
+            {"avatarUnavailable": {"reason": "You've reached today's avatar limit.", "capped": True}},
+            {"done": True},
+        ]
+
+
 class TestClipToSentences:
     def test_short_text_is_untouched(self) -> None:
         assert avatar_speak.clip_to_sentences("One. Two.", limit=100) == "One. Two."
