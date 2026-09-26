@@ -54,16 +54,88 @@ def _first_sentence(text: str) -> int | None:
     return m.end() if m else None
 
 
+NOTE_OPEN, NOTE_CLOSE = "[[NOTE]]", "[[/NOTE]]"
+# Longest note block we will hold back before giving up on its close tag.
+_NOTE_BLOCK_LIMIT = 600
+
+
+class NoteBlockGuard:
+    """The working note as a protocol (spec 67): the prompt asks Atlas to open
+    every reply with `[[NOTE]] ... [[/NOTE]]`. This lifts every such block
+    out of the stream, wherever it appears, and hands it back as a note for
+    the Thinking panel. Only a possibly half-written open tag, or an open
+    block (up to `_NOTE_BLOCK_LIMIT` chars), is ever held back."""
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._inside = False
+        self._trim = False  # a block just closed: drop the whitespace after it
+
+    def push(self, chunk: str) -> tuple[str, str]:
+        self._buf += chunk
+        if self._trim and not self._inside:
+            self._buf = self._buf.lstrip()
+            self._trim = not self._buf
+        shown, notes = [], []
+        while True:
+            if self._inside:
+                end = self._buf.find(NOTE_CLOSE)
+                if end == -1:
+                    if len(self._buf) <= _NOTE_BLOCK_LIMIT:
+                        break
+                    end, skip = len(self._buf), 0  # never closed: give up holding
+                else:
+                    skip = len(NOTE_CLOSE)
+                notes.append(self._buf[:end].strip())
+                self._buf = self._buf[end + skip:].lstrip() if skip else ""
+                self._inside = False
+                self._trim = not self._buf
+                continue
+            start = self._buf.find(NOTE_OPEN)
+            if start == -1:
+                keep = _partial_tag_len(self._buf)
+                shown.append(self._buf[:len(self._buf) - keep])
+                self._buf = self._buf[len(self._buf) - keep:]
+                break
+            shown.append(self._buf[:start])
+            self._buf = self._buf[start + len(NOTE_OPEN):]
+            self._inside = True
+        return "".join(shown), " ".join(n for n in notes if n)
+
+    def flush(self) -> tuple[str, str]:
+        if self._inside:
+            note, self._buf, self._inside = self._buf.strip(), "", False
+            return "", note
+        out, self._buf = self._buf, ""
+        return out, ""
+
+
+def _partial_tag_len(text: str) -> int:
+    """How much of the end of `text` could be the start of NOTE_OPEN."""
+    for n in range(min(len(NOTE_OPEN) - 1, len(text)), 0, -1):
+        if NOTE_OPEN.startswith(text[-n:]):
+            return n
+    return 0
+
+
 class LeadNoteGuard:
+    """Backstop for a working note written WITHOUT the [[NOTE]] tags."""
+
     def __init__(self) -> None:
         self._buf = ""
         self._decided = False
         self._in_note = False  # a note was found; checking whether it goes on
         self._raw = ""  # the diverted text, exactly as written
+        self._shown_any = False
         self.note = ""
 
     def push(self, chunk: str) -> tuple[str, str]:
         """Feed visible text. Returns (text to show now, note to divert)."""
+        shown, note = self._push(chunk)
+        self._shown_any = self._shown_any or bool(shown.strip())
+        return shown, note
+
+    def _push(self, chunk: str) -> tuple[str, str]:
         if self._decided:
             return chunk, ""
         self._buf += chunk
@@ -77,12 +149,20 @@ class LeadNoteGuard:
         return "", ""
 
     def flush(self) -> tuple[str, str]:
-        """End of stream: whatever is still held is decided now."""
+        """End of stream: whatever is still held is decided now. A reply is
+        never left empty: if all it had was what looked like a note, that
+        text is the reply after all."""
         if self._decided:
-            return "", ""
-        if self._in_note:
-            return self._continue_note(final=True)
-        return self._decide(final=True)
+            shown, note = "", ""
+        elif self._in_note:
+            shown, note = self._continue_note(final=True)
+        else:
+            shown, note = self._decide(final=True)
+        self._shown_any = self._shown_any or bool(shown.strip())
+        if not self._shown_any and self.note:
+            shown, note, self.note = self.note, "", ""
+            self._shown_any = True
+        return shown, note
 
     def without_note(self, text: str) -> str:
         """The same reply without the diverted note (for speech and logs)."""
@@ -143,3 +223,31 @@ class LeadNoteGuard:
         self._decided = True
         out, self._buf = self._buf, ""
         return out, ""
+
+
+_NOTE_BLOCK_RE = re.compile(re.escape(NOTE_OPEN) + r".*?(?:" + re.escape(NOTE_CLOSE) + r"|$)", re.DOTALL)
+
+
+class NoteFilter:
+    """What api.py runs the reply through: [[NOTE]] blocks first (the
+    protocol), then the untagged-note backstop. Same push/flush/without_note
+    interface as LeadNoteGuard."""
+
+    def __init__(self) -> None:
+        self._blocks = NoteBlockGuard()
+        self._lead = LeadNoteGuard()
+
+    def push(self, chunk: str) -> tuple[str, str]:
+        shown, block_note = self._blocks.push(chunk)
+        shown, lead_note = self._lead.push(shown) if shown else ("", "")
+        return shown, " ".join(n for n in (block_note, lead_note) if n)
+
+    def flush(self) -> tuple[str, str]:
+        tail, block_note = self._blocks.flush()
+        shown, lead_note = self._lead.push(tail) if tail else ("", "")
+        more, last_note = self._lead.flush()
+        notes = " ".join(n for n in (block_note, lead_note, last_note) if n)
+        return shown + more, notes
+
+    def without_note(self, text: str) -> str:
+        return self._lead.without_note(_NOTE_BLOCK_RE.sub("", text).lstrip())

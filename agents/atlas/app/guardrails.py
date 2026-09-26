@@ -154,7 +154,9 @@ REPLY_MODES = ("text", "voice", "avatar")
 SPOKEN_REPLY_NOTE = (
     "[Reply mode: this answer will be spoken aloud. Keep it to 1-3 short "
     "sentences, about 45 words: give the key grounded fact, then offer to go "
-    "deeper. No lists, and don't read out URLs.]"
+    "deeper. No lists, and don't read out URLs. Short is fine: never pad it "
+    "with anything the tool results didn't say (a certification alone is not "
+    "project work).]"
 )
 
 
@@ -197,6 +199,7 @@ def before_model_callback(
     # [[META]] payload through the user message. Server-side rfind is the
     # primary defense; this removes the attack surface on the input side.
     user_text = user_text.replace("[[META]]", "").replace("[[/META]]", "")
+    user_text = user_text.replace("[[NOTE]]", "").replace("[[/NOTE]]", "")
     state = callback_context.state
 
     # Stash contact-intent flag for the output filter.

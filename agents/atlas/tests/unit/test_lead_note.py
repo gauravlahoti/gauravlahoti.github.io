@@ -111,3 +111,55 @@ def test_a_reply_that_opens_with_a_request_word_is_left_alone() -> None:
     for reply in ("Good request. He'd be glad to hear more about the project.",
                   "Fair question. Gaurav is full-time at Deloitte, and takes select consulting work."):
         assert _run(list(reply)) == (reply, "")
+
+
+# --- the [[NOTE]] protocol (NoteFilter) -------------------------------------
+
+from app.app_utils.lead_note import NoteFilter  # noqa: E402
+
+
+def _run_filter(chunks: list[str]) -> tuple[str, str]:
+    f = NoteFilter()
+    shown, notes = "", []
+    for c in chunks:
+        out, note = f.push(c)
+        shown += out
+        notes.append(note)
+    out, note = f.flush()
+    notes.append(note)
+    return shown + out, " ".join(n for n in notes if n)
+
+
+def test_note_block_goes_to_thinking_for_every_chunking() -> None:
+    raw = "[[NOTE]]Resume request, missing email, asking the visitor.[[/NOTE]]\nWhat email should I send it to?"
+    for i in range(len(raw) + 1):
+        assert _run_filter([raw[:i], raw[i:]]) == (
+            "What email should I send it to?", "Resume request, missing email, asking the visitor."), f"split {i}"
+
+
+def test_a_second_block_mid_reply_is_lifted_too() -> None:
+    raw = "[[NOTE]]Cert question.[[/NOTE]]He holds fourteen. [[NOTE]]calling get_projects[[/NOTE]]Want more?"
+    shown, note = _run_filter(list(raw))
+    assert shown == "He holds fourteen. Want more?"
+    assert "[[" not in shown and "get_projects" in note
+
+
+def test_unclosed_block_never_swallows_more_than_the_limit() -> None:
+    raw = "[[NOTE]]plan " + "x" * 700 + " Real answer."
+    shown, note = _run_filter([raw])
+    assert "[[NOTE]]" not in shown and note
+
+
+def test_reply_is_never_left_empty_by_the_backstop() -> None:
+    # The whole reply looked like an untagged note: show it rather than nothing.
+    raw = "Weather question, declining and routing to LinkedIn."
+    shown, _ = _run_filter(list(raw))
+    assert shown == raw
+
+
+def test_without_note_strips_blocks_for_speech_and_logs() -> None:
+    f = NoteFilter()
+    raw = "[[NOTE]]Cert question, calling get_certifications.[[/NOTE]]\nHe holds fourteen."
+    f.push(raw)
+    f.flush()
+    assert f.without_note(raw) == "He holds fourteen."

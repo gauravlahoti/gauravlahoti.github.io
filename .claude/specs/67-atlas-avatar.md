@@ -351,6 +351,29 @@ spinning ring. `assets/video/atlas-face.webp` is removed.
   flush against the edge, one overflowing when expanded) and boxed its close
   button. Those rules are now scoped to `.agent-panel-overlay`.
 
+## Review round: the working note becomes a protocol; certs carry evidence
+
+- **Working note as `[[NOTE]] ... [[/NOTE]]`.** Matching the shapes of
+  leaked notes was a losing game: each run found a new one ("Resume request
+  with missing email...", "Checking Gaurav's availability..., calling
+  get_profile..."), and the widened matcher once swallowed a whole reply
+  (an empty answer to an off-topic question). The root cause is the prompt
+  requiring a working note every turn while thinking runs at LOW, so the
+  model writes it into the reply. The prompt now asks for the note as a
+  tagged block at the start of the reply; `NoteBlockGuard` lifts every
+  block out of the stream (anywhere, split tags included) into the Thinking
+  panel. The shape matcher stays only as a backstop, and can never leave a
+  reply empty: if everything looked like a note, it is shown as the reply.
+  Visitor text has the tags stripped, like `[[META]]`.
+- **Certifications carry their evidence.** A prompt rule alone did not stop
+  "he has integrated Azure OpenAI in production" (the corpus has only the
+  Azure AI Fundamentals cert; about half of Azure answers invented work).
+  `get_certifications` now marks each cert `handsOnWorkOnRecord`, computed
+  from whether his work history, projects or agents name that vendor, with a
+  "certification only, never claim or offer any" note when not. The spoken
+  length note also says never to pad with what the tools didn't say.
+  Measured: 0 of 12 Azure answers invented work afterwards.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

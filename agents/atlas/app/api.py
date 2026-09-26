@@ -57,7 +57,7 @@ from app.app_utils.citations import CitationGuard, split_markers
 from app.app_utils.dashes import DashGuard, strip_dashes
 from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
-from app.app_utils.lead_note import LeadNoteGuard
+from app.app_utils.lead_note import NoteFilter
 from app.app_utils.resume_send import warm_mcp_server
 from app.app_utils.speak import MAX_TEXT_CHARS, sanitize_for_speech, speak_text
 from app.app_utils.speak import warm as warm_speak
@@ -477,7 +477,9 @@ async def _stream_agent(
     ttf_delta_ms: int | None = None
     # user_visible: text actually forwarded to the client (excludes meta block)
     user_visible: list[str] = []
-    lead_guard = LeadNoteGuard()
+    # Spec 67: the working note ([[NOTE]] block, or an untagged one) goes to
+    # the Thinking panel, never into the reply.
+    lead_guard = NoteFilter()
     # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
     # Spec 67: and no email address Atlas wasn't given (see emails.py).
     dash_guard = _OutputFilter(visitor_emails, contact_intent)
@@ -661,7 +663,8 @@ async def _stream_agent(
                     thought_visible.append(new_thought)
                     # Cosmetic only — the real [[META]] protocol lives entirely on
                     # the answer stream and is untouched by this.
-                    cleaned = new_thought.replace("[[META]]", "").replace("[[/META]]", "")
+                    cleaned = (new_thought.replace("[[META]]", "").replace("[[/META]]", "")
+                               .replace("[[NOTE]]", "").replace("[[/NOTE]]", ""))
                     if cleaned:
                         if ttf_thinking_ms is None:
                             ttf_thinking_ms = int((time.monotonic() - start) * 1000)
