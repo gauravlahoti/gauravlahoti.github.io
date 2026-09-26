@@ -2123,8 +2123,9 @@ export function buildAgentDiagram(opts) {
     // Spec 67: the flow gained Output checks and a second speech branch (the
     // Live Avatar), so both layouts grew: desktop from 540x250 to 640x300,
     // mobile from 300x332 to 300x404.
-    // Desktop widened to 780x320 so every model name fits on one line.
-    const VW = mobile ? 300 : 780;
+    // Desktop widened to 816x320 so every model name fits on one line and
+    // the mode fork has room to breathe.
+    const VW = mobile ? 300 : 816;
     const VH = mobile ? 404 : 320;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
@@ -2160,11 +2161,13 @@ export function buildAgentDiagram(opts) {
         { d: "M 388 172 L 424 218", cls: "ad-edge--plain" },     // 4 Agent -> MCP
         { d: "M 420 150 L 450 150" },                            // 5 Agent -> Output checks
         { d: "M 506 172 L 506 300", cls: "ad-edge--text" },                          // 6 Text
-        { d: "M 562 140 L 574 140 L 574 70 L 590 70", cls: "ad-edge--voice" },       // 6 Voice
-        { d: "M 562 160 L 574 160 L 574 230 L 590 230", cls: "ad-edge--avatar" },    // 6 Avatar
+        // The fork sits 32 units off Output checks and 32 short of the
+        // models, so the branch reads as a choice rather than a squeeze.
+        { d: "M 562 140 L 594 140 L 594 70 L 626 70", cls: "ad-edge--voice" },       // 6 Voice
+        { d: "M 562 160 L 594 160 L 594 230 L 626 230", cls: "ad-edge--avatar" },    // 6 Avatar
         // 7 back to you: all three paths meet on the bottom line.
-        { d: "M 754 70 L 768 70 L 768 300 L 60 300 L 60 180" },
-        { d: "M 754 230 L 768 230" },
+        { d: "M 790 70 L 804 70 L 804 300 L 60 300 L 60 180" },
+        { d: "M 790 230 L 804 230" },
     ];
     edges.forEach(({ d, cls }) => {
         svg.appendChild(el("path", { class: cls ? `ad-edge ${cls}` : "ad-edge ad-edge--key", d }));
@@ -2199,11 +2202,11 @@ export function buildAgentDiagram(opts) {
         ? [[1, 96, 54], [2, 96, 123], [3, 166, 155], [4, 166, 183], [4, 165, 207],
            [5, 96, 193], [6, 39, 272, "text"], [6, 86, 279, "voice"], [6, 168, 286, "avatar"], [7, 18, 160]]
         : [[1, 108, 150], [2, 305, 150], [3, 370, 98], [4, 337, 193], [4, 404, 193],
-           [5, 435, 150], [6, 506, 214, "text"], [6, 574, 108, "voice"], [6, 574, 192, "avatar"], [7, 60, 236]];
+           [5, 435, 150], [6, 506, 214, "text"], [6, 594, 108, "voice"], [6, 594, 192, "avatar"], [7, 60, 236]];
     steps.forEach(([n, cx, cy, mode]) => svg.appendChild(step(n, cx, cy, mode)));
     const tags = mobile
         ? [[24, 283, "Text", "text"], [92, 256, "Voice", "voice"], [180, 292, "Avatar", "avatar"]]
-        : [[514, 228, "Text", "text"], [582, 114, "Voice", "voice"], [582, 172, "Avatar", "avatar"]];
+        : [[514, 228, "Text", "text"], [602, 114, "Voice", "voice"], [602, 172, "Avatar", "avatar"]];
     tags.forEach(([x, y, label, mode]) => svg.appendChild(modeTag(x, y, label, mode)));
 
 
@@ -2448,13 +2451,13 @@ export function buildAgentDiagram(opts) {
         svg.appendChild(node(null,              258, 218, 108, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 312, TIPS.corpus));
         svg.appendChild(node(null,              378, 218, 108, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 432, TIPS.mcp, "mcp"));
         svg.appendChild(node("ad-node--checks", 450, 128, 112, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 506, TIPS.checks, "check"));
-        svg.appendChild(node("ad-node--key ad-node--voice",  590,  44, 164, 52, "Gemini 3.1 Flash TTS",   "text-to-speech",   "Gemini 3.1 Flash TTS reads the answer aloud", 672, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key ad-node--avatar", 590, 204, 164, 52, "Gemini 3.8 Live Avatar", "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 672, TIPS.avatar, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--voice",  626,  44, 164, 52, "Gemini 3.1 Flash TTS",   "text-to-speech",   "Gemini 3.1 Flash TTS reads the answer aloud", 708, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar", 626, 204, 164, 52, "Gemini 3.8 Live Avatar", "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 708, TIPS.avatar, "gemini"));
         // Under STT, clear of the reasoning box above the Agent.
         svg.appendChild(xformStrip(210, 196, "to-text",  2));
         // Above TTS, mirroring the video strip under Live Avatar (same gap).
-        svg.appendChild(xformStrip(672,  24, "to-voice", 6));
-        svg.appendChild(xformStrip(672, 276, "to-video", 6));
+        svg.appendChild(xformStrip(708,  24, "to-voice", 6));
+        svg.appendChild(xformStrip(708, 276, "to-video", 6));
     }
 
     return svg;
