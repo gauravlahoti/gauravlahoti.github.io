@@ -2498,10 +2498,6 @@ function setupExplainerModal(dom, agentExplainer) {
 
 // --- shell renderer ---------------------------------------------------------
 
-// Spec 67: Atlas's face for the Avatar option (2 KB), resolved from this
-// module so it also works on /live-agents/.
-const AVATAR_FACE_URL = new URL("../video/atlas-face.webp", import.meta.url).href;
-
 function renderShell(root, agentExplainer) {
     root.classList.add("agent-widget-host");
     root.innerHTML = "";
@@ -2593,7 +2589,13 @@ function renderShell(root, agentExplainer) {
                 <span>Voice</span>
             </button>
             <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face. Earlier answers stay as they are, nothing is asked again.">
-                <span class="agent-mode-orb" aria-hidden="true"><span class="agent-mode-orb-face"><img src="${AVATAR_FACE_URL}" alt="" width="22" height="22" decoding="async"></span></span>
+                <span class="agent-mode-orb" aria-hidden="true"><span class="agent-mode-orb-face">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="8" cy="6" r="2.75"/>
+                        <path d="M3 14a5 5 0 0 1 10 0"/>
+                        <path d="M1.5 4V2.5a1 1 0 0 1 1-1H4M12 1.5h1.5a1 1 0 0 1 1 1V4"/>
+                    </svg>
+                </span></span>
                 <span>Avatar</span>
                 <span class="agent-mode-new" aria-hidden="true"></span>
             </button>
@@ -3119,8 +3121,8 @@ function renderTextWithLinks(container, text, citations) {
                 container.appendChild(sup);
             } else if (Object.keys(citationMap).length > 0) {
                 // A marker with no source behind it (the server keeps at most
-                // three): drop it, and the space before it, rather than show a
-                // dead "[4]".
+                // five): drop it, and the space before it, rather than show a
+                // dead "[6]".
                 const prev = container.lastChild;
                 if (prev && prev.nodeType === Node.TEXT_NODE) prev.nodeValue = prev.nodeValue.replace(/\s+$/, "");
             } else {

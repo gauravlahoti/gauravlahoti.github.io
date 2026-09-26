@@ -57,3 +57,36 @@ def test_without_note_removes_the_note_from_the_full_text() -> None:
     g.push("Availability question, calling get_profile.Gaurav is full-time.")
     g.flush()
     assert g.without_note("Availability question, calling get_profile.Gaurav is full-time.") == "Gaurav is full-time."
+
+
+def test_note_about_whats_missing_and_its_follow_on_are_both_diverted() -> None:
+    # Seen in the spec 67 scorecard (voice mode): a note with no tool name,
+    # plus a second planning sentence.
+    reply = ("Resume question, missing recipient email address. No tool call possible yet.\n\n"
+             "I can send Gaurav's resume to your inbox! What email address should I use?")
+    for chunks in ([reply], list(reply)):
+        shown, note = _run(chunks)
+        assert note == "Resume question, missing recipient email address. No tool call possible yet."
+        assert shown == "I can send Gaurav's resume to your inbox! What email address should I use?"
+
+
+def test_question_type_opener_without_planning_is_the_reply() -> None:
+    for reply in ("Good question, he is full-time at Deloitte and takes select consulting work.",
+                  "Certification question, and the short answer: Gaurav holds fourteen of them."):
+        assert _run(list(reply)) == (reply, "")
+
+
+def test_a_note_followed_by_a_normal_sentence_keeps_that_sentence() -> None:
+    reply = "Availability question, calling get_profile. Gaurav is full-time at Deloitte."
+    shown, note = _run(list(reply))
+    assert note == "Availability question, calling get_profile."
+    assert shown == "Gaurav is full-time at Deloitte."
+
+
+def test_without_note_strips_a_multi_sentence_note() -> None:
+    reply = "Resume question, missing email. No tool call possible yet. What's your email?"
+    g = LeadNoteGuard()
+    for ch in reply:
+        g.push(ch)
+    g.flush()
+    assert g.without_note(reply) == "What's your email?"

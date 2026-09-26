@@ -219,8 +219,8 @@ avatar stage, the karaoke highlight and the answer bar all read it. On every
 change the lit segment springs across with a slight stretch, a sweep of the
 new colour runs over the switch, and the chosen icon greets you: Text's
 lines write themselves in, Voice's equalizer bounces, and Avatar's icon,
-Atlas's own face as a small glossy 3D orb (`assets/video/atlas-face.webp`,
-2 KB) in a spinning ring, pops forward. The avatar stage flips in like a card
+a small 3D orb in a spinning ring (a photo at first, since replaced by the
+person icon, see below), pops forward. The avatar stage flips in like a card
 turning over. All of it is off under `prefers-reduced-motion`.
 
 **Over the cap, offer Voice for the same question.** A capped avatar turn
@@ -308,6 +308,27 @@ content corpus: accuracy, completeness, precision, quality, citation
 support, scope and safety. Its first run also caught dangling "[4]" markers
 (the server keeps three sources): the widget now drops a marker with no
 source, and the prompt caps markers at [3].
+
+## Review round: scorecard fixes, no photo on the switch
+
+The scorecard's four real findings, fixed:
+- **Invented platform work** ("integrated Azure OpenAI", "architected on
+  Azure"; the corpus has only the Azure AI Fundamentals cert). The prompt now
+  says a certification is not project experience: claim building on a
+  platform only when a work-history, project or agent entry names it.
+- **A different working-note shape leaked** ("Resume question, missing
+  recipient email address. No tool call possible yet."). `LeadNoteGuard`
+  now diverts any "<topic> question, ..." opening whose sentence is about
+  planning (tools, what's missing, declining), plus follow-on planning
+  sentences, while "Good question, he is..." still reads as the reply.
+- **Dangling "[4]"** on four-item lists: the server keeps up to five sources
+  (was three), the prompt prefers one to three and allows five.
+- **Uncited negatives** ("no Oracle certifications"): the prompt says a
+  negative answer cites the source that was checked.
+
+The Avatar option's icon is no longer a photo of the avatar (the face
+belongs on the stage): it is the person icon, turning in 3D inside the
+spinning ring. `assets/video/atlas-face.webp` is removed.
 
 ## Avatar & clip production (manual, not run by this spec's code)
 

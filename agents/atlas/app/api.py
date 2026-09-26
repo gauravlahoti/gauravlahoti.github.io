@@ -179,6 +179,9 @@ _ALLOWED_CTA = {"topmate", "linkedin", "resume"}
 # own copy of profile.json and silently drops anything that doesn't match, so a
 # slug invented here can never become an image path or a link.
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+# Up to five sources (spec 67): a list answer (four AI Labs, say) cites one
+# per item, and a cap of three left "[4]" in the text with nothing behind it.
+_MAX_CITATIONS = 5
 _MAX_BADGES = 16  # profile.json currently holds 14; leaves headroom without being unbounded
 
 _ALLOWED_CITE_HOSTS = {
@@ -220,7 +223,7 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]
         # citations: validate each entry
         raw_cites = obj.get("citations") or []
         citations: list[dict] = []
-        for c in raw_cites[:3]:
+        for c in raw_cites[:_MAX_CITATIONS]:
             if not isinstance(c, dict):
                 continue
             cid = c.get("id")
