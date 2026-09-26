@@ -3472,6 +3472,16 @@ a.agent-badge-tile:focus-visible {
 .ad-step--avatar circle { stroke: var(--mode-avatar); }
 .ad-step--avatar text   { fill: var(--mode-avatar); }
 /* Mode tags at the fork: what makes the three 6s read as a choice. */
+/* They appear with their 6s (same clock and keyframes), then clear with
+   the rest when the loop restarts. */
+.ad-mode-tag {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ad-step-seq-6 8s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ad-mode-tag { animation: none; opacity: 1; transform: none; }
+}
 .ad-mode-tag rect { fill: var(--bg-card); stroke-width: 1; }
 .ad-mode-tag text { font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.04em; }
 .ad-mode-tag--text rect   { stroke: var(--mode-text); }
