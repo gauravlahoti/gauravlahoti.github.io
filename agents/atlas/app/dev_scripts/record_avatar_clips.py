@@ -6,10 +6,10 @@ script under a "say this verbatim" system instruction, and writes the
 resulting clip + captions to assets/video/.
 
 Before running this:
-  1. Pick the real avatar + voice in Console -> Agent Platform -> Studio ->
-     Stream realtime (model gemini-3.8-live, Live Avatar panel) and update
-     avatarName/voiceName in content/avatar.json. The placeholders in that
-     file ("Ben" / "Puck") are documented example values, not a real pick.
+  1. content/avatar.json already has the confirmed pick from Console
+     (Agent Platform -> Studio -> Stream realtime, model gemini-3.8-live,
+     Live Avatar panel): avatar "Sam", voice "Puck". Change it there if
+     that pick is ever revisited.
   2. Have valid Vertex AI credentials for the target project
      (gcloud auth application-default login), with access to gemini-3.8-live
      confirmed via:

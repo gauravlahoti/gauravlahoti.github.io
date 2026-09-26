@@ -1,7 +1,7 @@
 {
-  "_readme": "Spec 67. avatarName/voiceName are PLACEHOLDERS (documented Gemini 3.8 Live example values), not a real pick. Gaurav must choose the actual avatar + voice in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel) before any clip is recorded -- Google doesn't publish the avatar gallery anywhere else. Update this file with the real values first, then run agents/atlas/app/dev_scripts/record_avatar_clips.py.",
+  "_readme": "Spec 67. Confirmed by Gaurav in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel): avatar 'Sam', voice 'Puck'. Next step is running agents/atlas/app/dev_scripts/record_avatar_clips.py against a real Vertex session to produce the actual clips in assets/video/.",
   "model": "gemini-3.8-live",
-  "avatarName": "Ben",
+  "avatarName": "Sam",
   "voiceName": "Puck",
   "captionLabel": "AI avatar, generated with Gemini",
   "chapters": [

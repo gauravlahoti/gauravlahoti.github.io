@@ -52,9 +52,8 @@ portrait — a second face there would confuse visitors about who's who.
 The avatar identity (which prebuilt avatar, which voice) is picked by hand
 in Console → Agent Platform → Studio → Stream realtime, model
 `gemini-3.8-live`, Live Avatar panel — Google doesn't publish the gallery
-anywhere else. `content/avatar.json`'s `avatarName`/`voiceName` are
-placeholders (documented example values `"Ben"` / `"Puck"`) until that pick
-is made; nothing here is deployed with placeholders live.
+anywhere else. **Confirmed:** avatar `Sam`, voice `Puck`, both set in
+`content/avatar.json`.
 
 `agents/atlas/app/dev_scripts/record_avatar_clips.py` is a one-off dev tool
 (not part of the deployed service) that opens one `google-genai`
