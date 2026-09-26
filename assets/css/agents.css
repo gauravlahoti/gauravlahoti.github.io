@@ -904,8 +904,10 @@
    whose rule sets overflow-y:scroll + flex:1 1 auto. That bleeds onto this
    deep-dive panel and creates a second, non-scrollable scroll container that
    swallows touch-pan on mobile (the real "deep dive won't scroll" bug).
-   Explicitly reset so the ONLY scroll context is .agent-panel-scroll. */
-.agent-panel-body {
+   Explicitly reset so the ONLY scroll context is .agent-panel-scroll.
+   Scoped to the overlay: unscoped, this reset also stripped the chat
+   widget's own padding and scrolling on this page (spec 67). */
+.agent-panel-overlay .agent-panel-body {
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -941,7 +943,7 @@
     gap: var(--space-3);
 }
 
-.agent-panel-close {
+.agent-panel-overlay .agent-panel-close {
     flex-shrink: 0;
     width: 36px;
     height: 36px;
@@ -960,7 +962,7 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-.agent-panel-close:hover {
+.agent-panel-overlay .agent-panel-close:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
@@ -1556,7 +1558,7 @@
     }
 
     /* ── Panel body: surface quick info before the diagram ──────────── */
-    .agent-panel-body { display: flex; flex-direction: column; }
+    .agent-panel-overlay .agent-panel-body { display: flex; flex-direction: column; }
 
     /* title → diagram overview → traits → how it works → stack → links */
     .agent-panel-title-block                            { order: 1; }

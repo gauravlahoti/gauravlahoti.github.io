@@ -330,6 +330,27 @@ The Avatar option's icon is no longer a photo of the avatar (the face
 belongs on the stage): it is the person icon, turning in 3D inside the
 spinning ring. `assets/video/atlas-face.webp` is removed.
 
+## Review round: combined citations, more note shapes, /live-agents/ styles
+
+- **"[1, 2]" shown as text.** The model sometimes combines markers despite
+  the prompt. `app_utils/citations.py` splits them ("[1][2]") in the output
+  filter, streamed and whole, so screen, speech, avatar script and logs all
+  agree. The widget also splits any it receives (old output), and speech
+  strips combined markers, so the numbers are never read aloud.
+- **More working-note shapes** diverted to Thinking: "<topic> request."
+  followed by a planning sentence ("I'll decline writing code per safety
+  guidelines..."), and planning phrased as "asking visitor for", "not
+  provided", "invite".
+- **Invented work in closing offers** ("want to hear about his Azure OpenAI
+  work?"): the grounding rule now covers offers and suggested follow-ups.
+- **Dashes before a capitalised phrase** become a colon, not a comma ("MCP:
+  A six-act walkthrough"); spaced hyphens stay commas.
+- **Atlas on /live-agents/.** `agents.css` styled its Deep Dive modal with
+  the widget's own class names (`.agent-panel-body`, `.agent-panel-close`),
+  unscoped, which stripped the widget's padding and scrolling there (chips
+  flush against the edge, one overflowing when expanded) and boxed its close
+  button. Those rules are now scoped to `.agent-panel-overlay`.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

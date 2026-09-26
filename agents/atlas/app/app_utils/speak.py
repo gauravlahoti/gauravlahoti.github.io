@@ -128,7 +128,7 @@ def _model_url(model: str) -> str:
 _META_RE = re.compile(r"\[\[META\]\].*?\[\[/META\]\]", re.DOTALL)
 _URL_RE = re.compile(r"https?://\S+|www\.\S+")
 _MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:[^)]+)\)")
-_CITATION_RE = re.compile(r"\[\d+\]")
+_CITATION_RE = re.compile(r"\[\d+(?:\s*,\s*\d+)*\]")  # "[1]" and a combined "[1, 2]"
 _CODE_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`([^`]+)`")
 _EMPHASIS_RE = re.compile(r"(\*{1,2}|_{1,2})(\S.*?\S|\S)\1")

@@ -75,7 +75,7 @@ NO_CITE_NEEDED = {
 }
 
 _MARKDOWN_RE = re.compile(r"(^|\n)\s*([#*+-]\s|#{1,6}\s)|\*\*|__")
-_CITE_MARK_RE = re.compile(r"\[(\d+)\]")
+_CITE_MARK_RE = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
 
 def load_cases() -> list[dict]:
@@ -127,7 +127,7 @@ def ask(url: str, case: dict, mode: str) -> dict:
 def code_checks(case: dict, mode: str, r: dict, issuers: dict[str, str]) -> dict:
     text = r["text"].strip()
     words = len(text.split())
-    marks = {int(m) for m in _CITE_MARK_RE.findall(text)}
+    marks = {int(n) for m in _CITE_MARK_RE.findall(text) for n in m.split(",")}
     cite_ids = {c.get("id") for c in r["citations"]}
     cites_wired = marks <= cite_ids
     cites_needed = case["id"] not in NO_CITE_NEEDED
@@ -150,7 +150,8 @@ def code_checks(case: dict, mode: str, r: dict, issuers: dict[str, str]) -> dict
     return {
         "words": words,
         "within_budget": words <= WORD_BUDGET[mode] * SLACK,
-        "ends_clean": text.endswith((".", "?", "!", ")", '"')) or not text,
+        # A full sentence, or a closing link / citation marker.
+        "ends_clean": not text or text.endswith((".", "?", "!", ")", '"', "]")) or bool(re.search(r"https?://\S+$", text)),
         "no_dash": not any(ch in text for ch in (chr(0x2014), chr(0x2013))),
         "plain_text": not _MARKDOWN_RE.search(text),
         "citations_ok": citations_ok,

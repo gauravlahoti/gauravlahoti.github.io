@@ -8,7 +8,8 @@ built from the reply (speech, avatar script, logs) goes through it.
 - An em or en dash between two numbers is a range: "2019<en dash>2021" -> "2019-2021".
 - Any other em or en dash, or a spaced hyphen standing in for one
   ("AWS - Azure"), becomes a comma: "Gaurav <em dash> a Senior Architect" ->
-  "Gaurav, a Senior Architect".
+  "Gaurav, a Senior Architect". Before a capitalised phrase it becomes a
+  colon: "MCP <em dash> A six-act walkthrough" -> "MCP: A six-act walkthrough".
 - A comma that would land next to other punctuation is dropped.
 
 `DashGuard` does the same on a stream split into arbitrary chunks. It holds
@@ -29,14 +30,17 @@ _RANGE_RE = re.compile(rf"(?<=\d)[ \t]*[{_DASHES}][ \t]*(?=\d)")
 # touches commas this module inserted, never the visitor-facing text around
 # them (which DashGuard may already have streamed out).
 _DASH_RE = re.compile(rf"[ \t]*[{_DASHES}]+[ \t]*|(?<=\w)[ \t]+-[ \t]+(?=\w)")
-_MARK = "\x00"
-_MARKS_RE = re.compile(rf"{_MARK}+")
-# An inserted comma right before punctuation, a line break or the end: drop it.
-_MARK_BEFORE_PUNCT_RE = re.compile(rf"{_MARK}(?=[.,;:!?)\n]|$)")
-# An inserted comma right after punctuation: just a space.
-_MARK_AFTER_PUNCT_RE = re.compile(rf"(?<=[.,;:!?]){_MARK}")
-# An inserted comma opening a line.
-_MARK_LINE_START_RE = re.compile(rf"(?<=\n){_MARK}")
+_MARK = "\x00"   # becomes ", "
+_COLON = "\x01"  # becomes ": " (a dash introducing a capitalised phrase)
+_MARKS_RE = re.compile(rf"[{_MARK}{_COLON}]+")
+# An inserted mark right before punctuation, a line break or the end: drop it.
+_MARK_BEFORE_PUNCT_RE = re.compile(rf"[{_MARK}{_COLON}](?=[.,;:!?)\n]|$)")
+# An inserted mark right after punctuation: just a space.
+_MARK_AFTER_PUNCT_RE = re.compile(rf"(?<=[.,;:!?])[{_MARK}{_COLON}]")
+# An inserted mark opening a line.
+_MARK_LINE_START_RE = re.compile(rf"(?<=\n)[{_MARK}{_COLON}]")
+# A dash before a capital introduces a phrase ("MCP <dash> A six-act
+# walkthrough" -> "MCP: A six-act ..."); "I" on its own is a pronoun.
 # What DashGuard can't resolve yet: trailing spaces, dashes and hyphens.
 _TAIL_RE = re.compile(rf"[\s{_DASHES}-]*$")
 
@@ -48,13 +52,22 @@ def strip_dashes(text: str, *, at_start: bool = True) -> str:
     if not any(ch in text for ch in _DASHES) and " -" not in text:
         return text
     out = _RANGE_RE.sub("-", text)
-    out = _MARKS_RE.sub(_MARK, _DASH_RE.sub(_MARK, out))
+
+    def mark(m: re.Match[str]) -> str:
+        nxt = out[m.end():m.end() + 2]
+        if not any(ch in m.group(0) for ch in _DASHES):
+            return _MARK  # a spaced hyphen ("AWS - Azure") is a list: comma
+        capital = bool(nxt[:1].isupper()) and not (nxt[:1] == "I" and not nxt[1:2].isalpha())
+        return _COLON if capital else _MARK
+
+    out = _DASH_RE.sub(mark, out)
+    out = _MARKS_RE.sub(lambda m: _COLON if _COLON in m.group(0) else _MARK, out)
     out = _MARK_BEFORE_PUNCT_RE.sub("", out)
     out = _MARK_AFTER_PUNCT_RE.sub(" ", out)
     out = _MARK_LINE_START_RE.sub("", out)
-    if at_start and out.startswith(_MARK):
+    if at_start and out[:1] in (_MARK, _COLON):
         out = out[1:]
-    return out.replace(_MARK, ", ")
+    return out.replace(_MARK, ", ").replace(_COLON, ": ")
 
 
 class DashGuard:

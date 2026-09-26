@@ -53,6 +53,7 @@ from google.genai.errors import APIError
 from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
+from app.app_utils.citations import CitationGuard, split_markers
 from app.app_utils.dashes import DashGuard, strip_dashes
 from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
@@ -419,23 +420,26 @@ async def _relay_avatar(
 
 class _OutputFilter:
     """Everything Atlas shows goes through here (spec 67): no em/en dashes,
-    and no email address other than Gaurav's contact address or one the
-    visitor typed. Streaming push()/flush(), or whole() for finished text."""
+    no email address other than Gaurav's contact address or one the visitor
+    typed, and one source per citation marker ("[1, 2]" -> "[1][2]").
+    Streaming push()/flush(), or whole() for finished text."""
 
     def __init__(self, visitor_emails: frozenset[str], contact_intent: bool) -> None:
+        self._cites = CitationGuard()
         self._dashes = DashGuard()
         self._emails = EmailGuard(set(visitor_emails), contact_intent)
         self._visitor_emails = set(visitor_emails)
         self._contact = contact_intent
 
     def push(self, chunk: str) -> str:
-        return self._emails.push(self._dashes.push(chunk))
+        return self._emails.push(self._dashes.push(self._cites.push(chunk)))
 
     def flush(self) -> str:
-        return self._emails.push(self._dashes.flush()) + self._emails.flush()
+        tail = self._dashes.push(self._cites.flush()) + self._dashes.flush()
+        return self._emails.push(tail) + self._emails.flush()
 
     def whole(self, text: str) -> str:
-        return fix_emails(strip_dashes(text), self._visitor_emails, self._contact)
+        return fix_emails(strip_dashes(split_markers(text)), self._visitor_emails, self._contact)
 
 
 async def _stream_agent(

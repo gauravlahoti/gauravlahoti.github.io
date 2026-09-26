@@ -19,20 +19,26 @@ from __future__ import annotations
 
 import re
 
-# A note opens with the question type: "<Topic> question, ..." (the comma,
-# colon or dash matters: "Good question. He is..." is a reply, not a note).
-_HEAD_RE = re.compile(r"^\s*[A-Za-z][\w'\u2019/&+ -]{0,60}?\bquestion\b\s*[,:;-]\s*", re.IGNORECASE)
+# A note opens with the kind of message: "<Topic> question, ...", "<Topic>
+# request. I'll ...". A reply can open the same way ("Good question. He
+# is..."), so the head alone never decides: the note must also be planning.
+_KIND = r"(?:question|request|query|intent)"
+_HEAD_RE = re.compile(rf"^\s*[A-Za-z][\w'\u2019/&+ -]{{0,60}}?\b{_KIND}\b\s*([,:;.-])\s*", re.IGNORECASE)
+_KIND_RE = re.compile(rf"\b{_KIND}\b", re.IGNORECASE)
 # ...and is about planning, not about Gaurav: which tool, what's missing, why
 # declining. A sentence with none of these is part of the reply.
 _PLAN_RE = re.compile(
     r"\b(?:call(?:ing)?|check(?:ing)?|using|pull(?:ing)?|look(?:ing)?\s+up|fetch(?:ing)?|rout(?:e|ing)|"
-    r"tools?|get_[a-z_]+|missing|no\s+(?:email|address|message)|ask(?:ing)?\s+for|"
-    r"declin(?:e|ing)|out\s+of\s+scope|punt(?:ing)?|possible\s+yet)\b",
+    r"tools?|get_[a-z_]+|missing|no\s+(?:email|address|message)|not\s+provided|asking\b|ask\s+(?:for|the\s+visitor)|"
+    r"declin(?:e|ing)|out\s+of\s+scope|punt(?:ing)?|possible\s+yet|invit(?:e|ing)|"
+    r"guidelines|per\s+(?:the\s+)?(?:rules?|policy|instructions)|I'll\s+(?:call|check|use|pull|decline|route))\b",
     re.IGNORECASE,
 )
 # A follow-on sentence that is still the note ("No tool call possible yet.").
 _PLAN_FOLLOW_RE = re.compile(
-    r"\b(?:tool\s+calls?|no\s+tool|get_[a-z_]+|calling\s+\w+|possible\s+yet)\b", re.IGNORECASE
+    r"\b(?:tool\s+calls?|no\s+tool|get_[a-z_]+|calling\s+\w+|possible\s+yet|"
+    r"I'll\s+(?:call|check|decline|route)|per\s+(?:safety\s+)?guidelines)\b",
+    re.IGNORECASE,
 )
 # A sentence end, including a missing space after it ("route.Gaurav").
 _SENTENCE_END_RE = re.compile(r"[.!?](?=\s|$|[A-Z])|\n")
@@ -64,7 +70,7 @@ class LeadNoteGuard:
         if self._in_note:
             return self._continue_note(final=False)
         head = self._buf.lower()
-        if len(self._buf) >= _EARLY_WINDOW and "question" not in head[:_EARLY_WINDOW]:
+        if len(self._buf) >= _EARLY_WINDOW and not _KIND_RE.search(head[:_EARLY_WINDOW]):
             return self._release()
         if _SENTENCE_END_RE.search(self._buf) or len(self._buf) >= _HOLD_LIMIT:
             return self._decide(final=False)
@@ -86,12 +92,29 @@ class LeadNoteGuard:
 
     def _decide(self, final: bool) -> tuple[str, str]:
         head = _HEAD_RE.match(self._buf)
+        if not head:
+            return self._release()
         end = _first_sentence(self._buf)
         if end is None:
             end = len(self._buf) if (final or len(self._buf) >= _HOLD_LIMIT) else None
-        if not head or end is None or not _PLAN_RE.search(self._buf[head.end():end]):
-            return self._release()
-        self._take(end)
+        if end is None:
+            return "", ""  # still inside the first sentence
+        if head.group(1) == ".":
+            # "<Topic> request." on its own: a note only if the NEXT sentence
+            # is planning ("I'll decline writing code per safety guidelines").
+            rest = self._buf[end:]
+            lead = len(rest) - len(rest.lstrip())
+            nxt = _first_sentence(rest[lead:])
+            if nxt is None and not final and len(self._buf) < _HOLD_LIMIT:
+                return "", ""
+            second = rest[lead:lead + nxt] if nxt is not None else rest[lead:]
+            if not _PLAN_RE.search(second):
+                return self._release()
+            self._take(end + lead + len(second))
+        else:
+            if not _PLAN_RE.search(self._buf[head.end():end]):
+                return self._release()
+            self._take(end)
         self._in_note = True
         return self._continue_note(final)
 

@@ -90,3 +90,24 @@ def test_without_note_strips_a_multi_sentence_note() -> None:
         g.push(ch)
     g.flush()
     assert g.without_note(reply) == "What's your email?"
+
+
+def test_scorecard_note_shapes_are_diverted() -> None:
+    # Both seen in the spec 67 scorecard, run 3.
+    cases = [
+        ("Resume routing question, destination email not provided, asking visitor for their email address.",
+         "I would be happy to email you Gaurav's resume. What email address should I send it to?"),
+        ("Compound code generation and note request. I'll decline writing code per safety guidelines, "
+         "but invite Jane to share her own personal note to pass along to Gaurav.",
+         "I don't generate code, so I'll leave that part. Want to tell him what's on your mind?"),
+    ]
+    for note, reply in cases:
+        raw = note + reply  # no space after the note, as the model wrote it
+        for chunks in ([raw], list(raw)):
+            assert _run(chunks) == (reply, note)
+
+
+def test_a_reply_that_opens_with_a_request_word_is_left_alone() -> None:
+    for reply in ("Good request. He'd be glad to hear more about the project.",
+                  "Fair question. Gaurav is full-time at Deloitte, and takes select consulting work."):
+        assert _run(list(reply)) == (reply, "")

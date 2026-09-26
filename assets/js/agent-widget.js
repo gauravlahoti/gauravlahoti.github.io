@@ -1718,7 +1718,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (FEATURES.citations) {
             if (Object.keys(citations).length > 0) {
                 renderCitationList(li, citations);
-            } else if (/\[\d\]/.test(fullText)) {
+            } else if (/\[\d+(?:\s*,\s*\d+)*\]/.test(fullText)) {
                 // [N] marker present but server sent no citations (URL dropped or internal source)
                 renderFallbackSource(li);
             }
@@ -3067,8 +3067,10 @@ function renderTextWithLinks(container, text, citations) {
     let pos = 0;
     const segments = [];
 
-    // Build a combined regex for URLs and [N] markers
-    const combined = /https?:\/\/[^\s<>()\[\]]+|\[(\d)\]/gi;
+    // Build a combined regex for URLs and [N] markers. A combined marker
+    // ("[1, 2]", which the server now splits, but older output may carry)
+    // becomes one linked marker per source.
+    const combined = /https?:\/\/[^\s<>()\[\]]+|\[(\d+(?:\s*,\s*\d+)*)\]/gi;
     combined.lastIndex = 0;
     let match;
     while ((match = combined.exec(text)) !== null) {
@@ -3076,8 +3078,10 @@ function renderTextWithLinks(container, text, citations) {
             segments.push({ type: "text", value: text.slice(pos, match.index) });
         }
         if (match[1] !== undefined) {
-            // [N] citation marker
-            segments.push({ type: "cite", n: Number(match[1]), raw: match[0] });
+            // [N] citation marker(s)
+            for (const n of match[1].split(",")) {
+                segments.push({ type: "cite", n: Number(n.trim()), raw: `[${n.trim()}]` });
+            }
         } else {
             // URL
             segments.push({ type: "url", value: match[0] });
