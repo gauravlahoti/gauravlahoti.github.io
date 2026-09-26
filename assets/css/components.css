@@ -4536,121 +4536,193 @@ a.agent-badge-tile:focus-visible {
     }
 }
 
-/* Spec 67: the recorded Atlas video card. Sits above the chat FAB, same
-   corner. Tokens only, matching .agent-panel / .agent-fab. */
-.avatar-card {
-    position: fixed;
-    inset: auto var(--space-4) calc(var(--space-4) + 56px + 64px + env(safe-area-inset-bottom)) auto;
-    width: 280px;
-    background: var(--bg-elev);
-    color: var(--ink);
+/* Spec 67: how Atlas answers. A Text / Voice / Avatar switch is the header's
+   second row, replacing the bare speaker icon; in avatar mode the stage is
+   its third row. One surface, one divider, and the chat below is untouched. */
+.agent-panel-head { flex-wrap: wrap; row-gap: var(--space-3); }
+.agent-panel.is-minimized .agent-mode { display: none; }
+
+.agent-mode {
+    --mode-i: 0;
+    position: relative;
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: var(--space-1);
+    background: var(--bg);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 32px var(--accent-glow);
-    padding: var(--space-3);
-    z-index: 40;
-    transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+    box-shadow: inset 0 0 18px var(--accent-soft);
 }
-.avatar-card-dismiss {
+.agent-mode[data-active="voice"]  { --mode-i: 1; }
+.agent-mode[data-active="avatar"] { --mode-i: 2; }
+/* The lit segment glides between choices rather than jumping. */
+.agent-mode-glide {
     position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
+    top: var(--space-1);
+    bottom: var(--space-1);
+    left: var(--space-1);
+    width: calc((100% - var(--space-2)) / 3);
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--accent-soft), transparent 140%);
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 18px var(--accent-glow), inset 0 0 10px var(--accent-soft);
+    transform: translateX(calc(var(--mode-i) * 100%));
+    transition: transform var(--dur-base) var(--ease-out);
+    pointer-events: none;
+}
+.agent-mode-opt {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: 0 var(--space-2);
+    background: none;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.agent-mode-opt[hidden] { display: none; }
+.agent-mode-opt:hover { color: var(--ink); }
+.agent-mode-opt[aria-checked="true"] { color: var(--accent); text-shadow: 0 0 12px var(--accent-glow); }
+.agent-mode-opt:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+/* Voice's icon is a tiny equalizer that comes alive while Atlas talks. */
+.agent-mode-bars {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 12px;
+}
+.agent-mode-bars i {
+    display: block;
+    width: 2px;
+    height: 100%;
+    border-radius: 1px;
+    background: currentColor;
+    transform-origin: center;
+    transform: scaleY(0.45);
+}
+.agent-mode-bars i:nth-child(2) { transform: scaleY(0.9); }
+.agent-mode-bars i:nth-child(3) { transform: scaleY(0.65); }
+.agent-mode-bars i:nth-child(4) { transform: scaleY(0.35); }
+.agent-mode.is-speaking .agent-mode-bars i { animation: agent-mode-eq 0.9s var(--ease-in-out) infinite; }
+.agent-mode.is-speaking .agent-mode-bars i:nth-child(2) { animation-delay: -0.3s; }
+.agent-mode.is-speaking .agent-mode-bars i:nth-child(3) { animation-delay: -0.6s; }
+.agent-mode.is-speaking .agent-mode-bars i:nth-child(4) { animation-delay: -0.15s; }
+@keyframes agent-mode-eq {
+    0%, 100% { transform: scaleY(0.3); }
+    50%      { transform: scaleY(1); }
+}
+
+/* Until a visitor has tried Avatar, it carries a small live beacon. */
+.agent-mode-new {
+    display: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+.agent-mode.is-avatar-new .agent-mode-new { display: block; animation: agent-mode-beacon 1.8s var(--ease-in-out) infinite; }
+@keyframes agent-mode-beacon {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.35; transform: scale(0.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .agent-mode-glide { transition: none; }
+    .agent-mode.is-speaking .agent-mode-bars i,
+    .agent-mode.is-avatar-new .agent-mode-new { animation: none; }
+}
+
+/* The avatar stage: the header's third row. */
+.agent-avatar-slot {
+    flex: 1 0 100%;
+    animation: agent-avatar-in var(--dur-base) var(--ease-out);
+}
+.agent-panel.is-minimized .agent-avatar-slot { display: none; }
+@keyframes agent-avatar-in {
+    from { opacity: 0; transform: translateY(calc(var(--space-2) * -1)); }
+    to   { opacity: 1; transform: none; }
+}
+/* Text scrolling up under the header fades out instead of being sliced. */
+.agent-panel.has-avatar .agent-panel-body {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
+            mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
+}
+.agent-avatar {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: var(--space-3);
+    align-items: center;
+}
+.agent-avatar-frame {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+.agent-avatar-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 12%; /* keep his head in frame, the clip is 9:16 */
+    cursor: pointer;
+}
+.agent-avatar-play {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
     width: 28px;
     height: 28px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: none;
-    color: var(--ink-muted);
-    font-size: var(--text-lg);
-    line-height: 1;
-    cursor: pointer;
-    z-index: 1;
-}
-.avatar-card-dismiss:hover,
-.avatar-card-dismiss:focus-visible { color: var(--ink); }
-.avatar-card-video {
-    width: 100%;
-    aspect-ratio: 9 / 16;
-    max-height: 320px;
-    object-fit: cover;
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-    display: block;
-}
-.avatar-card-sound {
-    position: absolute;
-    right: calc(var(--space-3) + var(--space-2));
-    bottom: calc(var(--space-3) + 64px);
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-card);
-    border: 1px solid var(--border-strong);
+    background: rgba(0, 0, 0, 0.55);
+    color: var(--accent);
+    border: 1px solid var(--accent);
     border-radius: 50%;
-    color: var(--accent);
+    font-size: var(--text-xs);
     cursor: pointer;
 }
-.avatar-card-sound.is-muted { opacity: 0.7; }
-.avatar-card-label {
-    margin: var(--space-2) 0 0;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--ink-subtle);
-    text-align: center;
-}
-.avatar-card-chips {
+.agent-avatar-play[hidden] { display: none; }
+.agent-avatar-side {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
 }
-.avatar-card-chip {
-    flex: 1 1 auto;
-    padding: var(--space-1) var(--space-2);
-    background: var(--accent-soft);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--accent);
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    transition: border-color var(--dur-fast) var(--ease-out);
-}
-.avatar-card-chip:hover,
-.avatar-card-chip:focus-visible { border-color: var(--border-strong); }
-.avatar-card-chip-ask {
-    flex-basis: 100%;
-    background: transparent;
-    border-color: var(--accent);
-}
-.avatar-launcher {
-    position: fixed;
-    inset: auto var(--space-4) calc(var(--space-4) + 56px + var(--space-2) + env(safe-area-inset-bottom)) auto;
-    padding: var(--space-1) var(--space-3);
-    background: var(--bg-card);
-    color: var(--accent);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-lg);
+.agent-avatar-name {
+    margin: 0;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
-    cursor: pointer;
-    z-index: 39;
+    color: var(--ink-muted);
+}
+.agent-avatar-name strong { color: var(--accent); font-weight: 600; }
+.agent-avatar-caption {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--ink-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 @media (prefers-reduced-motion: reduce) {
-    .avatar-card { transition: none; }
+    .agent-avatar-slot { animation: none; }
 }
-@media (max-width: 767px) {
-    .avatar-card {
-        width: calc(100vw - var(--space-4) * 2);
-        max-width: 320px;
-        inset: auto var(--space-3) calc(64px + env(safe-area-inset-bottom) + var(--space-3) + 56px) auto;
-    }
-    .avatar-launcher {
-        right: var(--space-3);
-        bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-3));
-    }
-}
+

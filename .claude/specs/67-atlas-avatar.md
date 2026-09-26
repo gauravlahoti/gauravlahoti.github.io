@@ -27,27 +27,45 @@ without opening a new cost or safety surface that runs unattended.
 
 ## Design
 
-A video card rises out of the Atlas launcher corner (bottom-right, same
-surface as `agent-widget.js`'s FAB/panel). It does not replace the hero
-portrait — a second face there would confuse visitors about who's who.
+**Revised during implementation** (Gaurav's review): a floating card that
+popped up on its own overshadowed Atlas, and its topic chips duplicated the
+prompt chips Atlas already has. So the avatar is now a *mode of Atlas*, not a
+separate surface.
 
-- **First visit only:** after the page settles, the card slides up and plays
-  a muted, captioned clip ("Hi, I'm Atlas, Gaurav's AI agent…"). A speaker
-  button turns on sound. Remembered in `localStorage` so it greets once.
-- **Chapter chips:** *Who is Gaurav · How this site was built · What I can
-  do*. Each plays its own short clip. No live model call is involved —
-  these are pre-recorded, not a conversation.
-- **Ask me anything** hands off to the existing Atlas chat panel
-  (`agent-widget.js`'s `openPanel`, loading the widget module if it isn't
-  loaded yet).
-- **Respect reduced-motion / save-data:** a poster image with a play button
-  replaces autoplay; the card doesn't self-open at all on save-data.
-- **Labeled honestly:** a small "AI avatar, generated with Gemini" caption
-  sits on the card. (Google also embeds a SynthID watermark in the output,
-  independent of this label.)
-- **Mounts wherever the chat widget mounts:** home page and `/live-agents/`.
+- **A Text / Voice / Avatar mode switch** is the panel header's second row.
+  It replaces the bare speaker icon (two unlabelled icons read as unclear in
+  review): a segmented control with a gliding lit segment, a live equalizer
+  on Voice while Atlas talks, and a small beacon on Avatar until it's been
+  tried. It drives the existing spoken-reply code (specs 49-62) rather than
+  replacing it; the old speaker button stays in the DOM, hidden, as the
+  state holder that code already reads. Avatar is remembered in
+  `localStorage` (`atlasAvatarMode_v1`); Voice keeps its own spec-49 pref.
+- **In Avatar mode the stage is the header's third row**: a 64px face (4:5
+  crop of the 9:16 clip) and a two-line live caption. One surface, one
+  divider; the transcript's top edge fades under it instead of being cut.
+  No buttons of its own beyond a play overlay. Atlas's existing prompt chips
+  already cover the topics, so only the greeting clip ships (the three
+  topic clips were recorded but dropped as duplicates).
+- **Turning it on plays the greeting with sound** (the toggle is the user
+  gesture). Reopening the panel later restores the stage on its poster
+  without replaying.
+- **Atlas's voice wins.** Sending a message, Atlas starting to speak,
+  minimizing or closing the panel all pause the avatar; the avatar starting
+  a clip cancels Atlas's TTS. Two voices never overlap.
+- `assets/js/agent-avatar.js` is lazy-imported by `agent-widget.js` only
+  when the mode is turned on, so plain chat pays nothing.
+- It resolves `content/avatar.json` and clips against the site root, so it
+  also works where the widget mounts on `/live-agents/`.
+- Labelled honestly: "Atlas · AI avatar", tooltip "Generated with Gemini
+  3.8 Live Avatar". (SynthID is embedded in the video regardless.)
 
 ## Avatar & clip production (manual, not run by this spec's code)
+
+Clip facts from the recording pass: Live API video arrives as fragmented
+MP4 (one `ftyp`/`moov`, then `moof`/`mdat` pairs), H.264 704x1280 + AAC, at
+roughly 8 Mbps. Concatenated parts are a valid single stream. For the web it
+is re-encoded to 432x768, x264 CRF 27, 64k mono AAC, `+faststart` (13 MB ->
+~520 KB), with a webp poster taken at 4s (frame 0 catches a furrowed brow).
 
 The avatar identity (which prebuilt avatar, which voice) is picked by hand
 in Console → Agent Platform → Studio → Stream realtime, model

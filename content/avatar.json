@@ -1,9 +1,9 @@
 {
-  "_readme": "Spec 67. Confirmed by Gaurav in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel): avatar 'Sam', voice 'Puck'. Next step is running agents/atlas/app/dev_scripts/record_avatar_clips.py against a real Vertex session to produce the actual clips in assets/video/.",
+  "_readme": "Spec 67. Atlas's avatar mode: an opt-in stage inside the Atlas panel, toggled from the panel header (assets/js/agent-avatar.js, lazy-loaded by agent-widget.js). Avatar 'Sam' + voice 'Puck', picked by hand in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel). Only the greeting ships: Atlas's own prompt chips already cover the topics, so the avatar doesn't duplicate them. Clips are recorded by agents/atlas/app/dev_scripts/record_avatar_clips.py, then re-encoded for the web (see the spec).",
   "model": "gemini-3.8-live",
   "avatarName": "Sam",
   "voiceName": "Puck",
-  "captionLabel": "AI avatar, generated with Gemini",
+  "idleCaption": "Generated with Gemini. Tap my face to replay.",
   "chapters": [
     {
       "id": "greeting",
@@ -13,36 +13,6 @@
       "clip": "assets/video/atlas-greeting.mp4",
       "poster": "assets/video/atlas-greeting.webp",
       "captions": "assets/video/atlas-greeting.vtt"
-    },
-    {
-      "id": "who-is-gaurav",
-      "chip": "Who is Gaurav",
-      "autoplay": false,
-      "script": "Gaurav is a Cloud and AI architect. He designs and ships autonomous agent systems that connect legacy enterprise stacks to production AI, and this site is one of them, not a page describing one.",
-      "clip": "assets/video/atlas-who-is-gaurav.mp4",
-      "poster": "assets/video/atlas-who-is-gaurav.webp",
-      "captions": "assets/video/atlas-who-is-gaurav.vtt"
-    },
-    {
-      "id": "how-built",
-      "chip": "How this site was built",
-      "autoplay": false,
-      "script": "Gaurav built this whole site himself: the static frontend, the backend, and the agents running on it, spec-driven with Claude Code. Every feature started as a written spec before a line of it existed.",
-      "clip": "assets/video/atlas-how-built.mp4",
-      "poster": "assets/video/atlas-how-built.webp",
-      "captions": "assets/video/atlas-how-built.vtt"
-    },
-    {
-      "id": "what-i-can-do",
-      "chip": "What I can do",
-      "autoplay": false,
-      "script": "Ask me about Gaurav's experience, certifications, or projects, and I'll answer with real citations. I can also send him a note or your resume request, if you'd like.",
-      "clip": "assets/video/atlas-what-i-can-do.mp4",
-      "poster": "assets/video/atlas-what-i-can-do.webp",
-      "captions": "assets/video/atlas-what-i-can-do.vtt"
     }
-  ],
-  "askAnything": {
-    "chip": "Ask me anything"
-  }
+  ]
 }

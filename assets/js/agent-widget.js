@@ -23,6 +23,7 @@ const FEATURES = Object.freeze({
     voiceInput:      true,
     speakReplies:    true,
     badges:          true, // spec 56: cert badge art on certification answers
+    avatarMode:      true, // spec 67: opt-in Gemini Live Avatar stage in the panel
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -217,11 +218,134 @@ export function initAgentWidget(root, profile, sessionId) {
             }
         });
     }
-    if (FEATURES.speakReplies) {
-        speakerBtn.addEventListener("click", toggleSpeaker);
-    } else {
-        speakerBtn.classList.add("is-hidden");
+    // Spec 67: the header's Text / Voice / Avatar switch replaces the bare
+    // speaker icon. speakerBtn stays in the DOM, hidden, as the state holder
+    // the spoken-reply code (specs 49-62) already reads and writes; the
+    // switch drives that same code and mirrors its state.
+    speakerBtn.classList.add("is-hidden");
+    const modeSwitch = dom.modeSwitch;
+    if (!FEATURES.speakReplies) modeSwitch.querySelector('[data-mode="voice"]').hidden = true;
+    if (!FEATURES.avatarMode) modeSwitch.querySelector('[data-mode="avatar"]').hidden = true;
+
+    // Avatar mode: opt-in, remembered, and lazy. agent-avatar.js (and its
+    // clip) only load once a visitor picks it. The stage becomes the
+    // header's last row, so the chat below is untouched.
+    const AVATAR_PREF_KEY = "atlasAvatarMode_v1";
+    const AVATAR_TRIED_KEY = "atlasAvatarTried_v1";
+    let avatar = null;
+    let avatarLoading = null;
+    let avatarOn = false;
+    function readAvatarPref() {
+        try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
+    function writeAvatarPref(on) {
+        try {
+            localStorage.setItem(AVATAR_PREF_KEY, on ? "1" : "0");
+            if (on) localStorage.setItem(AVATAR_TRIED_KEY, "1");
+        } catch (_) { /* ignore */ }
+    }
+    function avatarTried() {
+        try { return localStorage.getItem(AVATAR_TRIED_KEY) === "1"; } catch (_) { return false; }
+    }
+    function pauseAvatar() { if (avatar) avatar.pause(); }
+
+    function currentMode() {
+        if (avatarOn) return "avatar";
+        return speakerOn ? "voice" : "text";
+    }
+    function syncModeSwitch() {
+        const mode = currentMode();
+        modeSwitch.dataset.active = mode;
+        modeSwitch.classList.toggle("is-speaking", isSpeaking);
+        modeSwitch.classList.toggle("is-avatar-new", FEATURES.avatarMode && !avatarTried());
+        modeSwitch.querySelectorAll(".agent-mode-opt").forEach((b) =>
+            b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
+    }
+
+    function setAvatarMode(on, { autoplay = false } = {}) {
+        avatarOn = on;
+        syncModeSwitch();
+        if (!on) {
+            if (avatar) { avatar.dispose(); avatar = null; }
+            return;
+        }
+        if (avatar) { if (autoplay) avatar.replay(); return; }
+        if (avatarLoading) return;
+        avatarLoading = import(_vq("./agent-avatar.js"))
+            .then(({ mountAvatarStage }) => {
+                // Inside the header, as its last row: one surface with one
+                // divider, rather than a second block stacked on the chat.
+                const slot = document.createElement("div");
+                slot.className = "agent-avatar-slot";
+                dom.head.appendChild(slot);
+                panel.classList.add("has-avatar");
+                // The avatar started a clip: hush Atlas's own voice so the two
+                // never talk over each other. The reverse (Atlas speaking hushes
+                // the avatar) is wired at the speaker's onPlaying and at send.
+                return mountAvatarStage(slot, { autoplay, onPlay: () => { if (speaker) speaker.cancel(); } })
+                    .then((stage) => {
+                        const unmount = () => {
+                            stage.dispose();
+                            slot.remove();
+                            panel.classList.remove("has-avatar");
+                        };
+                        // Switched away again while it was still loading.
+                        if (!avatarOn) { unmount(); return; }
+                        avatar = { pause: stage.pause, replay: stage.replay, dispose: unmount };
+                    })
+                    .catch((err) => {
+                        slot.remove();
+                        panel.classList.remove("has-avatar");
+                        throw err;
+                    });
+            })
+            .catch((err) => {
+                console.warn("[agent-widget] avatar mode failed to load", err);
+                avatarOn = false;
+                syncModeSwitch();
+                showVoiceNote("Avatar mode couldn't load. Try again in a moment.");
+            })
+            .finally(() => { avatarLoading = null; });
+    }
+
+    // Every branch starts its audio work synchronously inside the click:
+    // enableSpeaker() banks the gesture for Web Audio, and the avatar's
+    // greeting needs the same gesture to play with sound.
+    function selectMode(mode) {
+        if (mode === currentMode()) {
+            if (mode === "avatar" && avatar) avatar.replay(); // re-pick = hear it again
+            return;
+        }
+        if (mode === "text") {
+            if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
+            if (speakerOn) toggleSpeaker();
+        } else if (mode === "voice") {
+            if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
+            if (!speakerOn) enableSpeaker();
+        } else if (mode === "avatar") {
+            // Answers are still read aloud in avatar mode, so voice comes on too.
+            if (!speakerOn) enableSpeaker();
+            writeAvatarPref(true);
+            setAvatarMode(true, { autoplay: true });
+        }
+        syncModeSwitch();
+    }
+    modeSwitch.addEventListener("click", (e) => {
+        const opt = e.target.closest(".agent-mode-opt");
+        if (opt) selectMode(opt.dataset.mode);
+    });
+    // Radiogroup keyboard pattern: arrows move the choice.
+    modeSwitch.addEventListener("keydown", (e) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+        const opts = [...modeSwitch.querySelectorAll(".agent-mode-opt")].filter((b) => !b.hidden);
+        const i = opts.findIndex((b) => b.dataset.mode === currentMode());
+        const next = opts[(i + (e.key === "ArrowRight" ? 1 : opts.length - 1)) % opts.length];
+        e.preventDefault();
+        next.focus();
+        selectMode(next.dataset.mode);
+    });
+    syncModeSwitch();
+
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -342,6 +466,7 @@ export function initAgentWidget(root, profile, sessionId) {
             "aria-label",
             mode === "off" ? "Speak replies" : mode === "speaking" ? "Speaking, click to stop" : "Stop speaking replies",
         );
+        syncModeSwitch(); // spec 67: the Text / Voice / Avatar switch mirrors this
     }
 
     // Shared one-line status under the composer. The mic owns it while
@@ -415,6 +540,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     // it appears when the voice does rather than while the
                     // first chunk is still being synthesized.
                     onPlaying: () => {
+                        pauseAvatar(); // spec 67: Atlas's voice wins over a recorded clip
                         showVoiceNote("Speaking…", 0);
                         showSpeakingIndicator(currentAssistantLi);
                     },
@@ -466,7 +592,7 @@ export function initAgentWidget(root, profile, sessionId) {
         writeSpeakerPref(true);
         setSpeakerMode("on");
         try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
-        showVoiceNote("Reading answers aloud. Click the speaker to stop.", 4000);
+        showVoiceNote("Reading answers aloud. Switch to Text to stop.", 4000);
         liveRegion.textContent = "Spoken replies on.";
         // Warm the TTS path so the first reply doesn't pay the cold ADC token
         // fetch — measured at 5.57s cold against 2.39s warm for one chunk.
@@ -643,6 +769,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function minimize() {
         isMinimized = true;
         panel.classList.add("is-minimized");
+        pauseAvatar(); // spec 67: the stage is hidden while minimized, so stop its voice too
         dom.minimizeBtn.setAttribute("aria-label", "Restore panel");
         dom.minimizeBtn.title = "Restore";
     }
@@ -688,6 +815,12 @@ export function initAgentWidget(root, profile, sessionId) {
             // same way enableSpeaker() does.
             ensureSpeaker().then((ok) => { if (ok && speaker) speaker.unlock(); });
         }
+        // Spec 67: bring a remembered avatar mode back, on its poster. The
+        // greeting only autoplays when the visitor turns the mode on, not on
+        // every reopen.
+        if (FEATURES.avatarMode && !avatarOn && readAvatarPref()) {
+            setAvatarMode(true, { autoplay: false });
+        }
         if (agentIntro?.text && !introRendered) {
             introRendered = true;
             // Delay until the panel slide animation completes (--dur-base = 320ms) so
@@ -709,6 +842,7 @@ export function initAgentWidget(root, profile, sessionId) {
         fab.setAttribute("aria-expanded", "false");
         document.body.removeAttribute("data-agent-panel-open");
         fab.focus();
+        pauseAvatar(); // spec 67: a closed panel never keeps talking
         // Dismissing the panel must not leave the mic listening in the
         // background. dispose() permanently silences that engine instance's
         // state callbacks, so drop the reference too — the next mic tap
@@ -889,6 +1023,7 @@ export function initAgentWidget(root, profile, sessionId) {
             input.value = text;
             return;
         }
+        pauseAvatar(); // spec 67: asking something stops a recorded clip mid-sentence
         // Remove suggestion chips from the previous assistant message
         transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
 
@@ -2092,9 +2227,32 @@ function renderShell(root, agentExplainer) {
             </button>
             <button type="button" class="agent-panel-close" aria-label="Close agent">×</button>
         </div>
+        <div class="agent-mode" role="radiogroup" aria-label="How Atlas answers" data-active="text">
+            <span class="agent-mode-glide" aria-hidden="true"></span>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="text" aria-label="Text" aria-checked="true" title="Atlas answers in text">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                    <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5"/>
+                </svg>
+                <span>Text</span>
+            </button>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="voice" aria-label="Voice" aria-checked="false" title="Atlas reads its answers aloud">
+                <span class="agent-mode-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span>Voice</span>
+            </button>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="8" cy="6" r="2.75"/>
+                    <path d="M3 14a5 5 0 0 1 10 0"/>
+                    <path d="M1.5 4V2.5a1 1 0 0 1 1-1H4M12 1.5h1.5a1 1 0 0 1 1 1V4"/>
+                </svg>
+                <span>Avatar</span>
+                <span class="agent-mode-new" aria-hidden="true"></span>
+            </button>
+        </div>
     `;
     const closeBtn = head.querySelector(".agent-panel-close");
     const speakerBtn = head.querySelector(".agent-speaker");
+    const modeSwitch = head.querySelector(".agent-mode");
     const expandBtn = head.querySelector(".agent-panel-expand");
     const minimizeBtn = head.querySelector(".agent-panel-minimize");
 
@@ -2220,7 +2378,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, voiceStatus, liveRegion, foot,
+        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, modeSwitch, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
