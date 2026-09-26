@@ -40,6 +40,12 @@ produce them. This bucket must be resized whenever `chat` is. Like
 `voice`, it must never spend a chat question — and unlike both others, going
 over it is harmless: the reply is already on screen, it just stops being
 read aloud.
+
+**`avatar`** — 3 / 24h per layer (spec 67). Each spoken avatar answer costs
+real money (about $0.15-0.25), so this is deliberately far below `chat`.
+Like `speak`, going over it is harmless: the widget falls back to the TTS
+voice for that answer. The daily spend cap across all visitors lives in
+`app_utils/avatar_speak.py`, not here.
 """
 
 from __future__ import annotations
@@ -54,6 +60,7 @@ BUCKETS: dict[str, dict[str, int]] = {
     "chat":  {"session": 10, "ip": 10, "window_s": 24 * 60 * 60},
     "voice": {"session": 12, "ip": 12, "window_s": 24 * 60 * 60},
     "speak": {"session": 60, "ip": 60, "window_s": 24 * 60 * 60},
+    "avatar": {"session": 3, "ip": 3, "window_s": 24 * 60 * 60},
 }
 
 

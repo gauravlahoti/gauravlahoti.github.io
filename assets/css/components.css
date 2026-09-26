@@ -4644,85 +4644,168 @@ a.agent-badge-tile:focus-visible {
     .agent-mode.is-avatar-new .agent-mode-new { animation: none; }
 }
 
-/* The avatar stage: the header's third row. */
+/* Avatar mode is a video call: the face fills the panel and the only text is
+   a transcript of what it says, appearing as it says it. So the transcript's
+   own status and extras step aside: loading dots, canned "still on it" copy,
+   the thinking panel, the intro message, chips, sources, badges, the CTA and
+   the reading-aloud strip. Hidden, not removed: Text or Voice brings them all
+   straight back. */
+.agent-panel.is-avatar-mode .agent-prompts,
+.agent-panel.is-avatar-mode .agent-suggestions,
+.agent-panel.is-avatar-mode .agent-sources,
+.agent-panel.is-avatar-mode .agent-badges,
+.agent-panel.is-avatar-mode .agent-cta-action,
+.agent-panel.is-avatar-mode .agent-speaking,
+.agent-panel.is-avatar-mode .agent-consent,
+.agent-panel.is-avatar-mode .agent-thinking,
+.agent-panel.is-avatar-mode .agent-loading-dots,
+.agent-panel.is-avatar-mode .agent-message-intro { display: none !important; }
+
+/* An avatar turn shows what was said, not the generated reply (which is still
+   rendered, hidden, for history and for a fallback to Text or Voice). */
+.agent-message.is-avatar-turn .agent-message-text { display: none; }
+.agent-message.is-avatar-turn { border-left-color: transparent; padding-left: 0; }
+/* Avatar mode reads like a video call's live captions: centred under the
+   face, Atlas's words clear, the visitor's questions quieter, no chat chrome. */
+.agent-message-assistant p.agent-avatar-words {
+    border-left: 0;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    color: var(--ink);
+    text-align: center;
+}
+.agent-avatar-words:empty { display: none; }
+.agent-panel.is-avatar-mode .agent-message-user p {
+    align-self: center;
+    margin-left: 0;
+    background: none;
+    border: 0;
+    padding: var(--space-1) var(--space-2);
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+}
+.agent-panel.is-avatar-mode .agent-message-user p::before { content: "You: "; color: var(--ink-subtle); }
+
+/* The stage: the header's last row, and in avatar mode the heart of the panel. */
 .agent-avatar-slot {
     flex: 1 0 100%;
-    animation: agent-avatar-in var(--dur-base) var(--ease-out);
+    display: flex;
+    justify-content: center;
+    animation: agent-avatar-in var(--dur-slow) var(--ease-out);
 }
 .agent-panel.is-minimized .agent-avatar-slot { display: none; }
 @keyframes agent-avatar-in {
-    from { opacity: 0; transform: translateY(calc(var(--space-2) * -1)); }
+    from { opacity: 0; transform: scale(0.96); }
     to   { opacity: 1; transform: none; }
 }
-/* Text scrolling up under the header fades out instead of being sliced. */
+/* Text scrolling up under the face fades out instead of being sliced. */
 .agent-panel.has-avatar .agent-panel-body {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
             mask-image: linear-gradient(to bottom, transparent 0, black var(--space-4));
 }
-.agent-avatar {
-    display: grid;
-    grid-template-columns: 64px 1fr;
-    gap: var(--space-3);
-    align-items: center;
-}
+.agent-avatar { display: flex; justify-content: center; width: 100%; }
 .agent-avatar-frame {
     position: relative;
-    aspect-ratio: 4 / 5;
-    border-radius: var(--radius-md);
+    width: min(240px, 100%);
+    aspect-ratio: 4 / 5; /* anchored at the top, keeps the whole face and mouth in frame */
+    border-radius: var(--radius-lg);
     overflow: hidden;
     background: var(--bg-elev);
     border: 1px solid var(--border-strong);
-    box-shadow: 0 0 12px var(--accent-glow);
+    box-shadow: 0 0 18px var(--accent-glow);
+    transition: border-color var(--dur-base) var(--ease-out);
 }
 .agent-avatar-video {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 50% 12%; /* keep his head in frame, the clip is 9:16 */
-    cursor: pointer;
+    object-position: 50% 12%;
 }
-.agent-avatar-play {
+.agent-avatar-video-live {
     position: absolute;
-    inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%);
-    width: 28px;
-    height: 28px;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+.agent-avatar-video-live.is-on { opacity: 1; }
+
+/* One tag on the video says what the face is doing. */
+.agent-avatar-tag {
+    position: absolute;
+    left: var(--space-2);
+    bottom: var(--space-2);
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.55);
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    border-radius: 50%;
-    font-size: var(--text-xs);
-    cursor: pointer;
-}
-.agent-avatar-play[hidden] { display: none; }
-.agent-avatar-side {
-    display: flex;
-    flex-direction: column;
     gap: var(--space-1);
-    min-width: 0;
-}
-.agent-avatar-name {
-    margin: 0;
+    padding: 2px var(--space-2);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--ink-muted);
+    pointer-events: none;
 }
-.agent-avatar-name strong { color: var(--accent); font-weight: 600; }
-.agent-avatar-caption {
-    margin: 0;
-    font-size: var(--text-sm);
-    line-height: 1.45;
-    color: var(--ink-muted);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+.agent-avatar-tag strong { color: var(--accent); font-weight: 600; }
+.agent-avatar-tag-state::before { content: "\00B7\00A0"; }
+.agent-avatar-tag i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+}
+.agent-avatar:not([data-state="idle"]) .agent-avatar-tag i {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: agent-mode-beacon 1.4s var(--ease-in-out) infinite;
+}
+.agent-avatar:not([data-state="idle"]) .agent-avatar-tag-state { color: var(--accent); }
+
+/* Face states: a scanning ring while Atlas thinks (the face idles live under
+   it), a breathing glow while it speaks. The ring is a pseudo-element on the
+   frame so it never covers the face. */
+.agent-avatar-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+.agent-avatar[data-state="listening"] .agent-avatar-frame::after {
+    opacity: 1;
+    padding: 2px;
+    background: conic-gradient(from var(--avatar-scan, 0deg), transparent 0 65%, var(--accent) 85%, transparent 100%);
+    -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
+    animation: agent-avatar-scan 1.4s linear infinite;
+}
+.agent-avatar[data-state="speaking"] .agent-avatar-frame {
+    border-color: var(--accent);
+    animation: agent-avatar-breathe 2.4s var(--ease-in-out) infinite;
+}
+@property --avatar-scan {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+@keyframes agent-avatar-scan { to { --avatar-scan: 360deg; } }
+@keyframes agent-avatar-breathe {
+    0%, 100% { box-shadow: 0 0 14px var(--accent-glow); }
+    50%      { box-shadow: 0 0 30px var(--accent-glow), 0 0 4px var(--accent); }
+}
+@media (max-width: 767px) {
+    .agent-avatar-frame { width: min(200px, 100%); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .agent-avatar-slot { animation: none; }
+    .agent-avatar-slot,
+    .agent-avatar:not([data-state="idle"]) .agent-avatar-tag i,
+    .agent-avatar[data-state="listening"] .agent-avatar-frame::after,
+    .agent-avatar[data-state="speaking"] .agent-avatar-frame { animation: none; }
 }
-

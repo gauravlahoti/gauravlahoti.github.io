@@ -19,13 +19,15 @@ without opening a new cost or safety surface that runs unattended.
 - **Phase 1 ships a recorded greeting first.** A short, scripted clip costs
   nothing to serve (same-origin video, no runtime API calls) and can't go
   off-script in front of a recruiter.
-- **Phase 2 (a live, talk-back session) is out of scope for this spec.**
+- **Phase 2 (a visitor talking to the avatar by voice) is out of scope.**
   It needs a WebSocket proxy in `agents/atlas`, a D1-backed invite-code and
   spend-cap system, and a security review, all before it can run safely.
   This spec deliberately stops at the recorded experience so that piece can
   be scoped and reviewed on its own.
 
 ## Design
+
+*The layout parts of this section (compact 64px face, caption line) were superseded by "Live answers, as a video call" below; the mode switch and voice-precedence rules still hold.*
 
 **Revised during implementation** (Gaurav's review): a floating card that
 popped up on its own overshadowed Atlas, and its topic chips duplicated the
@@ -59,6 +61,91 @@ separate surface.
 - Labelled honestly: "Atlas · AI avatar", tooltip "Generated with Gemini
   3.8 Live Avatar". (SynthID is embedded in the video regardless.)
 
+## Live answers, as a video call
+
+Review feedback drove four revisions, in order: the TTS voice spoke while the
+face sat still (wrong); text appeared twice (caption plus transcript); the
+thinking indicator appeared twice (face plus transcript); and Avatar mode
+should be the avatar plus a transcript and nothing else. The result:
+
+**Avatar mode is a video call.** The face fills the panel (240x300, 4:5
+anchored at the top so the whole face and mouth stay in frame). The only text
+is a centred transcript of what the avatar says, appearing as it says it,
+with the visitor's questions quieter above. Chips, sources, badges, the CTA,
+the intro message, loading dots, "still on it" copy, the thinking panel and
+the reading-aloud strip are hidden in Avatar mode (CSS only; Text and Voice
+bring them all back). A tag on the video is the single status: live,
+thinking, speaking.
+
+**The face never looks recorded or frozen.** At rest it plays a muted 12s
+ping-pong loop cut from a live idle session (274 KB). The greeting plays once,
+with sound, when Avatar is picked, and its words land in the transcript like
+any answer. No "hear my intro" button.
+
+**One stream per turn, no second request.** In Avatar mode the chat request
+carries `avatar: true`, and `_with_avatar` in `api.py`:
+1. opens the Live session the moment the turn starts, in parallel with the
+   agent thinking, and relays its idle video straight away;
+2. hands the reply's cleaned speech text to that already-open session as a
+   script the moment the reply is written (verbatim, 28/28 words measured);
+3. relays `avatarVideo` (base64 fMP4) and `avatarWords` (the avatar's own
+   speech transcription, which is the transcript) on the same SSE stream,
+   holding the text stream's `done` until the avatar finishes.
+The browser plays the frames on a second <video> layered over the idle loop,
+fading in on its first frame, so the face never blanks while the session
+spins up.
+
+**Only Atlas's own words.** The server only ever speaks the reply it just
+generated, so there is no endpoint that can be made to say arbitrary text,
+no signing scheme, and no secret to deploy. (An earlier iteration had a
+separate signed endpoint; it was removed when the stream merged.)
+
+**Caps (decided: public with hard caps).** Per visitor, the `avatar` bucket:
+3 turns / 24h per session and per IP. Per day, `AvatarBudget`: 13
+speaking-minutes (about $5 at $0.37/min), reserved at 30s per turn and
+settled to measured speaking time; per instance, so the ceiling is budget x
+max-instances (5), about $25/day worst case. A refusal becomes
+`avatarUnavailable` up front and the widget reads that turn aloud with the
+TTS voice instead, with a note. Any avatar failure before it speaks does the
+same; a failure mid-answer just ends the face.
+
+**Voices never overlap.** Avatar turns do not feed the TTS speaker; the
+avatar starting cancels TTS; send, Stop, minimize and close end the face.
+
+## Latency (the "lightning fast" pass)
+
+Measured on adk-deploy-trail, full Atlas prompt, 2026-09-26:
+
+| | first answer text |
+|---|---|
+| gemini-3.6-flash | ~1.3-1.5s, consistent |
+| gemini-3.5-flash-lite | ~1.4-1.5s (no faster: ~1.3s is this prompt's floor) |
+| gemini-3.7-flash | 1.7-3.4s, with queueing spikes to 40-112s |
+| gemini-3.8-flash | 3.7-16s at LOW, ~1 in 4 calls failed, MINIMAL unsupported |
+
+Findings:
+- The spikes were Vertex queueing, not retries (the primary already ran with
+  `attempts=1`), so the 429/503 cascade never fired; it just waited.
+- Prompt size is not the lever: the 53.6k-char instruction (~13.4k tokens)
+  is implicitly cached by Vertex (10,210 cached tokens per turn), and a 2k
+  prompt was no faster. No prompt surgery.
+- Thinking level made no measurable difference on 3.6.
+
+Changes:
+- **Cascade is now 3.6-flash -> 3.5-flash-lite -> 3.7-flash** (was 3.7 ->
+  3.6). Promote 3.8 once its latency settles.
+- **First-token watchdog** in `FallbackGemini`: on a streamed turn, a model
+  with somewhere to fall back to gets 4s to produce its first chunk before
+  the turn moves on. Only the first chunk is timed, so a started answer is
+  never cut off; the last model is never timed out.
+
+End to end, Avatar mode (send to the avatar's first spoken word): about 6s
+for a no-tool turn and about 9-10s when Atlas makes a tool call, down from
+11-100s+. The floor is the avatar itself: ~2.8s session open plus ~2.6s
+before its first frame. Beating that needs a pre-warmed session, which is
+not built: if idle avatar video is billed, an always-open session could cost
+hundreds of dollars a day, so it waits on confirming billing.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented
@@ -84,24 +171,18 @@ executed as part of implementing this spec.
 
 ## Definition of done
 
-- [ ] `content/avatar.json` holds the avatar identity and the four chapter
-      scripts (voice rules: no em dashes, plain tone; "how it was built"
-      draws on `content/build-story.json`).
-- [ ] `assets/js/avatar-greeter.js` renders the card, chips, first-visit
-      logic, reduced-motion/save-data fallbacks, and the handoff to
-      `window.__agentWidget.open()`.
-- [ ] Booted from `main.js` on idle, same pattern as
-      `initAgentWidgetWhenIdle`, mounted at `#avatar-root` in `index.html`
-      and `live-agents/index.html`.
-- [ ] `assets/css/components.css` card styles use existing tokens only
-      (`--bg-elev`, `--border-strong`, `--radius-lg`, `--accent-glow`).
-- [ ] `agents/atlas/app/dev_scripts/record_avatar_clips.py` exists and is
-      documented, but the actual `assets/video/atlas-*.mp4` clips are
-      produced and committed separately once Gaurav has picked the avatar
-      in Console and provided (or run) the recording pass.
-- [ ] No CSP change needed — clips are same-origin,
-      `media-src 'self' blob:` already covers them.
-- [ ] `node --test 'tests/**/*.test.mjs'` still passes; Lighthouse
-      Performance ≥ 90 / FCP < 1.5s on `/` (card must not load before idle).
-- [ ] Follow-up spec opens Phase 2 (live talk-back) once Phase 1 has shipped
-      and the avatar identity is final.
+- [x] Text / Voice / Avatar switch in the Atlas header drives the existing
+      spoken-reply code; Avatar is opt-in and remembered.
+- [x] Avatar mode is a video call: face fills the panel, centred live
+      transcript, nothing else; Text/Voice unchanged.
+- [x] Idle loop so the face never looks frozen; greeting once, transcribed.
+- [x] Live answers on the chat's own SSE stream, session opened in parallel
+      with the agent, idle frames relayed, cross-fade in, verbatim speech.
+- [x] Per-visitor cap, daily budget, graceful fallback to the voice.
+- [x] Model cascade 3.6-flash -> 3.5-flash-lite -> 3.7-flash plus a
+      first-token watchdog, with measurements recorded above.
+- [x] Unit tests: stream merge, fallback, budget, watchdog (169 pass);
+      frontend tests pass; verified end to end against a local Atlas.
+- [ ] Deploy Atlas (needs sign-off). No new secrets or env vars are needed.
+- [ ] Confirm on the Cloud Billing report whether idle avatar video is
+      billed before building a pre-warmed session.

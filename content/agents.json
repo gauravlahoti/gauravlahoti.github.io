@@ -7,8 +7,8 @@
     "status": "LIVE",
     "headline": "The AI behind the chat widget on this portfolio. Type to it, or talk to it.",
     "description": "Atlas answers questions about Gaurav in real time, by text or by voice. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Three Gemini models sit behind it: a dedicated speech model for the mic, a tiered reasoning cascade for the answer, and a TTS model that reads the reply back while it is still streaming.",
-    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, and have it talk back. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
-    "stack": ["Google ADK", "Gemini 3.7 → 3.6 Flash", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
+    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, have it talk back, or switch to Avatar mode and hear the answer from a live, lip-synced video avatar. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
+    "stack": ["Google ADK", "Gemini 3.6 Flash → 3.5 Flash-Lite", "Gemini 3.8 Live Avatar", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
     "diagramSvg": "agent-portfolio/diagrams/chat-agent-v2.svg",
     "diagramAlt": "Browser mic and speaker talk to two plain REST routes on Cloud Run that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly, while the composer streams over SSE to the ADK Agent running Gemini 3.7 to 3.6 Flash, which calls ADK Skills for retrieval and the Resend MCP server for email.",
     "steps": [
@@ -30,7 +30,7 @@
       {
         "n": 4,
         "label": "The agent reasons and calls the tool it needs",
-        "detail": "Gemini picks from nine on-demand tools, covering profile, work history, projects, posts, certifications, live agents, site stats, and two email actions, instead of stuffing the whole corpus into every prompt. Retrieval tools read the site's own content JSON at request time. Email actions route through the Resend MCP server, so the agent holds no credentials. Inference cascades from gemini-3.7-flash to gemini-3.6-flash on a transient error."
+        "detail": "Gemini picks from nine on-demand tools, covering profile, work history, projects, posts, certifications, live agents, site stats, and two email actions, instead of stuffing the whole corpus into every prompt. Retrieval tools read the site's own content JSON at request time. Email actions route through the Resend MCP server, so the agent holds no credentials. Inference starts on gemini-3.6-flash, picked for time to first word, and moves to gemini-3.5-flash-lite if it stalls or hits a capacity error."
       },
       {
         "n": 5,
@@ -54,7 +54,7 @@
         "why": "Structured Python framework for tools, evals, and Cloud Run deployment. An eval gate runs before every deploy, catching regressions before production."
       },
       {
-        "tech": "Tiered Gemini (3.7 → 3.6 Flash)",
+        "tech": "Tiered Gemini (3.6 Flash → 3.5 Flash-Lite)",
         "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. On a transient capacity error the request transparently cascades to the next model on Vertex AI, so the widget keeps answering instead of erroring when one model is briefly unavailable."
       },
       {
@@ -87,7 +87,7 @@
       }
     ],
     "traits": [
-      { "label": "Model",          "value": "Gemini 3.7 → 3.6 Flash (tiered)" },
+      { "label": "Model",          "value": "Gemini 3.6 Flash → 3.5 Flash-Lite (tiered)" },
       { "label": "Voice",          "value": "Gemini 3.5 Transcribe · 3.1 Flash TTS" },
       { "label": "Framework",      "value": "Google ADK 1.32+" },
       { "label": "Runtime",        "value": "Cloud Run (gen2)" },
@@ -97,7 +97,7 @@
     ],
     "searchMeta": {
       "type": "Chat",
-      "model": "Gemini 3.7 → 3.6 Flash (tiered)",
+      "model": "Gemini 3.6 Flash → 3.5 Flash-Lite (tiered)",
       "patterns": ["RAG", "Tool Use", "MCP", "Streaming", "Voice", "STT", "TTS"]
     },
     "links": [

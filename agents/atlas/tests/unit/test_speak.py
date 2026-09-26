@@ -238,3 +238,10 @@ class TestNormalizeEdges:
         for pad in (0, 1, 7, 33):
             pcm = self._silence(pad) + self._tone(500) + self._silence(pad)
             assert len(speak.normalize_edges(pcm)) % speak.SAMPLE_WIDTH_BYTES == 0
+
+
+def test_citation_before_punctuation_leaves_no_gap() -> None:
+    # Spec 67: "AWS [1]." used to come out as "AWS ." once the marker was gone.
+    assert speak.sanitize_for_speech("across Google Cloud and AWS [1]. He builds agents [2], mostly.") == (
+        "across Google Cloud and AWS. He builds agents, mostly."
+    )

@@ -1,9 +1,12 @@
 {
-  "_readme": "Spec 67. Atlas's avatar mode: an opt-in stage inside the Atlas panel, toggled from the panel header (assets/js/agent-avatar.js, lazy-loaded by agent-widget.js). Avatar 'Sam' + voice 'Puck', picked by hand in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel). Only the greeting ships: Atlas's own prompt chips already cover the topics, so the avatar doesn't duplicate them. Clips are recorded by agents/atlas/app/dev_scripts/record_avatar_clips.py, then re-encoded for the web (see the spec).",
+  "_readme": "Spec 67. Atlas's avatar mode: a video-call-style stage in the Atlas panel (assets/js/agent-avatar.js, lazy-loaded by agent-widget.js). Avatar 'Sam' + voice 'Puck', picked by hand in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel). 'idle' is a muted ping-pong loop cut from a live idle session so the face never looks frozen; the greeting plays once when Avatar is picked. Live answers are generated per turn, not stored here.",
   "model": "gemini-3.8-live",
   "avatarName": "Sam",
   "voiceName": "Puck",
-  "idleCaption": "Generated with Gemini. Tap my face to replay.",
+  "idle": {
+    "clip": "assets/video/atlas-idle.mp4",
+    "poster": "assets/video/atlas-idle.webp"
+  },
   "chapters": [
     {
       "id": "greeting",

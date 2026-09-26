@@ -235,6 +235,9 @@ export function initAgentWidget(root, profile, sessionId) {
     let avatar = null;
     let avatarLoading = null;
     let avatarOn = false;
+    // Set once the server says this visitor (or the day's budget) is out of
+    // avatar answers; later turns go straight to the voice for the session.
+    let avatarResting = false;
     function readAvatarPref() {
         try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
@@ -249,6 +252,24 @@ export function initAgentWidget(root, profile, sessionId) {
     }
     function pauseAvatar() { if (avatar) avatar.pause(); }
 
+    // The greeting lands in the transcript like any answer: as it is said.
+    let greetingWordsEl = null;
+    function addGreetingWords(text) {
+        if (!greetingWordsEl) {
+            const li = document.createElement("li");
+            li.className = "agent-message agent-message-assistant is-avatar-turn";
+            greetingWordsEl = document.createElement("p");
+            greetingWordsEl.className = "agent-avatar-words";
+            li.appendChild(greetingWordsEl);
+            transcript.appendChild(li);
+        }
+        greetingWordsEl.textContent += text;
+        dom.body.scrollTop = dom.body.scrollHeight;
+    }
+
+    // Spec 67: the face speaks a finished reply. Anything that stops it from
+    // starting hands the same words to the TTS voice, so a visitor never
+    // loses the spoken answer, only the face.
     function currentMode() {
         if (avatarOn) return "avatar";
         return speakerOn ? "voice" : "text";
@@ -256,6 +277,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function syncModeSwitch() {
         const mode = currentMode();
         modeSwitch.dataset.active = mode;
+        panel.classList.toggle("is-avatar-mode", mode === "avatar");
         modeSwitch.classList.toggle("is-speaking", isSpeaking);
         modeSwitch.classList.toggle("is-avatar-new", FEATURES.avatarMode && !avatarTried());
         modeSwitch.querySelectorAll(".agent-mode-opt").forEach((b) =>
@@ -282,7 +304,11 @@ export function initAgentWidget(root, profile, sessionId) {
                 // The avatar started a clip: hush Atlas's own voice so the two
                 // never talk over each other. The reverse (Atlas speaking hushes
                 // the avatar) is wired at the speaker's onPlaying and at send.
-                return mountAvatarStage(slot, { autoplay, onPlay: () => { if (speaker) speaker.cancel(); } })
+                return mountAvatarStage(slot, {
+                    autoplay,
+                    onPlay: () => { if (speaker) speaker.cancel(); },
+                    onWords: addGreetingWords,
+                })
                     .then((stage) => {
                         const unmount = () => {
                             stage.dispose();
@@ -291,7 +317,14 @@ export function initAgentWidget(root, profile, sessionId) {
                         };
                         // Switched away again while it was still loading.
                         if (!avatarOn) { unmount(); return; }
-                        avatar = { pause: stage.pause, replay: stage.replay, dispose: unmount };
+                        avatar = {
+                            canSpeak: stage.canSpeak,
+                            pause: stage.pause,
+                            replay: stage.replay,
+                            idle: stage.idle,
+                            startLive: stage.startLive,
+                            dispose: unmount,
+                        };
                     })
                     .catch((err) => {
                         slot.remove();
@@ -313,7 +346,7 @@ export function initAgentWidget(root, profile, sessionId) {
     // greeting needs the same gesture to play with sound.
     function selectMode(mode) {
         if (mode === currentMode()) {
-            if (mode === "avatar" && avatar) avatar.replay(); // re-pick = hear it again
+            if (mode === "avatar" && avatar) { greetingWordsEl = null; avatar.replay(); } // re-pick = hear it again
             return;
         }
         if (mode === "text") {
@@ -326,6 +359,7 @@ export function initAgentWidget(root, profile, sessionId) {
             // Answers are still read aloud in avatar mode, so voice comes on too.
             if (!speakerOn) enableSpeaker();
             writeAvatarPref(true);
+            greetingWordsEl = null;
             setAvatarMode(true, { autoplay: true });
         }
         syncModeSwitch();
@@ -386,6 +420,7 @@ export function initAgentWidget(root, profile, sessionId) {
         // Stop is a single control for the whole turn: if the text has
         // finished but Atlas is still talking, this must still silence it.
         if (speaker) speaker.cancel();
+        pauseAvatar(); // spec 67: stop silences the face too
         clearSpeakingIndicator();
         if (!isPending || !abortController) return;
         wasStopped = true;
@@ -1024,6 +1059,16 @@ export function initAgentWidget(root, profile, sessionId) {
             return;
         }
         pauseAvatar(); // spec 67: asking something stops a recorded clip mid-sentence
+        // Spec 67: in Avatar mode the face speaks this answer instead of the
+        // TTS voice. Decided once per turn; the voice stays loaded as the
+        // fallback for when the avatar can't (cap, budget, error, browser).
+        let avatarVoice = !!(FEATURES.avatarMode && avatarOn && avatar && avatar.canSpeak && !avatarResting);
+        // The live face for this turn: goes live now (idling while Atlas
+        // thinks), then speaks the reply as it arrives on this same stream.
+        const liveTurn = avatarVoice ? avatar.startLive() : null;
+        let avatarWordsEl = null;
+        let avatarSpoke = false;
+        let turnText = ""; // what has streamed so far, for a mid-reply fallback to the voice
         // Remove suggestion chips from the previous assistant message
         transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
 
@@ -1064,6 +1109,31 @@ export function initAgentWidget(root, profile, sessionId) {
 
         const assistant = appendAssistantPlaceholder();
         currentAssistantLi = assistant;
+        // Spec 67: in Avatar mode the only text is the transcript of what the
+        // avatar says, appearing as it says it. The reply is still rendered
+        // (hidden) so history, and a fallback, are unchanged.
+        if (avatarVoice) {
+            assistant.classList.add("is-avatar-turn");
+            avatarWordsEl = document.createElement("p");
+            avatarWordsEl.className = "agent-avatar-words";
+            assistant.appendChild(avatarWordsEl);
+        }
+        // The avatar can't take this turn after all: show the reply as text
+        // and let the voice read it, exactly as Voice mode would have.
+        const dropAvatar = (reason, isFinal = false) => {
+            if (!avatarVoice) return;
+            avatarVoice = false;
+            if (liveTurn) liveTurn.abort();
+            // Deltas were held from the voice while the avatar owned the turn;
+            // hand it everything so far, and onDelta feeds the rest as usual.
+            if (FEATURES.speakReplies && speakerOn && speaker && turnText && !isFinal) speaker.feed(turnText);
+            assistant.classList.remove("is-avatar-turn");
+            if (avatarWordsEl) avatarWordsEl.remove();
+            if (reason && /limit|resting/i.test(reason)) {
+                avatarResting = true;
+                showVoiceNote(`${reason} Atlas will read answers aloud instead.`, 6000);
+            }
+        };
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
         const stages = startLoadingStages(assistant, !sessionWarmed);
@@ -1119,6 +1189,23 @@ export function initAgentWidget(root, profile, sessionId) {
                 messages,
                 identity,
                 signal: abortController.signal,
+                avatar: avatarVoice,
+                onAvatar: avatarVoice ? {
+                    video(b64) { if (avatarVoice) liveTurn.push(b64); },
+                    words(text) {
+                        if (!avatarVoice) return;
+                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); }
+                        avatarWordsEl.textContent += text;
+                        maybeScrollToEnd();
+                    },
+                    end() { if (avatarVoice) liveTurn.end(); },
+                    unavailable(reason) {
+                        // Mid-answer failures just end the face; before it
+                        // spoke, the whole turn moves to the voice.
+                        if (avatarSpoke) { liveTurn.end(); return; }
+                        dropAvatar(reason);
+                    },
+                } : null,
                 onThinking(chunk) {
                     if (!thinkingBody) return;
                     if (firstThought) {
@@ -1146,11 +1233,12 @@ export function initAgentWidget(root, profile, sessionId) {
                     // and the "Reading aloud" strip is what keeps the
                     // relationship between the two legible.
                     markFirstDelta();
+                    turnText += delta;
                     appendDelta(assistant, delta, FEATURES.typingCursor);
                     // Chunking happens inside the speaker; this just hands it
                     // the raw stream. Sanitization is server-side, so what is
                     // spoken and what is shown stay in sync.
-                    if (FEATURES.speakReplies && speakerOn && speaker) speaker.feed(delta);
+                    if (FEATURES.speakReplies && speakerOn && speaker && !avatarVoice) speaker.feed(delta);
                 },
                 onCitations(citations) {
                     // Store for post-done render — do NOT re-render yet (caret active)
@@ -1165,6 +1253,7 @@ export function initAgentWidget(root, profile, sessionId) {
                 onBadges(badges) {
                     turnState.badges = badges;
                 },
+
                 async onDone(full) {
                     stages.cancel();
                     settleThinking();
@@ -1172,8 +1261,15 @@ export function initAgentWidget(root, profile, sessionId) {
                     // speakable once the stream is closed. Skipped on stop:
                     // stopStreaming() has already cancelled playback, and
                     // flushing here would start it up again.
-                    if (FEATURES.speakReplies && speakerOn && speaker && !wasStopped) {
+                    if (FEATURES.speakReplies && speakerOn && speaker && !wasStopped && !avatarVoice) {
                         speaker.flush();
+                    }
+                    // Spec 67: nothing was spoken (an error, a stop, a reply with
+                    // nothing to say): show the text instead of an empty turn.
+                    if (avatarVoice && !avatarSpoke) {
+                        const fellBack = !wasStopped;
+                        dropAvatar("", true);
+                        if (fellBack && FEATURES.speakReplies && speakerOn && speaker && full) speaker.speak(full);
                     }
                     if (wasStopped) {
                         removeCaret(assistant);
@@ -1226,6 +1322,8 @@ export function initAgentWidget(root, profile, sessionId) {
                 onError(msg, isMidStream) {
                     stages.cancel();
                     errorShown = true;
+                    // Spec 67: the avatar won't be saying an error, so show it now.
+                    if (avatarVoice && !avatarSpoke) dropAvatar("");
                     midStreamError = !!isMidStream;
                     // Remove cursor if streaming was interrupted
                     removeCaret(assistant);
@@ -1238,6 +1336,9 @@ export function initAgentWidget(root, profile, sessionId) {
                 },
             });
         } finally {
+            // Spec 67: a turn that ended with nothing spoken must never leave
+            // its reply hidden.
+            if (avatarVoice && !avatarSpoke) dropAvatar("");
             setSendMode("send");
             isPending = false;
             abortController = null;
@@ -2547,10 +2648,12 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onDone, onError }) {
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
+        // Spec 67: ask this turn to be spoken by the avatar, on this stream.
+        if (avatar) reqBody.avatar = true;
         response = await fetch(apiUrl, {
             method: "POST",
             mode: "cors",
@@ -2625,6 +2728,14 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onTh
                     onCta(evt.cta);
                 } else if (evt.badges && FEATURES.badges) {
                     onBadges(evt.badges);
+                } else if (onAvatar && typeof evt.avatarVideo === "string") {
+                    onAvatar.video(evt.avatarVideo); // spec 67: live avatar frames
+                } else if (onAvatar && typeof evt.avatarWords === "string") {
+                    onAvatar.words(evt.avatarWords);
+                } else if (onAvatar && evt.avatarEnd) {
+                    onAvatar.end();
+                } else if (onAvatar && evt.avatarUnavailable) {
+                    onAvatar.unavailable(evt.avatarUnavailable.reason || "");
                 } else if (evt.done === true) {
                     done = true;
                     break;

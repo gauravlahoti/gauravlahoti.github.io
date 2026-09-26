@@ -136,6 +136,8 @@ _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+", re.MULTILINE)
 _BULLET_RE = re.compile(r"^\s*[-*+]\s+", re.MULTILINE)
 _WS_RE = re.compile(r"[ \t]+")
 _BLANKS_RE = re.compile(r"\n{3,}")
+# A stripped "[1]" before a full stop leaves "AWS ." behind.
+_SPACE_BEFORE_PUNCT_RE = re.compile(r"[ \t]+([.,;:!?])")
 
 
 def sanitize_for_speech(text: str) -> str:
@@ -158,6 +160,7 @@ def sanitize_for_speech(text: str) -> str:
     out = _HEADING_RE.sub("", out)
     out = _BULLET_RE.sub("", out)
     out = _WS_RE.sub(" ", out)
+    out = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", out)
     out = _BLANKS_RE.sub("\n\n", out)
     return out.strip()
 

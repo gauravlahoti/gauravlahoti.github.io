@@ -16,6 +16,7 @@ emits partial output before switching models. If a model has already streamed
 content and then errors, we re-raise rather than risk a torn response.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from functools import cached_property
@@ -40,6 +41,14 @@ ATLAS_VERTEX_PROJECT = "adk-deploy-trail"
 ATLAS_VERTEX_LOCATION = "global"
 # Private aliases kept so existing internal references below are untouched.
 _ATLAS_VERTEX_PROJECT = ATLAS_VERTEX_PROJECT
+# Spec 67: how long the primary gets to produce its first streamed chunk
+# before the turn moves to the next model. gemini-3.7-flash on this project
+# queues erratically (measured 2026-09-26: 4-42s to first token on a
+# three-word prompt, and 112s on a real turn), while gemini-3.6-flash
+# answered in 1.6-2.4s every time. A queued request is not an error, so the
+# 429/503 cascade below never fired; it just waited. Only the first chunk is
+# timed, so a long answer that has started is never cut off.
+PRIMARY_FIRST_TOKEN_TIMEOUT_S = 4.0
 _ATLAS_VERTEX_LOCATION = ATLAS_VERTEX_LOCATION
 
 
@@ -98,8 +107,27 @@ class FallbackGemini(Gemini):
             attempt = llm_request if idx == 0 else llm_request.model_copy(deep=True)
             attempt.model = model_name
             produced = False
+            gen = Gemini.generate_content_async(backend, attempt, stream)
             try:
-                async for resp in Gemini.generate_content_async(backend, attempt, stream):
+                # First-token watchdog: only on streamed turns, and only while
+                # there is still a model to fall back to.
+                if stream and idx < len(candidates) - 1:
+                    try:
+                        first = await asyncio.wait_for(anext(gen), PRIMARY_FIRST_TOKEN_TIMEOUT_S)
+                    except StopAsyncIteration:
+                        return
+                    except TimeoutError:
+                        await _aclose_quietly(gen)
+                        logger.warning(
+                            "atlas: %s gave no first token in %.0fs; falling back to %s",
+                            model_name,
+                            PRIMARY_FIRST_TOKEN_TIMEOUT_S,
+                            candidates[idx + 1][0],
+                        )
+                        continue
+                    produced = True
+                    yield first
+                async for resp in gen:
                     produced = True
                     yield resp
                 if idx > 0:
@@ -128,3 +156,12 @@ class FallbackGemini(Gemini):
 
         if last_err is not None:  # pragma: no cover - defensive
             raise last_err
+
+
+async def _aclose_quietly(gen: AsyncGenerator) -> None:
+    """Close an abandoned stream; a half-open request failing to close cleanly
+    is not the visitor's problem."""
+    try:
+        await gen.aclose()
+    except Exception:  # noqa: BLE001
+        logger.debug("atlas: closing abandoned primary stream failed", exc_info=True)

@@ -34,6 +34,7 @@ ceiling — reloading to get a fresh sessionId does not bypass it.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -50,10 +51,11 @@ from google.genai import types
 from google.genai.errors import APIError
 
 from app.agent import root_agent
+from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.resume_send import warm_mcp_server
-from app.app_utils.speak import MAX_TEXT_CHARS, speak_text
+from app.app_utils.speak import MAX_TEXT_CHARS, sanitize_for_speech, speak_text
 from app.app_utils.speak import warm as warm_speak
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.app_utils.transcribe import warm as warm_transcribe
@@ -278,6 +280,105 @@ async def _log_turn(geo_task: asyncio.Task | None, payload: dict[str, Any]) -> N
     await log_interaction(payload)
 
 
+async def _prepend(first: str, rest: AsyncIterator[str]) -> AsyncIterator[str]:
+    yield first
+    async for chunk in rest:
+        yield chunk
+
+
+_AVATAR_SCRIPT_KEY = "_avatarScript"
+_AVATAR_TIMEOUT_S = 150.0
+
+
+async def _with_avatar(text_stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Spec 67: one chat turn, spoken by the avatar, on one SSE stream.
+
+    Opens the Live avatar session the moment the turn starts, in parallel
+    with the agent thinking, and relays its idle video straight away. When
+    the reply's script arrives it goes into the already-open session, and
+    the avatar's video (`avatarVideo`, base64 fMP4) and spoken words
+    (`avatarWords`) follow on this same stream. The text stream's final
+    `done` is held until the avatar has finished, so the widget's turn ends
+    when the talking does. Any avatar failure becomes `avatarUnavailable`,
+    and the widget reads the reply aloud with the TTS voice instead.
+    """
+    out: asyncio.Queue[str | None] = asyncio.Queue()
+    live = avatar_speak.LiveAvatar()
+    script: asyncio.Future[str | None] = asyncio.get_running_loop().create_future()
+    held_done: list[str] = []
+    reserved = avatar_speak.RESERVE_SECONDS
+
+    async def pump_text() -> None:
+        try:
+            async for chunk in text_stream:
+                if chunk.startswith("data: ") and _AVATAR_SCRIPT_KEY in chunk:
+                    payload = json.loads(chunk[6:])
+                    if _AVATAR_SCRIPT_KEY in payload:
+                        if not script.done():
+                            script.set_result(payload[_AVATAR_SCRIPT_KEY])
+                        continue
+                if chunk.startswith('data: {"done"'):
+                    held_done.append(chunk)
+                    continue
+                await out.put(chunk)
+        finally:
+            if not script.done():
+                script.set_result(None)  # no speakable reply this turn
+
+    async def pump_avatar() -> None:
+        try:
+            started = time.monotonic()
+            await live.open()
+            logger.info("avatar session open in %d ms", int((time.monotonic() - started) * 1000))
+            reader = asyncio.ensure_future(_relay_avatar(live, out))
+            text = await script
+            if not text:
+                reader.cancel()
+                return
+            await live.say(text)
+            await reader
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("avatar turn failed")
+            await out.put(_sse({"avatarUnavailable": {"reason": "Avatar is unavailable right now."}}))
+
+    text_task = asyncio.ensure_future(pump_text())
+    avatar_task = asyncio.ensure_future(asyncio.wait_for(pump_avatar(), _AVATAR_TIMEOUT_S))
+
+    async def closer() -> None:
+        await asyncio.gather(text_task, avatar_task, return_exceptions=True)
+        await out.put(None)
+
+    closing = asyncio.ensure_future(closer())
+    try:
+        while (item := await out.get()) is not None:
+            yield item
+        for chunk in held_done:
+            yield chunk
+    finally:
+        for task in (text_task, avatar_task, closing):
+            task.cancel()
+        await live.close()
+        spoken = live.spoken_seconds
+        avatar_speak.budget.settle(reserved, spoken)
+        logger.info(
+            "avatar spoke %.1fs ($%.3f) bytes=%d day_used=%.0fs",
+            spoken, spoken * avatar_speak.USD_PER_SPEAKING_SECOND,
+            live.bytes, avatar_speak.budget.used_seconds,
+        )
+
+
+async def _relay_avatar(live: avatar_speak.LiveAvatar, out: asyncio.Queue) -> None:
+    """Forward the avatar's video and spoken words onto the turn's stream."""
+    async for kind, value in live.events():
+        if kind == "video":
+            await out.put(_sse({"avatarVideo": base64.b64encode(value).decode("ascii")}))
+        else:
+            await out.put(_sse({"avatarWords": value}))
+    await out.put(_sse({"avatarEnd": True}))
+
+
 async def _stream_agent(
     session_id: str,
     user_text: str,
@@ -286,6 +387,7 @@ async def _stream_agent(
     identity: dict[str, str] | None,
     client_meta: dict[str, str],
     geo_task: asyncio.Task | None = None,
+    avatar: bool = False,
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
@@ -563,6 +665,13 @@ async def _stream_agent(
         yield _sse({"cta": cta_payload})
     if badges_payload:
         yield _sse({"badges": badges_payload})
+
+    # Spec 67: in Avatar mode, hand the reply's speech text to the avatar.
+    # This event is consumed by `_with_avatar` and never reaches the browser.
+    if avatar and status == "ok" and visible_text:
+        speech = avatar_speak.clip_to_sentences(sanitize_for_speech(visible_text))
+        if speech:
+            yield _sse({_AVATAR_SCRIPT_KEY: speech})
 
     yield _sse({"done": True})
 
@@ -934,15 +1043,36 @@ def register_routes(app: FastAPI) -> None:
             "ref":          (request.headers.get("referer") or "")[:500],
         }
 
+        # Spec 67: Avatar mode. Refusals are not errors: the turn still runs,
+        # it just tells the widget up front to use the voice instead.
+        avatar_refusal: str | None = None
+        want_avatar = (body or {}).get("avatar") is True
+        if want_avatar:
+            ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
+            if not ok_visitor:
+                avatar_refusal = "That's the avatar's limit for today."
+            elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
+                avatar_refusal = "The avatar is resting for today."
+                logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
+
+        text_stream = _stream_agent(
+            session_id,
+            user_text,
+            turn_index=turn_index,
+            identity=identity,
+            client_meta=client_meta,
+            geo_task=geo_task,
+            avatar=want_avatar and avatar_refusal is None,
+        )
+        if want_avatar and avatar_refusal is None:
+            stream = _with_avatar(text_stream)
+        elif avatar_refusal:
+            stream = _prepend(_sse({"avatarUnavailable": {"reason": avatar_refusal}}), text_stream)
+        else:
+            stream = text_stream
+
         return StreamingResponse(
-            _stream_agent(
-                session_id,
-                user_text,
-                turn_index=turn_index,
-                identity=identity,
-                client_meta=client_meta,
-                geo_task=geo_task,
-            ),
+            stream,
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache, no-transform",

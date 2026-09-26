@@ -72,15 +72,21 @@ _tools = [
 
 root_agent = Agent(
     name="root_agent",
-    # Both primary (gemini-3.7-flash) and fallback (gemini-3.6-flash) are
+    # Every model in the cascade is
     # pinned to Vertex AI on adk-deploy-trail for reliable capacity — 3.7-flash
     # was hitting near-constant 503s on the AI Studio free tier in production.
     # The fallback now exists purely for model-availability redundancy, not a
     # different cost tier: on a 429/503 from the primary we transparently
     # retry against it instead of failing the visitor. See app/fallback_model.py.
+    # Spec 67: led by gemini-3.6-flash for time to first word. Measured
+    # 2026-09-26 on adk-deploy-trail with the full prompt (median first answer
+    # text): 3.6-flash 1.3s, 3.5-flash-lite 1.4s, 3.7-flash 2.7s with 40-110s
+    # queueing spikes, 3.8-flash ~10s with failures. ~1.3s is the floor for this
+    # prompt, so Lite buys no speed; it's the equally fast capacity fallback,
+    # and 3.7 stays last. Promote 3.8 here once its latency settles.
     model=FallbackGemini(
-        model="gemini-3.7-flash",
-        fallback_models=["gemini-3.6-flash"],
+        model="gemini-3.6-flash",
+        fallback_models=["gemini-3.5-flash-lite", "gemini-3.7-flash"],
         retry_options=types.HttpRetryOptions(attempts=1),
     ),
     instruction=SYSTEM_INSTRUCTION,
