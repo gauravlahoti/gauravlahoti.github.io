@@ -206,6 +206,8 @@ def judge(client, corpus: str, case: dict, mode: str, r: dict) -> dict:
                 config=gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0),
             )
             data = json.loads(resp.text)
+            if isinstance(data, list):  # the judge occasionally wraps its object in a list
+                data = data[0] if data and isinstance(data[0], dict) else {}
             return {k: float(data.get(k, 0.0)) for k in JUDGE_KEYS} | {"notes": str(data.get("notes", ""))[:200]}
         except Exception as exc:
             if attempt == 9:
