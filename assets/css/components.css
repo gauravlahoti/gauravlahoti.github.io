@@ -4831,13 +4831,13 @@ a.agent-badge-tile:focus-visible {
 /* Avatar mode is a video call: the face fills the panel and the only text is
    a transcript of what it says, appearing as it says it. So the transcript's
    own status and extras step aside: loading dots, canned "still on it" copy,
-   the thinking panel, the intro message, chips, sources, badges, the CTA and
-   the reading-aloud strip. Hidden, not removed: Text or Voice brings them all
-   straight back. */
+   the thinking panel, the intro message, chips, sources, the CTA and the
+   reading-aloud strip. Hidden, not removed: Text or Voice brings them all
+   straight back. Certification badges stay in every mode: they are the
+   answer's evidence, and here they land once Atlas has finished speaking. */
 .agent-panel.is-avatar-mode .agent-prompts,
 .agent-panel.is-avatar-mode .agent-suggestions,
 .agent-panel.is-avatar-mode .agent-sources,
-.agent-panel.is-avatar-mode .agent-badges,
 .agent-panel.is-avatar-mode .agent-cta-action,
 .agent-panel.is-avatar-mode .agent-speaking,
 .agent-panel.is-avatar-mode .agent-consent,
