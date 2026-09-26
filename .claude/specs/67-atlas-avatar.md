@@ -374,6 +374,17 @@ spinning ring. `assets/video/atlas-face.webp` is removed.
   length note also says never to pad with what the tools didn't say.
   Measured: 0 of 12 Azure answers invented work afterwards.
 
+**The stream's dedup dropped real text** (found by scorecard run 5: a reply
+opening "[NOTE]]", and two empty replies). `_stream_agent` guessed whether
+an event was a new piece or a repeat by prefix-matching the text, so a piece
+that happened to look like a prefix of what had streamed was dropped: a lone
+"[" vanished, and a broken "[[/NOTE]]" left a block open that swallowed the
+reply. Replies never used to open with "[", which is why it only surfaced
+now. It now follows ADK's own `partial` flag (checked against live events:
+partial events are increments, the step's final event is the full recap).
+`test_stream_dedup.py` replays that exact event shape and fails on the old
+code. An unclosed note block also can no longer leave a reply empty.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

@@ -236,18 +236,28 @@ class NoteFilter:
     def __init__(self) -> None:
         self._blocks = NoteBlockGuard()
         self._lead = LeadNoteGuard()
+        self._shown_any = False
 
     def push(self, chunk: str) -> tuple[str, str]:
         shown, block_note = self._blocks.push(chunk)
         shown, lead_note = self._lead.push(shown) if shown else ("", "")
+        self._shown_any = self._shown_any or bool(shown.strip())
         return shown, " ".join(n for n in (block_note, lead_note) if n)
 
     def flush(self) -> tuple[str, str]:
         tail, block_note = self._blocks.flush()
         shown, lead_note = self._lead.push(tail) if tail else ("", "")
         more, last_note = self._lead.flush()
+        shown += more
         notes = " ".join(n for n in (block_note, lead_note, last_note) if n)
-        return shown + more, notes
+        if not self._shown_any and not shown.strip() and block_note:
+            # A note block never closed and took the whole reply with it:
+            # its first sentence was the note, the rest is the answer.
+            m = re.search(r"[.!?](?=\s|$)", block_note)
+            rest = block_note[m.end():].strip() if m else ""
+            shown, notes = (rest, block_note[:m.end()]) if rest else (block_note, "")
+        self._shown_any = self._shown_any or bool(shown.strip())
+        return shown, notes
 
     def without_note(self, text: str) -> str:
         return self._lead.without_note(_NOTE_BLOCK_RE.sub("", text).lstrip())

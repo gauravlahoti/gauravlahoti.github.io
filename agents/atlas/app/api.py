@@ -480,6 +480,7 @@ async def _stream_agent(
     # Spec 67: the working note ([[NOTE]] block, or an untagged one) goes to
     # the Thinking panel, never into the reply.
     lead_guard = NoteFilter()
+    step_streamed = False  # this model step has streamed partial answer text
     # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
     # Spec 67: and no email address Atlas wasn't given (see emails.py).
     dash_guard = _OutputFilter(visitor_emails, contact_intent)
@@ -497,7 +498,6 @@ async def _stream_agent(
     status = "ok"
     error_message: str | None = None
     # For delta de-dup (cumulative vs incremental Gemini events)
-    emitted_len = 0  # chars already flushed to user_visible / pending
     # Thinking (part.thought == True) is a fully separate stream from the
     # answer — its own de-dup state, never touches user_visible/meta_parts/
     # the audit log's `response` field. See thinking_config in agent.py.
@@ -676,16 +676,22 @@ async def _stream_agent(
                 continue
             full = "".join(answer_texts)
 
-            # Delta de-dup: Gemini can send cumulative or incremental payloads.
-            total_so_far = "".join(user_visible) + pending + "".join(meta_parts)
-            if full.startswith(total_so_far):
-                new_text = full[len(total_so_far):]
-            elif total_so_far.startswith(full):
-                new_text = ""
-            else:
-                # Disjoint (post-tool-call turn) — treat as fresh
+            # Spec 67: partial events carry the NEXT piece of text; the final
+            # event of a step (partial=False) repeats the whole step once
+            # assembled (checked against live ADK SSE events). The old
+            # prefix-matching dedup guessed from the text instead, and dropped
+            # real pieces whenever one looked like a prefix of what had
+            # streamed: a lone "[" vanished, "[[NOTE]]" arrived as "[NOTE]]",
+            # and a lost "[" in "[[/NOTE]]" left a note block open that
+            # swallowed the whole reply.
+            if is_partial:
                 new_text = full
-                emitted_len = 0
+                step_streamed = True
+            elif step_streamed:
+                new_text = ""  # the recap of a step that already streamed
+                step_streamed = False
+            else:
+                new_text = full  # a step that arrived only as a final event
 
             if not new_text:
                 continue
