@@ -3379,7 +3379,7 @@ a.agent-badge-tile:focus-visible {
 .ad-edge--key { stroke: var(--accent); opacity: 0.5; }
 
 /* Numbered step markers, keyed to the .ad-legend list below the figure. They
-   light one after another (JS sets animation-delay to n-1 on a 6s cycle), so
+   light one after another (JS sets animation-delay to n-1 on a 9s cycle), so
    the motion traces the route in order instead of pulsing all at once. */
 .ad-step circle {
     fill: var(--bg-card);
@@ -3397,22 +3397,23 @@ a.agent-badge-tile:focus-visible {
     opacity: 0.5;
     transform-box: fill-box;
     transform-origin: center;
-    /* 7s / 6 steps, JS staggers animation-delay by n-1 seconds. The two
-       badges sharing step 4 get the same delay, so they light together. */
-    animation: ad-step-seq 7s ease-in-out infinite;
+    /* 9s / 8 steps (spec 67), JS staggers animation-delay by n-1 seconds.
+       The two badges sharing step 4 get the same delay, so they light
+       together. One step is ~11% of the cycle. */
+    animation: ad-step-seq 9s ease-in-out infinite;
 }
 @keyframes ad-step-seq {
     0%        { opacity: 0.5; transform: scale(1); }
     2%        { opacity: 1;   transform: scale(1.2); }
-    11%       { opacity: 1;   transform: scale(1.2); }
-    16%, 100% { opacity: 0.5; transform: scale(1); }
+    9%        { opacity: 1;   transform: scale(1.2); }
+    12%, 100% { opacity: 0.5; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
     /* No sequencing; the numerals and the legend still carry the order. */
     .ad-step { animation: none; opacity: 1; }
 }
 
-/* Waveform <-> text strips beside the speech nodes. Same 7s cycle as the step
+/* Waveform <-> text strips beside the speech nodes. Same 9s cycle as the step
    badges, and JS gives each strip its stage's delay, so the conversion plays
    while that number is lit and sits still (drawn, dim) the rest of the time. */
 .ad-xform rect {
@@ -3422,14 +3423,14 @@ a.agent-badge-tile:focus-visible {
 .ad-xform-wave rect {
     transform-origin: center;
     opacity: 0.35;
-    animation: ad-xform-wave 7s ease-in-out infinite;
+    animation: ad-xform-wave 9s ease-in-out infinite;
 }
 .ad-xform-text rect {
     /* Text builds outward from the side facing the waveform, so the two
        halves read as one left-to-right transform in each direction. */
     transform-origin: left center;
     opacity: 0.35;
-    animation: ad-xform-text 7s ease-in-out infinite;
+    animation: ad-xform-text 9s ease-in-out infinite;
 }
 .ad-xform--to-voice .ad-xform-text rect { transform-origin: right center; }
 /* The "becomes" cue between the two halves. */
@@ -3440,31 +3441,46 @@ a.agent-badge-tile:focus-visible {
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0.35;
-    animation: ad-xform-arrow 7s ease-in-out infinite;
+    animation: ad-xform-arrow 9s ease-in-out infinite;
 }
 @keyframes ad-xform-arrow {
     0%, 100% { opacity: 0.35; }
-    5%       { opacity: 1; }
-    14%      { opacity: 1; }
-    20%      { opacity: 0.35; }
+    4%       { opacity: 1; }
+    11%      { opacity: 1; }
+    15%      { opacity: 0.35; }
 }
 @keyframes ad-xform-wave {
     0%,  100% { opacity: 0.35; transform: scaleY(0.55); }
-    3%        { opacity: 1;    transform: scaleY(1); }
-    9%        { opacity: 1;    transform: scaleY(0.7); }
-    16%       { opacity: 0.35; transform: scaleY(0.55); }
+    2%        { opacity: 1;    transform: scaleY(1); }
+    7%        { opacity: 1;    transform: scaleY(0.7); }
+    12%       { opacity: 0.35; transform: scaleY(0.55); }
 }
 @keyframes ad-xform-text {
     0%,  100% { opacity: 0.35; transform: scaleX(1); }
-    3%        { opacity: 0.35; transform: scaleX(0); }
-    12%       { opacity: 1;    transform: scaleX(1); }
-    18%       { opacity: 0.6;  transform: scaleX(1); }
+    2%        { opacity: 0.35; transform: scaleX(0); }
+    9%        { opacity: 1;    transform: scaleX(1); }
+    14%       { opacity: 0.6;  transform: scaleX(1); }
+}
+/* Spec 67: the Live Avatar's strip ends in a video frame with a face that
+   comes up while step 7 is lit. */
+.ad-xform-video rect,
+.ad-xform-video circle,
+.ad-xform-video path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+}
+.ad-xform-video {
+    opacity: 0.35;
+    animation: ad-xform-arrow 9s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
     /* Both halves stay drawn and legible; only the conversion motion goes. */
     .ad-xform-wave rect,
     .ad-xform-text rect { animation: none; opacity: 0.7; transform: none; }
-    .ad-xform-arrow { animation: none; opacity: 0.7; }
+    .ad-xform-arrow,
+    .ad-xform-video { animation: none; opacity: 0.7; }
 }
 
 /* Stick figure inside the You node. */
@@ -3494,6 +3510,15 @@ a.agent-badge-tile:focus-visible {
    with the accent stages for attention. */
 .ad-node--key .ad-node-name { fill: var(--accent); font-weight: 700; }
 .ad-node--you rect { stroke: var(--ink-muted); stroke-dasharray: 3 2; }
+/* Spec 67: the gate every answer passes. Accent outline, plain name. */
+.ad-node--checks rect { stroke: var(--accent); stroke-dasharray: 4 2; }
+.ad-check path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
 .ad-node--you .ad-node-name { fill: var(--ink); font-weight: 700; }
 
 /* ── Diagram figure, expand control, and numbered legend ─────────────────── */

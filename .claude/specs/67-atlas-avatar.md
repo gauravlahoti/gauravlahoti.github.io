@@ -392,6 +392,28 @@ When a turn ends with no answer text, `_stream_agent` now runs it once more
 with a short server-written nudge (never shown to the visitor) before giving
 up.
 
+## Review round: the architecture views show the current flow
+
+Both places that draw Atlas were still on the old picture (Gemini 3.7
+Flash, a voice-only speech path):
+- **Inside Atlas** (the panel's "Powered by" explainer, built by
+  `buildAgentDiagram`): eight steps now. You, STT, the Agent with reasoning
+  (3.6 Flash, falling back to 3.5 Flash-Lite) above and corpus / MCP below,
+  a new **Output checks** node, then Voice (3.1 Flash TTS) and **Avatar**
+  (Gemini 3.8 Live Avatar, with a text-to-video strip) in a right column,
+  and one return path. Desktop viewBox 640x300, mobile a vertical spine
+  (300x404). Tooltips, the legend (`AGENT_STEPS`) and the explainer
+  paragraph say the same; the badge cycle is 9 s for 8 steps. The planned
+  dashed "session opens in parallel" edge was dropped: it could not be
+  routed without crossing the other edges, so the tooltip and legend say it.
+- **/live-agents/ Deep Dive**: `chat-agent-v3.svg` (v2 kept as history)
+  adds the browser's avatar stage, output checks inside the Agent, an
+  Avatar relay on the chat route and Gemini 3.8 Live Avatar in Vertex, with
+  video and timed words riding the same SSE "stream back" edge, as they do.
+  Atlas's `steps` (10), `techDecisions` (Live Avatar through a relay,
+  output checks in code, word timing from the video), `traits` and alt text
+  match. The first-word figure is the measured scorecard median (~3 s).
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented
