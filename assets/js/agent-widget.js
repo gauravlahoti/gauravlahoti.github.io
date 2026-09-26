@@ -2392,27 +2392,27 @@ export function buildAgentDiagram(opts) {
     // Server stay plain so the model stages read as the primary path.
     if (mobile) {
         svg.appendChild(node("ad-node--you",    40,   6, 112, 30, "You",        "mode · ask",           "You: pick a mode, then type or hold the mic", 96, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "speech-to-text", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent, "adk"));
         svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "reasoning", "Gemini 3.6 Flash works out the answer and writes it", 238, TIPS.llm, "gemini"));
         svg.appendChild(node(null,             180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
         svg.appendChild(node(null,             180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp, "mcp"));
         svg.appendChild(node("ad-node--checks", 40, 214, 112, 34, "Checks",     "grounded · clean",     "Output checks every answer passes before you see it", 96, TIPS.checks, "check"));
-        svg.appendChild(node("ad-node--key ad-node--voice",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key ad-node--avatar",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--voice",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "text-to-speech", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
         svg.appendChild(xformStrip(226,  87, "to-text",  2));
         svg.appendChild(xformStrip(86,  370, "to-voice", 6));
         svg.appendChild(xformStrip(226, 370, "to-video", 6));
     } else {
         svg.appendChild(node("ad-node--you",     20, 118,  76, 44, "You",              "mode · ask",           "You: pick a mode, then type or hold the mic", 58, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",    126, 112, 108, 56, ["Gemini 3.5", "Transcribe"], "STT · mic only", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 180, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--key",    126, 112, 108, 56, ["Gemini 3.5", "Transcribe"], "speech-to-text", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 180, TIPS.stt, "gemini"));
         svg.appendChild(node("ad-node--hub",    264, 118,  92, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 310, TIPS.agent, "adk"));
         svg.appendChild(node("ad-node--key",    246,  24, 128, 44, "Gemini 3.6 Flash", "reasoning",     "Gemini 3.6 Flash works out the answer and writes it", 310, TIPS.llm, "gemini"));
         svg.appendChild(node(null,              206, 208, 104, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 258, TIPS.corpus));
         svg.appendChild(node(null,              322, 208,  96, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 370, TIPS.mcp, "mcp"));
         svg.appendChild(node("ad-node--checks", 388, 118, 108, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 442, TIPS.checks, "check"));
-        svg.appendChild(node("ad-node--key ad-node--voice",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "Voice mode", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "Avatar mode", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--voice",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "text-to-speech", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
         // Under STT: the typed-input bypass runs over it.
         svg.appendChild(xformStrip(180, 186, "to-text",  2));
         // Above TTS, mirroring the video strip under Live Avatar. The Expand
