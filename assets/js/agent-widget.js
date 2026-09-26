@@ -2173,17 +2173,19 @@ export function buildAgentDiagram(opts) {
         svg.appendChild(el("path", { class: cls ? `ad-edge ${cls}` : "ad-edge ad-edge--key", d }));
     });
 
-    // Numbered markers keyed to the legend below the figure. They light one
-    // after another (delay = n-1 on an 8s cycle) so the animation traces the
-    // route in order rather than pulsing everything at once. A marker can
-    // carry a mode, which colours it like its path.
+    // Numbered markers keyed to the legend below the figure. They appear one
+    // after another on an 8s loop and stay lit, so the route builds up in
+    // order, then clears and repeats. A marker can carry a mode, which
+    // colours it like its path.
     const step = (n, cx, cy, mode) => {
-        const g = el("g", { class: mode ? `ad-step ad-step--${mode}` : "ad-step" });
+        // Each number has its own keyframes (ad-step-seq-N): it appears on
+        // its turn, stays lit, and they all clear together when the loop
+        // restarts. Shared numbers (the two 4s, the three 6s) share a turn.
+        const g = el("g", { class: `ad-step ad-step--n${n}` + (mode ? ` ad-step--${mode}` : "") });
         g.appendChild(el("circle", { cx: String(cx), cy: String(cy), r: "8" }));
         const t = el("text", { x: String(cx), y: String(cy + 3), "text-anchor": "middle" });
         t.textContent = String(n);
         g.appendChild(t);
-        if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
         return g;
     };
     // A small pill naming a mode at the start of its path.

@@ -3402,20 +3402,70 @@ a.agent-badge-tile:focus-visible {
     pointer-events: none;
 }
 .ad-step {
-    opacity: 0.5;
+    opacity: 1;
     transform-box: fill-box;
     transform-origin: center;
-    /* 8s / 7 steps (spec 67), JS staggers animation-delay by n-1 seconds.
-       Badges sharing a number (the two tools at 4, the three mode paths at
-       6) get the same delay, so they light together. One step is 12.5% of
-       the cycle. */
-    animation: ad-step-seq 8s ease-in-out infinite;
+    /* Spec 67: the numbers build up in order on an 8s loop (one every
+       second, 12.5% of the cycle), stay fully lit once they appear, and all
+       clear together at the end before the loop repeats. Each number has its
+       own keyframes, so every badge shares one clock (no animation-delay);
+       shared numbers (4, and the three 6s) appear together. */
+    animation-duration: 8s;
+    animation-timing-function: ease-out;
+    animation-iteration-count: infinite;
 }
-@keyframes ad-step-seq {
-    0%        { opacity: 0.5; transform: scale(1); }
-    2%        { opacity: 1;   transform: scale(1.2); }
-    10%       { opacity: 1;   transform: scale(1.2); }
-    14%, 100% { opacity: 0.5; transform: scale(1); }
+@keyframes ad-step-seq-1 {
+    0%        { opacity: 0; transform: scale(0.6); }
+    2.0%     { opacity: 1; transform: scale(1.25); }
+    5.0%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n1 { animation-name: ad-step-seq-1; }
+@keyframes ad-step-seq-2 {
+    0%, 12.5% { opacity: 0; transform: scale(0.6); }
+    14.5%     { opacity: 1; transform: scale(1.25); }
+    17.5%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n2 { animation-name: ad-step-seq-2; }
+@keyframes ad-step-seq-3 {
+    0%, 25.0% { opacity: 0; transform: scale(0.6); }
+    27.0%     { opacity: 1; transform: scale(1.25); }
+    30.0%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n3 { animation-name: ad-step-seq-3; }
+@keyframes ad-step-seq-4 {
+    0%, 37.5% { opacity: 0; transform: scale(0.6); }
+    39.5%     { opacity: 1; transform: scale(1.25); }
+    42.5%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n4 { animation-name: ad-step-seq-4; }
+@keyframes ad-step-seq-5 {
+    0%, 50.0% { opacity: 0; transform: scale(0.6); }
+    52.0%     { opacity: 1; transform: scale(1.25); }
+    55.0%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n5 { animation-name: ad-step-seq-5; }
+@keyframes ad-step-seq-6 {
+    0%, 62.5% { opacity: 0; transform: scale(0.6); }
+    64.5%     { opacity: 1; transform: scale(1.25); }
+    67.5%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n6 { animation-name: ad-step-seq-6; }
+@keyframes ad-step-seq-7 {
+    0%, 75.0% { opacity: 0; transform: scale(0.6); }
+    77.0%     { opacity: 1; transform: scale(1.25); }
+    80.0%, 92% { opacity: 1; transform: scale(1); }
+    97%, 100% { opacity: 0; transform: scale(1); }
+}
+.ad-step--n7 { animation-name: ad-step-seq-7; }
+@media (prefers-reduced-motion: reduce) {
+    /* No sequencing; the numerals and the legend still carry the order. */
+    .ad-step { animation: none; opacity: 1; transform: none; }
 }
 .ad-step--voice circle  { stroke: var(--mode-voice); }
 .ad-step--voice text    { fill: var(--mode-voice); }
@@ -3430,14 +3480,10 @@ a.agent-badge-tile:focus-visible {
 .ad-mode-tag--voice text  { fill: var(--mode-voice); }
 .ad-mode-tag--avatar rect { stroke: var(--mode-avatar); }
 .ad-mode-tag--avatar text { fill: var(--mode-avatar); }
-@media (prefers-reduced-motion: reduce) {
-    /* No sequencing; the numerals and the legend still carry the order. */
-    .ad-step { animation: none; opacity: 1; }
-}
 
 /* Waveform <-> text strips beside the speech nodes. Same 8s cycle as the step
    badges, and JS gives each strip its stage's delay, so the conversion plays
-   while that number is lit and sits still (drawn, dim) the rest of the time. */
+   as that number appears and sits still (drawn, dim) the rest of the time. */
 .ad-xform rect {
     fill: var(--accent);
     transform-box: fill-box;
