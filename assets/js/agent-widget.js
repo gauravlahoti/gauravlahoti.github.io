@@ -252,6 +252,20 @@ export function initAgentWidget(root, profile, sessionId) {
     function avatarTried() {
         try { return localStorage.getItem(AVATAR_TRIED_KEY) === "1"; } catch (_) { return false; }
     }
+    // The recorded greeting plays once per visitor, the first time Avatar is
+    // picked. After that, switching back to Avatar goes straight to the idle
+    // face, like rejoining a call rather than restarting it.
+    const AVATAR_GREETED_KEY = "atlasAvatarGreeted_v1";
+    function takeAvatarGreeting() {
+        try {
+            if (localStorage.getItem(AVATAR_GREETED_KEY) === "1") return false;
+            localStorage.setItem(AVATAR_GREETED_KEY, "1");
+        } catch (_) { /* private mode: greet this once, per page */ }
+        if (greetedThisPage) return false;
+        greetedThisPage = true;
+        return true;
+    }
+    let greetedThisPage = false;
     function pauseAvatar() { if (avatar) avatar.pause(); }
 
     // Spec 67: karaoke captions. Each chunk of the avatar's words is a span
@@ -413,10 +427,7 @@ export function initAgentWidget(root, profile, sessionId) {
     // Resolves once the new mode can speak (Voice loads its engine first).
     function selectMode(mode) {
         let ready = null;
-        if (mode === currentMode()) {
-            if (mode === "avatar" && avatar) { greetingWordsEl = null; avatar.replay(); } // re-pick = hear it again
-            return;
-        }
+        if (mode === currentMode()) return;
         if (mode === "text") {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
             if (speakerOn) toggleSpeaker();
@@ -427,8 +438,9 @@ export function initAgentWidget(root, profile, sessionId) {
         } else if (mode === "avatar") {
             silenceSpeakerForAvatar();
             writeAvatarPref(true);
-            greetingWordsEl = null;
-            setAvatarMode(true, { autoplay: true });
+            const greet = takeAvatarGreeting();
+            if (greet) greetingWordsEl = null;
+            setAvatarMode(true, { autoplay: greet });
         }
         syncModeSwitch();
         return ready;
@@ -920,9 +932,9 @@ export function initAgentWidget(root, profile, sessionId) {
             // same way enableSpeaker() does.
             ensureSpeaker().then((ok) => { if (ok && speaker) speaker.unlock(); });
         }
-        // Spec 67: bring a remembered avatar mode back, on its poster. The
-        // greeting only autoplays when the visitor turns the mode on, not on
-        // every reopen.
+        // Spec 67: bring a remembered avatar mode back, on its idle face. The
+        // greeting plays once per visitor (takeAvatarGreeting), never on a
+        // reopen.
         if (FEATURES.avatarMode && !avatarOn && readAvatarPref()) {
             setAvatarMode(true, { autoplay: false });
         }

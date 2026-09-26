@@ -194,6 +194,11 @@ takes `--only <chapter>`, and the clip is trimmed of its ~0.75s of leading
 silence. Caption cues are timed to the pauses `silencedetect` finds, which
 also confirm the sentence structure was read verbatim.
 
+**The greeting plays once per visitor.** Only the first pick of Avatar
+plays it (`atlasAvatarGreeted_v1` in `localStorage`). Switching back to
+Avatar later, re-picking it, or reopening the panel goes straight to the idle
+face, like rejoining a call rather than restarting it.
+
 **Over the cap, offer Voice for the same question.** A capped avatar turn
 (per-visitor bucket or the daily budget) no longer runs the agent and shows
 the answer as text. The server replies with only
