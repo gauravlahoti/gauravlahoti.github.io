@@ -3272,8 +3272,8 @@ a.agent-badge-tile:focus-visible {
        it. The dialog itself no longer scrolls — it's a flex column whose
        figure stays pinned and whose text region scrolls on its own, so the
        diagram can't be pushed off-screen by the copy below it. */
-    width: min(720px, 94vw);
-    max-height: 88vh;
+    width: min(1000px, 94vw);
+    max-height: 90vh;
     overflow: hidden;
     padding: var(--space-5);
     z-index: 100;
@@ -3315,7 +3315,7 @@ a.agent-badge-tile:focus-visible {
    letterboxes instead of distorting, and Expand gives the full-size view.
    Well clear of the desktop diagram's natural height, so it only ever bites
    in that mismatched case or on very short viewports. */
-.agent-explainer-body .ad-svg { max-height: 46vh; }
+.agent-explainer-body .ad-svg { max-height: 56vh; }
 .agent-explainer-scroll {
     flex: 1 1 auto;
     min-height: 0;
