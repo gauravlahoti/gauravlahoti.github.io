@@ -3379,13 +3379,12 @@ a.agent-badge-tile:focus-visible {
 .ad-edge--key { stroke: var(--accent); opacity: 0.5; }
 /* Spec 67: the answer's way back is a path chosen by the mode. Each mode's
    path carries its colour (tokens in base.css); tool calls stay muted; the
-   mic input is dashed (only when used) with a fainter typed bypass. */
+   mic input is dashed (only when used). */
 .ad-edge--text   { stroke: var(--mode-text);   opacity: 0.6; }
 .ad-edge--voice  { stroke: var(--mode-voice);  opacity: 0.75; }
 .ad-edge--avatar { stroke: var(--mode-avatar); opacity: 0.75; }
 .ad-edge--plain  { stroke: var(--accent); opacity: 0.35; }
 .ad-edge--optional { stroke: var(--accent); opacity: 0.5; stroke-dasharray: 3 3; }
-.ad-edge--bypass   { stroke: var(--ink-subtle); stroke-width: 1; stroke-dasharray: 2 3; }
 
 /* Numbered step markers, keyed to the .ad-legend list below the figure. They
    light one after another (JS sets animation-delay to n-1 on an 8s cycle), so

@@ -2132,8 +2132,7 @@ export function buildAgentDiagram(opts) {
 
     // Spec 67: the answer's way back is a PATH chosen by the mode, not a
     // sequence of stages. The visitor picks Text, Voice or Avatar before
-    // asking (1); speech-to-text runs only when they use the mic (2, dashed,
-    // with a typed bypass); the agent reasons (3) and calls tools (4); every
+    // asking (1); speech-to-text runs only when they use the mic (2, dashed); the agent reasons (3) and calls tools (4); every
     // answer passes the output checks (5); then exactly ONE of three paths
     // runs (6, colour-coded by mode, all numbered 6 because they are
     // alternatives, the same way Corpus and MCP share 4); and it comes back
@@ -2141,7 +2140,6 @@ export function buildAgentDiagram(opts) {
     // tags at the fork, which is what makes the fork read as a choice.
     const edges = mobile ? [
         { d: "M 96 36 L 96 66", cls: "ad-edge--optional" },     // 1 You -> STT (mic only)
-        { d: "M 152 21 L 168 21 L 168 146 L 152 146", cls: "ad-edge--bypass" }, // typed: skips STT
         { d: "M 96 108 L 96 138" },                              // 2 STT -> Agent
         { d: "M 152 155 L 180 155" },                            // 3 Agent -> reasoning
         { d: "M 152 160 L 180 207", cls: "ad-edge--plain" },     // 4 Agent -> corpus
@@ -2155,7 +2153,6 @@ export function buildAgentDiagram(opts) {
         { d: "M 282 331 L 290 331 L 290 392 L 18 392 L 18 21 L 40 21" },
     ] : [
         { d: "M 96 140 L 126 140", cls: "ad-edge--optional" },  // 1 You -> STT (mic only)
-        { d: "M 58 118 L 58 102 L 296 102 L 296 118", cls: "ad-edge--bypass" }, // typed: skips STT
         { d: "M 234 140 L 264 140" },                            // 2 STT -> Agent
         { d: "M 310 118 L 310 68" },                             // 3 Agent -> reasoning
         { d: "M 292 162 L 266 208", cls: "ad-edge--plain" },     // 4 Agent -> corpus
@@ -2413,7 +2410,7 @@ export function buildAgentDiagram(opts) {
         svg.appendChild(node("ad-node--checks", 388, 118, 108, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 442, TIPS.checks, "check"));
         svg.appendChild(node("ad-node--key ad-node--voice",    520,  40,  92, 56, ["Gemini 3.1", "Flash TTS"], "text-to-speech", "Gemini 3.1 Flash TTS reads the answer aloud", 566, TIPS.tts, "gemini"));
         svg.appendChild(node("ad-node--key ad-node--avatar",    520, 184,  92, 56, ["Gemini 3.8", "Live Avatar"], "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 566, TIPS.avatar, "gemini"));
-        // Under STT: the typed-input bypass runs over it.
+        // Under STT, clear of the reasoning box above the Agent.
         svg.appendChild(xformStrip(180, 186, "to-text",  2));
         // Above TTS, mirroring the video strip under Live Avatar. The Expand
         // button moves to the empty top-left corner on this layout to make
