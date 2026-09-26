@@ -304,6 +304,13 @@ async def _capped_avatar_stream(reason: str) -> AsyncIterator[str]:
     yield _sse({"done": True})
 
 
+# Sent (server-side, never shown) when a turn ends with no answer text.
+_EMPTY_REPLY_NUDGE = (
+    "(Your previous reply reached the visitor empty. Answer their last question "
+    "now, following all your rules, starting with your [[NOTE]] block.)"
+)
+
+
 _AVATAR_SCRIPT_KEY = "_avatarScript"
 _AVATAR_TIMEOUT_S = 150.0
 
@@ -551,173 +558,188 @@ async def _stream_agent(
 
         return chunks
 
-    try:
-        async for event in _runner.run_async(
-            user_id=session_id,
-            session_id=session_id,
-            new_message=new_message,
-            # Spec 67: how this answer will reach the visitor (guardrails.py
-            # gives spoken modes a tighter length).
-            state_delta={"reply_mode": reply_mode},
-            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
-        ):
-            # Collect tool calls from function_call parts.
-            content = getattr(event, "content", None)
-            if content is not None:
-                for part in getattr(content, "parts", None) or []:
-                    fc = getattr(part, "function_call", None)
-                    if fc is not None:
-                        try:
-                            args_repr = json.dumps(dict(fc.args or {}))[:2048]
-                            tool_calls.append({"name": fc.name, "args": json.loads(args_repr)})
-                        except Exception:
-                            tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
+    # Spec 67: a turn can end with no answer at all (the model stops after
+    # its thinking, or after its [[NOTE]] block). Rather than show a blank
+    # reply, run it once more with a short server nudge.
+    turn_message = new_message
+    for attempt in range(2):
+        try:
+            async for event in _runner.run_async(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=turn_message,
+                # Spec 67: how this answer will reach the visitor (guardrails.py
+                # gives spoken modes a tighter length).
+                state_delta={"reply_mode": reply_mode},
+                run_config=RunConfig(streaming_mode=StreamingMode.SSE),
+            ):
+                # Collect tool calls from function_call parts.
+                content = getattr(event, "content", None)
+                if content is not None:
+                    for part in getattr(content, "parts", None) or []:
+                        fc = getattr(part, "function_call", None)
+                        if fc is not None:
+                            try:
+                                args_repr = json.dumps(dict(fc.args or {}))[:2048]
+                                tool_calls.append({"name": fc.name, "args": json.loads(args_repr)})
+                            except Exception:
+                                tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
 
-                    # Collect tool *outcomes*. Without this the audit row records
-                    # a failed send as a success: the turn streams fine, so
-                    # status stays "ok" and every downstream dashboard (including
-                    # Pulse's digest, which counts `status != 'ok'`) reports clean
-                    # while visitors are being told the email couldn't be sent.
-                    fr = getattr(part, "function_response", None)
-                    if fr is not None:
-                        fr_name = getattr(fr, "name", None) or "?"
-                        value = _fr_value(getattr(fr, "response", None))
-                        code = None
-                        if isinstance(value, dict):
-                            raw_code = value.get("code")
-                            code = str(raw_code)[:64] if raw_code is not None else None
-                            if value.get("ok") is False:
-                                # ADK can emit the same part across more than one
-                                # event, so guard against a repeated entry.
-                                failure = f"{fr_name}:{code or 'failed'}"
-                                if failure not in tool_failures:
-                                    tool_failures.append(failure)
-                        for entry in reversed(tool_calls):
-                            if entry.get("name") == fr_name and "code" not in entry:
-                                if code is not None:
-                                    entry["code"] = code
-                                break
+                        # Collect tool *outcomes*. Without this the audit row records
+                        # a failed send as a success: the turn streams fine, so
+                        # status stays "ok" and every downstream dashboard (including
+                        # Pulse's digest, which counts `status != 'ok'`) reports clean
+                        # while visitors are being told the email couldn't be sent.
+                        fr = getattr(part, "function_response", None)
+                        if fr is not None:
+                            fr_name = getattr(fr, "name", None) or "?"
+                            value = _fr_value(getattr(fr, "response", None))
+                            code = None
+                            if isinstance(value, dict):
+                                raw_code = value.get("code")
+                                code = str(raw_code)[:64] if raw_code is not None else None
+                                if value.get("ok") is False:
+                                    # ADK can emit the same part across more than one
+                                    # event, so guard against a repeated entry.
+                                    failure = f"{fr_name}:{code or 'failed'}"
+                                    if failure not in tool_failures:
+                                        tool_failures.append(failure)
+                            for entry in reversed(tool_calls):
+                                if entry.get("name") == fr_name and "code" not in entry:
+                                    if code is not None:
+                                        entry["code"] = code
+                                    break
 
-            # Collect token usage from usage_metadata. Last-wins: a turn with a
-            # tool call makes two internal LLM calls, and this keeps whichever
-            # one's counts are recorded, so pair "model" from the SAME event
-            # rather than any event that merely mentions a model — otherwise
-            # tokens from one internal call could be attributed to a different
-            # model than the one that actually produced them.
-            um = getattr(event, "usage_metadata", None)
-            if um is not None:
-                inp = getattr(um, "prompt_token_count", None)
-                out = getattr(um, "candidates_token_count", None)
-                if inp is not None:
-                    usage["input"] = int(inp)
-                if out is not None:
-                    usage["output"] = int(out)
-                tt = getattr(um, "thoughts_token_count", None)
-                if tt is not None:
-                    usage["thinkingTokens"] = int(tt)
-                mv = getattr(event, "model_version", None)
-                if mv:
-                    usage["model"] = str(mv)
+                # Collect token usage from usage_metadata. Last-wins: a turn with a
+                # tool call makes two internal LLM calls, and this keeps whichever
+                # one's counts are recorded, so pair "model" from the SAME event
+                # rather than any event that merely mentions a model — otherwise
+                # tokens from one internal call could be attributed to a different
+                # model than the one that actually produced them.
+                um = getattr(event, "usage_metadata", None)
+                if um is not None:
+                    inp = getattr(um, "prompt_token_count", None)
+                    out = getattr(um, "candidates_token_count", None)
+                    if inp is not None:
+                        usage["input"] = int(inp)
+                    if out is not None:
+                        usage["output"] = int(out)
+                    tt = getattr(um, "thoughts_token_count", None)
+                    if tt is not None:
+                        usage["thinkingTokens"] = int(tt)
+                    mv = getattr(event, "model_version", None)
+                    if mv:
+                        usage["model"] = str(mv)
 
-            if content is None:
-                continue
-            # Skip events that are not from the model (tool calls etc.).
-            author = getattr(event, "author", None)
-            if author is not None and author == "user":
-                continue
-            parts = getattr(content, "parts", None) or []
-            # The final event of a streaming turn (partial=False, emitted once
-            # the whole response is assembled) can return thought text that is
-            # a TRUNCATED/windowed recap rather than a clean superset of what
-            # streamed live (confirmed empirically: on longer reasoning, the
-            # final thought part dropped its earliest segment). Treating that
-            # as fresh content would re-emit stale/incomplete thinking after
-            # the real answer has already started. Thinking is only ever
-            # useful live anyway, so only process it while partial=True; the
-            # final event's answer text (never observed to have this problem)
-            # still flows through the unchanged dedup below.
-            is_partial = bool(getattr(event, "partial", False))
-            answer_texts: list[str] = []
-            thought_texts: list[str] = []
-            for part in parts:
-                t = getattr(part, "text", None)
-                if not t:
+                if content is None:
                     continue
-                if getattr(part, "thought", False):
-                    if is_partial:
-                        thought_texts.append(t)
-                else:
-                    answer_texts.append(t)
+                # Skip events that are not from the model (tool calls etc.).
+                author = getattr(event, "author", None)
+                if author is not None and author == "user":
+                    continue
+                parts = getattr(content, "parts", None) or []
+                # The final event of a streaming turn (partial=False, emitted once
+                # the whole response is assembled) can return thought text that is
+                # a TRUNCATED/windowed recap rather than a clean superset of what
+                # streamed live (confirmed empirically: on longer reasoning, the
+                # final thought part dropped its earliest segment). Treating that
+                # as fresh content would re-emit stale/incomplete thinking after
+                # the real answer has already started. Thinking is only ever
+                # useful live anyway, so only process it while partial=True; the
+                # final event's answer text (never observed to have this problem)
+                # still flows through the unchanged dedup below.
+                is_partial = bool(getattr(event, "partial", False))
+                answer_texts: list[str] = []
+                thought_texts: list[str] = []
+                for part in parts:
+                    t = getattr(part, "text", None)
+                    if not t:
+                        continue
+                    if getattr(part, "thought", False):
+                        if is_partial:
+                            thought_texts.append(t)
+                    else:
+                        answer_texts.append(t)
 
-            if thought_texts:
-                full_thought = "".join(thought_texts)
-                thought_so_far = "".join(thought_visible)
-                if full_thought.startswith(thought_so_far):
-                    new_thought = full_thought[len(thought_so_far):]
-                elif thought_so_far.startswith(full_thought):
-                    new_thought = ""
-                else:
-                    # Disjoint (fresh reasoning round after a tool call) — treat as fresh
-                    new_thought = full_thought
-                if new_thought:
-                    thought_visible.append(new_thought)
-                    # Cosmetic only — the real [[META]] protocol lives entirely on
-                    # the answer stream and is untouched by this.
-                    cleaned = (new_thought.replace("[[META]]", "").replace("[[/META]]", "")
-                               .replace("[[NOTE]]", "").replace("[[/NOTE]]", ""))
-                    if cleaned:
-                        if ttf_thinking_ms is None:
-                            ttf_thinking_ms = int((time.monotonic() - start) * 1000)
-                        cleaned = thought_guard.push(cleaned)
+                if thought_texts:
+                    full_thought = "".join(thought_texts)
+                    thought_so_far = "".join(thought_visible)
+                    if full_thought.startswith(thought_so_far):
+                        new_thought = full_thought[len(thought_so_far):]
+                    elif thought_so_far.startswith(full_thought):
+                        new_thought = ""
+                    else:
+                        # Disjoint (fresh reasoning round after a tool call) — treat as fresh
+                        new_thought = full_thought
+                    if new_thought:
+                        thought_visible.append(new_thought)
+                        # Cosmetic only — the real [[META]] protocol lives entirely on
+                        # the answer stream and is untouched by this.
+                        cleaned = (new_thought.replace("[[META]]", "").replace("[[/META]]", "")
+                                   .replace("[[NOTE]]", "").replace("[[/NOTE]]", ""))
                         if cleaned:
-                            yield _sse({"thinking": cleaned})
+                            if ttf_thinking_ms is None:
+                                ttf_thinking_ms = int((time.monotonic() - start) * 1000)
+                            cleaned = thought_guard.push(cleaned)
+                            if cleaned:
+                                yield _sse({"thinking": cleaned})
 
-            if not answer_texts:
-                continue
-            full = "".join(answer_texts)
+                if not answer_texts:
+                    continue
+                full = "".join(answer_texts)
 
-            # Spec 67: partial events carry the NEXT piece of text; the final
-            # event of a step (partial=False) repeats the whole step once
-            # assembled (checked against live ADK SSE events). The old
-            # prefix-matching dedup guessed from the text instead, and dropped
-            # real pieces whenever one looked like a prefix of what had
-            # streamed: a lone "[" vanished, "[[NOTE]]" arrived as "[NOTE]]",
-            # and a lost "[" in "[[/NOTE]]" left a note block open that
-            # swallowed the whole reply.
-            if is_partial:
-                new_text = full
-                step_streamed = True
-            elif step_streamed:
-                new_text = ""  # the recap of a step that already streamed
-                step_streamed = False
-            else:
-                new_text = full  # a step that arrived only as a final event
+                # Spec 67: partial events carry the NEXT piece of text; the final
+                # event of a step (partial=False) repeats the whole step once
+                # assembled (checked against live ADK SSE events). The old
+                # prefix-matching dedup guessed from the text instead, and dropped
+                # real pieces whenever one looked like a prefix of what had
+                # streamed: a lone "[" vanished, "[[NOTE]]" arrived as "[NOTE]]",
+                # and a lost "[" in "[[/NOTE]]" left a note block open that
+                # swallowed the whole reply.
+                if is_partial:
+                    new_text = full
+                    step_streamed = True
+                elif step_streamed:
+                    new_text = ""  # the recap of a step that already streamed
+                    step_streamed = False
+                else:
+                    new_text = full  # a step that arrived only as a final event
 
-            if not new_text:
-                continue
+                if not new_text:
+                    continue
 
-            for chunk in _absorb(new_text):
-                if chunk:
-                    # Spec 67: a working note written into the reply goes
-                    # to the Thinking panel instead (see lead_note.py).
-                    shown, note = lead_guard.push(chunk)
-                    if note:
-                        yield _sse({"thinking": dash_guard.whole(note)})
-                    shown = dash_guard.push(shown) if shown else ""
-                    if shown:
-                        if ttf_delta_ms is None:
-                            ttf_delta_ms = int((time.monotonic() - start) * 1000)
-                        yield _sse({"delta": shown})
+                for chunk in _absorb(new_text):
+                    if chunk:
+                        # Spec 67: a working note written into the reply goes
+                        # to the Thinking panel instead (see lead_note.py).
+                        shown, note = lead_guard.push(chunk)
+                        if note:
+                            yield _sse({"thinking": dash_guard.whole(note)})
+                        shown = dash_guard.push(shown) if shown else ""
+                        if shown:
+                            if ttf_delta_ms is None:
+                                ttf_delta_ms = int((time.monotonic() - start) * 1000)
+                            yield _sse({"delta": shown})
 
-    except Exception as exc:
-        logger.exception("agent-chat stream failed")
-        status = "error"
-        error_message = repr(exc)[:500]
-        held, _ = lead_guard.flush()
-        held = dash_guard.push(held) + dash_guard.flush() if held else dash_guard.flush()
-        if held:
-            yield _sse({"delta": held})
-        yield _sse({"delta": _failure_reply(exc)})
+        except Exception as exc:
+            logger.exception("agent-chat stream failed")
+            status = "error"
+            error_message = repr(exc)[:500]
+            held, _ = lead_guard.flush()
+            held = dash_guard.push(held) + dash_guard.flush() if held else dash_guard.flush()
+            if held:
+                yield _sse({"delta": held})
+            yield _sse({"delta": _failure_reply(exc)})
+
+        answered = lead_guard.without_note(
+            "".join(user_visible) + ("" if meta_open else pending)
+        ).strip()
+        if answered or status != "ok" or attempt == 1:
+            break
+        logger.warning("atlas: turn produced no answer text, retrying once")
+        user_visible, pending, meta_open, meta_parts = [], "", False, []
+        lead_guard = NoteFilter()
+        turn_message = types.Content(role="user", parts=[types.Part.from_text(text=_EMPTY_REPLY_NUDGE)])
 
     # Flush any remaining safe pending chars (unlikely but defensive).
     if pending and not meta_open:

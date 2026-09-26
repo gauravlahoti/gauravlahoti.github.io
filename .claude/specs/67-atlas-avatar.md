@@ -385,6 +385,13 @@ partial events are increments, the step's final event is the full recap).
 `test_stream_dedup.py` replays that exact event shape and fails on the old
 code. An unclosed note block also can no longer leave a reply empty.
 
+**Empty turns are retried once.** Scorecard run 6 still had 2 of 62 empty
+replies, both model-side: one call ended after its thinking with no text,
+another (the fallback model) wrote only its [[NOTE]] block and stopped.
+When a turn ends with no answer text, `_stream_agent` now runs it once more
+with a short server-written nudge (never shown to the visitor) before giving
+up.
+
 ## Avatar & clip production (manual, not run by this spec's code)
 
 Clip facts from the recording pass: Live API video arrives as fragmented

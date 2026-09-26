@@ -63,3 +63,33 @@ def test_pieces_stream_once_and_the_note_goes_to_thinking(fake_runner) -> None:
     assert "Projects question, calling get_projects." in thinking
     assert "[[" not in reply and "NOTE" not in reply
     assert any("citations" in e for e in events)
+
+
+def test_a_turn_with_no_answer_text_is_retried_once(monkeypatch) -> None:
+    calls = []
+
+    async def run_async(**kwargs):
+        calls.append(kwargs["new_message"].parts[0].text)
+        if len(calls) == 1:
+            # Seen live: the model wrote only its note block, then stopped.
+            yield _event(True, "[[NOTE]]Availability question, calling get_profile.[[/NOTE]]")
+            yield _event(False, "[[NOTE]]Availability question, calling get_profile.[[/NOTE]]")
+            return
+        yield _event(True, "[[NOTE]]Retry, answering now.[[/NOTE]]He takes select consulting work [1].")
+        yield _event(True, '\n\n[[META]]{"citations":[],"suggestions":[],"cta":null,"badges":[]}[[/META]]')
+
+    monkeypatch.setattr(api, "_runner", SimpleNamespace(run_async=run_async))
+
+    async def no_log(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(api, "_log_turn", no_log)
+
+    async def collect():
+        return [json.loads(c[6:]) async for c in api._stream_agent(
+            "s2", "Is he open to consulting?", turn_index=0, identity=None, client_meta={}, geo_task=None)]
+
+    events = asyncio.run(collect())
+    reply = "".join(e["delta"] for e in events if "delta" in e)
+    assert reply.strip() == "He takes select consulting work [1]."
+    assert len(calls) == 2 and "empty" in calls[1]
