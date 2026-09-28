@@ -1,0 +1,483 @@
+# Spec 67 — Atlas gets a face (Gemini 3.8 Live Avatar)
+
+## Problem
+
+Google shipped Gemini 3.8 Live with Live Avatar (GA on Vertex, 2026-09-24):
+a real-time, lip-synced talking-head video alongside the model's voice
+(`response_modalities: ["VIDEO"]`, `avatar_config`). Nothing on this site
+gives Atlas a visual presence today — it is a text/audio widget with no face.
+The ask is a landing-page moment strong enough to be worth a LinkedIn post,
+without opening a new cost or safety surface that runs unattended.
+
+## Decisions
+
+- **Atlas keeps its own face. This is not Gaurav's likeness.** Custom avatars
+  (`avatar_config.customized_avatar`) are allowlist-only, requested through a
+  Google Cloud account team, with no guaranteed approval or timeline. The
+  hero portrait stays exactly as it is; nothing about Gaurav's own photo
+  changes.
+- **Phase 1 ships a recorded greeting first.** A short, scripted clip costs
+  nothing to serve (same-origin video, no runtime API calls) and can't go
+  off-script in front of a recruiter.
+- **Phase 2 (a visitor talking to the avatar by voice) is out of scope.**
+  It needs a WebSocket proxy in `agents/atlas`, a D1-backed invite-code and
+  spend-cap system, and a security review, all before it can run safely.
+  This spec deliberately stops at the recorded experience so that piece can
+  be scoped and reviewed on its own.
+
+## Design
+
+*The layout parts of this section (compact 64px face, caption line) were superseded by "Live answers, as a video call" below; the mode switch and voice-precedence rules still hold.*
+
+**Revised during implementation** (Gaurav's review): a floating card that
+popped up on its own overshadowed Atlas, and its topic chips duplicated the
+prompt chips Atlas already has. So the avatar is now a *mode of Atlas*, not a
+separate surface.
+
+- **A Text / Voice / Avatar mode switch** is the panel header's second row.
+  It replaces the bare speaker icon (two unlabelled icons read as unclear in
+  review): a segmented control with a gliding lit segment, a live equalizer
+  on Voice while Atlas talks, and a small beacon on Avatar until it's been
+  tried. It drives the existing spoken-reply code (specs 49-62) rather than
+  replacing it; the old speaker button stays in the DOM, hidden, as the
+  state holder that code already reads. Avatar is remembered in
+  `localStorage` (`atlasAvatarMode_v1`); Voice keeps its own spec-49 pref.
+- **In Avatar mode the stage is the header's third row**: a 64px face (4:5
+  crop of the 9:16 clip) and a two-line live caption. One surface, one
+  divider; the transcript's top edge fades under it instead of being cut.
+  No buttons of its own beyond a play overlay. Atlas's existing prompt chips
+  already cover the topics, so only the greeting clip ships (the three
+  topic clips were recorded but dropped as duplicates).
+- **Turning it on plays the greeting with sound** (the toggle is the user
+  gesture). Reopening the panel later restores the stage on its poster
+  without replaying.
+- **Atlas's voice wins.** Sending a message, Atlas starting to speak,
+  minimizing or closing the panel all pause the avatar; the avatar starting
+  a clip cancels Atlas's TTS. Two voices never overlap.
+- `assets/js/agent-avatar.js` is lazy-imported by `agent-widget.js` only
+  when the mode is turned on, so plain chat pays nothing.
+- It resolves `content/avatar.json` and clips against the site root, so it
+  also works where the widget mounts on `/live-agents/`.
+- Labelled honestly: "Atlas · AI avatar", tooltip "Generated with Gemini
+  3.8 Live Avatar". (SynthID is embedded in the video regardless.)
+
+## Live answers, as a video call
+
+Review feedback drove four revisions, in order: the TTS voice spoke while the
+face sat still (wrong); text appeared twice (caption plus transcript); the
+thinking indicator appeared twice (face plus transcript); and Avatar mode
+should be the avatar plus a transcript and nothing else. The result:
+
+**Avatar mode is a video call.** The face fills the panel (240x300, 4:5
+anchored at the top so the whole face and mouth stay in frame). The only text
+is a centred transcript of what the avatar says, appearing as it says it,
+with the visitor's questions quieter above. Chips, sources, badges, the CTA,
+the intro message, loading dots, "still on it" copy, the thinking panel and
+the reading-aloud strip are hidden in Avatar mode (CSS only; Text and Voice
+bring them all back). A tag on the video is the single status: live,
+thinking, speaking.
+
+**The face never looks recorded or frozen.** At rest it plays a muted 12s
+ping-pong loop cut from a live idle session (274 KB). The greeting plays once,
+with sound, when Avatar is picked, and its words land in the transcript like
+any answer. No "hear my intro" button.
+
+**One stream per turn, no second request.** In Avatar mode the chat request
+carries `avatar: true`, and `_with_avatar` in `api.py`:
+1. opens the Live session the moment the turn starts, in parallel with the
+   agent thinking, and relays its idle video straight away;
+2. hands the reply's cleaned speech text to that already-open session as a
+   script the moment the reply is written (verbatim, 28/28 words measured);
+3. relays `avatarVideo` (base64 fMP4) and `avatarWords` (the avatar's own
+   speech transcription, which is the transcript) on the same SSE stream,
+   holding the text stream's `done` until the avatar finishes.
+The browser plays the frames on a second <video> layered over the idle loop,
+fading in on its first frame, so the face never blanks while the session
+spins up.
+
+**Only Atlas's own words.** The server only ever speaks the reply it just
+generated, so there is no endpoint that can be made to say arbitrary text,
+no signing scheme, and no secret to deploy. (An earlier iteration had a
+separate signed endpoint; it was removed when the stream merged.)
+
+**Caps (decided: public with hard caps).** Per visitor, the `avatar` bucket:
+3 turns / 24h per session and per IP. Per day, `AvatarBudget`: 13
+speaking-minutes (about $5 at $0.37/min), reserved at 30s per turn and
+settled to measured speaking time; per instance, so the ceiling is budget x
+max-instances (5), about $25/day worst case. A refusal becomes
+`avatarUnavailable` up front and the widget reads that turn aloud with the
+TTS voice instead, with a note. Any avatar failure before it speaks does the
+same; a failure mid-answer just ends the face.
+
+**Voices never overlap.** Avatar turns do not feed the TTS speaker; the
+avatar starting cancels TTS; send, Stop, minimize and close end the face.
+
+## Latency (the "lightning fast" pass)
+
+Measured on adk-deploy-trail, full Atlas prompt, 2026-09-26:
+
+| | first answer text |
+|---|---|
+| gemini-3.6-flash | ~1.3-1.5s, consistent |
+| gemini-3.5-flash-lite | ~1.4-1.5s (no faster: ~1.3s is this prompt's floor) |
+| gemini-3.7-flash | 1.7-3.4s, with queueing spikes to 40-112s |
+| gemini-3.8-flash | 3.7-16s at LOW, ~1 in 4 calls failed, MINIMAL unsupported |
+
+Findings:
+- The spikes were Vertex queueing, not retries (the primary already ran with
+  `attempts=1`), so the 429/503 cascade never fired; it just waited.
+- Prompt size is not the lever: the 53.6k-char instruction (~13.4k tokens)
+  is implicitly cached by Vertex (10,210 cached tokens per turn), and a 2k
+  prompt was no faster. No prompt surgery.
+- Thinking level made no measurable difference on 3.6.
+
+Changes:
+- **Cascade is now 3.6-flash -> 3.5-flash-lite -> 3.7-flash** (was 3.7 ->
+  3.6). Promote 3.8 once its latency settles.
+- **First-token watchdog** in `FallbackGemini`: on a streamed turn, a model
+  with somewhere to fall back to gets 4s to produce its first chunk before
+  the turn moves on. Only the first chunk is timed, so a started answer is
+  never cut off; the last model is never timed out.
+
+End to end, Avatar mode (send to the avatar's first spoken word): about 6s
+for a no-tool turn and about 9-10s when Atlas makes a tool call, down from
+11-100s+. The floor is the avatar itself: ~2.8s session open plus ~2.6s
+before its first frame. Beating that needs a pre-warmed session, which is
+not built: if idle avatar video is billed, an always-open session could cost
+hundreds of dollars a day, so it waits on confirming billing.
+
+## Review round: isolation, karaoke, and clean text
+
+- **The three modes are exclusive.** Picking Avatar silences the TTS speaker
+  (without touching its saved preference, so Voice comes back as it was);
+  opening the panel restores one mode, never two; an avatar turn that can't
+  be spoken (cap, error) shows as text with a note and is never read by the
+  TTS voice. Previously the voice ran behind Avatar as a fallback, which
+  read as two modes on at once.
+- **Each mode renders the whole conversation its own way.** Avatar turns show
+  their karaoke transcript in Avatar mode and the full formatted reply
+  (citations, sources) in Text or Voice. The greeting exists only in Avatar
+  mode. The transcript uses the same message format as Text and Voice
+  (left-aligned, paragraphs, the usual question bubble); centred captions
+  were tried and dropped in review.
+- **Karaoke captions.** Each chunk of the avatar's words is stamped with the
+  live video's buffered edge when it arrives and lights up when playback
+  reaches it: spoken words read normally, the current words glow, upcoming
+  words wait dimmed. The greeting does the same from its caption cues.
+- **Captions are the script, not raw transcription.** The Live API's output
+  transcription drops spaces between chunks and never sees paragraph breaks,
+  so `ScriptAligner` matches each chunk against the script the avatar is
+  reading (whitespace-insensitive) and emits the script's own slice. A chunk
+  it can't place passes through spaced and is never repeated.
+- **Thinking level LOW by default** (`ATLAS_THINKING_LEVEL` still overrides).
+  On real questions MEDIUM spent 140-980 thinking tokens, about 4-6s of
+  silence before the first word; LOW spends ~20-40. Resume and note routing
+  and the injection refusal were re-checked on LOW.
+- **`LeadNoteGuard`.** At LOW the model sometimes writes the prompt's
+  required working note ("Availability question, calling get_profile...")
+  into the reply instead of its thinking. The guard holds only the reply's
+  opening until it can tell, diverts a matching note to the Thinking panel,
+  and keeps it out of speech, captions and the audit log.
+
+Measured end to end on the final config (local Atlas, warm): first word
+3.6-4.1s; the avatar speaking 6.3-7.8s after send on real questions.
+
+## Review round: greeting and the daily cap
+
+**Greeting re-recorded.** It now only says who Atlas is and what it can do
+(his experience, projects and agents, certifications, emailing the resume,
+passing a note), with no build story and no "tap a topic", since Avatar mode
+has no topic chips. Script in `content/avatar.json`. The recorder now sends
+the script as the user turn under the live path's `SCRIPT_INSTRUCTION`
+(the old "script in the system prompt, then 'Go ahead'" could improvise),
+takes `--only <chapter>`, and the clip is trimmed of its ~0.75s of leading
+silence. Caption cues are timed to the pauses `silencedetect` finds, which
+also confirm the sentence structure was read verbatim.
+
+**The greeting plays once per visitor.** Only the first pick of Avatar
+plays it (`atlasAvatarGreeted_v1` in `localStorage`). Switching back to
+Avatar later, re-picking it, or reopening the panel goes straight to the idle
+face, like rejoining a call rather than restarting it.
+
+**Stop and Clear, in every mode.** The send button is the one Stop control:
+it shows Stop while a reply streams and also while Atlas is still talking
+afterwards, by voice or as the avatar (the greeting included), and Escape
+does the same. Typing a new question turns it back into Send. A **Clear
+conversation** button (trash icon) appears in the header once there is a
+conversation: it stops everything, empties the transcript, starts a fresh
+server-side session (new `sessionId`, since Atlas keeps history per session)
+and brings back the intro. Clearing mid-answer stops the turn first and
+clears once it has wound down, so late callbacks can't leak into the new
+conversation. Note: after a clear, `agent_interactions.session_id` no longer
+matches the page view's id for that visitor.
+
+**A mode switch that feels alive.** Each mode has its own colour
+(`--mode-text` cyan, `--mode-voice` violet, `--mode-avatar` magenta to
+amber, in `base.css`). The panel carries the active one as `--mode-c`,
+registered with `@property` so a change cross-fades, and the switch, the
+avatar stage, the karaoke highlight and the answer bar all read it. On every
+change the lit segment springs across with a slight stretch, a sweep of the
+new colour runs over the switch, and the chosen icon greets you: Text's
+lines write themselves in, Voice's equalizer bounces, and Avatar's icon,
+a small 3D orb in a spinning ring (a photo at first, since replaced by the
+person icon, see below), pops forward. The avatar stage flips in like a card
+turning over. All of it is off under `prefers-reduced-motion`.
+
+**Over the cap, offer Voice for the same question.** A capped avatar turn
+(per-visitor bucket or the daily budget) no longer runs the agent and shows
+the answer as text. The server replies with only
+`avatarUnavailable {reason, capped: true}` and `done`, so the question is
+never paid for twice or put in the session history twice. The widget drops
+the empty turn and shows a card under the question: "You've reached today's
+avatar limit. Want me to answer this in Voice mode instead?" with **Switch
+to Voice** and **Show as text**. Either button switches modes (the click is
+Voice's audio gesture) and asks the same question again, so nobody retypes
+it. After that, further Avatar-mode questions go straight to the card
+without a request.
+
+## Review round: exact karaoke, shorter answers, no dashes
+
+**Word-by-word highlight, timed on the server.** Captions used to light
+whole transcription chunks, stamped with the browser's buffered edge, which
+lags behind what has been received. Now the server reads each fMP4
+fragment's media time (`FragmentClock` in `avatar_speak.py`: `tfdt` plus
+`trun` durations) and sends every caption chunk as `{text, at}`, where `at`
+is when its last word is heard. Measured on a recorded answer, a chunk's
+last word is heard ~1.5s after the media edge received with it
+(`WORDS_LEAD_S`), and sentence ends then land within ~0.1-0.3s of the real
+pauses (`silencedetect`). The widget splits chunks into words and spreads
+them across each chunk's span, so exactly one word is lit at a time. The
+greeting does the same inside each caption cue against the video clock. The
+lit word stays clear of the bottom fade, and the view scrolls to the end
+when the answer finishes.
+
+**Answers sized for how they arrive.** The widget sends `mode`
+(text/voice/avatar). Spoken modes get a server-written note on that request
+only (`guardrails.before_model_callback`, never stored in the history):
+1-3 short sentences, about 45 words. Text is now 2-3 sentences, under ~80
+words, planned to fit rather than cut. Measured on 8 questions per mode:
+text 19-71 words, voice 36-48, all ending on a full sentence, all still
+citing Gaurav's data.
+
+**One conversation across modes, labelled.** Switching modes re-shows saved
+answers and never asks again (one Atlas call per question; avatar video is
+billed only in Avatar). Each answer carries a small "via Avatar/Voice/Text"
+tag, visible when looked at from another mode.
+
+**No em or en dashes in anything Atlas writes.** `app_utils/dashes.py`
+filters the streamed reply, the thinking panel, working notes, suggestions,
+citation labels and everything built from the reply (speech, avatar script,
+logs): a dash between numbers becomes a hyphen, any other dash a comma. The
+streaming guard matches the one-shot function for every chunking (tested).
+The prompt says the same, and its own citation label formats and examples
+no longer model dashes. The widget's own status copy lost its dashes too.
+
+## Review round: an invented email, empty space, Clear chat, a scorecard
+
+**Atlas invented a work email for Gaurav.** Asked for his email, it answered
+with an address built from his name and employer. That address is in no
+corpus file or prompt: the model made it up. Two fixes. The prompt now names
+his one contact address (`get_profile()`'s `email`) and forbids guessing any
+other. And `app_utils/emails.py` filters every output path together with
+the dash filter (`api._OutputFilter`): any address that isn't his contact
+address or one the visitor typed becomes the contact address (on contact
+intent) or a pointer to LinkedIn. It holds back only a half-written trailing
+token, so a split address can never stream out.
+
+**No empty band under the conversation.** Spec 63's bottom fade was a
+sticky 52px spacer inside the scroll area, permanently on, which read as
+empty space under every conversation. It is now a CSS mask over the scroll
+area: no height of its own, shown only while there is more below. A freshly
+opened panel reads from the top of the intro instead of being scrolled past
+it.
+
+**Clear chat, labelled.** The bare trash icon in the header was unclear. It
+is now a "Clear chat" button at the right of the footer, opposite "Powered
+by", shown once there is a conversation.
+
+**Badges in every mode.** Avatar mode had hidden certification badges with
+the other extras; they are the answer's evidence, so every mode shows them.
+
+**End-to-end scorecard** (`agents/atlas/tests/eval/scorecard.py`). `make
+eval` grades the agent in-process; this runs the 31 eval questions through
+a running Atlas's chat API, per answer mode, and scores what a visitor
+actually gets. In code: citations wired, certification badges (present,
+valid, on the vendor asked about), plain text, no dashes, length, full
+sentences, latency. By a judge (gemini-3.1-pro-preview) against the full
+content corpus: accuracy, completeness, precision, quality, citation
+support, scope and safety. Its first run also caught dangling "[4]" markers
+(the server keeps three sources): the widget now drops a marker with no
+source, and the prompt caps markers at [3].
+
+## Review round: scorecard fixes, no photo on the switch
+
+The scorecard's four real findings, fixed:
+- **Invented platform work** ("integrated Azure OpenAI", "architected on
+  Azure"; the corpus has only the Azure AI Fundamentals cert). The prompt now
+  says a certification is not project experience: claim building on a
+  platform only when a work-history, project or agent entry names it.
+- **A different working-note shape leaked** ("Resume question, missing
+  recipient email address. No tool call possible yet."). `LeadNoteGuard`
+  now diverts any "<topic> question, ..." opening whose sentence is about
+  planning (tools, what's missing, declining), plus follow-on planning
+  sentences, while "Good question, he is..." still reads as the reply.
+- **Dangling "[4]"** on four-item lists: the server keeps up to five sources
+  (was three), the prompt prefers one to three and allows five.
+- **Uncited negatives** ("no Oracle certifications"): the prompt says a
+  negative answer cites the source that was checked.
+
+The Avatar option's icon is no longer a photo of the avatar (the face
+belongs on the stage): it is the person icon, turning in 3D inside the
+spinning ring. `assets/video/atlas-face.webp` is removed.
+
+## Review round: combined citations, more note shapes, /live-agents/ styles
+
+- **"[1, 2]" shown as text.** The model sometimes combines markers despite
+  the prompt. `app_utils/citations.py` splits them ("[1][2]") in the output
+  filter, streamed and whole, so screen, speech, avatar script and logs all
+  agree. The widget also splits any it receives (old output), and speech
+  strips combined markers, so the numbers are never read aloud.
+- **More working-note shapes** diverted to Thinking: "<topic> request."
+  followed by a planning sentence ("I'll decline writing code per safety
+  guidelines..."), and planning phrased as "asking visitor for", "not
+  provided", "invite".
+- **Invented work in closing offers** ("want to hear about his Azure OpenAI
+  work?"): the grounding rule now covers offers and suggested follow-ups.
+- **Dashes before a capitalised phrase** become a colon, not a comma ("MCP:
+  A six-act walkthrough"); spaced hyphens stay commas.
+- **Atlas on /live-agents/.** `agents.css` styled its Deep Dive modal with
+  the widget's own class names (`.agent-panel-body`, `.agent-panel-close`),
+  unscoped, which stripped the widget's padding and scrolling there (chips
+  flush against the edge, one overflowing when expanded) and boxed its close
+  button. Those rules are now scoped to `.agent-panel-overlay`.
+
+## Review round: the working note becomes a protocol; certs carry evidence
+
+- **Working note as `[[NOTE]] ... [[/NOTE]]`.** Matching the shapes of
+  leaked notes was a losing game: each run found a new one ("Resume request
+  with missing email...", "Checking Gaurav's availability..., calling
+  get_profile..."), and the widened matcher once swallowed a whole reply
+  (an empty answer to an off-topic question). The root cause is the prompt
+  requiring a working note every turn while thinking runs at LOW, so the
+  model writes it into the reply. The prompt now asks for the note as a
+  tagged block at the start of the reply; `NoteBlockGuard` lifts every
+  block out of the stream (anywhere, split tags included) into the Thinking
+  panel. The shape matcher stays only as a backstop, and can never leave a
+  reply empty: if everything looked like a note, it is shown as the reply.
+  Visitor text has the tags stripped, like `[[META]]`.
+- **Certifications carry their evidence.** A prompt rule alone did not stop
+  "he has integrated Azure OpenAI in production" (the corpus has only the
+  Azure AI Fundamentals cert; about half of Azure answers invented work).
+  `get_certifications` now marks each cert `handsOnWorkOnRecord`, computed
+  from whether his work history, projects or agents name that vendor, with a
+  "certification only, never claim or offer any" note when not. The spoken
+  length note also says never to pad with what the tools didn't say.
+  Measured: 0 of 12 Azure answers invented work afterwards.
+
+**The stream's dedup dropped real text** (found by scorecard run 5: a reply
+opening "[NOTE]]", and two empty replies). `_stream_agent` guessed whether
+an event was a new piece or a repeat by prefix-matching the text, so a piece
+that happened to look like a prefix of what had streamed was dropped: a lone
+"[" vanished, and a broken "[[/NOTE]]" left a block open that swallowed the
+reply. Replies never used to open with "[", which is why it only surfaced
+now. It now follows ADK's own `partial` flag (checked against live events:
+partial events are increments, the step's final event is the full recap).
+`test_stream_dedup.py` replays that exact event shape and fails on the old
+code. An unclosed note block also can no longer leave a reply empty.
+
+**Empty turns are retried once.** Scorecard run 6 still had 2 of 62 empty
+replies, both model-side: one call ended after its thinking with no text,
+another (the fallback model) wrote only its [[NOTE]] block and stopped.
+When a turn ends with no answer text, `_stream_agent` now runs it once more
+with a short server-written nudge (never shown to the visitor) before giving
+up.
+
+## Review round: the architecture views show the current flow
+
+Both places that draw Atlas were still on the old picture (Gemini 3.7
+Flash, a voice-only speech path):
+- **Inside Atlas** (the panel's "Powered by" explainer, built by
+  `buildAgentDiagram`): eight steps now. You, STT, the Agent with reasoning
+  (3.6 Flash, falling back to 3.5 Flash-Lite) above and corpus / MCP below,
+  a new **Output checks** node, then Voice (3.1 Flash TTS) and **Avatar**
+  (Gemini 3.8 Live Avatar, with a text-to-video strip) in a right column,
+  and one return path. Desktop viewBox 640x300, mobile a vertical spine
+  (300x404). Tooltips, the legend (`AGENT_STEPS`) and the explainer
+  paragraph say the same; the badge cycle is 9 s for 8 steps. The planned
+  dashed "session opens in parallel" edge was dropped: it could not be
+  routed without crossing the other edges, so the tooltip and legend say it.
+- **/live-agents/ Deep Dive**: `chat-agent-v3.svg` (v2 kept as history)
+  adds the browser's avatar stage, output checks inside the Agent, an
+  Avatar relay on the chat route and Gemini 3.8 Live Avatar in Vertex, with
+  video and timed words riding the same SSE "stream back" edge, as they do.
+  Atlas's `steps` (10), `techDecisions` (Live Avatar through a relay,
+  output checks in code, word timing from the video), `traits` and alt text
+  match. The first-word figure is the measured scorecard median (~3 s).
+
+## Review round: modes are paths, not steps
+
+Gaurav caught that numbering Voice 6 and Avatar 7 read as a sequence. The
+mode is picked BEFORE the question, and after the output checks exactly one
+of three paths runs. Both views now say so:
+- **Inside Atlas**: seven steps. The three mode paths all carry step 6
+  (the same convention as the two tools sharing 4), each in its mode's
+  colour (`--mode-text`/`--mode-voice`/`--mode-avatar`) with a small mode
+  tag at the fork. Speech-to-text is shown as optional input: a dashed edge,
+  "mic only", and a faint typed bypass over it. Voice's TTS is described as
+  browser-driven (a sentence at a time), and the avatar session as opened
+  when the question is asked. 8 s badge cycle.
+- **Deep Dive**: the voice-out lanes are violet with a "Voice mode only"
+  chip, the avatar lanes magenta with "Avatar only", and their travellers
+  play in the same window instead of one after the other. Steps 7-8 and
+  9-10 are labelled "Voice mode:" and "Avatar mode:", step 6 says Text mode
+  ends there, and step 1 says the mic is optional in any mode.
+
+**Polish.** The Gemini 3.6 Flash box now says "reasoning" like the other
+model boxes say what they do (the Flash-Lite fallback stays in its tooltip
+only). The Agent and MCP nodes carry the official ADK and MCP marks
+(`diagram-icons/adk-64.png`, `mcp-64.png`, 64 px copies of the originals,
+a few KB each; the black MCP mark is inverted for the dark theme, as the
+skills grid does), and the Deep Dive's Resend MCP box uses the MCP mark too.
+
+## Avatar & clip production (manual, not run by this spec's code)
+
+Clip facts from the recording pass: Live API video arrives as fragmented
+MP4 (one `ftyp`/`moov`, then `moof`/`mdat` pairs), H.264 704x1280 + AAC, at
+roughly 8 Mbps. Concatenated parts are a valid single stream. For the web it
+is re-encoded to 432x768, x264 CRF 27, 64k mono AAC, `+faststart` (13 MB ->
+~520 KB), with a webp poster taken at 4s (frame 0 catches a furrowed brow).
+
+The avatar identity (which prebuilt avatar, which voice) is picked by hand
+in Console → Agent Platform → Studio → Stream realtime, model
+`gemini-3.8-live`, Live Avatar panel — Google doesn't publish the gallery
+anywhere else. **Confirmed:** avatar `Sam`, voice `Puck`, both set in
+`content/avatar.json`.
+
+`agents/atlas/app/dev_scripts/record_avatar_clips.py` is a one-off dev tool
+(not part of the deployed service) that opens one `google-genai`
+`client.aio.live.connect(model="gemini-3.8-live")` session per chapter with
+`avatar_config` + `response_modalities: ["VIDEO"]`, feeds it the exact
+script under a "say this verbatim" system instruction, and writes the
+resulting video + a `.vtt` caption track to `assets/video/`. It needs a
+real Vertex access token to run — that's a Gaurav-side step, not something
+executed as part of implementing this spec.
+
+## Definition of done
+
+- [x] Text / Voice / Avatar switch in the Atlas header drives the existing
+      spoken-reply code; Avatar is opt-in and remembered.
+- [x] Avatar mode is a video call: face fills the panel, centred live
+      transcript, nothing else; Text/Voice unchanged.
+- [x] Idle loop so the face never looks frozen; greeting once, transcribed.
+- [x] Live answers on the chat's own SSE stream, session opened in parallel
+      with the agent, idle frames relayed, cross-fade in, verbatim speech.
+- [x] Per-visitor cap and daily budget; over the cap, a card offers Voice
+      (or Text) and re-asks the same question there.
+- [x] Greeting says who Atlas is and what it can do, nothing about the build.
+- [x] Model cascade 3.6-flash -> 3.5-flash-lite -> 3.7-flash plus a
+      first-token watchdog, with measurements recorded above.
+- [x] Unit tests: stream merge, fallback, budget, watchdog (169 pass);
+      frontend tests pass; verified end to end against a local Atlas.
+- [ ] Deploy Atlas (needs sign-off). No new secrets or env vars are needed.
+- [ ] Confirm on the Cloud Billing report whether idle avatar video is
+      billed before building a pre-warmed session.

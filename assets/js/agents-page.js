@@ -90,7 +90,7 @@ function buildCard(agent, onOpen) {
     const pane = el("div", { class: "agent-diagram-pane" });
     if (agent.diagramSvg) {
         const img = el("img", {
-            src: agent.diagramSvg + "?v=177",
+            src: agent.diagramSvg + "?v=178",
             alt: agent.diagramAlt || agent.name,
             loading: "lazy",
             decoding: "async",
@@ -279,7 +279,7 @@ function enablePinchZoom(wrap, svg) {
 async function fetchInlineSvg(url) {
     try {
         const base = document.querySelector("base")?.href || (window.location.origin + "/");
-        const resp = await fetch(new URL(url + "?v=177", base));
+        const resp = await fetch(new URL(url + "?v=178", base));
         if (!resp.ok) return null;
         const text = await resp.text();
         const parser = new DOMParser();
@@ -980,7 +980,7 @@ async function initGrid() {
     let agents;
     try {
         const base = document.querySelector("base")?.href || window.location.origin + "/";
-        agents = await fetch(new URL("content/agents.json?v=190", base)).then(r => r.json());
+        agents = await fetch(new URL("content/agents.json?v=192", base)).then(r => r.json());
     } catch (err) {
         console.warn("[agents-page] agents.json load failed", err);
         root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// agent data unavailable</p>`;

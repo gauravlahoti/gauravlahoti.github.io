@@ -78,10 +78,10 @@ Three independent Google ADK projects: **Atlas** (chat widget, service `atlas`),
 ⚠️ **Never take a Google model ID from docs, a blog, or memory.** The public docs print the *marketing* name; the callable Vertex publisher ID in this project often carries a `-preview` suffix they never mention. Spec 48 lost an afternoon to `gemini-3.5-transcribe` 404ing in every location before `gcloud` revealed the real ID. Always resolve it first:
 
 ```bash
-gcloud ai model-garden models list --project=adk-mas-demo | grep -i <family>
+gcloud ai model-garden models list --project=adk-deploy-trail | grep -i <family>
 ```
 
-Use the exact `google/<id>@default` name, and check the **second** column says `Yes` (that's `CAN_PREDICT`; the first is `CAN_DEPLOY`). Verified 2026-08-29: `gemini-3.5-transcribe-preview`, `gemini-3.5-transcribe-live-preview`, `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-tts`, `gemini-live-2.5-flash-native-audio`. Note that a 404 here is a *naming* problem, not the location problem `agents/atlas/CLAUDE.md` describes — check the ID before touching `GOOGLE_CLOUD_LOCATION`.
+Use the exact `google/<id>@default` name, and check the **second** column says `Yes` (that's `CAN_PREDICT`; the first is `CAN_DEPLOY`). ⚠️ The project was migrated 2026-09-21 from the deleted `adk-mas-demo` to `adk-deploy-trail` — model availability is per-project, so the list below (verified 2026-08-29 against the old, now-deleted project) must be re-verified against `adk-deploy-trail` before being trusted again: `gemini-3.5-transcribe-preview`, `gemini-3.5-transcribe-live-preview`, `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-tts`, `gemini-live-2.5-flash-native-audio`. Note that a 404 here is a *naming* problem, not the location problem `agents/atlas/CLAUDE.md` describes — check the ID before touching `GOOGLE_CLOUD_LOCATION`.
 
 ⚠️ **Before every atlas deploy:** `make corpus` (syncs `content/*.json` → `app/corpus/`). After deploying atlas, update `profile.json` agent links + `index.html` CSP; after pulse, repoint the two Cloud Scheduler jobs.
 

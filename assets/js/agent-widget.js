@@ -23,6 +23,7 @@ const FEATURES = Object.freeze({
     voiceInput:      true,
     speakReplies:    true,
     badges:          true, // spec 56: cert badge art on certification answers
+    avatarMode:      true, // spec 67: opt-in Gemini Live Avatar stage in the panel
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -54,7 +55,7 @@ function readIdentity() {
     } catch (_) { return null; }
 }
 
-export function initAgentWidget(root, profile, sessionId) {
+export function initAgentWidget(root, profile, pageSessionId) {
     const links = (profile && profile.links) || {};
     const apiUrl = links.agentApi;
     const warmUrl = links.agentWarm;
@@ -71,6 +72,9 @@ export function initAgentWidget(root, profile, sessionId) {
     // beacon, so page_views.session_id and agent_interactions.session_id can
     // agree on the same visitor journey. Not persisted to localStorage — a
     // fresh id every page load, same as before.
+    // "Clear conversation" starts a new server-side session (Atlas keeps its
+    // history per sessionId), so this is the page's id until then.
+    let sessionId = pageSessionId;
     const messages = []; // [{role: "user"|"assistant", content: "..."}]
     const identity = readIdentity(); // null if visitor hasn't signed in for resume gate
     const starters = Array.isArray(profile && profile.agentPrompts) ? profile.agentPrompts : [];
@@ -87,6 +91,7 @@ export function initAgentWidget(root, profile, sessionId) {
     const sendBtn = dom.sendBtn;
     const micBtn = dom.micBtn;
     const speakerBtn = dom.speakerBtn;
+    const clearBtn = dom.clearBtn;
     const voiceStatus = dom.voiceStatus;
     const liveRegion = dom.liveRegion;
     const promptsEl = dom.prompts;
@@ -108,6 +113,8 @@ export function initAgentWidget(root, profile, sessionId) {
     let speakerOn = false;    // visitor's toggle, mirrored to localStorage
     let speakerLoading = false;
     let isSpeaking = false;
+    // Spec 67: the avatar is thinking or talking (a live turn or the greeting).
+    let avatarBusy = false;
     let voiceNoteTimer = null;
     // The assistant message of the turn in flight. The speaker's state
     // callback fires asynchronously and needs to know which message to hang
@@ -217,11 +224,294 @@ export function initAgentWidget(root, profile, sessionId) {
             }
         });
     }
-    if (FEATURES.speakReplies) {
-        speakerBtn.addEventListener("click", toggleSpeaker);
-    } else {
-        speakerBtn.classList.add("is-hidden");
+    // Spec 67: the header's Text / Voice / Avatar switch replaces the bare
+    // speaker icon. speakerBtn stays in the DOM, hidden, as the state holder
+    // the spoken-reply code (specs 49-62) already reads and writes; the
+    // switch drives that same code and mirrors its state.
+    speakerBtn.classList.add("is-hidden");
+    const modeSwitch = dom.modeSwitch;
+    if (!FEATURES.speakReplies) modeSwitch.querySelector('[data-mode="voice"]').hidden = true;
+    if (!FEATURES.avatarMode) modeSwitch.querySelector('[data-mode="avatar"]').hidden = true;
+
+    // Avatar mode: opt-in, remembered, and lazy. agent-avatar.js (and its
+    // clip) only load once a visitor picks it. The stage becomes the
+    // header's last row, so the chat below is untouched.
+    const AVATAR_PREF_KEY = "atlasAvatarMode_v1";
+    const AVATAR_TRIED_KEY = "atlasAvatarTried_v1";
+    let avatar = null;
+    let avatarLoading = null;
+    let avatarOn = false;
+    // Set once the server says this visitor (or the day's budget) is out of
+    // avatar answers. Later Avatar-mode questions go straight to the offer to
+    // switch modes, without another request.
+    let avatarResting = false;
+    let avatarRestReason = "";
+    function readAvatarPref() {
+        try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
+    function writeAvatarPref(on) {
+        try {
+            localStorage.setItem(AVATAR_PREF_KEY, on ? "1" : "0");
+            if (on) localStorage.setItem(AVATAR_TRIED_KEY, "1");
+        } catch (_) { /* ignore */ }
+    }
+    function avatarTried() {
+        try { return localStorage.getItem(AVATAR_TRIED_KEY) === "1"; } catch (_) { return false; }
+    }
+    // The recorded greeting plays once per visitor, the first time Avatar is
+    // picked. After that, switching back to Avatar goes straight to the idle
+    // face, like rejoining a call rather than restarting it.
+    const AVATAR_GREETED_KEY = "atlasAvatarGreeted_v1";
+    function takeAvatarGreeting() {
+        try {
+            if (localStorage.getItem(AVATAR_GREETED_KEY) === "1") return false;
+            localStorage.setItem(AVATAR_GREETED_KEY, "1");
+        } catch (_) { /* private mode: greet this once, per page */ }
+        if (greetedThisPage) return false;
+        greetedThisPage = true;
+        return true;
+    }
+    let greetedThisPage = false;
+    function pauseAvatar() { if (avatar) avatar.pause(); }
+
+    // Spec 67: karaoke captions, one word at a time. Every word is a span
+    // stamped with the media time it starts being heard. As the video clock
+    // passes a stamp, that word becomes the one lit word ("is-now"), words
+    // before it read normally and words after it wait dimmed.
+    //
+    // Live answers: each chunk from the server carries `at`, the media time
+    // its last word is heard (server-side, from the fMP4 fragment times plus
+    // the measured transcription lead). The chunk runs from the previous
+    // chunk's end to `at`, and its words are spread across that by length.
+    // The greeting passes its caption cue's start and end instead.
+    const CAPTION_CHARS_PER_S = 15; // only used where the stream gives no time
+    function addWords(p, text, start, end) {
+        const letters = text.replace(/\s+/g, "").length || 1;
+        let seen = 0;
+        for (const piece of text.split(/(\s+)/)) {
+            if (!piece) continue;
+            if (/^\s+$/.test(piece)) { p.appendChild(document.createTextNode(piece)); continue; }
+            const span = document.createElement("span");
+            span.className = "agent-avatar-w is-ahead";
+            span.dataset.at = String(start + (end - start) * (seen / letters));
+            span.textContent = piece;
+            p.appendChild(span);
+            seen += piece.length;
+        }
+    }
+    function addCaptionChunk(p, text, at) {
+        const k = p._caption || (p._caption = { end: null });
+        const dur = (text.replace(/\s+/g, "").length || 1) / CAPTION_CHARS_PER_S;
+        let end = Number.isFinite(at) ? at : (k.end ?? 0) + dur;
+        if (k.end !== null) end = Math.max(end, k.end + 0.05);
+        // Continuous speech picks up where the last chunk ended; after a gap
+        // (or for the first chunk) it starts a chunk's length before its end.
+        const start = k.end !== null && end - k.end < dur * 2 ? k.end : end - dur;
+        addWords(p, text, start, end);
+        k.end = end;
+    }
+    function paintCaptions(p, now) {
+        let current = null;
+        for (const span of p.querySelectorAll(".agent-avatar-w")) {
+            const said = Number(span.dataset.at) <= now;
+            span.classList.toggle("is-ahead", !said);
+            span.classList.toggle("is-said", said);
+            span.classList.remove("is-now");
+            if (said) current = span;
+        }
+        if (current && Number.isFinite(now)) current.classList.add("is-now");
+        return current;
+    }
+    // Keep the word being spoken comfortably in view: when it drifts out of
+    // the band between the top and the bottom fade, bring its line back to
+    // about 40% down. Never scrolls on every frame, so the text doesn't jitter.
+    const CAPTION_FADE_PX = 56;
+    function followCaption(span) {
+        if (!span) return;
+        const body = dom.body;
+        const box = body.getBoundingClientRect();
+        const r = span.getBoundingClientRect();
+        if (r.top >= box.top + 8 && r.bottom <= box.bottom - CAPTION_FADE_PX - 16) return;
+        body.scrollTop = Math.max(0, body.scrollTop + (r.top - box.top) - body.clientHeight * 0.4);
+    }
+    const karaokeRunning = new WeakSet();
+    function runKaraoke(p, clock, isDone) {
+        if (karaokeRunning.has(p)) return;
+        karaokeRunning.add(p);
+        const tick = () => {
+            if (isDone()) {
+                // Finished: every word reads as said, and the whole answer is
+                // in view (nothing left under the fade).
+                paintCaptions(p, Infinity);
+                karaokeRunning.delete(p);
+                scrollToEnd();
+                return;
+            }
+            followCaption(paintCaptions(p, clock()));
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
+
+    // The greeting lands in the transcript like any answer, word by word, timed
+    // inside each caption cue against the greeting video's own clock.
+    let greetingWordsEl = null;
+    function addGreetingWords(text, cue) {
+        if (!greetingWordsEl) {
+            const li = document.createElement("li");
+            li.className = "agent-message agent-message-assistant is-avatar-turn is-avatar-greeting";
+            greetingWordsEl = document.createElement("p");
+            greetingWordsEl.className = "agent-avatar-words";
+            li.appendChild(greetingWordsEl);
+            transcript.appendChild(li);
+        }
+        const p = greetingWordsEl;
+        addWords(p, text, cue.start, cue.end);
+        runKaraoke(p, cue.now, cue.done);
+    }
+
+    // Spec 67: the face speaks a finished reply. Anything that stops it from
+    // starting hands the same words to the TTS voice, so a visitor never
+    // loses the spoken answer, only the face.
+    function currentMode() {
+        if (avatarOn) return "avatar";
+        return speakerOn ? "voice" : "text";
+    }
+    // A mode change plays the switch's flip animation (glide stretch, colour
+    // sweep, the new mode's icon greeting); first paint doesn't.
+    let shownMode = null;
+    let flipTimer = null;
+    function syncModeSwitch() {
+        const mode = currentMode();
+        if (shownMode && mode !== shownMode) {
+            modeSwitch.classList.remove("is-flipping");
+            void modeSwitch.offsetWidth; // restart the animations on a quick re-flip
+            modeSwitch.classList.add("is-flipping");
+            clearTimeout(flipTimer);
+            flipTimer = setTimeout(() => modeSwitch.classList.remove("is-flipping"), 800);
+        }
+        shownMode = mode;
+        modeSwitch.dataset.active = mode;
+        panel.dataset.mode = mode;
+        panel.classList.toggle("is-avatar-mode", mode === "avatar");
+        modeSwitch.classList.toggle("is-speaking", isSpeaking);
+        modeSwitch.classList.toggle("is-avatar-new", FEATURES.avatarMode && !avatarTried());
+        modeSwitch.querySelectorAll(".agent-mode-opt").forEach((b) =>
+            b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
+    }
+
+    function setAvatarMode(on, { autoplay = false } = {}) {
+        avatarOn = on;
+        syncModeSwitch();
+        if (!on) {
+            if (avatar) { avatar.dispose(); avatar = null; }
+            avatarBusy = false;
+            refreshSendMode();
+            return;
+        }
+        if (avatar) { if (autoplay) avatar.replay(); return; }
+        if (avatarLoading) return;
+        avatarLoading = import(_vq("./agent-avatar.js"))
+            .then(({ mountAvatarStage }) => {
+                // Inside the header, as its last row: one surface with one
+                // divider, rather than a second block stacked on the chat.
+                const slot = document.createElement("div");
+                slot.className = "agent-avatar-slot";
+                dom.head.appendChild(slot);
+                panel.classList.add("has-avatar");
+                // The avatar started a clip: hush Atlas's own voice so the two
+                // never talk over each other. The reverse (Atlas speaking hushes
+                // the avatar) is wired at the speaker's onPlaying and at send.
+                return mountAvatarStage(slot, {
+                    autoplay,
+                    onPlay: () => { if (speaker) speaker.cancel(); },
+                    onWords: addGreetingWords,
+                    onState: (state) => { avatarBusy = state !== "idle"; refreshSendMode(); },
+                })
+                    .then((stage) => {
+                        const unmount = () => {
+                            stage.dispose();
+                            slot.remove();
+                            panel.classList.remove("has-avatar");
+                        };
+                        // Switched away again while it was still loading.
+                        if (!avatarOn) { unmount(); return; }
+                        avatar = {
+                            canSpeak: stage.canSpeak,
+                            pause: stage.pause,
+                            replay: stage.replay,
+                            idle: stage.idle,
+                            startLive: stage.startLive,
+                            dispose: unmount,
+                        };
+                    })
+                    .catch((err) => {
+                        slot.remove();
+                        panel.classList.remove("has-avatar");
+                        throw err;
+                    });
+            })
+            .catch((err) => {
+                console.warn("[agent-widget] avatar mode failed to load", err);
+                avatarOn = false;
+                syncModeSwitch();
+                showVoiceNote("Avatar mode couldn't load. Try again in a moment.");
+            })
+            .finally(() => { avatarLoading = null; });
+    }
+
+    // Avatar mode owns the voice outright: turn the TTS speaker off without a
+    // note and without touching its saved preference, so leaving Avatar for
+    // Voice later brings the voice back exactly as the visitor had it.
+    function silenceSpeakerForAvatar() {
+        if (!speakerOn) return;
+        speakerOn = false;
+        if (speaker) speaker.cancel();
+        clearSpeakingIndicator();
+        setSpeakerMode("off");
+    }
+
+    // Every branch starts its audio work synchronously inside the click:
+    // enableSpeaker() banks the gesture for Web Audio, and the avatar's
+    // greeting needs the same gesture to play with sound. The three modes are
+    // exclusive: exactly one of them is ever speaking.
+    // Resolves once the new mode can speak (Voice loads its engine first).
+    function selectMode(mode) {
+        let ready = null;
+        if (mode === currentMode()) return;
+        if (mode === "text") {
+            if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
+            if (speakerOn) toggleSpeaker();
+            else writeSpeakerPref(false);
+        } else if (mode === "voice") {
+            if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
+            if (!speakerOn) ready = enableSpeaker();
+        } else if (mode === "avatar") {
+            silenceSpeakerForAvatar();
+            writeAvatarPref(true);
+            const greet = takeAvatarGreeting();
+            if (greet) greetingWordsEl = null;
+            setAvatarMode(true, { autoplay: greet });
+        }
+        syncModeSwitch();
+        return ready;
+    }
+    modeSwitch.addEventListener("click", (e) => {
+        const opt = e.target.closest(".agent-mode-opt");
+        if (opt) selectMode(opt.dataset.mode);
+    });
+    // Radiogroup keyboard pattern: arrows move the choice.
+    modeSwitch.addEventListener("keydown", (e) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+        const opts = [...modeSwitch.querySelectorAll(".agent-mode-opt")].filter((b) => !b.hidden);
+        const i = opts.findIndex((b) => b.dataset.mode === currentMode());
+        const next = opts[(i + (e.key === "ArrowRight" ? 1 : opts.length - 1)) % opts.length];
+        e.preventDefault();
+        next.focus();
+        selectMode(next.dataset.mode);
+    });
+    syncModeSwitch();
+
     input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -236,17 +526,23 @@ export function initAgentWidget(root, profile, sessionId) {
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
-            if (isPending) stopStreaming();
+            if (isPending || atlasTalking()) stopStreaming();
             else closePanel();
         }
     });
 
-    // Sets the send button's icon/behaviour. "stop" while a turn is
-    // streaming, "send" otherwise — the button never disables so a visitor
-    // can always cancel.
-    function setSendMode(mode) {
-        sendBtn.dataset.mode = mode;
-        sendBtn.setAttribute("aria-label", mode === "stop" ? "Stop generating" : "Send");
+    // The send button doubles as the one Stop control. It is "stop" while a
+    // turn streams, and also while Atlas is still talking afterwards, by
+    // voice or as the avatar, so there is always a way to cut it off. Typing
+    // a new question turns it back into Send (sending interrupts anyway).
+    function atlasTalking() { return isSpeaking || avatarBusy; }
+    function refreshSendMode() {
+        const hasText = !!(input.value || "").trim();
+        const stop = isPending || (atlasTalking() && !hasText);
+        sendBtn.dataset.mode = stop ? "stop" : "send";
+        const label = !stop ? "Send" : isPending ? "Stop generating" : "Stop Atlas";
+        sendBtn.setAttribute("aria-label", label);
+        sendBtn.title = label;
         updateSendReadiness();
     }
 
@@ -262,6 +558,7 @@ export function initAgentWidget(root, profile, sessionId) {
         // Stop is a single control for the whole turn: if the text has
         // finished but Atlas is still talking, this must still silence it.
         if (speaker) speaker.cancel();
+        pauseAvatar(); // spec 67: stop silences the face too
         clearSpeakingIndicator();
         if (!isPending || !abortController) return;
         wasStopped = true;
@@ -336,12 +633,14 @@ export function initAgentWidget(root, profile, sessionId) {
     // off | on | speaking. "speaking" is a transient sub-state of on.
     function setSpeakerMode(mode) {
         isSpeaking = mode === "speaking";
+        refreshSendMode();
         speakerBtn.dataset.mode = mode;
         speakerBtn.setAttribute("aria-pressed", mode === "off" ? "false" : "true");
         speakerBtn.setAttribute(
             "aria-label",
             mode === "off" ? "Speak replies" : mode === "speaking" ? "Speaking, click to stop" : "Stop speaking replies",
         );
+        syncModeSwitch(); // spec 67: the Text / Voice / Avatar switch mirrors this
     }
 
     // Shared one-line status under the composer. The mic owns it while
@@ -415,6 +714,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     // it appears when the voice does rather than while the
                     // first chunk is still being synthesized.
                     onPlaying: () => {
+                        pauseAvatar(); // spec 67: Atlas's voice wins over a recorded clip
                         showVoiceNote("Speaking…", 0);
                         showSpeakingIndicator(currentAssistantLi);
                     },
@@ -466,7 +766,7 @@ export function initAgentWidget(root, profile, sessionId) {
         writeSpeakerPref(true);
         setSpeakerMode("on");
         try { localStorage.setItem(SPEAKER_CONSENT_KEY, "1"); } catch (_) { /* private mode */ }
-        showVoiceNote("Reading answers aloud. Click the speaker to stop.", 4000);
+        showVoiceNote("Reading answers aloud. Switch to Text to stop.", 4000);
         liveRegion.textContent = "Spoken replies on.";
         // Warm the TTS path so the first reply doesn't pay the cold ADC token
         // fetch — measured at 5.57s cold against 2.39s warm for one chunk.
@@ -611,7 +911,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function autoGrowInput() {
         input.style.height = "auto";
         input.style.height = input.scrollHeight + "px";
-        updateSendReadiness();
+        refreshSendMode();
     }
 
     // Sets the composer text and focuses it without sending. Shared by the
@@ -643,6 +943,7 @@ export function initAgentWidget(root, profile, sessionId) {
     function minimize() {
         isMinimized = true;
         panel.classList.add("is-minimized");
+        pauseAvatar(); // spec 67: the stage is hidden while minimized, so stop its voice too
         dom.minimizeBtn.setAttribute("aria-label", "Restore panel");
         dom.minimizeBtn.title = "Restore";
     }
@@ -681,12 +982,19 @@ export function initAgentWidget(root, profile, sessionId) {
         // speakerOn true, so guarding this on `!speakerOn` skipped the unlock
         // entirely on reopen — synthesis ran, ctx was never created, and
         // every clip was silently dropped.
-        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())) {
+        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())
+            && !(FEATURES.avatarMode && (avatarOn || readAvatarPref()))) {
             speakerOn = true;
             setSpeakerMode("on");
             // Opening the panel is itself a click, so bank it for audio the
             // same way enableSpeaker() does.
             ensureSpeaker().then((ok) => { if (ok && speaker) speaker.unlock(); });
+        }
+        // Spec 67: bring a remembered avatar mode back, on its idle face. The
+        // greeting plays once per visitor (takeAvatarGreeting), never on a
+        // reopen.
+        if (FEATURES.avatarMode && !avatarOn && readAvatarPref()) {
+            setAvatarMode(true, { autoplay: false });
         }
         if (agentIntro?.text && !introRendered) {
             introRendered = true;
@@ -709,6 +1017,7 @@ export function initAgentWidget(root, profile, sessionId) {
         fab.setAttribute("aria-expanded", "false");
         document.body.removeAttribute("data-agent-panel-open");
         fab.focus();
+        pauseAvatar(); // spec 67: a closed panel never keeps talking
         // Dismissing the panel must not leave the mic listening in the
         // background. dispose() permanently silences that engine instance's
         // state callbacks, so drop the reference too — the next mic tap
@@ -811,7 +1120,11 @@ export function initAgentWidget(root, profile, sessionId) {
             });
 
             if (row.children.length) li.appendChild(row);
-            scrollToEnd();
+            // A fresh panel reads from the top: the intro stays whole, and the
+            // fade says there is more below. Only a panel that already holds a
+            // conversation follows it to the end.
+            if (messages.length) scrollToEnd();
+            else { dom.body.scrollTop = 0; syncScrollHint(); }
         });
     }
 
@@ -880,7 +1193,7 @@ export function initAgentWidget(root, profile, sessionId) {
         const text = (input.value || "").trim();
         if (!text) return;
         if (text.length > 1000) {
-            appendSystem("That message is a bit long for me — could you trim it under ~1000 characters?");
+            appendSystem("That message is a bit long for me. Could you trim it under ~1000 characters?");
             return;
         }
         const emailError = validateEmailInMessage(text);
@@ -889,6 +1202,27 @@ export function initAgentWidget(root, profile, sessionId) {
             input.value = text;
             return;
         }
+        pauseAvatar(); // spec 67: asking something stops a recorded clip mid-sentence
+        // Spec 67: out of avatar answers for today. Don't spend a request
+        // finding that out again; offer the other modes for this question.
+        if (FEATURES.avatarMode && avatarOn && avatarResting) {
+            input.value = "";
+            autoGrowInput();
+            offerModeSwitch(appendUser(text), text, avatarRestReason);
+            return;
+        }
+        // Spec 67: in Avatar mode the face speaks this answer instead of the
+        // TTS voice. Decided once per turn; the voice stays loaded as the
+        // fallback for when the avatar can't (cap, budget, error, browser).
+        let avatarVoice = !!(FEATURES.avatarMode && avatarOn && avatar && avatar.canSpeak && !avatarResting);
+        // The live face for this turn: goes live now (idling while Atlas
+        // thinks), then speaks the reply as it arrives on this same stream.
+        const liveTurn = avatarVoice ? avatar.startLive() : null;
+        let avatarWordsEl = null;
+        let avatarSpoke = false;
+        // Set when the server says this avatar turn is over the cap. It then
+        // sends no answer, and the turn becomes an offer to switch modes.
+        let cappedReason = "";
         // Remove suggestion chips from the previous assistant message
         transcript.querySelectorAll(".agent-suggestions").forEach(el => el.remove());
 
@@ -898,7 +1232,7 @@ export function initAgentWidget(root, profile, sessionId) {
         isPending = true;
         wasStopped = false;
         abortController = new AbortController();
-        setSendMode("stop");
+        refreshSendMode();
         if (FEATURES.voiceInput) micBtn.disabled = true;
 
         // Voice is on by default. This used to silence a visitor's whole
@@ -924,11 +1258,30 @@ export function initAgentWidget(root, profile, sessionId) {
             await ensureSpeaker();
         }
 
-        appendUser(text);
+        const userLi = appendUser(text);
         messages.push({ role: "user", content: text });
+        syncClearBtn();
 
         const assistant = appendAssistantPlaceholder();
         currentAssistantLi = assistant;
+        // Spec 67: in Avatar mode the only text is the transcript of what the
+        // avatar says, appearing as it says it. The reply is still rendered
+        // (hidden) so history, and a fallback, are unchanged.
+        if (avatarVoice) {
+            assistant.classList.add("is-avatar-turn");
+            avatarWordsEl = document.createElement("p");
+            avatarWordsEl.className = "agent-avatar-words";
+            assistant.appendChild(avatarWordsEl);
+        }
+        // The avatar can't take this turn after all: show the reply as text.
+        // Avatar mode never falls back to the TTS voice; the modes stay isolated.
+        const dropAvatar = () => {
+            if (!avatarVoice) return;
+            avatarVoice = false;
+            if (liveTurn) liveTurn.abort();
+            assistant.classList.remove("is-avatar-turn");
+            if (avatarWordsEl) avatarWordsEl.remove();
+        };
         // Only the first turn of a session can hit a cold start — the loading
         // copy escalates to the "first answer takes a moment" line only then.
         const stages = startLoadingStages(assistant, !sessionWarmed);
@@ -984,6 +1337,29 @@ export function initAgentWidget(root, profile, sessionId) {
                 messages,
                 identity,
                 signal: abortController.signal,
+                avatar: avatarVoice,
+                mode: avatarVoice ? "avatar" : (FEATURES.speakReplies && speakerOn ? "voice" : "text"),
+                onAvatar: avatarVoice ? {
+                    video(b64) { if (avatarVoice) liveTurn.push(b64); },
+                    words(text, at) {
+                        if (!avatarVoice) return;
+                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); }
+                        addCaptionChunk(avatarWordsEl, text, at);
+                        runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
+                    },
+                    end() { if (avatarVoice) liveTurn.end(); },
+                    unavailable(reason, capped) {
+                        if (capped) {
+                            cappedReason = reason || "The avatar has reached its limit for today.";
+                            avatarResting = true;
+                            avatarRestReason = cappedReason;
+                        }
+                        // Mid-answer failures just end the face; before it
+                        // spoke, the reply shows as text.
+                        if (avatarSpoke) { liveTurn.end(); return; }
+                        dropAvatar();
+                    },
+                } : null,
                 onThinking(chunk) {
                     if (!thinkingBody) return;
                     if (firstThought) {
@@ -1015,7 +1391,7 @@ export function initAgentWidget(root, profile, sessionId) {
                     // Chunking happens inside the speaker; this just hands it
                     // the raw stream. Sanitization is server-side, so what is
                     // spoken and what is shown stay in sync.
-                    if (FEATURES.speakReplies && speakerOn && speaker) speaker.feed(delta);
+                    if (FEATURES.speakReplies && speakerOn && speaker && !avatarVoice) speaker.feed(delta);
                 },
                 onCitations(citations) {
                     // Store for post-done render — do NOT re-render yet (caret active)
@@ -1030,15 +1406,28 @@ export function initAgentWidget(root, profile, sessionId) {
                 onBadges(badges) {
                     turnState.badges = badges;
                 },
+
                 async onDone(full) {
                     stages.cancel();
                     settleThinking();
+                    // Spec 67: a capped avatar turn has no answer. It is asked
+                    // again in whichever mode the visitor picks from the offer.
+                    if (cappedReason) {
+                        assistant.remove();
+                        messages.pop();
+                        return;
+                    }
                     // The tail after the last sentence boundary only becomes
                     // speakable once the stream is closed. Skipped on stop:
                     // stopStreaming() has already cancelled playback, and
                     // flushing here would start it up again.
-                    if (FEATURES.speakReplies && speakerOn && speaker && !wasStopped) {
+                    if (FEATURES.speakReplies && speakerOn && speaker && !wasStopped && !avatarVoice) {
                         speaker.flush();
+                    }
+                    // Spec 67: nothing was spoken (an error, a stop, a reply with
+                    // nothing to say): show the text instead of an empty turn.
+                    if (avatarVoice && !avatarSpoke) {
+                        dropAvatar();
                     }
                     if (wasStopped) {
                         removeCaret(assistant);
@@ -1057,11 +1446,12 @@ export function initAgentWidget(root, profile, sessionId) {
                     // sample to play — up to tens of seconds after the reply
                     // had finished arriving.
                     if (!full && !errorShown) {
-                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end — could you try asking again?", false);
+                        appendDelta(assistant, "Hmm, I didn't quite get that through on my end. Could you try asking again?", false);
                     }
                     if (full) {
                         // Remove typing caret first, then do one-shot render with citations
                         finalizeAssistant(assistant, full, turnState.citations);
+                        tagVia(assistant, avatarVoice ? "avatar" : (FEATURES.speakReplies && speakerOn ? "voice" : "text"));
                         messages.push({ role: "assistant", content: full });
                         liveRegion.textContent = stripUrls(full).slice(0, 240);
 
@@ -1091,6 +1481,8 @@ export function initAgentWidget(root, profile, sessionId) {
                 onError(msg, isMidStream) {
                     stages.cancel();
                     errorShown = true;
+                    // Spec 67: the avatar won't be saying an error, so show it now.
+                    if (avatarVoice && !avatarSpoke) dropAvatar();
                     midStreamError = !!isMidStream;
                     // Remove cursor if streaming was interrupted
                     removeCaret(assistant);
@@ -1103,11 +1495,104 @@ export function initAgentWidget(root, profile, sessionId) {
                 },
             });
         } finally {
-            setSendMode("send");
+            // Spec 67: a turn that ended with nothing spoken must never leave
+            // its reply hidden.
+            if (avatarVoice && !avatarSpoke) dropAvatar();
             isPending = false;
             abortController = null;
+            refreshSendMode();
             if (FEATURES.voiceInput) micBtn.disabled = false;
         }
+        if (clearPending) { clearConversation(); return; }
+        syncClearBtn();
+        if (cappedReason && !wasStopped) offerModeSwitch(userLi, text, cappedReason);
+    }
+
+    // Spec 67: the avatar is out of answers for today. Offer Voice (or Text)
+    // for the question just asked, and ask it again there, so nobody has to
+    // retype it. The click is also the gesture Voice needs to play audio.
+    function offerModeSwitch(userLi, question, reason) {
+        transcript.querySelectorAll(".agent-avatar-offer").forEach((el) => el.remove());
+        const li = document.createElement("li");
+        li.className = "agent-message agent-avatar-offer";
+        li.setAttribute("role", "group");
+        li.setAttribute("aria-label", "Avatar limit reached");
+        const copy = document.createElement("p");
+        copy.className = "agent-consent-copy";
+        copy.textContent = `${reason} Want me to answer this in Voice mode instead?`;
+        const actions = document.createElement("div");
+        actions.className = "agent-consent-actions";
+        const asText = document.createElement("button");
+        asText.type = "button";
+        asText.className = "agent-consent-no";
+        asText.textContent = "Show as text";
+        const voice = document.createElement("button");
+        voice.type = "button";
+        voice.className = "agent-consent-yes";
+        voice.textContent = "Switch to Voice";
+        actions.append(asText, voice);
+        li.append(copy, actions);
+        transcript.appendChild(li);
+        liveRegion.textContent = copy.textContent;
+        scrollToEnd();
+
+        const ask = async (mode) => {
+            if (isPending) return;
+            li.remove();
+            if (userLi) userLi.remove(); // sendCurrent() shows the question again
+            await selectMode(mode);
+            input.value = question;
+            sendCurrent();
+        };
+        voice.addEventListener("click", () => ask("voice"));
+        asText.addEventListener("click", () => ask("text"));
+        voice.focus({ preventScroll: true });
+    }
+
+    // Clear conversation: stop whatever Atlas is doing, forget the history on
+    // both sides (a new sessionId is a fresh server-side session), and start
+    // over from the intro. Mid-turn, the turn is stopped first and the clear
+    // runs once it has wound down, so its late callbacks can't write into the
+    // new conversation.
+    let clearPending = false;
+    function clearConversation() {
+        stopStreaming();
+        if (isPending) { clearPending = true; return; }
+        clearPending = false;
+        messages.length = 0;
+        sessionId = newSessionId();
+        currentAssistantLi = null;
+        greetingWordsEl = null;
+        transcript.replaceChildren();
+        clearSpeakingIndicator();
+        input.value = "";
+        autoGrowInput();
+        if (agentIntro?.text) {
+            renderIntroMessage();
+        } else {
+            promptsEl.classList.remove("is-hidden");
+            renderStarters();
+        }
+        syncClearBtn();
+        liveRegion.textContent = "Conversation cleared.";
+        input.focus();
+    }
+    function syncClearBtn() {
+        clearBtn.hidden = messages.length === 0 && !isPending;
+    }
+    clearBtn.addEventListener("click", clearConversation);
+
+    // Spec 67: one conversation across modes. An answer says which mode it
+    // came from ("via Avatar") whenever you're looking at it from another
+    // mode, so it's clear switching re-shows it rather than asking again.
+    const VIA_LABEL = { text: "via Text", voice: "via Voice", avatar: "via Avatar" };
+    function tagVia(li, via) {
+        li.dataset.via = via;
+        if (li.querySelector(".agent-via")) return;
+        const tag = document.createElement("span");
+        tag.className = "agent-via";
+        tag.textContent = VIA_LABEL[via] || "";
+        li.appendChild(tag);
     }
 
     function appendStoppedNote(assistantLi) {
@@ -1123,7 +1608,7 @@ export function initAgentWidget(root, profile, sessionId) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "agent-retry-inline";
-        btn.textContent = "Connection slipped — try again?";
+        btn.textContent = "Connection slipped. Try again?";
         btn.addEventListener("click", () => {
             btn.remove();
             // Re-send the last user message; append a fresh assistant bubble
@@ -1144,6 +1629,7 @@ export function initAgentWidget(root, profile, sessionId) {
         li.appendChild(p);
         transcript.appendChild(li);
         scrollToEnd();
+        return li;
     }
 
     function appendSystem(text) {
@@ -1232,7 +1718,7 @@ export function initAgentWidget(root, profile, sessionId) {
         if (FEATURES.citations) {
             if (Object.keys(citations).length > 0) {
                 renderCitationList(li, citations);
-            } else if (/\[\d\]/.test(fullText)) {
+            } else if (/\[\d+(?:\s*,\s*\d+)*\]/.test(fullText)) {
                 // [N] marker present but server sent no citations (URL dropped or internal source)
                 renderFallbackSource(li);
             }
@@ -1244,7 +1730,7 @@ export function initAgentWidget(root, profile, sessionId) {
         wrap.className = "agent-sources";
         const span = document.createElement("span");
         span.className = "agent-source-internal";
-        span.textContent = "Internal — profile data";
+        span.textContent = "Internal: profile data";
         wrap.appendChild(span);
         assistantLi.appendChild(wrap);
     }
@@ -1478,15 +1964,13 @@ export function initAgentWidget(root, profile, sessionId) {
         return b.scrollTop + b.clientHeight >= b.scrollHeight - AT_BOTTOM_SLOP_PX;
     }
 
+    // Spec 67: the bottom fade is a mask painted over the scroll area, not a
+    // spacer inside it, so it takes no room (the old 52px spacer read as a
+    // band of empty space under every conversation) and can switch on and
+    // off freely: it shows only while there is more below.
     function syncScrollHint() {
         const b = dom.body;
-        // Measured from the transcript, not from b.scrollHeight, because the
-        // fade this class switches on is itself ~52px of that scrollHeight.
-        // Feeding it back in makes the test self-referential: once shown, the
-        // fade keeps itself shown even after the content shrinks below the
-        // fold.
-        const contentH = dom.transcript ? dom.transcript.scrollHeight : b.scrollHeight;
-        b.classList.toggle("has-overflow", contentH > b.clientHeight);
+        b.classList.toggle("has-overflow", b.scrollHeight - b.clientHeight - b.scrollTop > 4);
     }
 
     function onTranscriptScroll() {
@@ -1633,91 +2117,109 @@ export function buildAgentDiagram(opts) {
         return e;
     };
 
-    // On mobile (<540px) use a 250-unit viewBox (vs 480 desktop) so the diagram
-    // renders at ~1.32x natural scale rather than ~0.65x, making it prominent.
+    // On mobile (<540px) use a narrow viewBox so the diagram renders near
+    // natural scale rather than shrunk, making it prominent.
     const mobile = !wide && window.innerWidth < 540;
-    // Wider than they need to be for the boxes alone: the full "Speech-to-Text
-    // (STT)" / "Text-to-Speech (TTS)" sub-labels are ~96 units at the sub font
-    // size, so the model boxes grew and the viewBox grew with them.
-    const VW = mobile ? 300 : 540;
-    // Mobile grew from 320 to 332: the You->STT and STT->Agent gaps needed 6
-    // more units each to stop badges 1 and 2 sitting almost flush against the
-    // STT box (see the edges/steps below), and that extra 12 carries through
-    // everything from Agent down so the existing internal rhythm elsewhere
-    // (the 20/18 right-column gaps, the Agent->TTS descent) stays unchanged.
-    const VH = mobile ? 332 : 250;
+    // Spec 67: the flow gained Output checks and a second speech branch (the
+    // Live Avatar), so both layouts grew: desktop from 540x250 to 640x300,
+    // mobile from 300x332 to 300x404.
+    // Desktop widened to 816x320 so every model name fits on one line and
+    // the mode fork has room to breathe.
+    const VW = mobile ? 300 : 816;
+    const VH = mobile ? 404 : 320;
 
     const svg = el("svg", { viewBox: `0 0 ${VW} ${VH}`, width: "100%", height: String(VH),
+                             "data-layout": mobile ? "mobile" : "desktop",
                              class: "ad-svg", "aria-hidden": "true" });
 
-    // A loop that starts and ends with You: ask (1) → speech to text (2) →
-    // the agent gathers grounding (3) and takes actions (4) → reasons (5) →
-    // text to speech (6) → the spoken reply lands back with you (7).
-    // Nothing is written on the connectors — text sitting on a line was the
-    // main thing making this hard to read. Every stage word lives in a node's
-    // own sub-label or in the numbered legend under the figure, so the lines
-    // stay clean. All seven edges are numbered steps, so all seven carry the
-    // accent; nothing here is a silent side-path any more.
-    // The two speech boxes are taller than the rest (two-line model names), so
-    // the spine legs meeting them are shorter: STT spans y 60..102 and TTS
-    // y 248..290, against 66..96 / 254..284 before.
-    // Right column (Flash/Corpus/MCP) sits at x=180 rather than 176 — a wider
-    // gap off the Agent box gives the two diagonal edges below more room to
-    // fan out before they converge, which was the main source of clutter.
-    // You->STT and STT->Agent are each 30 now (was 24), so badges 1 and 2 sit
-    // with even clearance instead of nearly touching the STT box on one side.
+    // Spec 67: the answer's way back is a PATH chosen by the mode, not a
+    // sequence of stages. The visitor picks Text, Voice or Avatar before
+    // asking (1); speech-to-text runs only when they use the mic (2, dashed); the agent reasons (3) and calls tools (4); every
+    // answer passes the output checks (5); then exactly ONE of three paths
+    // runs (6, colour-coded by mode, all numbered 6 because they are
+    // alternatives, the same way Corpus and MCP share 4); and it comes back
+    // to you (7). Nothing is written on the connectors except the tiny mode
+    // tags at the fork, which is what makes the fork read as a choice.
     const edges = mobile ? [
-        { d: "M 96 36 L 96 66" },
-        { d: "M 96 108 L 96 138" },
-        { d: "M 108 172 L 180 207" },
-        { d: "M 114 172 L 180 255" },
-        { d: "M 152 155 L 180 155" },
-        { d: "M 96 172 L 96 260" },
-        { d: "M 96 302 L 96 318 L 18 318 L 18 21 L 40 21" },
+        { d: "M 96 42 L 96 66", cls: "ad-edge--optional" },     // 1 You -> STT (mic only)
+        { d: "M 96 108 L 96 138" },                              // 2 STT -> Agent
+        { d: "M 152 155 L 180 155" },                            // 3 Agent -> reasoning
+        { d: "M 152 160 L 180 207", cls: "ad-edge--plain" },     // 4 Agent -> corpus
+        { d: "M 152 166 L 180 255", cls: "ad-edge--plain" },     // 4 Agent -> MCP
+        { d: "M 96 172 L 96 214" },                              // 5 Agent -> Output checks
+        { d: "M 60 248 L 60 272 L 18 272", cls: "ad-edge--text" },           // 6 Text
+        { d: "M 86 248 L 86 310", cls: "ad-edge--voice" },                    // 6 Voice
+        { d: "M 110 248 L 110 286 L 226 286 L 226 310", cls: "ad-edge--avatar" }, // 6 Avatar
+        // 7 back to you: all three paths join the left corridor.
+        { d: "M 30 331 L 18 331" },
+        { d: "M 282 331 L 290 331 L 290 392 L 18 392 L 18 26 L 80 26" },
     ] : [
-        { d: "M 101 120 L 135 120" },
-        { d: "M 243 120 L 277 120" },
-        { d: "M 307 142 L 273 170" },
-        { d: "M 343 142 L 397 170" },
-        { d: "M 325 98 L 325 54" },
-        { d: "M 373 120 L 407 120" },
-        { d: "M 461 142 L 461 228 L 63 228 L 63 142" },
+        { d: "M 86 150 L 130 150", cls: "ad-edge--optional" },   // 1 You -> STT (mic only)
+        { d: "M 290 150 L 320 150" },                            // 2 STT -> Agent
+        { d: "M 370 128 L 370 68" },                             // 3 Agent -> reasoning
+        { d: "M 352 172 L 318 218", cls: "ad-edge--plain" },     // 4 Agent -> corpus
+        { d: "M 388 172 L 424 218", cls: "ad-edge--plain" },     // 4 Agent -> MCP
+        { d: "M 420 150 L 450 150" },                            // 5 Agent -> Output checks
+        { d: "M 506 172 L 506 300", cls: "ad-edge--text" },                          // 6 Text
+        // The fork sits 32 units off Output checks and 32 short of the
+        // models, so the branch reads as a choice rather than a squeeze.
+        { d: "M 562 140 L 594 140 L 594 70 L 626 70", cls: "ad-edge--voice" },       // 6 Voice
+        { d: "M 562 160 L 594 160 L 594 230 L 626 230", cls: "ad-edge--avatar" },    // 6 Avatar
+        // 7 back to you: all three paths meet on the bottom line.
+        { d: "M 790 70 L 804 70 L 804 300 L 60 300 L 60 180" },
+        { d: "M 790 230 L 804 230" },
     ];
-    edges.forEach(({ d }) => {
-        svg.appendChild(el("path", { class: "ad-edge ad-edge--key", d }));
+    edges.forEach(({ d, cls }) => {
+        svg.appendChild(el("path", { class: cls ? `ad-edge ${cls}` : "ad-edge ad-edge--key", d }));
     });
 
-    // Numbered markers keyed to the legend below the figure. They light one
-    // after another (delay = n-1 on an 8s cycle) so the animation traces the
-    // route in order rather than pulsing everything at once.
-    const step = (n, cx, cy) => {
-        const g = el("g", { class: "ad-step" });
+    // Numbered markers keyed to the legend below the figure. They appear one
+    // after another on an 8s loop and stay lit, so the route builds up in
+    // order, then clears and repeats. A marker can carry a mode, which
+    // colours it like its path.
+    const step = (n, cx, cy, mode) => {
+        // Each number has its own keyframes (ad-step-seq-N): it appears on
+        // its turn, stays lit, and they all clear together when the loop
+        // restarts. Shared numbers (the two 4s, the three 6s) share a turn.
+        const g = el("g", { class: `ad-step ad-step--n${n}` + (mode ? ` ad-step--${mode}` : "") });
         g.appendChild(el("circle", { cx: String(cx), cy: String(cy), r: "8" }));
         const t = el("text", { x: String(cx), y: String(cy + 3), "text-anchor": "middle" });
         t.textContent = String(n);
         g.appendChild(t);
-        if (!REDUCE_MOTION) g.style.animationDelay = `${n - 1}s`;
         return g;
     };
-    // 3 and 4 sit partway along the corpus/MCP diagonals rather than at their
-    // midpoints, which would collide with each other on the mobile layout.
-    // Corpus and MCP deliberately SHARE step 4: the model calls tools as one
-    // step, and they're alternatives rather than a sequence (MCP only fires
-    // when something needs doing, like emailing the resume). Sharing the
-    // number also means both badges light together, which is the intent.
+    // A small pill naming a mode at the start of its path.
+    const modeTag = (x, y, label, mode) => {
+        const g = el("g", { class: `ad-mode-tag ad-mode-tag--${mode}` });
+        const w = label.length * 4.6 + 8;
+        g.appendChild(el("rect", { x: String(x), y: String(y), width: String(w), height: "11", rx: "5.5" }));
+        const t = el("text", { x: String(x + w / 2), y: String(y + 8), "text-anchor": "middle" });
+        t.textContent = label;
+        g.appendChild(t);
+        return g;
+    };
+    // Corpus and MCP SHARE step 4 (alternative tools), and the three mode
+    // paths SHARE step 6 (exactly one runs): shared numbers light together.
     const steps = mobile
-        ? [[4, 148, 191], [4, 150, 218], [1, 96, 51], [2, 96, 123], [3, 166, 155], [5, 96, 216], [6, 18, 160]]
-        // 6 sits on the final leg arriving back at You — the descent at x=461
-        // runs behind the MCP Server node, which draws over it.
-        : [[4, 290, 156], [4, 370, 156], [1, 118, 120], [2, 260, 120], [3, 325, 76], [5, 390, 120], [6, 63, 190]];
-    steps.forEach(([n, cx, cy]) => svg.appendChild(step(n, cx, cy)));
+        ? [[1, 96, 54], [2, 96, 123], [3, 166, 155], [4, 166, 183], [4, 165, 207],
+           [5, 96, 193], [6, 39, 272, "text"], [6, 86, 279, "voice"], [6, 168, 286, "avatar"], [7, 18, 160]]
+        : [[1, 108, 150], [2, 305, 150], [3, 370, 98], [4, 337, 193], [4, 404, 193],
+           [5, 435, 150], [6, 506, 214, "text"], [6, 594, 108, "voice"], [6, 594, 192, "avatar"], [7, 60, 236]];
+    steps.forEach(([n, cx, cy, mode]) => svg.appendChild(step(n, cx, cy, mode)));
+    const tags = mobile
+        ? [[24, 283, "Text", "text"], [92, 256, "Voice", "voice"], [180, 292, "Avatar", "avatar"]]
+        : [[514, 228, "Text", "text"], [602, 114, "Voice", "voice"], [602, 172, "Avatar", "avatar"]];
+    tags.forEach(([x, y, label, mode]) => svg.appendChild(modeTag(x, y, label, mode)));
+
 
     // A waveform converting into text lines (or the reverse), shown beside the
     // speech nodes so they say what they do, not just which model does it.
-    // `step` ties it to that stage's badge: same 7s cycle, same delay, so the
+    // `step` ties it to that stage's badge: same 8s cycle, same delay, so the
     // conversion plays while its number is lit and rests still otherwise.
     const BAR_W = 3, BAR_GAP = 4, BAR_HEIGHTS = [7, 13, 18, 11, 6];
     const LINE_WS = [30, 22, 26], LINE_GAP = 7;
+    // "to-video" (spec 67, Avatar): text lines become a small video frame
+    // with a face in it, the Live Avatar speaking the checked answer.
     const xformStrip = (cx, cy, dir, step) => {
         const toText = dir === "to-text";
         const g = el("g", { class: `ad-xform ad-xform--${dir}` });
@@ -1763,6 +2265,16 @@ export function buildAgentDiagram(opts) {
         if (!REDUCE_MOTION) arrow.style.animationDelay = `${step - 1}s`;
 
         // Drawn in flow order: the source half first, then what it becomes.
+        if (dir === "to-video") {
+            const frame = el("g", { class: "ad-xform-video" });
+            if (!REDUCE_MOTION) frame.style.animationDelay = `${step - 1}s`;
+            const fw = waveW, fh = 18, fx = waveX, fy = cy - fh / 2;
+            frame.appendChild(el("rect", { x: String(fx), y: String(fy), width: String(fw), height: String(fh), rx: "3" }));
+            frame.appendChild(el("circle", { cx: String(fx + fw / 2), cy: String(fy + 7), r: "3" }));
+            frame.appendChild(el("path", { d: `M ${fx + fw / 2 - 6} ${fy + fh} a 6 5 0 0 1 12 0` }));
+            g.append(text, arrow, frame);
+            return g;
+        }
         g.append(...(toText ? [wave, arrow, text] : [text, arrow, wave]));
         return g;
     };
@@ -1773,6 +2285,67 @@ export function buildAgentDiagram(opts) {
         const g = el("g", { class: "ad-person" });
         g.appendChild(el("circle", { cx: String(cx), cy: String(cy - 3.5), r: "2.6" }));
         g.appendChild(el("path", { d: `M ${cx - 4.5} ${cy + 5} v -1.2 a 4.5 4.5 0 0 1 9 0 v 1.2` }));
+        return g;
+    };
+
+    // Official marks for the ADK agent and the MCP server (spec 67). The MCP
+    // mark is black on transparent, so it's inverted to read on the dark
+    // theme, the same treatment the skills hex grid gives it.
+    const brandMark = (href, cx, cy, size, extra) => {
+        const im = el("image", {
+            x: String(cx - size / 2), y: String(cy - size / 2),
+            width: String(size), height: String(size),
+            preserveAspectRatio: "xMidYMid meet",
+            class: extra ? `ad-brand ${extra}` : "ad-brand",
+        });
+        im.setAttribute("href", href);
+        return im;
+    };
+
+    // Spec 67: "You" is a person, not a box. A small figure with a speech
+    // bubble that alternates between typing dots and voice bars, because a
+    // question can be typed or spoken, in any mode.
+    const youNode = (cx, cy, tip, details, compact) => {
+        const g = el("g", { class: "ad-node ad-node--you ad-you" });
+        const t = el("title", {}); t.textContent = tip; g.appendChild(t);
+        const k = compact ? 0.72 : 1;
+        // Invisible hit area so the tooltip works over the whole figure.
+        g.appendChild(el("rect", { class: "ad-you-hit", x: String(cx - 16 * k), y: String(cy - 34 * k), width: String(46 * k), height: String(46 * k) }));
+        g.appendChild(el("circle", { class: "ad-you-body", cx: String(cx), cy: String(cy - 8 * k), r: String(6.5 * k) }));
+        g.appendChild(el("path", { class: "ad-you-body", d: `M ${cx - 11 * k} ${cy + 12 * k} v ${-1.5 * k} a ${11 * k} ${9 * k} 0 0 1 ${22 * k} 0 v ${1.5 * k}` }));
+        // The bubble, up and to the right of the head.
+        const bx = cx + 9 * k, by = cy - 34 * k, bw = 28 * k, bh = 16 * k;
+        const bubble = el("g", { class: "ad-you-bubble" });
+        bubble.appendChild(el("rect", { x: String(bx), y: String(by), width: String(bw), height: String(bh), rx: String(4 * k) }));
+        bubble.appendChild(el("path", { d: `M ${bx + 4 * k} ${by + bh} L ${bx + 1 * k} ${by + bh + 5 * k} L ${bx + 9 * k} ${by + bh}` }));
+        const typing = el("g", { class: "ad-you-typing" });
+        [0, 1, 2].forEach((i) => {
+            const dot = el("circle", { cx: String(bx + 8 * k + i * 6 * k), cy: String(by + bh / 2), r: String(1.7 * k) });
+            if (!REDUCE_MOTION) dot.style.animationDelay = `${i * 0.18}s`;
+            typing.appendChild(dot);
+        });
+        const voice = el("g", { class: "ad-you-voice" });
+        [5, 9, 12, 8, 4].forEach((h, i) => {
+            const bar = el("rect", { x: String(bx + 5.5 * k + i * 4 * k), y: String(by + bh / 2 - h * k / 2), width: String(2 * k), height: String(h * k), rx: String(1 * k) });
+            if (!REDUCE_MOTION) bar.style.animationDelay = `${i * 0.1}s`;
+            voice.appendChild(bar);
+        });
+        bubble.append(typing, voice);
+        g.appendChild(bubble);
+        const name = el("text", compact
+            ? { class: "ad-node-name", x: String(cx + 11 * k + 5), y: String(cy + 10 * k), "text-anchor": "start" }
+            : { class: "ad-node-name", x: String(cx), y: String(cy + 26), "text-anchor": "middle" });
+        name.textContent = "You";
+        g.appendChild(name);
+        g.setAttribute("data-ad-tip", details.join("\n"));
+        return g;
+    };
+
+    // A small shield with a tick: the Output checks every answer passes.
+    const checkGlyph = (cx, cy) => {
+        const g = el("g", { class: "ad-check" });
+        g.appendChild(el("path", { d: `M ${cx} ${cy - 5.5} L ${cx + 4.5} ${cy - 3.5} V ${cy + 0.5} C ${cx + 4.5} ${cy + 3.5} ${cx + 2} ${cy + 5} ${cx} ${cy + 5.8} C ${cx - 2} ${cy + 5} ${cx - 4.5} ${cy + 3.5} ${cx - 4.5} ${cy + 0.5} V ${cy - 3.5} Z` }));
+        g.appendChild(el("path", { d: `M ${cx - 2} ${cy} L ${cx - 0.4} ${cy + 1.8} L ${cx + 2.4} ${cy - 1.6}` }));
         return g;
     };
 
@@ -1821,6 +2394,9 @@ export function buildAgentDiagram(opts) {
             nameCx = left + LEAD_SIZE + LEAD_GAP + nameW / 2;
             const gx = left + LEAD_SIZE / 2;
             if (lead === "person") g.appendChild(personGlyph(gx, nameY - 3));
+            else if (lead === "check") g.appendChild(checkGlyph(gx, nameY - 3.5));
+            else if (lead === "adk") g.appendChild(brandMark("/diagram-icons/adk-64.png", gx, nameY - 3.5, LEAD_SIZE + 1));
+            else if (lead === "mcp") g.appendChild(brandMark("/diagram-icons/mcp-64.png", gx, nameY - 3.5, LEAD_SIZE, "ad-brand--mono"));
             else g.appendChild(geminiLogo(gx, nameY - 3.5, LEAD_SIZE));
         }
         lines.forEach((line, i) => {
@@ -1841,66 +2417,66 @@ export function buildAgentDiagram(opts) {
     };
 
     const TIPS = {
-        you:    ["you type, or hold the mic", "the reply streams back as text", "and plays back as speech"],
-        llm:    ["Gemini 3.7 Flash", "reasoning + generation", "plans tool calls · synthesizes reply", "falls back to 3.6 Flash on overload"],
-        agent:  ["get_profile · get_work_history", "get_projects · get_recent_posts", "get_certifications", "ADK orchestrator on Cloud Run"],
+        you:    ["pick Text, Voice or Avatar first", "then type, or hold the mic", "the mode sets how the answer comes back"],
+        llm:    ["Gemini 3.6 Flash writes every answer", "in Text mode, its answer is what streams back", "picked for time to first word", "falls back to 3.5 Flash-Lite if it stalls"],
+        agent:  ["9 tools: profile · work · projects · posts", "certifications · agents · labs · stats · email", "ADK on Cloud Run", "one call per question, whatever the mode"],
         corpus: ["profile.json · bio, roles, certs", "graph.json · projects", "posts.json · LinkedIn", "fetched live, short-TTL cache"],
-        stt:    ["Gemini 3.5 Transcribe", "speech-to-text · mic input", "runs before the agent reasons, outside the ADK loop"],
-        tts:    ["Gemini 3.1 Flash TTS", "text-to-speech · spoken replies", "synthesizes while the reply is still streaming"],
+        stt:    ["Gemini 3.5 Transcribe", "only when you use the mic, in any mode", "typed questions skip it", "runs outside the ADK loop"],
+        checks: ["working note to the Thinking panel", "only Gaurav's real contact email", "one source per citation · no dashes", "answer sized for text or speech"],
+        tts:    ["Gemini 3.1 Flash TTS · Voice mode only", "the browser sends each sentence as it arrives", "plays while the rest is still streaming"],
+        avatar: ["Gemini 3.8 Live Avatar · Avatar mode only", "session opens when you ask, while Atlas thinks", "Sam speaks the checked answer word for word", "fMP4 video on the same SSE stream", "word-timed captions · 3 answers per visitor a day"],
         mcp:    ["send-email (Resend API)", "compose + fire transactional email", "agent-triggered · not a webhook"],
     };
 
-    // ad-node--key marks the AI-model stages (Gemini, STT, TTS) with an accent
-    // node name; ad-node--you marks the human entry/exit point. Data Corpus and
-    // MCP Server stay plain so the model stages read as the primary path.
-    // See components.css.
+    // ad-node--key marks the AI-model stages (Gemini, STT, TTS, Live Avatar)
+    // with an accent node name; ad-node--you marks the human entry/exit point;
+    // ad-node--checks is the gate every answer passes. Data Corpus and MCP
+    // Server stay plain so the model stages read as the primary path.
     if (mobile) {
-        // Vertical spine at cx=96 (You → STT → Agent → TTS), satellites stacked
-        // to the right of the Agent, and the step-7 return path running back up
-        // the clear left corridor at x=18.
-        svg.appendChild(node("ad-node--you",  40,   6, 112, 30, "You",        "ask · listen",         "You: type a question or hold the mic", 96, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key",  40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 96, TIPS.stt, "gemini"));
-        svg.appendChild(node("ad-node--hub",  40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 180, 138, 116, 34, "Gemini 3.7 Flash", "reasoning",      "Google Gemini, reasoning and language generation", 238, TIPS.llm, "gemini"));
-        svg.appendChild(node(null,           180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
-        svg.appendChild(node(null,           180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp));
-        svg.appendChild(node("ad-node--key",  40, 260, 112, 42, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 96, TIPS.tts, "gemini"));
-        // Beside the boxes here, not above: step badge 1 and the spine edge
-        // already occupy the space over the STT node at this width.
+        svg.appendChild(youNode(96, 30, "You: pick a mode, then type or hold the mic", TIPS.you, true));
+        svg.appendChild(node("ad-node--key",    40,  66, 112, 42, ["Gemini 3.5", "Transcribe"], "speech-to-text", "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 96, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--hub",    40, 138, 112, 34, "Agent",      "ADK",                  "ADK agent on Cloud Run, orchestrates all tool calls", 96, TIPS.agent, "adk"));
+        svg.appendChild(node("ad-node--key",   180, 138, 116, 34, "Gemini 3.6 Flash", "reasoning", "Gemini 3.6 Flash works out the answer and writes it", 238, TIPS.llm, "gemini"));
+        svg.appendChild(node(null,             180, 192, 116, 30, "Corpus",     "grounding",            "Live JSON fetch, grounding source for every reply", 238, TIPS.corpus));
+        svg.appendChild(node(null,             180, 240, 116, 30, "MCP",        "actions",              "MCP-compatible Resend server, fires email on agent request", 238, TIPS.mcp, "mcp"));
+        svg.appendChild(node("ad-node--checks", 40, 214, 112, 34, "Checks",     "grounded · clean",     "Output checks every answer passes before you see it", 96, TIPS.checks, "check"));
+        svg.appendChild(node("ad-node--key ad-node--voice",    30, 310, 112, 42, ["Gemini 3.1", "Flash TTS"], "text-to-speech", "Gemini 3.1 Flash TTS reads the answer aloud", 86, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar",   170, 310, 112, 42, ["Gemini 3.8", "Live Avatar"], "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 226, TIPS.avatar, "gemini"));
         svg.appendChild(xformStrip(226,  87, "to-text",  2));
-        svg.appendChild(xformStrip(226, 281, "to-voice", 5));
+        svg.appendChild(xformStrip(86,  370, "to-voice", 6));
+        svg.appendChild(xformStrip(226, 370, "to-video", 6));
     } else {
-        // Horizontal pipeline row at y=98 (You → STT → Agent → TTS), Gemini
-        // above the Agent, Corpus/MCP below it, and the step-7 return path
-        // looping along y=228 back to You. 34px between boxes leaves the step
-        // badges room to sit clear of both, so the connectors stay readable.
-        svg.appendChild(node("ad-node--you",  25,  98,  76, 44, "You",              "ask · listen",         "You: type a question or hold the mic", 63, TIPS.you, "person"));
-        svg.appendChild(node("ad-node--key", 135,  92, 108, 56, ["Gemini 3.5", "Transcribe"], "Speech-to-Text (STT)", "Gemini 3.5 Transcribe converts mic input to text", 189, TIPS.stt, "gemini"));
-        svg.appendChild(node("ad-node--hub", 277,  98,  96, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 325, TIPS.agent));
-        svg.appendChild(node("ad-node--key", 407,  92, 108, 56, ["Gemini 3.1", "Flash TTS"], "Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS converts the reply to speech", 461, TIPS.tts, "gemini"));
-        svg.appendChild(node("ad-node--key", 263,  14, 124, 40, "Gemini 3.7 Flash", "reasoning",            "Google Gemini, reasoning and language generation", 325, TIPS.llm, "gemini"));
-        svg.appendChild(node(null,           217, 170, 112, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 273, TIPS.corpus));
-        svg.appendChild(node(null,           345, 170, 104, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 397, TIPS.mcp));
-        // Above each speech box — the space over them is clear at this width
-        // (the Gemini 3.7 box starts at x=263, well right of the STT strip).
-        svg.appendChild(xformStrip(189, 73, "to-text",  2));
-        svg.appendChild(xformStrip(461, 73, "to-voice", 5));
+        svg.appendChild(youNode(60, 146, "You: pick a mode, then type or hold the mic", TIPS.you));
+        svg.appendChild(node("ad-node--key",    130, 124, 160, 52, "Gemini 3.5 Transcribe", "speech-to-text",   "Gemini 3.5 Transcribe converts mic input to text, only when you use the mic", 210, TIPS.stt, "gemini"));
+        svg.appendChild(node("ad-node--hub",    320, 128, 100, 44, "Agent",            "ADK loop",             "ADK agent on Cloud Run, orchestrates all tool calls", 370, TIPS.agent, "adk"));
+        svg.appendChild(node("ad-node--key",    295,  24, 150, 44, "Gemini 3.6 Flash", "reasoning",            "Gemini 3.6 Flash works out the answer and writes it", 370, TIPS.llm, "gemini"));
+        svg.appendChild(node(null,              258, 218, 108, 38, "Data Corpus",      "grounding",            "Live JSON fetch, grounding source for every reply", 312, TIPS.corpus));
+        svg.appendChild(node(null,              378, 218, 108, 38, "MCP Server",       "actions",              "MCP-compatible Resend server, fires email on agent request", 432, TIPS.mcp, "mcp"));
+        svg.appendChild(node("ad-node--checks", 450, 128, 112, 44, "Output checks",    "grounded · clean",     "Output checks every answer passes before you see it", 506, TIPS.checks, "check"));
+        svg.appendChild(node("ad-node--key ad-node--voice",  626,  44, 164, 52, "Gemini 3.1 Flash TTS",   "text-to-speech",   "Gemini 3.1 Flash TTS reads the answer aloud", 708, TIPS.tts, "gemini"));
+        svg.appendChild(node("ad-node--key ad-node--avatar", 626, 204, 164, 52, "Gemini 3.8 Live Avatar", "lip-synced video", "Gemini 3.8 Live Avatar speaks the answer on video", 708, TIPS.avatar, "gemini"));
+        // Under STT, clear of the reasoning box above the Agent.
+        svg.appendChild(xformStrip(210, 196, "to-text",  2));
+        // Above TTS, mirroring the video strip under Live Avatar (same gap).
+        svg.appendChild(xformStrip(708,  24, "to-voice", 6));
+        svg.appendChild(xformStrip(708, 276, "to-video", 6));
     }
 
     return svg;
 }
 
-// The five pipeline steps, written once and used by both the legend under
+// The seven pipeline steps, written once and used by both the legend under
 // the diagram and the fullscreen view. Numbers match the badges in the SVG.
 // Step 4 covers both tool nodes in the diagram, which share that badge:
 // the model decides in step 3, then calls whichever tools it needs.
 const AGENT_STEPS = [
-    ["You ask", "typed, or held down the mic"],
-    ["Speech-to-Text (STT)", "Gemini 3.5 Transcribe turns the recording into text"],
-    ["Reasoning", "Gemini 3.7 Flash works out what it needs and what to call"],
-    ["Tools", "it reads the live corpus for facts, and calls the MCP server when something needs doing, like emailing the resume"],
-    ["Text-to-Speech (TTS)", "Gemini 3.1 Flash TTS speaks the reply in chunks as it arrives, not after it finishes"],
-    ["Back to you", "text streams in, audio plays alongside it"],
+    ["You pick a mode and ask", "Text, Voice or Avatar, chosen before you ask. Type, or hold the mic"],
+    ["Speech-to-Text (STT)", "only when you use the mic: Gemini 3.5 Transcribe turns the recording into text. Typed questions skip it"],
+    ["Reasoning", "Gemini 3.6 Flash works out the answer and writes it"],
+    ["Tools", "the live corpus for facts, and the MCP server for actions like emailing the resume"],
+    ["Output checks", "the working note moves to the Thinking panel, and only real contact details, clean citations and a length sized for the mode get through"],
+    ["Your mode's path, one of three", "Text streams it · Voice: the browser has Gemini 3.1 Flash TTS read it a sentence at a time · Avatar: Sam speaks it on video through Gemini 3.8 Live Avatar, a session opened while Atlas was thinking"],
+    ["Back to you", "text streams in, and audio plays or Sam speaks, with each word lit as it's said"],
 ];
 
 function buildAgentLegend() {
@@ -1941,6 +2517,9 @@ function buildAgentFigure(parentDialog) {
             <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/>
         </svg>
         <span>Expand</span>`;
+    // Desktop keeps the top-right corner for the Voice strip, and its
+    // top-left corner is empty, so Expand sits there.
+    if (svg.getAttribute("data-layout") === "desktop") btn.classList.add("ad-expand--left");
     btn.addEventListener("click", () => openAgentDiagramZoom());
     fig.appendChild(btn);
     return fig;
@@ -2092,9 +2671,34 @@ function renderShell(root, agentExplainer) {
             </button>
             <button type="button" class="agent-panel-close" aria-label="Close agent">×</button>
         </div>
+        <div class="agent-mode" role="radiogroup" aria-label="How Atlas answers" data-active="text">
+            <span class="agent-mode-glide" aria-hidden="true"></span>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="text" aria-label="Text" aria-checked="true" title="Atlas answers in text">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                    <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5"/>
+                </svg>
+                <span>Text</span>
+            </button>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="voice" aria-label="Voice" aria-checked="false" title="Atlas reads new answers aloud. Earlier answers stay as they are, nothing is asked again.">
+                <span class="agent-mode-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span>Voice</span>
+            </button>
+            <button type="button" role="radio" class="agent-mode-opt" data-mode="avatar" aria-label="Avatar" aria-checked="false" title="Meet Atlas face to face. Earlier answers stay as they are, nothing is asked again.">
+                <span class="agent-mode-orb" aria-hidden="true"><span class="agent-mode-orb-face">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="8" cy="6" r="2.75"/>
+                        <path d="M3 14a5 5 0 0 1 10 0"/>
+                        <path d="M1.5 4V2.5a1 1 0 0 1 1-1H4M12 1.5h1.5a1 1 0 0 1 1 1V4"/>
+                    </svg>
+                </span></span>
+                <span>Avatar</span>
+                <span class="agent-mode-new" aria-hidden="true"></span>
+            </button>
+        </div>
     `;
     const closeBtn = head.querySelector(".agent-panel-close");
     const speakerBtn = head.querySelector(".agent-speaker");
+    const modeSwitch = head.querySelector(".agent-mode");
     const expandBtn = head.querySelector(".agent-panel-expand");
     const minimizeBtn = head.querySelector(".agent-panel-minimize");
 
@@ -2185,6 +2789,18 @@ function renderShell(root, agentExplainer) {
     } else {
         foot.textContent = "Powered by ADK + Gemini + MCP";
     }
+    // Spec 67: a labelled control, next to the composer where the chat lives,
+    // rather than a bare trash icon among the window controls.
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "agent-panel-clear";
+    clearBtn.hidden = true;
+    clearBtn.title = "Clear the conversation and start fresh";
+    clearBtn.innerHTML =
+        '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v2.6h2.6"/></svg>'
+        + "<span>Clear chat</span>";
+    foot.appendChild(clearBtn);
 
     const liveRegion = document.createElement("div");
     liveRegion.className = "agent-live";
@@ -2220,7 +2836,7 @@ function renderShell(root, agentExplainer) {
 
     return {
         fab, tooltip, panel, body, head, dragZone, closeBtn, expandBtn, minimizeBtn,
-        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, voiceStatus, liveRegion, foot,
+        prompts, transcript, input, inputRow, sendBtn, micBtn, speakerBtn, clearBtn, modeSwitch, voiceStatus, liveRegion, foot,
         footerTrigger: foot.querySelector(".agent-explainer-trigger"),
         explainerDialog,
     };
@@ -2367,8 +2983,8 @@ function startLoadingStages(assistantLi, isFirstTurn) {
             // wait that way. Later turns hit a warm container — a slow one is
             // just a complex answer, so stay neutral (no "first answer" claim).
             p.textContent = isFirstTurn
-                ? "Still on it — the first answer of the session takes a few extra seconds. Hang tight."
-                : "Still on it — this one's taking a moment. Hang tight.";
+                ? "Still on it. The first answer of the session takes a few extra seconds, so hang tight."
+                : "Still on it. This one's taking a moment, so hang tight.";
         }
     }, 10000);
     return {
@@ -2389,10 +3005,24 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // --- SSE streaming ----------------------------------------------------------
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onDone, onError }) {
+// A fresh chat session id (same shape as main.js's page id).
+function newSessionId() {
+    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, mode, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
     let response;
     try {
         const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
+        // Spec 67: ask this turn to be spoken by the avatar, on this stream.
+        if (avatar) reqBody.avatar = true;
+        // How the answer will reach the visitor; spoken modes get shorter ones.
+        if (mode) reqBody.mode = mode;
         response = await fetch(apiUrl, {
             method: "POST",
             mode: "cors",
@@ -2403,7 +3033,7 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onTh
         });
     } catch (err) {
         if (signal?.aborted) { onDone(""); return; }
-        onError("I can't reach the server right now — might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
+        onError("I can't reach the server right now. It might be a connection hiccup. Gaurav's on LinkedIn if it's urgent.", false);
         onDone("");
         return;
     }
@@ -2467,6 +3097,17 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, onTh
                     onCta(evt.cta);
                 } else if (evt.badges && FEATURES.badges) {
                     onBadges(evt.badges);
+                } else if (onAvatar && typeof evt.avatarVideo === "string") {
+                    onAvatar.video(evt.avatarVideo); // spec 67: live avatar frames
+                } else if (onAvatar && evt.avatarWords) {
+                    // { text, at }: `at` is when the chunk's last word is heard.
+                    const w = evt.avatarWords;
+                    if (typeof w === "string") onAvatar.words(w, NaN);
+                    else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
+                } else if (onAvatar && evt.avatarEnd) {
+                    onAvatar.end();
+                } else if (onAvatar && evt.avatarUnavailable) {
+                    onAvatar.unavailable(evt.avatarUnavailable.reason || "", evt.avatarUnavailable.capped === true);
                 } else if (evt.done === true) {
                     done = true;
                     break;
@@ -2521,8 +3162,10 @@ function renderTextWithLinks(container, text, citations) {
     let pos = 0;
     const segments = [];
 
-    // Build a combined regex for URLs and [N] markers
-    const combined = /https?:\/\/[^\s<>()\[\]]+|\[(\d)\]/gi;
+    // Build a combined regex for URLs and [N] markers. A combined marker
+    // ("[1, 2]", which the server now splits, but older output may carry)
+    // becomes one linked marker per source.
+    const combined = /https?:\/\/[^\s<>()\[\]]+|\[(\d+(?:\s*,\s*\d+)*)\]/gi;
     combined.lastIndex = 0;
     let match;
     while ((match = combined.exec(text)) !== null) {
@@ -2530,8 +3173,10 @@ function renderTextWithLinks(container, text, citations) {
             segments.push({ type: "text", value: text.slice(pos, match.index) });
         }
         if (match[1] !== undefined) {
-            // [N] citation marker
-            segments.push({ type: "cite", n: Number(match[1]), raw: match[0] });
+            // [N] citation marker(s)
+            for (const n of match[1].split(",")) {
+                segments.push({ type: "cite", n: Number(n.trim()), raw: `[${n.trim()}]` });
+            }
         } else {
             // URL
             segments.push({ type: "url", value: match[0] });
@@ -2573,8 +3218,15 @@ function renderTextWithLinks(container, text, citations) {
                 a.textContent = `[${seg.n}]`;
                 sup.appendChild(a);
                 container.appendChild(sup);
+            } else if (Object.keys(citationMap).length > 0) {
+                // A marker with no source behind it (the server keeps at most
+                // five): drop it, and the space before it, rather than show a
+                // dead "[6]".
+                const prev = container.lastChild;
+                if (prev && prev.nodeType === Node.TEXT_NODE) prev.nodeValue = prev.nodeValue.replace(/\s+$/, "");
             } else {
-                // No citation data yet (shouldn't happen post-done) — render plain
+                // No citation data at all: render plain (the "Internal:
+                // profile data" source line explains it).
                 container.appendChild(document.createTextNode(seg.raw));
             }
         }

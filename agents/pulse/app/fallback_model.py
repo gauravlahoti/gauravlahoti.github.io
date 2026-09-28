@@ -1,12 +1,12 @@
 # ruff: noqa
-"""Free-tier model cascade for the Pulse ambient agent.
+"""Model cascade for the Pulse ambient agent.
 
-Each Gemini model carries its OWN AI Studio free-tier daily quota
-(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`). So when the primary
-model returns `429 RESOURCE_EXHAUSTED`, we transparently retry the same request
-against the next model in the chain instead of failing the visitor's turn. This
-keeps the widget alive on the free tier (no Vertex AI, no paid billing) by
-spreading load across several models' separate daily caps.
+Pulse runs on Vertex AI / `adk-deploy-trail` (see `app/agent.py`), so this
+cascade is model-availability redundancy rather than a free-tier safety net:
+when the primary returns `429 RESOURCE_EXHAUSTED` or `503 UNAVAILABLE`, we
+transparently retry the same request against the next model in the chain
+instead of failing the run. It previously spread load across several models'
+separate AI Studio free-tier daily caps, which is why the chain is this long.
 
 The ADK Gemini model raises the 429 *before* it yields any chunk (the
 `generate_content_stream` await fails up front — see

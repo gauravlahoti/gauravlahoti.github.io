@@ -34,6 +34,7 @@ ceiling — reloading to get a fresh sessionId does not bypass it.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -47,25 +48,55 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+from google.genai.errors import APIError
 
 from app.agent import root_agent
+from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
+from app.app_utils.citations import CitationGuard, split_markers
+from app.app_utils.dashes import DashGuard, strip_dashes
+from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
+from app.app_utils.lead_note import NoteFilter
 from app.app_utils.resume_send import warm_mcp_server
-from app.app_utils.speak import MAX_TEXT_CHARS, speak_text
+from app.app_utils.speak import MAX_TEXT_CHARS, sanitize_for_speech, speak_text
 from app.app_utils.speak import warm as warm_speak
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.app_utils.transcribe import warm as warm_transcribe
 from app.guardrails import (
     GUARDRAIL_BLOCK_CODE,
     INJECTION_REPLY_PREFIX,
+    REPLY_MODES,
     TOO_LONG_REPLY_PREFIX,
+    has_contact_intent,
 )
 from app.rate_limit import limiter
 
 _AGENT_VERSION = os.environ.get("COMMIT_SHA", "dev")
 
 logger = logging.getLogger(__name__)
+
+# Quota exhaustion (429), a model outage (503), and a rejected project or
+# credential (403) all mean the model is unreachable for everyone, not that
+# this one request was malformed. Asking again won't help, so these get a
+# maintenance notice instead of the generic "try that again" copy.
+_MODEL_UNAVAILABLE_CODES = frozenset({403, 429, 503})
+
+_MAINTENANCE_REPLY = (
+    "I'm down for maintenance right now, so I can't answer that one. "
+    "Please check back in a bit. Gaurav's on LinkedIn if it's urgent."
+)
+_GENERIC_ERROR_REPLY = (
+    "Hmm, something went wrong on my end. Mind trying that again? "
+    "Gaurav's on LinkedIn for anything urgent."
+)
+
+
+def _failure_reply(exc: BaseException) -> str:
+    """Maintenance notice when the model is unreachable, generic retry copy otherwise."""
+    if isinstance(exc, APIError) and getattr(exc, "code", None) in _MODEL_UNAVAILABLE_CODES:
+        return _MAINTENANCE_REPLY
+    return _GENERIC_ERROR_REPLY
 
 
 def _model_candidates() -> list[str]:
@@ -149,6 +180,9 @@ _ALLOWED_CTA = {"topmate", "linkedin", "resume"}
 # own copy of profile.json and silently drops anything that doesn't match, so a
 # slug invented here can never become an image path or a link.
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+# Up to five sources (spec 67): a list answer (four AI Labs, say) cites one
+# per item, and a cap of three left "[4]" in the text with nothing behind it.
+_MAX_CITATIONS = 5
 _MAX_BADGES = 16  # profile.json currently holds 14; leaves headroom without being unbounded
 
 _ALLOWED_CITE_HOSTS = {
@@ -190,7 +224,7 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]
         # citations: validate each entry
         raw_cites = obj.get("citations") or []
         citations: list[dict] = []
-        for c in raw_cites[:3]:
+        for c in raw_cites[:_MAX_CITATIONS]:
             if not isinstance(c, dict):
                 continue
             cid = c.get("id")
@@ -201,12 +235,12 @@ def _parse_meta(raw: str) -> tuple[list[dict], list[str], str | None, list[str]]
             host = (url.split("//", 1)[-1].split("/", 1)[0]).lower() if "//" in url else ""
             if not any(host == h or host.endswith("." + h) for h in _ALLOWED_CITE_HOSTS):
                 continue  # server is canonical — drop off-allowlist entries
-            citations.append({"id": cid, "url": url[:500], "label": str(label)[:80]})
+            citations.append({"id": cid, "url": url[:500], "label": strip_dashes(str(label))[:80]})
         # suggestions: 2–3 non-empty strings ≤ 80 chars; drop off-scope
         # (generic tech-definition) suggestions Atlas would only decline.
         raw_sugg = obj.get("suggestions") or []
         suggestions = [
-            str(s)[:80]
+            strip_dashes(str(s))[:80]
             for s in raw_sugg
             if isinstance(s, str) and s.strip() and not _is_offscope_suggestion(s)
         ][:3]
@@ -255,6 +289,166 @@ async def _log_turn(geo_task: asyncio.Task | None, payload: dict[str, Any]) -> N
     await log_interaction(payload)
 
 
+def _reply_mode(body: Any, want_avatar: bool) -> str:
+    """The widget's mode for this turn: text, voice or avatar (spec 67)."""
+    if want_avatar:
+        return "avatar"
+    mode = (body or {}).get("mode") if isinstance(body, dict) else None
+    return mode if mode in REPLY_MODES else "text"
+
+
+async def _capped_avatar_stream(reason: str) -> AsyncIterator[str]:
+    """The whole reply to an avatar turn over its cap: `capped` tells the
+    widget to offer Voice mode for this same question."""
+    yield _sse({"avatarUnavailable": {"reason": reason, "capped": True}})
+    yield _sse({"done": True})
+
+
+# Sent (server-side, never shown) when a turn ends with no answer text.
+_EMPTY_REPLY_NUDGE = (
+    "(Your previous reply reached the visitor empty. Answer their last question "
+    "now, following all your rules, starting with your [[NOTE]] block.)"
+)
+
+
+_AVATAR_SCRIPT_KEY = "_avatarScript"
+_AVATAR_TIMEOUT_S = 150.0
+
+
+async def _with_avatar(text_stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Spec 67: one chat turn, spoken by the avatar, on one SSE stream.
+
+    Opens the Live avatar session the moment the turn starts, in parallel
+    with the agent thinking, and relays its idle video straight away. When
+    the reply's script arrives it goes into the already-open session, and
+    the avatar's video (`avatarVideo`, base64 fMP4) and spoken words
+    (`avatarWords`) follow on this same stream. The text stream's final
+    `done` is held until the avatar has finished, so the widget's turn ends
+    when the talking does. Any avatar failure becomes `avatarUnavailable`,
+    and the widget reads the reply aloud with the TTS voice instead.
+    """
+    out: asyncio.Queue[str | None] = asyncio.Queue()
+    live = avatar_speak.LiveAvatar()
+    script: asyncio.Future[str | None] = asyncio.get_running_loop().create_future()
+    held_done: list[str] = []
+    reserved = avatar_speak.RESERVE_SECONDS
+
+    async def pump_text() -> None:
+        try:
+            async for chunk in text_stream:
+                if chunk.startswith("data: ") and _AVATAR_SCRIPT_KEY in chunk:
+                    payload = json.loads(chunk[6:])
+                    if _AVATAR_SCRIPT_KEY in payload:
+                        if not script.done():
+                            script.set_result(payload[_AVATAR_SCRIPT_KEY])
+                        continue
+                if chunk.startswith('data: {"done"'):
+                    held_done.append(chunk)
+                    continue
+                await out.put(chunk)
+        finally:
+            if not script.done():
+                script.set_result(None)  # no speakable reply this turn
+
+    async def pump_avatar() -> None:
+        try:
+            started = time.monotonic()
+            await live.open()
+            logger.info("avatar session open in %d ms", int((time.monotonic() - started) * 1000))
+            aligner: list[avatar_speak.ScriptAligner] = []
+            reader = asyncio.ensure_future(_relay_avatar(live, out, aligner))
+            text = await script
+            if not text:
+                reader.cancel()
+                return
+            aligner.append(avatar_speak.ScriptAligner(text))
+            await live.say(text)
+            await reader
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("avatar turn failed")
+            await out.put(_sse({"avatarUnavailable": {"reason": "Avatar is unavailable right now."}}))
+
+    text_task = asyncio.ensure_future(pump_text())
+    avatar_task = asyncio.ensure_future(asyncio.wait_for(pump_avatar(), _AVATAR_TIMEOUT_S))
+
+    async def closer() -> None:
+        await asyncio.gather(text_task, avatar_task, return_exceptions=True)
+        await out.put(None)
+
+    closing = asyncio.ensure_future(closer())
+    try:
+        while (item := await out.get()) is not None:
+            yield item
+        for chunk in held_done:
+            yield chunk
+    finally:
+        for task in (text_task, avatar_task, closing):
+            task.cancel()
+        await live.close()
+        spoken = live.spoken_seconds
+        avatar_speak.budget.settle(reserved, spoken)
+        logger.info(
+            "avatar spoke %.1fs ($%.3f) bytes=%d day_used=%.0fs",
+            spoken, spoken * avatar_speak.USD_PER_SPEAKING_SECOND,
+            live.bytes, avatar_speak.budget.used_seconds,
+        )
+
+
+def _words_event(text: str, live: avatar_speak.LiveAvatar) -> dict[str, Any]:
+    """A caption chunk plus the media time its last word is heard at, so the
+    widget can highlight each word as it is said (spec 67 karaoke)."""
+    return {"text": text, "at": round(live.clock.edge + avatar_speak.WORDS_LEAD_S, 3)}
+
+
+async def _relay_avatar(
+    live: avatar_speak.LiveAvatar,
+    out: asyncio.Queue,
+    aligner: list[avatar_speak.ScriptAligner],
+) -> None:
+    """Forward the avatar's video and spoken words onto the turn's stream.
+
+    Words are aligned to the script the avatar is reading (`aligner` holds
+    it once the reply exists), so captions carry the script's own spacing
+    and punctuation rather than the raw transcription's.
+    """
+    async for kind, value in live.events():
+        if kind == "video":
+            await out.put(_sse({"avatarVideo": base64.b64encode(value).decode("ascii")}))
+        else:
+            words = aligner[0].feed(value) if aligner else value
+            if words:
+                await out.put(_sse({"avatarWords": _words_event(words, live)}))
+    if aligner and (tail := aligner[0].rest().strip()):
+        await out.put(_sse({"avatarWords": _words_event(" " + tail, live)}))
+    await out.put(_sse({"avatarEnd": True}))
+
+
+class _OutputFilter:
+    """Everything Atlas shows goes through here (spec 67): no em/en dashes,
+    no email address other than Gaurav's contact address or one the visitor
+    typed, and one source per citation marker ("[1, 2]" -> "[1][2]").
+    Streaming push()/flush(), or whole() for finished text."""
+
+    def __init__(self, visitor_emails: frozenset[str], contact_intent: bool) -> None:
+        self._cites = CitationGuard()
+        self._dashes = DashGuard()
+        self._emails = EmailGuard(set(visitor_emails), contact_intent)
+        self._visitor_emails = set(visitor_emails)
+        self._contact = contact_intent
+
+    def push(self, chunk: str) -> str:
+        return self._emails.push(self._dashes.push(self._cites.push(chunk)))
+
+    def flush(self) -> str:
+        tail = self._dashes.push(self._cites.flush()) + self._dashes.flush()
+        return self._emails.push(tail) + self._emails.flush()
+
+    def whole(self, text: str) -> str:
+        return fix_emails(strip_dashes(split_markers(text)), self._visitor_emails, self._contact)
+
+
 async def _stream_agent(
     session_id: str,
     user_text: str,
@@ -263,6 +457,10 @@ async def _stream_agent(
     identity: dict[str, str] | None,
     client_meta: dict[str, str],
     geo_task: asyncio.Task | None = None,
+    avatar: bool = False,
+    reply_mode: str = "text",
+    visitor_emails: frozenset[str] = frozenset(),
+    contact_intent: bool = False,
 ) -> AsyncIterator[str]:
     """Run the latest user message through the ADK runner and yield SSE chunks.
 
@@ -286,6 +484,14 @@ async def _stream_agent(
     ttf_delta_ms: int | None = None
     # user_visible: text actually forwarded to the client (excludes meta block)
     user_visible: list[str] = []
+    # Spec 67: the working note ([[NOTE]] block, or an untagged one) goes to
+    # the Thinking panel, never into the reply.
+    lead_guard = NoteFilter()
+    step_streamed = False  # this model step has streamed partial answer text
+    # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
+    # Spec 67: and no email address Atlas wasn't given (see emails.py).
+    dash_guard = _OutputFilter(visitor_emails, contact_intent)
+    thought_guard = _OutputFilter(visitor_emails, contact_intent)
     # pending: holds back chars that might be the start of [[META]]
     pending = ""
     meta_open = False
@@ -299,7 +505,6 @@ async def _stream_agent(
     status = "ok"
     error_message: str | None = None
     # For delta de-dup (cumulative vs incremental Gemini events)
-    emitted_len = 0  # chars already flushed to user_visible / pending
     # Thinking (part.thought == True) is a fully separate stream from the
     # answer — its own de-dup state, never touches user_visible/meta_parts/
     # the audit log's `response` field. See thinking_config in agent.py.
@@ -353,164 +558,212 @@ async def _stream_agent(
 
         return chunks
 
-    try:
-        async for event in _runner.run_async(
-            user_id=session_id,
-            session_id=session_id,
-            new_message=new_message,
-            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
-        ):
-            # Collect tool calls from function_call parts.
-            content = getattr(event, "content", None)
-            if content is not None:
-                for part in getattr(content, "parts", None) or []:
-                    fc = getattr(part, "function_call", None)
-                    if fc is not None:
-                        try:
-                            args_repr = json.dumps(dict(fc.args or {}))[:2048]
-                            tool_calls.append({"name": fc.name, "args": json.loads(args_repr)})
-                        except Exception:
-                            tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
+    # Spec 67: a turn can end with no answer at all (the model stops after
+    # its thinking, or after its [[NOTE]] block). Rather than show a blank
+    # reply, run it once more with a short server nudge.
+    turn_message = new_message
+    for attempt in range(2):
+        try:
+            async for event in _runner.run_async(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=turn_message,
+                # Spec 67: how this answer will reach the visitor (guardrails.py
+                # gives spoken modes a tighter length).
+                state_delta={"reply_mode": reply_mode},
+                run_config=RunConfig(streaming_mode=StreamingMode.SSE),
+            ):
+                # Collect tool calls from function_call parts.
+                content = getattr(event, "content", None)
+                if content is not None:
+                    for part in getattr(content, "parts", None) or []:
+                        fc = getattr(part, "function_call", None)
+                        if fc is not None:
+                            try:
+                                args_repr = json.dumps(dict(fc.args or {}))[:2048]
+                                tool_calls.append({"name": fc.name, "args": json.loads(args_repr)})
+                            except Exception:
+                                tool_calls.append({"name": getattr(fc, "name", "?"), "args": {}})
 
-                    # Collect tool *outcomes*. Without this the audit row records
-                    # a failed send as a success: the turn streams fine, so
-                    # status stays "ok" and every downstream dashboard (including
-                    # Pulse's digest, which counts `status != 'ok'`) reports clean
-                    # while visitors are being told the email couldn't be sent.
-                    fr = getattr(part, "function_response", None)
-                    if fr is not None:
-                        fr_name = getattr(fr, "name", None) or "?"
-                        value = _fr_value(getattr(fr, "response", None))
-                        code = None
-                        if isinstance(value, dict):
-                            raw_code = value.get("code")
-                            code = str(raw_code)[:64] if raw_code is not None else None
-                            if value.get("ok") is False:
-                                # ADK can emit the same part across more than one
-                                # event, so guard against a repeated entry.
-                                failure = f"{fr_name}:{code or 'failed'}"
-                                if failure not in tool_failures:
-                                    tool_failures.append(failure)
-                        for entry in reversed(tool_calls):
-                            if entry.get("name") == fr_name and "code" not in entry:
-                                if code is not None:
-                                    entry["code"] = code
-                                break
+                        # Collect tool *outcomes*. Without this the audit row records
+                        # a failed send as a success: the turn streams fine, so
+                        # status stays "ok" and every downstream dashboard (including
+                        # Pulse's digest, which counts `status != 'ok'`) reports clean
+                        # while visitors are being told the email couldn't be sent.
+                        fr = getattr(part, "function_response", None)
+                        if fr is not None:
+                            fr_name = getattr(fr, "name", None) or "?"
+                            value = _fr_value(getattr(fr, "response", None))
+                            code = None
+                            if isinstance(value, dict):
+                                raw_code = value.get("code")
+                                code = str(raw_code)[:64] if raw_code is not None else None
+                                if value.get("ok") is False:
+                                    # ADK can emit the same part across more than one
+                                    # event, so guard against a repeated entry.
+                                    failure = f"{fr_name}:{code or 'failed'}"
+                                    if failure not in tool_failures:
+                                        tool_failures.append(failure)
+                            for entry in reversed(tool_calls):
+                                if entry.get("name") == fr_name and "code" not in entry:
+                                    if code is not None:
+                                        entry["code"] = code
+                                    break
 
-            # Collect token usage from usage_metadata. Last-wins: a turn with a
-            # tool call makes two internal LLM calls, and this keeps whichever
-            # one's counts are recorded, so pair "model" from the SAME event
-            # rather than any event that merely mentions a model — otherwise
-            # tokens from one internal call could be attributed to a different
-            # model than the one that actually produced them.
-            um = getattr(event, "usage_metadata", None)
-            if um is not None:
-                inp = getattr(um, "prompt_token_count", None)
-                out = getattr(um, "candidates_token_count", None)
-                if inp is not None:
-                    usage["input"] = int(inp)
-                if out is not None:
-                    usage["output"] = int(out)
-                tt = getattr(um, "thoughts_token_count", None)
-                if tt is not None:
-                    usage["thinkingTokens"] = int(tt)
-                mv = getattr(event, "model_version", None)
-                if mv:
-                    usage["model"] = str(mv)
+                # Collect token usage from usage_metadata. Last-wins: a turn with a
+                # tool call makes two internal LLM calls, and this keeps whichever
+                # one's counts are recorded, so pair "model" from the SAME event
+                # rather than any event that merely mentions a model — otherwise
+                # tokens from one internal call could be attributed to a different
+                # model than the one that actually produced them.
+                um = getattr(event, "usage_metadata", None)
+                if um is not None:
+                    inp = getattr(um, "prompt_token_count", None)
+                    out = getattr(um, "candidates_token_count", None)
+                    if inp is not None:
+                        usage["input"] = int(inp)
+                    if out is not None:
+                        usage["output"] = int(out)
+                    tt = getattr(um, "thoughts_token_count", None)
+                    if tt is not None:
+                        usage["thinkingTokens"] = int(tt)
+                    mv = getattr(event, "model_version", None)
+                    if mv:
+                        usage["model"] = str(mv)
 
-            if content is None:
-                continue
-            # Skip events that are not from the model (tool calls etc.).
-            author = getattr(event, "author", None)
-            if author is not None and author == "user":
-                continue
-            parts = getattr(content, "parts", None) or []
-            # The final event of a streaming turn (partial=False, emitted once
-            # the whole response is assembled) can return thought text that is
-            # a TRUNCATED/windowed recap rather than a clean superset of what
-            # streamed live (confirmed empirically: on longer reasoning, the
-            # final thought part dropped its earliest segment). Treating that
-            # as fresh content would re-emit stale/incomplete thinking after
-            # the real answer has already started. Thinking is only ever
-            # useful live anyway, so only process it while partial=True; the
-            # final event's answer text (never observed to have this problem)
-            # still flows through the unchanged dedup below.
-            is_partial = bool(getattr(event, "partial", False))
-            answer_texts: list[str] = []
-            thought_texts: list[str] = []
-            for part in parts:
-                t = getattr(part, "text", None)
-                if not t:
+                if content is None:
                     continue
-                if getattr(part, "thought", False):
-                    if is_partial:
-                        thought_texts.append(t)
+                # Skip events that are not from the model (tool calls etc.).
+                author = getattr(event, "author", None)
+                if author is not None and author == "user":
+                    continue
+                parts = getattr(content, "parts", None) or []
+                # The final event of a streaming turn (partial=False, emitted once
+                # the whole response is assembled) can return thought text that is
+                # a TRUNCATED/windowed recap rather than a clean superset of what
+                # streamed live (confirmed empirically: on longer reasoning, the
+                # final thought part dropped its earliest segment). Treating that
+                # as fresh content would re-emit stale/incomplete thinking after
+                # the real answer has already started. Thinking is only ever
+                # useful live anyway, so only process it while partial=True; the
+                # final event's answer text (never observed to have this problem)
+                # still flows through the unchanged dedup below.
+                is_partial = bool(getattr(event, "partial", False))
+                answer_texts: list[str] = []
+                thought_texts: list[str] = []
+                for part in parts:
+                    t = getattr(part, "text", None)
+                    if not t:
+                        continue
+                    if getattr(part, "thought", False):
+                        if is_partial:
+                            thought_texts.append(t)
+                    else:
+                        answer_texts.append(t)
+
+                if thought_texts:
+                    full_thought = "".join(thought_texts)
+                    thought_so_far = "".join(thought_visible)
+                    if full_thought.startswith(thought_so_far):
+                        new_thought = full_thought[len(thought_so_far):]
+                    elif thought_so_far.startswith(full_thought):
+                        new_thought = ""
+                    else:
+                        # Disjoint (fresh reasoning round after a tool call) — treat as fresh
+                        new_thought = full_thought
+                    if new_thought:
+                        thought_visible.append(new_thought)
+                        # Cosmetic only — the real [[META]] protocol lives entirely on
+                        # the answer stream and is untouched by this.
+                        cleaned = (new_thought.replace("[[META]]", "").replace("[[/META]]", "")
+                                   .replace("[[NOTE]]", "").replace("[[/NOTE]]", ""))
+                        if cleaned:
+                            if ttf_thinking_ms is None:
+                                ttf_thinking_ms = int((time.monotonic() - start) * 1000)
+                            cleaned = thought_guard.push(cleaned)
+                            if cleaned:
+                                yield _sse({"thinking": cleaned})
+
+                if not answer_texts:
+                    continue
+                full = "".join(answer_texts)
+
+                # Spec 67: partial events carry the NEXT piece of text; the final
+                # event of a step (partial=False) repeats the whole step once
+                # assembled (checked against live ADK SSE events). The old
+                # prefix-matching dedup guessed from the text instead, and dropped
+                # real pieces whenever one looked like a prefix of what had
+                # streamed: a lone "[" vanished, "[[NOTE]]" arrived as "[NOTE]]",
+                # and a lost "[" in "[[/NOTE]]" left a note block open that
+                # swallowed the whole reply.
+                if is_partial:
+                    new_text = full
+                    step_streamed = True
+                elif step_streamed:
+                    new_text = ""  # the recap of a step that already streamed
+                    step_streamed = False
                 else:
-                    answer_texts.append(t)
+                    new_text = full  # a step that arrived only as a final event
 
-            if thought_texts:
-                full_thought = "".join(thought_texts)
-                thought_so_far = "".join(thought_visible)
-                if full_thought.startswith(thought_so_far):
-                    new_thought = full_thought[len(thought_so_far):]
-                elif thought_so_far.startswith(full_thought):
-                    new_thought = ""
-                else:
-                    # Disjoint (fresh reasoning round after a tool call) — treat as fresh
-                    new_thought = full_thought
-                if new_thought:
-                    thought_visible.append(new_thought)
-                    # Cosmetic only — the real [[META]] protocol lives entirely on
-                    # the answer stream and is untouched by this.
-                    cleaned = new_thought.replace("[[META]]", "").replace("[[/META]]", "")
-                    if cleaned:
-                        if ttf_thinking_ms is None:
-                            ttf_thinking_ms = int((time.monotonic() - start) * 1000)
-                        yield _sse({"thinking": cleaned})
+                if not new_text:
+                    continue
 
-            if not answer_texts:
-                continue
-            full = "".join(answer_texts)
+                for chunk in _absorb(new_text):
+                    if chunk:
+                        # Spec 67: a working note written into the reply goes
+                        # to the Thinking panel instead (see lead_note.py).
+                        shown, note = lead_guard.push(chunk)
+                        if note:
+                            yield _sse({"thinking": dash_guard.whole(note)})
+                        shown = dash_guard.push(shown) if shown else ""
+                        if shown:
+                            if ttf_delta_ms is None:
+                                ttf_delta_ms = int((time.monotonic() - start) * 1000)
+                            yield _sse({"delta": shown})
 
-            # Delta de-dup: Gemini can send cumulative or incremental payloads.
-            total_so_far = "".join(user_visible) + pending + "".join(meta_parts)
-            if full.startswith(total_so_far):
-                new_text = full[len(total_so_far):]
-            elif total_so_far.startswith(full):
-                new_text = ""
-            else:
-                # Disjoint (post-tool-call turn) — treat as fresh
-                new_text = full
-                emitted_len = 0
+        except Exception as exc:
+            logger.exception("agent-chat stream failed")
+            status = "error"
+            error_message = repr(exc)[:500]
+            held, _ = lead_guard.flush()
+            held = dash_guard.push(held) + dash_guard.flush() if held else dash_guard.flush()
+            if held:
+                yield _sse({"delta": held})
+            yield _sse({"delta": _failure_reply(exc)})
 
-            if not new_text:
-                continue
-
-            for chunk in _absorb(new_text):
-                if chunk:
-                    if ttf_delta_ms is None:
-                        ttf_delta_ms = int((time.monotonic() - start) * 1000)
-                    yield _sse({"delta": chunk})
-
-    except Exception as exc:
-        logger.exception("agent-chat stream failed")
-        status = "error"
-        error_message = repr(exc)[:500]
-        yield _sse(
-            {
-                "delta": "Hmm, something went wrong on my end. Mind trying "
-                "that again? Gaurav's on LinkedIn for anything urgent."
-            }
-        )
+        answered = lead_guard.without_note(
+            "".join(user_visible) + ("" if meta_open else pending)
+        ).strip()
+        if answered or status != "ok" or attempt == 1:
+            break
+        logger.warning("atlas: turn produced no answer text, retrying once")
+        user_visible, pending, meta_open, meta_parts = [], "", False, []
+        lead_guard = NoteFilter()
+        turn_message = types.Content(role="user", parts=[types.Part.from_text(text=_EMPTY_REPLY_NUDGE)])
 
     # Flush any remaining safe pending chars (unlikely but defensive).
     if pending and not meta_open:
         user_visible.append(pending)
-        yield _sse({"delta": pending})
+        shown, note = lead_guard.push(pending)
+        if note:
+            yield _sse({"thinking": dash_guard.whole(note)})
+        shown = dash_guard.push(shown) if shown else ""
+        if shown:
+            yield _sse({"delta": shown})
         pending = ""
+    held, note = lead_guard.flush()
+    if note:
+        yield _sse({"thinking": dash_guard.whole(note)})
+    held = (dash_guard.push(held) if held else "") + dash_guard.flush()
+    if held:
+        yield _sse({"delta": held})
+    tail = thought_guard.flush()
+    if tail:
+        yield _sse({"thinking": tail})
 
-    # Assemble the user-visible response text (no [[META]] content).
-    visible_text = "".join(user_visible)
+    # Assemble the user-visible response text (no [[META]] content, and no
+    # working note the guard diverted).
+    visible_text = dash_guard.whole(lead_guard.without_note("".join(user_visible)))
 
     # Detect guardrail short-circuits by matching the canned reply prefixes.
     if status == "ok":
@@ -545,6 +798,13 @@ async def _stream_agent(
         yield _sse({"cta": cta_payload})
     if badges_payload:
         yield _sse({"badges": badges_payload})
+
+    # Spec 67: in Avatar mode, hand the reply's speech text to the avatar.
+    # This event is consumed by `_with_avatar` and never reaches the browser.
+    if avatar and status == "ok" and visible_text:
+        speech = avatar_speak.clip_to_sentences(sanitize_for_speech(visible_text))
+        if speech:
+            yield _sse({_AVATAR_SCRIPT_KEY: speech})
 
     yield _sse({"done": True})
 
@@ -871,7 +1131,7 @@ def register_routes(app: FastAPI) -> None:
             # Both session and IP buckets cap at 10/24h, so the user-facing
             # message is the same regardless of which one fired.
             msg = (
-                "Thanks for the conversation — that's the question budget for "
+                "Thanks for the conversation. That's the question budget for "
                 "today (10 per visitor). For anything more, the best place is "
                 "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
                 "tomorrow!"
@@ -916,15 +1176,46 @@ def register_routes(app: FastAPI) -> None:
             "ref":          (request.headers.get("referer") or "")[:500],
         }
 
-        return StreamingResponse(
-            _stream_agent(
-                session_id,
-                user_text,
-                turn_index=turn_index,
-                identity=identity,
-                client_meta=client_meta,
-                geo_task=geo_task,
+        # Spec 67: Avatar mode. A capped avatar turn is not an error and does
+        # not run the agent: the widget offers Voice mode and re-asks the same
+        # question there, so answering it here too would be paid for twice
+        # (and put the question in the session history twice).
+        avatar_refusal: str | None = None
+        want_avatar = (body or {}).get("avatar") is True
+        if want_avatar:
+            ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
+            if not ok_visitor:
+                avatar_refusal = "You've reached today's avatar limit."
+            elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
+                avatar_refusal = "The avatar has reached its limit for today."
+                logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
+        if avatar_refusal:
+            geo_task.cancel()
+            return StreamingResponse(
+                _capped_avatar_stream(avatar_refusal),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+            )
+
+        text_stream = _stream_agent(
+            session_id,
+            user_text,
+            turn_index=turn_index,
+            identity=identity,
+            client_meta=client_meta,
+            geo_task=geo_task,
+            avatar=want_avatar,
+            reply_mode=_reply_mode(body, want_avatar),
+            visitor_emails=frozenset(
+                e for m in messages if isinstance(m, dict) and m.get("role") == "user"
+                for e in emails_in(str(m.get("content") or ""))
             ),
+            contact_intent=has_contact_intent(user_text),
+        )
+        stream = _with_avatar(text_stream) if want_avatar else text_stream
+
+        return StreamingResponse(
+            stream,
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache, no-transform",

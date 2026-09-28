@@ -1,7 +1,7 @@
 # ruff: noqa
 """Model cascade for the Atlas chat agent.
 
-Both the primary and fallback models run on Vertex AI / `adk-mas-demo` (paid,
+Both the primary and fallback models run on Vertex AI / `adk-deploy-trail` (paid,
 reliable capacity — see `FallbackGemini.api_client`), after the AI Studio
 free tier proved unreliable for gemini-3.7-flash in production (near-100%
 `503 UNAVAILABLE`). The fallback exists purely for model-availability
@@ -16,6 +16,7 @@ emits partial output before switching models. If a model has already streamed
 content and then errors, we re-raise rather than risk a torn response.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from functools import cached_property
@@ -36,10 +37,18 @@ logger = logging.getLogger(__name__)
 # on the AI Studio free tier (near-100% 503 UNAVAILABLE in production logs
 # shortly after launch); this is the same project tests/eval/eval_config.yaml's
 # judge already runs on, for the same free-tier-unreliability reason.
-ATLAS_VERTEX_PROJECT = "adk-mas-demo"
+ATLAS_VERTEX_PROJECT = "adk-deploy-trail"
 ATLAS_VERTEX_LOCATION = "global"
 # Private aliases kept so existing internal references below are untouched.
 _ATLAS_VERTEX_PROJECT = ATLAS_VERTEX_PROJECT
+# Spec 67: how long the primary gets to produce its first streamed chunk
+# before the turn moves to the next model. gemini-3.7-flash on this project
+# queues erratically (measured 2026-09-26: 4-42s to first token on a
+# three-word prompt, and 112s on a real turn), while gemini-3.6-flash
+# answered in 1.6-2.4s every time. A queued request is not an error, so the
+# 429/503 cascade below never fired; it just waited. Only the first chunk is
+# timed, so a long answer that has started is never cut off.
+PRIMARY_FIRST_TOKEN_TIMEOUT_S = 4.0
 _ATLAS_VERTEX_LOCATION = ATLAS_VERTEX_LOCATION
 
 
@@ -47,7 +56,7 @@ class FallbackGemini(Gemini):
     """Gemini model that cascades to `fallback_models` on 429/503 errors.
 
     Every model in the chain — `model` (primary) and each entry in
-    `fallback_models` — runs on Vertex AI / `adk-mas-demo`, forced via
+    `fallback_models` — runs on Vertex AI / `adk-deploy-trail`, forced via
     `api_client` below regardless of ambient env config. Fallback candidates
     are built as fresh `FallbackGemini(model=name)` instances (inheriting the
     same forced-Vertex `api_client`) purely for model-availability
@@ -59,7 +68,7 @@ class FallbackGemini(Gemini):
 
     @cached_property
     def api_client(self) -> Client:
-        """Forces this model onto Vertex/adk-mas-demo, mirroring the base
+        """Forces this model onto Vertex/adk-deploy-trail, mirroring the base
         class's own api_client (same retry_options/tracking headers/base_url
         handling) but with a fixed backend instead of one derived from
         ambient env config. Applies to every instance in the cascade —
@@ -98,8 +107,27 @@ class FallbackGemini(Gemini):
             attempt = llm_request if idx == 0 else llm_request.model_copy(deep=True)
             attempt.model = model_name
             produced = False
+            gen = Gemini.generate_content_async(backend, attempt, stream)
             try:
-                async for resp in Gemini.generate_content_async(backend, attempt, stream):
+                # First-token watchdog: only on streamed turns, and only while
+                # there is still a model to fall back to.
+                if stream and idx < len(candidates) - 1:
+                    try:
+                        first = await asyncio.wait_for(anext(gen), PRIMARY_FIRST_TOKEN_TIMEOUT_S)
+                    except StopAsyncIteration:
+                        return
+                    except TimeoutError:
+                        await _aclose_quietly(gen)
+                        logger.warning(
+                            "atlas: %s gave no first token in %.0fs; falling back to %s",
+                            model_name,
+                            PRIMARY_FIRST_TOKEN_TIMEOUT_S,
+                            candidates[idx + 1][0],
+                        )
+                        continue
+                    produced = True
+                    yield first
+                async for resp in gen:
                     produced = True
                     yield resp
                 if idx > 0:
@@ -128,3 +156,12 @@ class FallbackGemini(Gemini):
 
         if last_err is not None:  # pragma: no cover - defensive
             raise last_err
+
+
+async def _aclose_quietly(gen: AsyncGenerator) -> None:
+    """Close an abandoned stream; a half-open request failing to close cleanly
+    is not the visitor's problem."""
+    try:
+        await gen.aclose()
+    except Exception:  # noqa: BLE001
+        logger.debug("atlas: closing abandoned primary stream failed", exc_info=True)

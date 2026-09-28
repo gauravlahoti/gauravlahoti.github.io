@@ -129,6 +129,11 @@ _EMAIL_REDACT_REPLACEMENT = (
 )
 
 
+def has_contact_intent(text: str) -> bool:
+    """The visitor is asking how to reach, hire or email Gaurav."""
+    return bool(_CONTACT_INTENT_RE.search(text or ""))
+
+
 def _latest_user_text(llm_request: LlmRequest) -> str:
     """Pull the latest user-role message text out of the LLM request."""
     contents = getattr(llm_request, "contents", None) or []
@@ -140,6 +145,39 @@ def _latest_user_text(llm_request: LlmRequest) -> str:
         if text:
             return text
     return ""
+
+
+# Spec 67: Voice and Avatar answers are heard, not read, so they get a tighter
+# budget than the prompt's text default. Server-written (the visitor only
+# picks a mode), and added to this request only, never to the stored history.
+REPLY_MODES = ("text", "voice", "avatar")
+SPOKEN_REPLY_NOTE = (
+    "[Reply mode: this answer will be spoken aloud. Keep it to 1-3 short "
+    "sentences, about 45 words: give the key grounded fact, then offer to go "
+    "deeper. No lists, and don't read out URLs. Short is fine: never pad it "
+    "with anything the tool results didn't say (a certification alone is not "
+    "project work).]"
+)
+
+
+def _with_spoken_note(llm_request: LlmRequest) -> None:
+    """Append the spoken-reply note to the visitor's latest message.
+
+    The Content is copied, not edited: ADK builds `contents` from the session's
+    events, and editing in place would write the note into the history.
+    """
+    contents = getattr(llm_request, "contents", None) or []
+    for i in range(len(contents) - 1, -1, -1):
+        content = contents[i]
+        if getattr(content, "role", None) != "user":
+            continue
+        parts = getattr(content, "parts", None) or []
+        if not any(getattr(p, "text", None) for p in parts):
+            continue  # a tool response, not the visitor's message
+        copy = content.model_copy(deep=True)
+        copy.parts.append(types.Part.from_text(text=SPOKEN_REPLY_NOTE))
+        contents[i] = copy
+        return
 
 
 def _short_circuit(text: str) -> LlmResponse:
@@ -161,6 +199,7 @@ def before_model_callback(
     # [[META]] payload through the user message. Server-side rfind is the
     # primary defense; this removes the attack surface on the input side.
     user_text = user_text.replace("[[META]]", "").replace("[[/META]]", "")
+    user_text = user_text.replace("[[NOTE]]", "").replace("[[/NOTE]]", "")
     state = callback_context.state
 
     # Stash contact-intent flag for the output filter.
@@ -172,6 +211,8 @@ def before_model_callback(
     if _INJECTION_RE.search(user_text):
         return _short_circuit(INJECTION_REPLY)
 
+    if state.get("reply_mode") in ("voice", "avatar"):
+        _with_spoken_note(llm_request)
     return None
 
 

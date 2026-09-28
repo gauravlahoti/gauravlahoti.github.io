@@ -1,0 +1,21 @@
+{
+  "_readme": "Spec 67. Atlas's avatar mode: a video-call-style stage in the Atlas panel (assets/js/agent-avatar.js, lazy-loaded by agent-widget.js). Avatar 'Sam' + voice 'Puck', picked by hand in Console -> Agent Platform -> Studio -> Stream realtime (model gemini-3.8-live, Live Avatar panel). 'idle' is a muted ping-pong loop cut from a live idle session so the face never looks frozen; the greeting plays once when Avatar is picked. Live answers are generated per turn, not stored here.",
+  "model": "gemini-3.8-live",
+  "avatarName": "Sam",
+  "voiceName": "Puck",
+  "idle": {
+    "clip": "assets/video/atlas-idle.mp4",
+    "poster": "assets/video/atlas-idle.webp"
+  },
+  "chapters": [
+    {
+      "id": "greeting",
+      "chip": null,
+      "autoplay": true,
+      "script": "Hi, I'm Atlas, Gaurav's AI agent. Ask me about his experience, the projects and AI agents he's built, or the certifications he holds. I can also email you his resume, or pass a note straight to him. So, what would you like to know?",
+      "clip": "assets/video/atlas-greeting.mp4",
+      "poster": "assets/video/atlas-greeting.webp",
+      "captions": "assets/video/atlas-greeting.vtt"
+    }
+  ]
+}

@@ -115,19 +115,21 @@ def test_multiple_sentinels_last_wins():
     assert "Real Q?" in suggestions
 
 
-def test_citation_count_capped_at_three():
+def test_citation_count_capped_at_five():
     raw = """{
         "citations": [
             {"id":1,"url":"https://github.com","label":"A"},
             {"id":2,"url":"https://github.com","label":"B"},
             {"id":3,"url":"https://github.com","label":"C"},
-            {"id":4,"url":"https://github.com","label":"D"}
+            {"id":4,"url":"https://github.com","label":"D"},
+            {"id":5,"url":"https://github.com","label":"E"},
+            {"id":6,"url":"https://github.com","label":"F"}
         ],
         "suggestions":["Q?","Q2?"],
         "cta":null
     }"""
     citations, _, _, _ = _parse_meta(raw)
-    assert len(citations) == 3
+    assert len(citations) == 5
 
 
 def test_empty_suggestions_dropped():

@@ -183,12 +183,12 @@ def test_production_model_chain():
     """
     from app.agent import root_agent
 
-    assert root_agent.model.model == "gemini-3.7-flash"
-    assert root_agent.model.fallback_models == ["gemini-3.6-flash"]
+    assert root_agent.model.model == "gemini-3.6-flash"
+    assert root_agent.model.fallback_models == ["gemini-3.5-flash-lite", "gemini-3.7-flash"]
 
 
-def test_primary_pinned_to_vertex_adk_mas_demo():
-    """The primary always runs on Vertex/adk-mas-demo (reliable capacity),
+def test_primary_pinned_to_vertex_adk_deploy_trail():
+    """The primary always runs on Vertex/adk-deploy-trail (reliable capacity),
     regardless of the AI Studio/Vertex-via-ADC choice agent.py makes based on
     ambient env — that ambient config no longer affects any model in the
     cascade, since every candidate now forces the same Vertex backend.
@@ -196,12 +196,12 @@ def test_primary_pinned_to_vertex_adk_mas_demo():
     model = _model()
     client = model.api_client
     assert client.vertexai is True
-    assert client._api_client.project == "adk-mas-demo"
+    assert client._api_client.project == "adk-deploy-trail"
     assert client._api_client.location == "global"
 
 
 def test_fallback_candidate_also_pinned_to_vertex(monkeypatch):
-    """A fallback attempt must ALSO run on Vertex/adk-mas-demo — the fallback
+    """A fallback attempt must ALSO run on Vertex/adk-deploy-trail — the fallback
     exists for model-availability redundancy, not a different (free-tier)
     cost tier, so ambient env (e.g. GEMINI_API_KEY set -> AI Studio) must NOT
     change its backend, unlike a plain, unmodified Gemini(model=name) would.
@@ -210,4 +210,65 @@ def test_fallback_candidate_also_pinned_to_vertex(monkeypatch):
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     fallback_client = FallbackGemini(model=CHAIN[1]).api_client
     assert fallback_client.vertexai is True
-    assert fallback_client._api_client.project == "adk-mas-demo"
+    assert fallback_client._api_client.project == "adk-deploy-trail"
+
+
+# --- spec 67: first-token watchdog ------------------------------------------
+
+def _stalling(served: list, *, stall: set, stall_s: float = 5.0, slow_after_first: set = frozenset()):
+    """A fake whose `stall` models sit silent before their first chunk (a
+    queued request, not an error), and whose `slow_after_first` models start
+    at once but then take a while between chunks."""
+    import asyncio
+
+    async def fake(self, llm_request, stream=False):
+        m = llm_request.model
+        served.append(m)
+        if m in stall:
+            await asyncio.sleep(stall_s)
+        yield _resp(f"first from {m}")
+        if m in slow_after_first:
+            await asyncio.sleep(stall_s)
+        yield _resp(f"rest from {m}")
+
+    return fake
+
+
+@pytest.mark.asyncio
+async def test_stalled_primary_falls_back_after_first_token_timeout(monkeypatch):
+    import app.fallback_model as fm
+    monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    served = []
+    out = await _drain(_model(), monkeypatch, _stalling(served, stall={"gemini-3.5-flash"}))
+    assert served == ["gemini-3.5-flash", "gemini-2.5-flash"]
+    assert [r.content.parts[0].text for r in out] == [
+        "first from gemini-2.5-flash", "rest from gemini-2.5-flash",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_started_answer_is_never_cut_off(monkeypatch):
+    import app.fallback_model as fm
+    monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    served = []
+    out = await _drain(
+        _model(), monkeypatch,
+        _stalling(served, stall=set(), stall_s=0.2, slow_after_first={"gemini-3.5-flash"}),
+    )
+    assert served == ["gemini-3.5-flash"]  # slow between chunks is fine once it has started
+    assert [r.content.parts[0].text for r in out][-1] == "rest from gemini-3.5-flash"
+
+
+@pytest.mark.asyncio
+async def test_last_candidate_is_never_timed_out(monkeypatch):
+    import app.fallback_model as fm
+    monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    served = []
+    out = await _drain(
+        _model(), monkeypatch,
+        _stalling(served, stall=set(CHAIN), stall_s=0.1),
+    )
+    # The first two stall past the watchdog; the last one has nowhere to go,
+    # so it is allowed to take its time rather than fail the turn.
+    assert served == CHAIN
+    assert out[-1].content.parts[0].text == "rest from gemini-2.5-flash-lite"

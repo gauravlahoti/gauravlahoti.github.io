@@ -5,16 +5,16 @@
     "subtitle": "Portfolio Intelligence Agent",
     "role": "Conversational AI",
     "status": "LIVE",
-    "headline": "The AI behind the chat widget on this portfolio. Type to it, or talk to it.",
-    "description": "Atlas answers questions about Gaurav in real time, by text or by voice. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Three Gemini models sit behind it: a dedicated speech model for the mic, a tiered reasoning cascade for the answer, and a TTS model that reads the reply back while it is still streaming.",
-    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, and have it talk back. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
-    "stack": ["Google ADK", "Gemini 3.7 → 3.6 Flash", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
-    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v2.svg",
-    "diagramAlt": "Browser mic and speaker talk to two plain REST routes on Cloud Run that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly, while the composer streams over SSE to the ADK Agent running Gemini 3.7 to 3.6 Flash, which calls ADK Skills for retrieval and the Resend MCP server for email.",
+    "headline": "The AI behind the chat widget on this portfolio. Type to it, talk to it, or meet it face to face.",
+    "description": "Atlas answers questions about Gaurav in real time, by text, by voice, or as a live video avatar. It runs on Google's Agent Development Kit, calling live retrieval tools that fetch his profile, work history, projects, certifications, and recent writing straight from the site on every question, so content edits show up with no redeploy. Four Gemini models sit behind it: a dedicated speech model for the mic, a tiered reasoning cascade for the answer, a TTS model that reads the reply back while it is still streaming, and Gemini Live Avatar, which speaks the answer as lip-synced video.",
+    "value": "Handles inbound career questions 24/7 without Gaurav being online. Every answer cites its source. Visitors can talk to it instead of typing, have it talk back, or switch to Avatar mode and hear the answer from a live, lip-synced video avatar. When a visitor asks to send a resume or drop Gaurav a note, the agent calls an email tool via MCP and makes it happen.",
+    "stack": ["Google ADK", "Gemini 3.6 Flash → 3.5 Flash-Lite", "Gemini 3.8 Live Avatar", "Gemini 3.5 Transcribe", "Gemini 3.1 Flash TTS", "Cloud Run", "MCP", "SSE", "Web Audio API"],
+    "diagramSvg": "agent-portfolio/diagrams/chat-agent-v3.svg",
+    "diagramAlt": "Browser mic, speaker, composer and avatar stage talk to Atlas on Cloud Run. The mic and speaker use two plain REST routes that call Gemini 3.5 Transcribe and Gemini 3.1 Flash TTS on Vertex AI directly. The composer streams over SSE to the ADK Agent, which reasons on Gemini 3.6 Flash with a 3.5 Flash-Lite fallback, calls retrieval tools and the Resend MCP server, and passes every answer through output checks. In Avatar mode a relay on the same route sends the checked answer to Gemini 3.8 Live Avatar and streams the lip-synced video and timed words back on the same SSE stream to the browser's avatar stage. Text, Voice and Avatar are alternative paths back, chosen before the question is asked.",
     "steps": [
       {
         "n": 1,
-        "label": "Visitor taps the mic and speaks",
+        "label": "Optionally, the visitor holds the mic and speaks (any mode)",
         "detail": "MediaRecorder captures a clip in the browser, capped at 30 seconds, and posts it to /api/agent-transcribe. Nothing reaches a model until the visitor stops recording."
       },
       {
@@ -25,27 +25,42 @@
       {
         "n": 3,
         "label": "The message opens an SSE stream",
-        "detail": "The browser opens a Server-Sent Events stream to /api/agent-chat on Cloud Run. Questions are rate-limited per session and per IP, and stripped of injection attempts before reaching the ADK runner."
+        "detail": "The browser opens a Server-Sent Events stream to /api/agent-chat on Cloud Run. Questions are rate-limited per session and per IP, and stripped of injection attempts before reaching the ADK runner. The visitor picked Text, Voice or Avatar before asking, and that choice sets the answer's way back. In Avatar mode the same request also opens a Gemini 3.8 Live Avatar session in parallel, so the face is live and idling while Atlas thinks."
       },
       {
         "n": 4,
         "label": "The agent reasons and calls the tool it needs",
-        "detail": "Gemini picks from nine on-demand tools, covering profile, work history, projects, posts, certifications, live agents, site stats, and two email actions, instead of stuffing the whole corpus into every prompt. Retrieval tools read the site's own content JSON at request time. Email actions route through the Resend MCP server, so the agent holds no credentials. Inference cascades from gemini-3.7-flash to gemini-3.6-flash on a transient error."
+        "detail": "Gemini picks from nine on-demand tools, covering profile, work history, projects, posts, certifications, live agents, site stats, and two email actions, instead of stuffing the whole corpus into every prompt. Retrieval tools read the site's own content JSON at request time. Email actions route through the Resend MCP server, so the agent holds no credentials. Inference starts on gemini-3.6-flash, picked for time to first word, and moves to gemini-3.5-flash-lite if it stalls or hits a capacity error."
       },
       {
         "n": 5,
-        "label": "The reply streams back with citations",
-        "detail": "Tokens stream through SSE as they are generated. A [[META]] block carries citation URLs and follow-up chip suggestions, which the widget validates and renders as UI."
+        "label": "Output checks clean every answer on its way out",
+        "detail": "Before anything reaches the screen, the stream passes filters written in code rather than prompt rules: the working note moves to the Thinking panel, any email address that isn't Gaurav's real contact is replaced, combined citation markers are split, and dashes become commas. Spoken modes are asked for a shorter answer, sized for listening. An end-to-end scorecard that caught an invented email and invented platform work is why these live in code."
       },
       {
         "n": 6,
-        "label": "The browser cuts the reply into sentences and sends them to be spoken",
-        "detail": "If the visitor has turned on spoken replies, the widget splits the stream at sentence boundaries and posts each chunk to /api/agent-speak while the rest of the answer is still arriving. Chunk sizes ramp up, so the first words start playing after the first short sentence rather than after the whole answer."
+        "label": "The answer streams back with citations. In Text mode, that is the whole trip",
+        "detail": "Tokens stream through SSE as they are generated. A [[META]] block carries citation URLs and follow-up chip suggestions, which the widget validates and renders as UI. In Avatar mode the same stream also carries the video and the timed words."
       },
       {
         "n": 7,
-        "label": "Gemini 3.1 Flash TTS returns audio, Web Audio plays it seamlessly",
+        "label": "Voice mode: the browser cuts the reply into sentences and sends them to be spoken",
+        "detail": "If the visitor has turned on spoken replies, the widget splits the stream at sentence boundaries and posts each chunk to /api/agent-speak while the rest of the answer is still arriving. Chunk sizes ramp up, so the first words start playing after the first short sentence rather than after the whole answer."
+      },
+      {
+        "n": 8,
+        "label": "Voice mode: Gemini 3.1 Flash TTS returns audio, Web Audio plays it seamlessly",
         "detail": "Each chunk comes back as 24 kHz PCM in the Charon voice. The browser decodes it and schedules it on the Web Audio clock at the exact moment the previous chunk ends, so there is no gap between sentences. Up to two syntheses run ahead of playback to keep it that way."
+      },
+      {
+        "n": 9,
+        "label": "Avatar mode: the checked answer becomes the avatar's script",
+        "detail": "A relay on the chat route sends the finished, checked answer into the Live Avatar session opened back at step 3 as a script. Sam, a prebuilt avatar with the Puck voice, says it word for word about a second later. Caps keep it affordable: three avatar answers per visitor a day, and a daily speaking budget."
+      },
+      {
+        "n": 10,
+        "label": "Avatar mode: lip-synced video and timed words stream back on the same SSE",
+        "detail": "The avatar's fMP4 video fragments and its speech transcription come back through the relay onto the chat's own stream, so the browser needs no second connection. The server reads each fragment's media time and stamps every caption chunk with when its last word is heard. The browser plays the video through MediaSource and lights each word of the transcript as Sam says it."
       }
     ],
     "techDecisions": [
@@ -54,8 +69,8 @@
         "why": "Structured Python framework for tools, evals, and Cloud Run deployment. An eval gate runs before every deploy, catching regressions before production."
       },
       {
-        "tech": "Tiered Gemini (3.7 → 3.6 Flash)",
-        "why": "Flash keeps warm p50 sub-2s at ~10x less cost than Pro. On a transient capacity error the request transparently cascades to the next model on Vertex AI, so the widget keeps answering instead of erroring when one model is briefly unavailable."
+        "tech": "Tiered Gemini (3.6 Flash → 3.5 Flash-Lite)",
+        "why": "3.6 Flash was picked for time to first word: the end-to-end scorecard measures a median of about 3 seconds to the first word, at a fraction of Pro's cost. If it stalls for 4 seconds or hits a capacity error, the request moves to 3.5 Flash-Lite on Vertex AI, so the widget keeps answering instead of erroring when one model is briefly unavailable."
       },
       {
         "tech": "A dedicated speech model, not Flash with audio",
@@ -68,6 +83,18 @@
       {
         "tech": "Sentence-chunked TTS on the Web Audio clock",
         "why": "Synthesising a whole answer means waiting for the whole answer. Instead the reply is cut at sentence boundaries as it streams, chunks are synthesised up to two ahead in parallel, and each is scheduled back to back on the AudioContext clock so playback has no seams. Synthesis runs at roughly 0.7x realtime, so once it starts it stays ahead."
+      },
+      {
+        "tech": "Gemini 3.8 Live Avatar, through a server relay",
+        "why": "Live Avatar is server-to-server only, so the browser never holds a key or talks to it directly. The chat request opens the avatar session in parallel with the agent, which hides most of the session setup behind the thinking time, and the server only ever speaks the answer it just generated, so nobody can make the face say arbitrary text. Per-visitor and daily caps keep the cost bounded."
+      },
+      {
+        "tech": "Output checks in code, not prompt rules",
+        "why": "Prompt rules reduce mistakes; they don't prevent them. An end-to-end scorecard caught Atlas inventing a work email and inventing platform experience from a certification, even with rules against both. So the stream now passes filters that can't be talked around: contact emails, citation markers, dashes and the working note are all enforced in code, and certifications carry whether any real work backs them."
+      },
+      {
+        "tech": "Word timing from the video itself",
+        "why": "The avatar's transcription arrives ahead of its audio by a steady margin, and the browser can't see how much video it has actually received. So the server reads each fMP4 fragment's media time and stamps every caption chunk with when its last word is heard, calibrated against the real pauses in a recorded answer. The transcript lights one word at a time, in step with the voice."
       },
       {
         "tech": "Live retrieval tools",
@@ -87,18 +114,19 @@
       }
     ],
     "traits": [
-      { "label": "Model",          "value": "Gemini 3.7 → 3.6 Flash (tiered)" },
+      { "label": "Model",          "value": "Gemini 3.6 Flash → 3.5 Flash-Lite (tiered)" },
       { "label": "Voice",          "value": "Gemini 3.5 Transcribe · 3.1 Flash TTS" },
+      { "label": "Avatar",         "value": "Gemini 3.8 Live Avatar · word-timed captions" },
       { "label": "Framework",      "value": "Google ADK 1.32+" },
       { "label": "Runtime",        "value": "Cloud Run (gen2)" },
-      { "label": "Latency p50",    "value": "~1.2 s warm" },
+      { "label": "First word p50", "value": "~3 s (scorecard)" },
       { "label": "Grounding",      "value": "Live retrieval tools · content JSON" },
-      { "label": "Pattern",        "value": "Tool Use · MCP · Streaming · Voice" }
+      { "label": "Pattern",        "value": "Tool Use · MCP · Streaming · Voice · Avatar" }
     ],
     "searchMeta": {
       "type": "Chat",
-      "model": "Gemini 3.7 → 3.6 Flash (tiered)",
-      "patterns": ["RAG", "Tool Use", "MCP", "Streaming", "Voice", "STT", "TTS"]
+      "model": "Gemini 3.6 Flash → 3.5 Flash-Lite (tiered)",
+      "patterns": ["RAG", "Tool Use", "MCP", "Streaming", "Voice", "STT", "TTS", "Avatar"]
     },
     "links": [
       { "label": "Try it live",         "href": "/#top" }

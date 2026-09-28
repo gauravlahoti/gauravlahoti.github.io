@@ -18,6 +18,7 @@ These files are served as static assets, so they're fetchable in production at
 | `build-story.json` | How this site and its agents were built: the spec-driven workflow and the harness behind it. **No counts, dates or cost figures** — those are repo telemetry, they age into false claims, and a unit test enforces their absence. Atlas reads it through `get_build_story(section=)`, which returns only `summary` unless a section is named (spec 62 — handed all four sections at once the model mirrors them into headings). Adding a section here means adding it to `_BUILD_STORY_SECTIONS` in `tools.py`, or it is unreachable; a test enforces that too. | Chat agent corpus **only** — no page renders it. | By hand. |
 | `ai-concepts.json` | AI Lab hub cards (MCP, Agentic RAG, Engineering Loops, Agent-Ready Web). | `ai-labs/index.html`; chat agent corpus. | By hand. |
 | `mcp-lab.json`, `engineering-loops.json`, `webmcp-lab.json` | Per-lab page content. | That lab's own JS module only. | By hand. |
+| `avatar.json` | Atlas's avatar mode (spec 67): avatar/voice identity, the greeting clip's script, clip/poster/caption paths, and the idle caption line. **Not** part of the chat agent corpus. | `assets/js/agent-avatar.js` only (lazy-loaded by the chat widget when avatar mode is on). | By hand; clips produced by `agents/atlas/app/dev_scripts/record_avatar_clips.py`. |
 
 ## Notes
 

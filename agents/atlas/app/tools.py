@@ -15,6 +15,7 @@ resume-gate Worker for rate-limit bookkeeping.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -289,16 +290,55 @@ async def get_certifications() -> list[dict]:
         badge art. Only ever emit a slug that appeared in this tool result.
     """
     profile = await corpus_live.get_profile()
-    return [
-        {
+    evidence = await _work_evidence(profile)
+    certs = []
+    for c in profile.get("certifications", []):
+        issuer = c.get("issuer") or ""
+        cert = {
             "name": c.get("name"),
-            "issuer": c.get("issuer"),
+            "issuer": issuer,
             "category": c.get("category"),
             "credlyUrl": c.get("credlyUrl"),
             "slug": c.get("slug"),
         }
-        for c in profile.get("certifications", [])
-    ]
+        # Spec 67: a certification is not project work. Say so in the data
+        # itself when nothing he built names this vendor, because a prompt
+        # rule alone didn't stop "he has integrated Azure OpenAI in production".
+        hands_on = _vendor_named(issuer, evidence)
+        cert["handsOnWorkOnRecord"] = hands_on
+        if not hands_on:
+            cert["note"] = (
+                f"Certification only. His work history, projects and agents mention no "
+                f"hands-on {issuer} work, so never claim or offer to discuss any."
+            )
+        certs.append(cert)
+    return certs
+
+
+# Words that mean "work on this vendor's platform" when they appear in what
+# Gaurav built. Issuers not listed match on their own name.
+_VENDOR_WORDS = {
+    "microsoft": ("azure", "microsoft"),
+    "aws": ("aws", "amazon", "bedrock", "sagemaker"),
+    "google cloud": ("gcp", "google cloud", "vertex", "cloud run", "bigquery", "apigee"),
+    "anthropic": ("claude", "anthropic"),
+}
+
+
+async def _work_evidence(profile: dict) -> str:
+    """Everything that describes what he built (not what he's certified in)."""
+    parts = [{k: v for k, v in profile.items() if k != "certifications"}]
+    for loader in (corpus_live.get_graph, corpus_live.get_agents):
+        try:
+            parts.append(await loader())
+        except Exception:  # evidence is best-effort; a missing file just means less of it
+            log.debug("work evidence: %s unavailable", loader.__name__, exc_info=True)
+    return json.dumps(parts, ensure_ascii=False).lower()
+
+
+def _vendor_named(issuer: str, evidence: str) -> bool:
+    words = _VENDOR_WORDS.get(issuer.lower().strip(), (issuer.lower().strip(),))
+    return any(w and w in evidence for w in words)
 
 
 async def get_live_agents(agent_name: str | None = None) -> list[dict]:

@@ -15,6 +15,21 @@
     --border-strong: rgba(255, 255, 255, 0.16);
     --danger: #FF5C5C;
 
+    /* Atlas answer modes (spec 67): each mode has its own colour, so the
+       switch, the panel and the avatar stage say which one is on. Text keeps
+       the brand cyan; Voice is violet; Avatar is a magenta-to-amber pair. */
+    --mode-text:        var(--accent);
+    --mode-text-soft:   var(--accent-soft);
+    --mode-text-glow:   var(--accent-glow);
+    --mode-voice:       #B69CFF;
+    --mode-voice-soft:  rgba(182, 156, 255, 0.14);
+    --mode-voice-glow:  rgba(182, 156, 255, 0.40);
+    --mode-avatar:      #FF6FCF;
+    --mode-avatar-2:    #FFB36B;
+    --mode-avatar-soft: rgba(255, 111, 207, 0.14);
+    --mode-avatar-glow: rgba(255, 111, 207, 0.40);
+    --mode-gloss:       rgba(255, 255, 255, 0.55);
+
     /* career trajectory — brand era colours */
     --era-accenture: #A100FF;
     --era-ey:        #FFE600;
@@ -65,6 +80,7 @@
     /* timing */
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --dur-fast: 180ms;
     --dur-base: 320ms;
     --dur-slow: 600ms;
@@ -138,4 +154,22 @@ img, svg, canvas {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
+}
+
+/* Spec 67: registered so the active Atlas mode colour cross-fades when the
+   mode changes, instead of snapping. Initial values mirror --accent. */
+@property --mode-c {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #00FFD1;
+}
+@property --mode-glow {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: rgba(0, 255, 209, 0.35);
+}
+@property --mode-soft {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: rgba(0, 255, 209, 0.12);
 }
