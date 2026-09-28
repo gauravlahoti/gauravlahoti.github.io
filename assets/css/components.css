@@ -4324,9 +4324,16 @@ a.agent-badge-tile:focus-visible {
 /* Off-screen pause: the idle hex animations (aurora gradient + drop-shadow
    pulse) are full-paint loops that otherwise repaint forever once the grid
    has scrolled into view. Freezing them while the grid is off-screen stops
-   the wasted paint; they resume from the same offset on return. */
-.skills-hex-grid[data-paused="true"] .skills-hex,
-.skills-hex-grid[data-paused="true"] .skills-hex::before {
+   the wasted paint; they resume from the same offset on return.
+   The extra .skills-hex-wrap is load-bearing: without it this selector ties
+   on specificity (0,3,0) with two later rules, and the later one wins —
+   `.skills-hex-wrap.is-visible .skills-hex::before` sets play-state back to
+   running, and `.tier-primary.is-visible .skills-hex`'s `animation:`
+   shorthand resets it implicitly. So this pause never took effect: the
+   hexes animated forever, offscreen or not. page-transition.js also sets
+   data-paused here while its overlay covers the page. */
+.skills-hex-grid[data-paused="true"] .skills-hex-wrap .skills-hex,
+.skills-hex-grid[data-paused="true"] .skills-hex-wrap .skills-hex::before {
     animation-play-state: paused;
 }
 

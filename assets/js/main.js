@@ -31,7 +31,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "322";
+const ASSET_VERSION = "323";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -652,6 +652,8 @@ function initSkillsHexWhenVisible() {
     if (!root) return;
     import(v("./skills-hex.js"))
         .then(({ initSkillsHex }) => initSkillsHex(root, { baseDelay: inHero ? 1200 : 800 }))
+        // The grid only exists now; hand it to the offscreen pause observer.
+        .then(() => observeOffscreenPause(root.querySelector(".skills-hex-grid")))
         .catch((err) => console.warn("[skills-hex] failed to init", err));
 }
 
@@ -1018,7 +1020,11 @@ function scheduleHeroReveal() {
     if (taglineEl) {
         tl.fromTo(taglineEl.querySelectorAll(".word"),
             { opacity: 0, y: 6, filter: "blur(6px)" },
-            { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, stagger: 0.035, ease: "power2.out" },
+            // clearProps: a finished `filter: blur(0px)` is still a filter —
+            // each of these ~40 words would keep its own filter pass and GPU
+            // layer for the life of the page, a standing composite cost that
+            // shows up as general lag on weaker (Windows) GPUs.
+            { opacity: 1, y: 0, filter: "blur(0px)", clearProps: "filter", duration: 0.45, stagger: 0.035, ease: "power2.out" },
             1.3
         );
     }
@@ -1160,13 +1166,28 @@ function initScrollStateClass() {
    with CSS rules that set `animation-play-state: paused` on the looped
    keyframes. When the section scrolls back into view the animations
    resume from the same offset, so the visual identity is preserved. */
+// Created by initOffscreenAnimationPause(); observeOffscreenPause() lets
+// late-mounted sections join. `.skills-hex-grid` is one: skills-hex.js
+// builds it after a dynamic import, long after the boot-time query below,
+// which used to find nothing — so the hexes were never observed and never
+// paused offscreen. Elements that arrive before the observer exists wait in
+// `pendingOffscreen`.
+let offscreenIO = null;
+const pendingOffscreen = [];
+function observeOffscreenPause(el) {
+    if (!el) return;
+    if (offscreenIO) offscreenIO.observe(el);
+    else pendingOffscreen.push(el);
+}
+
 function initOffscreenAnimationPause() {
     const targets = [
         document.getElementById("top"),
         document.querySelector(".cert-rail"),
         document.querySelector(".skills-hex-grid"),
+        ...pendingOffscreen,
     ].filter(Boolean);
-    if (!targets.length || !("IntersectionObserver" in window)) return;
+    if (!("IntersectionObserver" in window)) return;
 
     const io = new IntersectionObserver((entries) => {
         for (const entry of entries) {
@@ -1177,6 +1198,7 @@ function initOffscreenAnimationPause() {
             }
         }
     }, { threshold: 0 });
+    offscreenIO = io;
 
     targets.forEach((el) => io.observe(el));
 }
