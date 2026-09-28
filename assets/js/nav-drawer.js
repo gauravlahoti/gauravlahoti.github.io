@@ -72,4 +72,15 @@ export function initNavDrawer() {
     window.addEventListener("pageshow", (e) => {
         if (e.persisted && drawer.classList.contains("is-open")) close();
     });
+
+    // For link handlers that stop the click before it reaches the drawer's
+    // own listener above (main.js's #insights handler runs in the capture
+    // phase and calls stopPropagation), so they can still close the drawer.
+    // An event rather than an exported function on purpose: a visitor with a
+    // cached older copy of this file just ignores it, where a missing export
+    // would fail the importing module outright.
+    // Not exported for the same reason: callers use the string literal.
+    document.addEventListener("nav-drawer:close", () => {
+        if (drawer.classList.contains("is-open")) close();
+    });
 }

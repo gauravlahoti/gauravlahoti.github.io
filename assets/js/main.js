@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "324";
+const ASSET_VERSION = "325";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -699,6 +699,11 @@ function initPostsListWhenVisible(profile) {
         if (!a) return;
         e.preventDefault();
         e.stopPropagation(); // prevent delegated Lenis handler from also firing
+        // stopPropagation here (capture phase, on document) also means the
+        // mobile drawer's own "close on any link" listener never sees this
+        // click, so the drawer stayed open over the section it just scrolled
+        // to. Close it explicitly (see nav-drawer.js). No-op if it's closed.
+        document.dispatchEvent(new CustomEvent("nav-drawer:close"));
         // If this was the nav flyout trigger, collapse the flyout: blur to drop
         // :focus-within, and suppress :hover until the cursor leaves the group.
         const navGroup = a.closest("[data-flyout-group]");
