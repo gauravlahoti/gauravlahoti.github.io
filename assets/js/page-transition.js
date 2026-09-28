@@ -394,7 +394,12 @@ export function runPageTransition(toUrl) {
             const loader = mod.mountOrbitLoader(orbitSlot, { label: toPath, scramble });
             loader.start();
             currentLoader = loader;
-            gsap.fromTo(loader.el, { opacity: 0 }, { opacity: 1, duration: 0.14 });
+            // From 0.01, not 0: Chrome decides at animation start whether a
+            // compositor animation can run, and treats a fully transparent
+            // subtree as "no visible change", so a fade from exactly 0
+            // kept every orbit animation on the main thread (measured in a
+            // trace). 0.01 is invisible but counts as visible.
+            gsap.fromTo(loader.el, { opacity: 0.01 }, { opacity: 1, duration: 0.14 });
             // Tell the incoming page the orbit is already on screen (and since
             // when), so it continues this one rather than starting a second.
             payload.orbitAt = Date.now();
@@ -485,7 +490,7 @@ export async function playEntranceWipe() {
     loader.start();
     currentLoader = loader;
     if (continued) gsap.set(loader.el, { opacity: 1 });
-    else gsap.fromTo(loader.el, { opacity: 0 }, { opacity: 1, duration: 0.14 });
+    else gsap.fromTo(loader.el, { opacity: 0.01 }, { opacity: 1, duration: 0.14 }); // 0.01: see runPageTransition
 
     const ready = Promise.race([_readyPromise, waitForLoad(), hardCap(2500)]).then(doubleRaf);
     // The floor stops a fast page from strobing the orbit on and off. A

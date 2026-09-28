@@ -8,9 +8,19 @@
 // this reason: every new page would have meant editing a node map, an
 // adjacency list and layout coordinates. This has none of that.
 //
-// Being rotationally symmetric also means there is nothing to carry across
-// a hard navigation: the incoming page mounts a fresh orbit and no visitor
-// can tell it did not continue the outgoing one.
+// The inbound page resumes the outbound page's orbit (see the `spin` option
+// and page-transition.js's payload.orbitAt) rather than starting a new one.
+//
+// Motion runs on the compositor. The orbiting glyphs and the core's pulse
+// are HTML layers driven by Web Animations (transform + opacity only, each
+// orbit precomputed as keyframes), not a requestAnimationFrame loop writing
+// SVG attributes. The rAF version had two costs a trace made visible: every
+// frame re-painted the page layer the orbit sat in, and — worse — the
+// glyphs could only move when the main thread was free, so they visibly
+// froze each time the incoming page's own scripts ran (it's booting
+// underneath the loader, so it is never free for long). Compositor
+// animations keep playing through that. Only the static art (ring outlines,
+// the core halo) stays in SVG.
 //
 // Standalone chrome like page-transition.js: hardcodes its colour values
 // (mirroring --accent / --axis-cloud / --axis-biz) rather than referencing
@@ -36,24 +46,48 @@ const RINGS = [
     { id: "tools",  r: 94, count: 4, speed:  0.41, colour: BIZ,    shape: "square",  tilt: -38 },
 ];
 
-const CX = 120, CY = 120;
+const CX = 120, CY = 120;          // viewBox units; the stage is 240×240
 const DEG = Math.PI / 180;
+const ORBIT_STEPS = 72;            // keyframes per revolution (5°; sub-pixel chord error)
+const PULSE_MS = 2 * Math.PI * 420; // core pulse period: the old sin(now / 420)
+const PULSE_STEPS = 24;
+const GLYPH_BOX = 14;              // px box each glyph is drawn centred in
 
 function glyph(shape, colour) {
-    const g = svgEl("g", {});
+    const svg = svgEl("svg", { width: GLYPH_BOX, height: GLYPH_BOX, viewBox: `${-GLYPH_BOX / 2} ${-GLYPH_BOX / 2} ${GLYPH_BOX} ${GLYPH_BOX}`, overflow: "visible" });
     if (shape === "diamond") {
-        g.appendChild(svgEl("path", { d: "M 0,-5 L 5,0 L 0,5 L -5,0 Z", fill: colour }));
+        svg.appendChild(svgEl("path", { d: "M 0,-5 L 5,0 L 0,5 L -5,0 Z", fill: colour }));
     } else if (shape === "hex") {
-        g.appendChild(svgEl("path", {
+        svg.appendChild(svgEl("path", {
             d: "M 5.2,0 L 2.6,4.5 L -2.6,4.5 L -5.2,0 L -2.6,-4.5 L 2.6,-4.5 Z",
             fill: "none", stroke: colour, "stroke-width": 1.5,
         }));
-        g.appendChild(svgEl("circle", { r: 1.6, fill: colour }));
+        svg.appendChild(svgEl("circle", { r: 1.6, fill: colour }));
     } else {
-        g.appendChild(svgEl("rect", { x: -4.2, y: -4.2, width: 8.4, height: 8.4, rx: 1.6, fill: "none", stroke: colour, "stroke-width": 1.5 }));
-        g.appendChild(svgEl("circle", { r: 1.4, fill: colour }));
+        svg.appendChild(svgEl("rect", { x: -4.2, y: -4.2, width: 8.4, height: 8.4, rx: 1.6, fill: "none", stroke: colour, "stroke-width": 1.5 }));
+        svg.appendChild(svgEl("circle", { r: 1.4, fill: colour }));
     }
-    return g;
+    return svg;
+}
+
+// Where a body sits at orbit angle `deg`: same maths as the old per-frame
+// place(), just evaluated once per keyframe.
+function bodyFrame(ring, deg) {
+    const a = deg * DEG;
+    let x = Math.cos(a) * ring.r;
+    let y = Math.sin(a) * ring.r * 0.42;
+    const tr = ring.tilt * DEG;
+    const xp = x * Math.cos(tr) - y * Math.sin(tr);
+    const yp = x * Math.sin(tr) + y * Math.cos(tr);
+    // depth fake: near half is bright/large, far half dims and shrinks —
+    // this is what sells the "rotating sphere" read.
+    const depth = (Math.sin(a) + 1) / 2;
+    const scale = 0.72 + 0.42 * depth;
+    const opacity = 0.42 + 0.58 * depth;
+    return {
+        transform: `translate(${xp.toFixed(2)}px, ${yp.toFixed(2)}px) scale(${scale.toFixed(3)})`,
+        opacity: +opacity.toFixed(3),
+    };
 }
 
 function injectStyles() {
@@ -61,8 +95,25 @@ function injectStyles() {
     const s = document.createElement("style");
     s.id = "pf-ol-css";
     s.textContent = `
-.pf-ol-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
-.pf-ol-svg { max-width: 280px; width: 100%; overflow: visible; }
+/* Own layer, so the label's scramble re-paints only this box, not the
+   full-screen overlay behind it. */
+.pf-ol-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; will-change: transform; }
+.pf-ol-stage { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1 / 1; }
+.pf-ol-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.pf-ol-layer { position: absolute; left: 0; top: 0; width: 240px; height: 240px; transform-origin: 0 0; }
+.pf-ol-conv { position: absolute; inset: 0; transform-origin: ${CX}px ${CY}px; }
+.pf-ol-body, .pf-ol-core-ring, .pf-ol-core-dot, .pf-ol-core-dot-in {
+    position: absolute; will-change: transform, opacity;
+}
+.pf-ol-body { left: ${CX - GLYPH_BOX / 2}px; top: ${CY - GLYPH_BOX / 2}px; width: ${GLYPH_BOX}px; height: ${GLYPH_BOX}px; }
+.pf-ol-body > svg { display: block; }
+/* r=9 circle, stroke 1.3 centred on the path: 19.3 outer, bordered. */
+.pf-ol-core-ring {
+    left: ${CX - 9.65}px; top: ${CY - 9.65}px; width: 19.3px; height: 19.3px;
+    box-sizing: border-box; border: 1.3px solid rgba(0,255,209,0.75); border-radius: 50%;
+}
+.pf-ol-core-dot { left: ${CX - 3.2}px; top: ${CY - 3.2}px; width: 6.4px; height: 6.4px; }
+.pf-ol-core-dot-in { inset: 0; border-radius: 50%; background: ${ACCENT}; }
 .pf-ol-label {
     font-family: "JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
     font-size: 0.9375rem; letter-spacing: 0.04em;
@@ -73,12 +124,18 @@ function injectStyles() {
     document.head.appendChild(s);
 }
 
+function el(className) {
+    const n = document.createElement("div");
+    n.className = className;
+    return n;
+}
+
 /**
  * Mount a constant orbit loader into `container`.
  *
  * @param {HTMLElement} container
  * @param {object} opts
- * @param {boolean} [opts.reduced] - prefers-reduced-motion: render static, no rAF.
+ * @param {boolean} [opts.reduced] - prefers-reduced-motion: render static, no animation.
  * @param {number}  [opts.speed]   - global rate multiplier.
  * @param {string}  [opts.label]   - destination path shown under the orbit.
  * @param {(el:HTMLElement, finalText:string, durationMs:number)=>void} [opts.scramble]
@@ -90,44 +147,53 @@ function injectStyles() {
  * @returns {{ el:HTMLElement, start:()=>void, setRate:(r:number)=>void, land:()=>Promise<void>, destroy:()=>void }}
  */
 export function mountOrbitLoader(container, opts = {}) {
-    const { reduced = false, speed = 1, label: labelText = "", scramble = null, spin: startSpin = 0 } = opts;
+    const { reduced: reducedOpt = false, speed = 1, label: labelText = "", scramble = null, spin: startSpin = 0 } = opts;
 
     injectStyles();
 
     const wrap = document.createElement("div");
     wrap.className = "pf-ol-wrap";
     wrap.setAttribute("aria-hidden", "true");
+    // Without Web Animations there's nothing to drive the motion: show the
+    // static composition, exactly as reduced motion does.
+    const reduced = reducedOpt || typeof wrap.animate !== "function";
 
+    const stage = el("pf-ol-stage");
     const svg = svgEl("svg", { viewBox: "0 0 240 240", class: "pf-ol-svg" });
 
-    // orbit paths, tilted per ring
+    // Static art: orbit paths (tilted per ring) and the core halo.
     RINGS.forEach(ring => {
-        const ry = ring.r * 0.42;
-        const o = svgEl("ellipse", {
-            cx: CX, cy: CY, rx: ring.r, ry,
+        svg.appendChild(svgEl("ellipse", {
+            cx: CX, cy: CY, rx: ring.r, ry: ring.r * 0.42,
             fill: "none", stroke: ring.colour, "stroke-opacity": 0.13, "stroke-width": 1,
             transform: `rotate(${ring.tilt} ${CX} ${CY})`,
-        });
-        svg.appendChild(o);
+        }));
     });
-
-    // core
     const coreHalo = svgEl("circle", { cx: CX, cy: CY, r: 13, fill: ACCENT, "fill-opacity": 0.10 });
-    const coreRing = svgEl("circle", { cx: CX, cy: CY, r: 9, fill: "none", stroke: ACCENT, "stroke-width": 1.3, "stroke-opacity": 0.75 });
-    const coreDot  = svgEl("circle", { cx: CX, cy: CY, r: 3.2, fill: ACCENT });
-    svg.appendChild(coreHalo); svg.appendChild(coreRing); svg.appendChild(coreDot);
+    svg.appendChild(coreHalo);
+    stage.appendChild(svg);
 
-    // orbiting glyphs
+    // Animated layer, in the same 240×240 space, scaled to the stage below.
+    // Core first, bodies after: the bodies paint over the core, as before.
+    const layer = el("pf-ol-layer");
+    const coreRing = el("pf-ol-core-ring");
+    const coreDot = el("pf-ol-core-dot");       // outer: the landing pulse
+    const coreDotIn = el("pf-ol-core-dot-in");  // inner: the idle pulse
+    coreDot.appendChild(coreDotIn);
+    const conv = el("pf-ol-conv");               // the landing's pull-in
+    layer.append(coreRing, coreDot, conv);
+
     const bodies = [];
     RINGS.forEach(ring => {
         for (let i = 0; i < ring.count; i++) {
-            const g = glyph(ring.shape, ring.colour);
-            svg.appendChild(g);
-            bodies.push({ ring, phase: (i / ring.count) * 360, node: g });
+            const node = el("pf-ol-body");
+            node.appendChild(glyph(ring.shape, ring.colour));
+            conv.appendChild(node);
+            bodies.push({ ring, phase: (i / ring.count) * 360, node });
         }
     });
-
-    wrap.appendChild(svg);
+    stage.appendChild(layer);
+    wrap.appendChild(stage);
 
     const label = document.createElement("div");
     label.className = "pf-ol-label";
@@ -139,66 +205,71 @@ export function mountOrbitLoader(container, opts = {}) {
 
     container.appendChild(wrap);
 
+    // Fit the 240-unit layer to the stage, as the SVG viewBox does for itself.
+    const fit = () => {
+        const w = stage.getBoundingClientRect().width || 280;
+        layer.style.transform = `scale(${(w / 240).toFixed(4)})`;
+    };
+    fit();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
+    ro?.observe(stage);
+
     // ── animation state ──
-    let spin = startSpin, raf = 0, last = 0, rate = 1, landing = false, converge = 0;
+    let orbitAnims = [];
+    let pulseAnims = [];
+    let rate = 1, landing = false;
 
-    function place(body) {
-        const { ring } = body;
-        const a = (body.phase + spin * ring.speed * 60) * DEG;
-        const shrink = 1 - converge;
-        const rx = ring.r * shrink;
-        const ry = ring.r * 0.42 * shrink;
-
-        let x = Math.cos(a) * rx;
-        let y = Math.sin(a) * ry;
-
-        const tr = ring.tilt * DEG;
-        const rxp = x * Math.cos(tr) - y * Math.sin(tr);
-        const ryp = x * Math.sin(tr) + y * Math.cos(tr);
-        x = rxp; y = ryp;
-
-        // depth fake: near half is bright/large, far half dims and shrinks —
-        // this is what sells the "rotating sphere" read.
-        const depth = Math.sin(a);
-        const scale = 0.72 + 0.42 * ((depth + 1) / 2);
-        const op    = 0.42 + 0.58 * ((depth + 1) / 2);
-
-        body.node.setAttribute("transform", `translate(${(CX + x).toFixed(2)} ${(CY + y).toFixed(2)}) scale(${scale.toFixed(3)})`);
-        body.node.setAttribute("opacity", op.toFixed(3));
+    function startOrbits() {
+        orbitAnims = bodies.map(({ ring, phase, node }) => {
+            const dir = Math.sign(ring.speed);
+            const frames = [];
+            for (let i = 0; i <= ORBIT_STEPS; i++) {
+                frames.push({ ...bodyFrame(ring, phase + dir * 360 * (i / ORBIT_STEPS)), offset: i / ORBIT_STEPS });
+            }
+            // One revolution takes 360° / (|speed| · 60°/s), as the rAF loop had it.
+            const periodMs = (360 / (Math.abs(ring.speed) * 60)) * 1000;
+            const turns = (startSpin * Math.abs(ring.speed) * 60) / 360;
+            const anim = node.animate(frames, {
+                duration: periodMs, iterations: Infinity, easing: "linear",
+                iterationStart: turns - Math.floor(turns),
+            });
+            anim.playbackRate = rate * speed;
+            return anim;
+        });
     }
 
-    function paint(now) {
-        bodies.forEach(place);
-        const b = 1 + Math.sin(now / 420) * 0.10;
-        coreRing.setAttribute("r", (9 * b).toFixed(2));
-        coreDot.setAttribute("r", (3.2 * (2 - b)).toFixed(2));
-    }
-
-    function tick(now) {
-        if (!last) last = now;
-        // Clamp the frame delta. rAF is fully suspended while a tab is
-        // hidden, so on resume `now - last` can be several seconds and the
-        // orbit would visibly jump. Verified: a hidden tab renders 0 frames.
-        const dt = Math.min(now - last, 50);
-        last = now;
-        spin += (dt / 1000) * rate * speed;
-        paint(now);
-        raf = requestAnimationFrame(tick);
+    function startPulse() {
+        const ringFrames = [], dotFrames = [];
+        for (let i = 0; i <= PULSE_STEPS; i++) {
+            const b = 1 + Math.sin((i / PULSE_STEPS) * 2 * Math.PI) * 0.10;
+            ringFrames.push({ transform: `scale(${b.toFixed(4)})` });
+            dotFrames.push({ transform: `scale(${(2 - b).toFixed(4)})` });
+        }
+        const o = { duration: PULSE_MS, iterations: Infinity, easing: "linear" };
+        pulseAnims = [coreRing.animate(ringFrames, o), coreDotIn.animate(dotFrames, o)];
     }
 
     function renderStatic() {
-        spin = 0.35;
-        paint(performance.now());
+        // The old reduced-motion frame: every body at spin 0.35.
+        bodies.forEach(({ ring, phase, node }) => {
+            const f = bodyFrame(ring, phase + 0.35 * ring.speed * 60);
+            node.style.transform = f.transform;
+            node.style.opacity = String(f.opacity);
+        });
     }
 
     return {
         el: wrap,
         start() {
             if (reduced) { renderStatic(); return; }
-            last = 0;
-            raf = requestAnimationFrame(tick);
+            if (orbitAnims.length) return;
+            startOrbits();
+            startPulse();
         },
-        setRate(r) { rate = r; },
+        setRate(r) {
+            rate = r;
+            orbitAnims.forEach(a => { a.playbackRate = rate * speed; });
+        },
         /** Spin up briefly, pull the rings into the core, flare, resolve. */
         land() {
             return new Promise(resolve => {
@@ -215,56 +286,65 @@ export function mountOrbitLoader(container, opts = {}) {
                 const finish = () => {
                     if (done) return;
                     done = true;
-                    converge = 1;
-                    bodies.forEach(b => b.node.setAttribute("opacity", "0"));
+                    conv.style.opacity = "0";
                     coreHalo.setAttribute("r", "34");
                     coreHalo.setAttribute("fill-opacity", "0");
-                    coreDot.setAttribute("r", "3.2");
                     labelTx.style.color = ACCENT;
                     resolve();
                 };
 
-                // GSAP's ticker is rAF-driven, which is fully suspended
-                // while the tab is hidden — a visitor who alt-tabs right
-                // after clicking would otherwise strand the transition
-                // here forever, since onComplete would never fire. A
-                // bounded fallback guarantees landing regardless; the
-                // `done` guard means whichever path (tween or timeout)
-                // gets there first is the one that finalizes state.
+                // Animations can be starved while the tab is hidden — a
+                // visitor who alt-tabs right after clicking would otherwise
+                // strand the transition here, since `finished` might never
+                // settle. A bounded fallback guarantees landing regardless;
+                // the `done` guard means whichever path gets there first is
+                // the one that finalizes state.
                 const fallback = setTimeout(finish, 1200);
 
-                const st = { rate: 1, c: 0 };
+                // Spin up. Main-thread tween of the playback rate only; the
+                // motion itself stays on the compositor.
+                const st = { rate };
                 window.gsap?.to(st, {
                     rate: 2.8, duration: 0.24, ease: "power2.in",
-                    onUpdate: () => { rate = st.rate; },
+                    onUpdate: () => { rate = st.rate; orbitAnims.forEach(a => { a.playbackRate = rate * speed; }); },
                 });
-                const converger = window.gsap?.to(st, {
-                    c: 1, duration: 0.34, delay: 0.14, ease: "power3.in",
-                    onUpdate: () => { converge = st.c; },
-                    onComplete: () => {
-                        clearTimeout(fallback);
-                        if (done) return;
-                        bodies.forEach(b => b.node.setAttribute("opacity", "0"));
-                        window.gsap?.fromTo(coreHalo, { attr: { r: 10 }, "fill-opacity": 0.55 },
-                            { attr: { r: 34 }, "fill-opacity": 0, duration: 0.42, ease: "power2.out" });
-                        window.gsap?.fromTo(coreDot, { attr: { r: 3.2 } },
-                            { attr: { r: 6.5 }, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out" });
-                        window.gsap?.to(labelTx, { color: ACCENT, duration: 0.2 });
-                        done = true;
-                        setTimeout(resolve, 170);
-                    },
-                });
-                if (!converger) {
-                    // No GSAP: land instantly rather than never resolving.
+
+                // Pull the rings into the core: power3.in over 0.34s, 0.14s in.
+                // On each body's independent `scale` property rather than on
+                // their shared container: scale applies about the body's
+                // origin, which sits on the core, so it draws the position in
+                // and shrinks the glyph together, like the old converge. It
+                // also composites alongside the orbit's own `transform`
+                // animation, where animating the (empty) container measured
+                // as not compositable.
+                const pulls = bodies.map(({ node }) => node.animate(
+                    [{ scale: "1" }, { scale: "0" }],
+                    { duration: 340, delay: 140, easing: "cubic-bezier(0.895, 0.03, 0.685, 0.22)", fill: "forwards" },
+                ));
+                Promise.all(pulls.map(p => p.finished)).then(() => {
                     clearTimeout(fallback);
-                    finish();
-                }
+                    if (done) return;
+                    done = true;
+                    conv.style.opacity = "0";
+                    window.gsap?.fromTo(coreHalo, { attr: { r: 10 }, "fill-opacity": 0.55 },
+                        { attr: { r: 34 }, "fill-opacity": 0, duration: 0.42, ease: "power2.out" });
+                    // r 3.2 → 6.5 and back, as the old yoyo tween.
+                    coreDot.animate(
+                        [{ transform: "scale(1)" }, { transform: "scale(2.03)" }, { transform: "scale(1)" }],
+                        { duration: 320, easing: "ease-out" },
+                    );
+                    window.gsap?.to(labelTx, { color: ACCENT, duration: 0.2 });
+                    setTimeout(resolve, 170);
+                }).catch(() => finish()); // cancelled (destroy mid-landing)
             });
         },
         destroy() {
-            if (raf) cancelAnimationFrame(raf);
-            raf = 0;
+            orbitAnims.forEach(a => a.cancel());
+            pulseAnims.forEach(a => a.cancel());
+            orbitAnims = []; pulseAnims = [];
+            ro?.disconnect();
             window.gsap?.killTweensOf(labelTx);
+            window.gsap?.killTweensOf(coreHalo);
             wrap.remove();
         },
     };
