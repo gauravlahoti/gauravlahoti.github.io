@@ -61,8 +61,11 @@ RESERVE_SECONDS = 30.0
 # Published rates (spec 67): avatar video at 6,192 tokens/s x $1/M, audio at
 # 25 tokens/s x $12/M. Billed only while the avatar speaks.
 USD_PER_SPEAKING_SECOND = 6192 / 1e6 * 1.0 + 25 / 1e6 * 12.0
-# ~$5/day at the rate above.
-DAILY_BUDGET_SECONDS = 13 * 60
+# ~$10/day at the rate above. Doubled from the original 13 min (~$5/day) on
+# launch day: this is a single site-wide counter, not per-visitor, and each
+# turn reserves RESERVE_SECONDS up front regardless of actual reply length,
+# so a short burst of real testing traffic emptied it in under a day.
+DAILY_BUDGET_SECONDS = 26 * 60
 
 SCRIPT_INSTRUCTION = (
     "You are the video avatar for Atlas, the AI agent on Gaurav Lahoti's "

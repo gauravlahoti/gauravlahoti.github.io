@@ -214,9 +214,12 @@ class TestBudget:
         budget.settle(40, 0)
         assert budget.used_seconds == 0
 
-    def test_default_budget_is_about_five_dollars(self) -> None:
+    def test_default_budget_is_about_ten_dollars(self) -> None:
+        # Doubled from ~$5/day on launch day (see avatar_speak.py's comment) —
+        # this bound is a deliberate guardrail against a silent cost creep,
+        # not a magic number, so update it alongside DAILY_BUDGET_SECONDS.
         dollars = avatar_speak.DAILY_BUDGET_SECONDS * avatar_speak.USD_PER_SPEAKING_SECOND
-        assert 4.5 <= dollars <= 5.5
+        assert 9.5 <= dollars <= 10.5
 
 
 class TestScriptAligner:
