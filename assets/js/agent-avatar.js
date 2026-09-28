@@ -30,6 +30,19 @@ const MS = window.ManagedMediaSource || window.MediaSource;
 // Live, not buffered playback: if the player falls this far behind the
 // newest frame it skips ahead, so the face never lags the words.
 const MAX_LAG_S = 1.2;
+// Safety ceiling on one live turn. Replies are capped well under a minute of
+// speech (instruction.py keeps them under ~120 words), so this never fires on
+// a genuinely still-speaking turn. It exists for the case a browser/hardware
+// combo can't actually decode this stream: captions still arrive and paint
+// (the server drives them independently of whether the client's video is
+// playing), so the karaoke loop in agent-widget.js starts regardless — but if
+// the video itself never reaches "ended" because it's stuck (stalled, or an
+// error the `error` listener below doesn't catch), nothing else closes the
+// live session, and that loop's only exit is the session being closed. Left
+// alone, it runs one requestAnimationFrame tick forever, which is a real,
+// ongoing cost even after the visitor moves on — reported as the site
+// feeling laggy on a machine where this stream doesn't decode cleanly.
+const LIVE_WATCHDOG_MS = 45_000;
 
 let dataPromise = null;
 function loadData() {
@@ -96,6 +109,17 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     liveVideo.disableRemotePlayback = true;
     liveVideo.addEventListener("playing", () => liveVideo.classList.add("is-on"));
     liveVideo.addEventListener("ended", () => { if (mode === "live") endLive(); });
+    // A genuine decode/network failure (MediaError) will never reach "ended"
+    // on its own, so without this the session — and the karaoke loop reading
+    // its `closed` flag — would hang until the watchdog below finally times
+    // it out. Tearing down immediately here is just faster, and the logged
+    // error is the actual diagnostic for what failed.
+    liveVideo.addEventListener("error", () => {
+        if (mode !== "live") return;
+        const err = liveVideo.error;
+        console.warn("[atlas-avatar] liveVideo error:", err && err.code, err && err.message);
+        endLive();
+    });
 
     frame.append(video, liveVideo, tag);
     stage.append(frame);
@@ -163,6 +187,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         const l = live;
         live = null;
         if (!l) return;
+        if (l.watchdog) clearTimeout(l.watchdog);
         l.closed = true;
         liveVideo.classList.remove("is-on");
         liveVideo.pause();
@@ -179,10 +204,18 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         // The idle loop keeps breathing underneath until the live frames land.
         if (mode === "greeting") showIdle();
         mode = "live";
-        const l = { queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null };
+        const l = { queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null };
         live = l;
         setState("listening");
         video.setAttribute("aria-label", "Atlas, thinking");
+        // See LIVE_WATCHDOG_MS above: a last-resort guarantee this session
+        // (and the karaoke loop it feeds) can't run forever if it never
+        // reaches "ended" or "error" on its own.
+        l.watchdog = setTimeout(() => {
+            if (live !== l || l.closed) return;
+            console.warn("[atlas-avatar] live turn watchdog: forcing cleanup after", LIVE_WATCHDOG_MS, "ms with no end signal");
+            endLive();
+        }, LIVE_WATCHDOG_MS);
 
         const ms = new MS();
         l.ms = ms;
@@ -229,15 +262,23 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         if (l.closed || !l.sb || l.appending || l.sb.updating) return;
         if (l.queue.length) {
             l.appending = true;
+            const chunk = l.queue.shift();
             try {
-                l.sb.appendBuffer(l.queue.shift());
-            } catch (_) {
+                l.sb.appendBuffer(chunk);
+            } catch (err) {
                 l.appending = false; // quota/decoder hiccup: drop the chunk, keep going
+                // Diagnostic only (no behavior change): a browser/hardware
+                // combo that can't actually decode this stream would show up
+                // here as repeated errors. See agent-avatar.js's `ended`
+                // listener comment above for the wider investigation.
+                console.warn("[atlas-avatar] appendBuffer failed, dropping chunk:", err, "bytes:", chunk.byteLength);
                 return;
             }
             if (!l.started) {
                 l.started = true;
-                liveVideo.play().catch(() => {});
+                liveVideo.play().catch((err) => {
+                    console.warn("[atlas-avatar] liveVideo.play() rejected:", err);
+                });
             }
             keepLive();
             return;
@@ -258,9 +299,17 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
 
     if (autoplay && !REDUCE_MOTION) playGreeting(); else showIdle();
 
+    // Diagnostic only: whether this browser CLAIMS it can decode the live
+    // stream. A `true` here that still fails to actually play (see the
+    // `error` listener and the appendBuffer/play() logging above) is the
+    // signature of a browser/hardware combo whose codec support is wrong,
+    // not a code bug — this is what tells the two apart.
+    const canSpeak = canStreamAnswers();
+    console.debug("[atlas-avatar] canStreamAnswers():", canSpeak, STREAM_MIME);
+
     return {
         el: stage,
-        canSpeak: canStreamAnswers(),
+        canSpeak,
         startLive,
         // Stop whatever the face is saying and go back to listening. A live
         // turn ends outright (there is nothing to resume into).
