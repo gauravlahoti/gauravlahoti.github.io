@@ -162,6 +162,20 @@ function injectStyles() {
     opacity: 0; transform: translateX(-101vw);
     will-change: transform, opacity; pointer-events: none;
 }
+/* While the overlay covers the page, nothing underneath is visible, so stop
+   paying for it. Same trade layout.css already makes for body.is-scrolling:
+   re-blurring the fixed nav every frame is the biggest composite cost on
+   Windows (DXGI/ANGLE), and the overlay, blade and scan lines sliding under
+   it force exactly that re-blur on every frame of the sweep. Scoped to .nav
+   on purpose: a broad selector here (e.g. pausing animations on "body *")
+   makes adding the class re-style the whole document, which measured as a
+   ~30ms frame right at the click under 4x CPU throttle. The looping
+   animations are paused through the existing data-paused rules instead
+   (see quiet()). */
+html.pf-transitioning .nav {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
 `;
     document.head.appendChild(s);
 }
@@ -214,7 +228,61 @@ function query() {
 // calls can cancel its rAF loop rather than leaking it.
 let currentLoader = null;
 
+// ─── Quiet the page under the overlay ────────────────────────────────────────
+// See the html.pf-transitioning rules in injectStyles(). The hero's WebGL
+// loop (main.js exposes it as window.__heroGraph) renders a full-viewport
+// frame every tick; under a black overlay that's pure cost, and it competes
+// with the sweep on weaker GPUs.
+let heroPausedByUs = false;
+
+// The heavy looping animations (hero agents and caret, the cert-rail ticker,
+// the skill hexes' aurora and drop-shadow pulse) already have targeted
+// `[data-paused="true"]` pause rules for when their section is offscreen
+// (main.js initOffscreenAnimationPause). Reusing them keeps the style
+// invalidation to those three subtrees. Each target's prior value is kept so
+// unquiet() hands control back to the offscreen observer exactly as it was.
+const PAUSE_TARGETS = ["#top", ".cert-rail", ".skills-hex-grid"];
+let pausedTargets = [];
+
+function quiet() {
+    document.documentElement.classList.add("pf-transitioning");
+    if (!pausedTargets.length) {
+        pausedTargets = PAUSE_TARGETS
+            .map(sel => document.querySelector(sel))
+            .filter(Boolean)
+            .map(el => {
+                const prior = el.getAttribute("data-paused");
+                el.setAttribute("data-paused", "true");
+                return { el, prior };
+            });
+    }
+    const hero = window.__heroGraph;
+    if (hero && typeof hero.setPaused === "function" && !heroPausedByUs) {
+        hero.setPaused(true);
+        heroPausedByUs = true;
+    }
+}
+
+function unquiet() {
+    document.documentElement.classList.remove("pf-transitioning");
+    for (const { el, prior } of pausedTargets) {
+        if (prior === null) el.removeAttribute("data-paused");
+        else el.setAttribute("data-paused", prior);
+    }
+    pausedTargets = [];
+    if (!heroPausedByUs) return;
+    heroPausedByUs = false;
+    // setPaused(false) starts the loop unconditionally, but the hero's own
+    // IntersectionObserver only re-fires on a visibility change. Resume only
+    // if it's actually on screen, or it would keep rendering while scrolled
+    // away (e.g. a bfcache restore mid-page).
+    const hero = window.__heroGraph;
+    const r = hero?.canvas?.getBoundingClientRect();
+    if (r && r.bottom > 0 && r.top < window.innerHeight) hero.setPaused(false);
+}
+
 function teardown() {
+    unquiet();
     if (currentLoader) { currentLoader.destroy(); currentLoader = null; }
     ["pf-overlay", "pf-blade", ...SCAN_TOPS.map((_, i) => "pf-scan-" + i)]
         .forEach(id => document.getElementById(id)?.remove());
@@ -261,6 +329,7 @@ export function runPageTransition(toUrl) {
     writePayload(payload);
 
     build();
+    quiet();
     const { overlay, blade, scans, orbitSlot } = query();
 
     let navigated = false;
@@ -352,6 +421,11 @@ export async function playEntranceWipe() {
 
     injectStyles();
     build();
+    // Inbound too: the incoming page boots underneath the overlay, and the
+    // overlay's retract slides across the fixed nav just like the outbound
+    // sweep does. teardown() (every exit path, including the backstops)
+    // undoes this.
+    quiet();
     const { overlay, blade, scans, orbitSlot } = query();
 
     const gsap = window.gsap;

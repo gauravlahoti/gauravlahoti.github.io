@@ -81,6 +81,7 @@ export function initTokenBridge(section) {
                     opacity: 1,
                     y: 0,
                     filter: "blur(0px)",
+                    clearProps: "filter", // one-shot: drop the finished filter (see main.js)
                     duration: 0.7,
                     stagger: 0.05,
                     ease: "power3.out",
