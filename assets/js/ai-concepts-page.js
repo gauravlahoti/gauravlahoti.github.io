@@ -5,6 +5,7 @@
 // Neural-Slash page transition.
 
 import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
+import { initNavDrawer } from "./nav-drawer.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
@@ -27,22 +28,7 @@ function initPageChrome() {
     const yearEl = document.getElementById("concepts-year");
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-    const trigger = document.querySelector("[data-nav-trigger]");
-    const drawer  = document.querySelector("[data-nav-drawer]");
-    const closes  = document.querySelectorAll("[data-nav-close]");
-    if (trigger && drawer) {
-        trigger.addEventListener("click", () => {
-            const open = drawer.getAttribute("aria-hidden") === "false";
-            drawer.setAttribute("aria-hidden", open ? "true" : "false");
-            trigger.setAttribute("aria-expanded", open ? "false" : "true");
-            document.body.style.overflow = open ? "" : "hidden";
-        });
-        closes.forEach(c => c.addEventListener("click", () => {
-            drawer.setAttribute("aria-hidden", "true");
-            trigger.setAttribute("aria-expanded", "false");
-            document.body.style.overflow = "";
-        }));
-    }
+    initNavDrawer();
 
     document.querySelectorAll("[data-resume-trigger-agents]").forEach(eln => {
         eln.addEventListener("click", e => { e.preventDefault(); window.location.href = "/#"; });
