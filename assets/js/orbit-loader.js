@@ -84,10 +84,13 @@ function injectStyles() {
  * @param {(el:HTMLElement, finalText:string, durationMs:number)=>void} [opts.scramble]
  *        - glyph-scramble text effect, passed in from page-transition.js to
  *          avoid a circular import (that module imports this one).
+ * @param {number}  [opts.spin]    - starting rotation, in seconds of spin. Lets
+ *          the inbound page resume the outbound page's orbit where it would
+ *          be by now, instead of every glyph snapping back to its start angle.
  * @returns {{ el:HTMLElement, start:()=>void, setRate:(r:number)=>void, land:()=>Promise<void>, destroy:()=>void }}
  */
 export function mountOrbitLoader(container, opts = {}) {
-    const { reduced = false, speed = 1, label: labelText = "", scramble = null } = opts;
+    const { reduced = false, speed = 1, label: labelText = "", scramble = null, spin: startSpin = 0 } = opts;
 
     injectStyles();
 
@@ -137,7 +140,7 @@ export function mountOrbitLoader(container, opts = {}) {
     container.appendChild(wrap);
 
     // ── animation state ──
-    let spin = 0, raf = 0, last = 0, rate = 1, landing = false, converge = 0;
+    let spin = startSpin, raf = 0, last = 0, rate = 1, landing = false, converge = 0;
 
     function place(body) {
         const { ring } = body;

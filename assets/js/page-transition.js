@@ -395,6 +395,10 @@ export function runPageTransition(toUrl) {
             loader.start();
             currentLoader = loader;
             gsap.fromTo(loader.el, { opacity: 0 }, { opacity: 1, duration: 0.14 });
+            // Tell the incoming page the orbit is already on screen (and since
+            // when), so it continues this one rather than starting a second.
+            payload.orbitAt = Date.now();
+            writePayload(payload);
         }).catch(() => {});
     }, LOADER_IN_AT);
 
@@ -463,13 +467,31 @@ export async function playEntranceWipe() {
     gsap.set(blade,   { x: "-4px" });
     gsap.set(scans,   { opacity: 0 });
 
-    const loader = loaderMod.mountOrbitLoader(orbitSlot, { label: payload.toPath, scramble });
+    // If the outbound page already showed the orbit, this is the same orbit
+    // continuing, not a new one. Before, the incoming page always faded it
+    // in from zero, re-scrambled the label and restarted the rotation at
+    // angle 0 — on a phone, where the page load between them is long enough
+    // to see (the browser holds the old page's last frame meanwhile), that
+    // read as the loader running twice. So: no fade-in, no second scramble,
+    // and the rotation resumes where the first orbit would be by now.
+    const shownFor = typeof payload.orbitAt === "number" ? Date.now() - payload.orbitAt : -1;
+    const continued = shownFor >= 0 && shownFor < STALE_MS;
+
+    const loader = loaderMod.mountOrbitLoader(orbitSlot, {
+        label: payload.toPath,
+        scramble: continued ? null : scramble,
+        spin: continued ? shownFor / 1000 : 0,
+    });
     loader.start();
     currentLoader = loader;
-    gsap.fromTo(loader.el, { opacity: 0 }, { opacity: 1, duration: 0.14 });
+    if (continued) gsap.set(loader.el, { opacity: 1 });
+    else gsap.fromTo(loader.el, { opacity: 0 }, { opacity: 1, duration: 0.14 });
 
     const ready = Promise.race([_readyPromise, waitForLoad(), hardCap(2500)]).then(doubleRaf);
-    const minHold = hardCap(350);
+    // The floor stops a fast page from strobing the orbit on and off. A
+    // continued orbit has been on screen since before the navigation, so it
+    // doesn't need one.
+    const minHold = hardCap(continued ? 0 : 350);
     await Promise.all([ready, minHold]);
 
     await loader.land();
