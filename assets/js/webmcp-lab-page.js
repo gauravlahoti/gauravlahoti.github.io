@@ -6,6 +6,7 @@
 // WebMCP tools (scope "lab-agent-ready"), then lazy-imports the lab engine.
 
 import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
+import { initNavDrawer } from "./nav-drawer.js";
 
 // Extract ?v= from this module's own URL so dynamic imports stay cache-busted.
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
@@ -15,22 +16,7 @@ function initPageChrome() {
     const yearEl = document.getElementById("webmcp-lab-year");
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-    const trigger = document.querySelector("[data-nav-trigger]");
-    const drawer  = document.querySelector("[data-nav-drawer]");
-    const closes  = document.querySelectorAll("[data-nav-close]");
-    if (trigger && drawer) {
-        trigger.addEventListener("click", () => {
-            const open = drawer.getAttribute("aria-hidden") === "false";
-            drawer.setAttribute("aria-hidden", open ? "true" : "false");
-            trigger.setAttribute("aria-expanded", open ? "false" : "true");
-            document.body.style.overflow = open ? "" : "hidden";
-        });
-        closes.forEach(c => c.addEventListener("click", () => {
-            drawer.setAttribute("aria-hidden", "true");
-            trigger.setAttribute("aria-expanded", "false");
-            document.body.style.overflow = "";
-        }));
-    }
+    initNavDrawer();
 
     document.querySelectorAll("[data-resume-trigger-agents]").forEach(eln => {
         eln.addEventListener("click", e => {

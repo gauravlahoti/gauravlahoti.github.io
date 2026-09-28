@@ -1,24 +1,13 @@
-// insight-nav.js — nav-drawer open/close toggle for the standalone
-// insights/*/index.html pages. Extracted from an inline <script> block
-// so these pages can run under the same strict CSP (script-src 'self')
-// as the rest of the site.
+// insight-nav.js — nav drawer for the standalone insights/*/index.html pages.
+// Extracted from an inline <script> block so these pages can run under the
+// same strict CSP (script-src 'self') as the rest of the site.
+//
+// Kept as a classic script so the 13 insight pages don't each need a
+// <script type="module"> edit; it just loads the shared drawer module (a
+// dynamic import works from a classic script). Its own copy of the toggle
+// never added `.is-open`, which layout.css keys the drawer's visibility on,
+// so the menu never opened on these pages. See nav-drawer.js.
 
-(function () {
-    var trigger = document.querySelector("[data-nav-trigger]");
-    var drawer = document.querySelector("[data-nav-drawer]");
-    var closes = document.querySelectorAll("[data-nav-close]");
-    if (!trigger || !drawer) return;
-    function open() {
-        trigger.setAttribute("aria-expanded", "true");
-        drawer.setAttribute("aria-hidden", "false");
-    }
-    function close() {
-        trigger.setAttribute("aria-expanded", "false");
-        drawer.setAttribute("aria-hidden", "true");
-    }
-    trigger.addEventListener("click", function () {
-        trigger.getAttribute("aria-expanded") === "true" ? close() : open();
-    });
-    closes.forEach(function (el) { el.addEventListener("click", close); });
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-})();
+import("/assets/js/nav-drawer.js")
+    .then(function (m) { m.initNavDrawer(); })
+    .catch(function (err) { console.warn("[nav-drawer] failed to load", err); });

@@ -1,6 +1,8 @@
 // main.js — bootstrap. Reads profile.json, binds DOM, sets up Lenis,
 // orchestrates the hero reveal, lazy-loads hero-graph when #top is in view.
 
+import { initNavDrawer } from "./nav-drawer.js";
+
 const ROOT = document.documentElement;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const isTouch = matchMedia("(any-pointer: coarse)").matches;
@@ -31,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "323";
+const ASSET_VERSION = "324";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -1236,60 +1238,6 @@ function initHeroGraphWhenVisible() {
     }, { rootMargin: "200px" });
 
     io.observe(canvas);
-}
-
-/* ---------- mobile nav drawer ---------- */
-
-function initNavDrawer() {
-    const trigger = document.querySelector("[data-nav-trigger]");
-    const drawer  = document.querySelector("[data-nav-drawer]");
-    if (!trigger || !drawer) return;
-
-    const open = () => {
-        drawer.classList.add("is-open");
-        drawer.setAttribute("aria-hidden", "false");
-        trigger.setAttribute("aria-expanded", "true");
-        document.body.classList.add("is-nav-drawer-open");
-        // Move keyboard focus into the panel for screen-reader / keyboard users.
-        const close = drawer.querySelector(".nav-drawer-close");
-        if (close) requestAnimationFrame(() => close.focus());
-    };
-    const close = () => {
-        drawer.classList.remove("is-open");
-        drawer.setAttribute("aria-hidden", "true");
-        trigger.setAttribute("aria-expanded", "false");
-        document.body.classList.remove("is-nav-drawer-open");
-        trigger.focus();
-    };
-
-    trigger.addEventListener("click", () => {
-        if (drawer.classList.contains("is-open")) close();
-        else open();
-    });
-
-    // Close on backdrop tap, close-button click, or any link click inside
-    // the drawer (links navigate via existing handlers — Lenis for #anchors,
-    // browser default for outbound).
-    drawer.addEventListener("click", (e) => {
-        if (e.target.closest("[data-nav-close]") || e.target.closest("a")) {
-            close();
-        }
-    });
-
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && drawer.classList.contains("is-open")) {
-            e.preventDefault();
-            close();
-        }
-    });
-
-    // Auto-close if the viewport widens to desktop while the drawer is open.
-    const mql = matchMedia("(min-width: 721px)");
-    const onChange = (e) => {
-        if (e.matches && drawer.classList.contains("is-open")) close();
-    };
-    if (mql.addEventListener) mql.addEventListener("change", onChange);
-    else mql.addListener(onChange); // older Safari
 }
 
 /* ---------- cert-tile tap-to-open (mobile) ---------- */
