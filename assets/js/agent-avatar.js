@@ -27,22 +27,25 @@ const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const STREAM_MIME = 'video/mp4; codecs="avc1.42C01F, mp4a.40.2"';
 // Safari on iOS only exposes ManagedMediaSource.
 const MS = window.ManagedMediaSource || window.MediaSource;
-// Live, not buffered playback: if the player falls this far behind the
-// newest frame it skips ahead, so the face never lags the words.
-const MAX_LAG_S = 1.2;
-// Safety ceiling on one live turn. Replies are capped well under a minute of
-// speech (instruction.py keeps them under ~120 words), so this never fires on
-// a genuinely still-speaking turn. It exists for the case a browser/hardware
-// combo can't actually decode this stream: captions still arrive and paint
-// (the server drives them independently of whether the client's video is
-// playing), so the karaoke loop in agent-widget.js starts regardless — but if
-// the video itself never reaches "ended" because it's stuck (stalled, or an
-// error the `error` listener below doesn't catch), nothing else closes the
-// live session, and that loop's only exit is the session being closed. Left
-// alone, it runs one requestAnimationFrame tick forever, which is a real,
-// ongoing cost even after the visitor moves on — reported as the site
-// feeling laggy on a machine where this stream doesn't decode cleanly.
-const LIVE_WATCHDOG_MS = 45_000;
+// Live turns never skip ahead. They used to jump to the newest frame
+// whenever playback fell 1.2s behind, so "the face never lags the words".
+// But the captions run on this same video clock, so lag never desyncs
+// anything; it only adds latency. And on a machine slow to start or decode
+// the stream (reported on Windows) playback was behind the whole time, so
+// every new chunk triggered another jump: the reply flashed through its
+// captions in a second and only the last word was heard. Lag is only
+// measured now, for the per-turn timing line (see logTurn).
+//
+// Safety net for a live turn that stops making progress: no new chunk and
+// no playback movement for this long. Re-armed on every chunk and every
+// timeupdate, so a slow but moving turn is never cut off. It exists for a
+// browser/hardware combo that can't actually decode this stream: captions
+// still arrive (the server drives them), so the karaoke loop in
+// agent-widget.js starts regardless, and its only exit is this session
+// closing. A stuck video never reaches "ended", so without this the loop ran
+// one requestAnimationFrame tick forever, reported as the site feeling laggy
+// on a machine where the stream doesn't decode cleanly.
+const LIVE_WATCHDOG_MS = 30_000;
 
 let dataPromise = null;
 function loadData() {
@@ -109,6 +112,17 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     liveVideo.disableRemotePlayback = true;
     liveVideo.addEventListener("playing", () => liveVideo.classList.add("is-on"));
     liveVideo.addEventListener("ended", () => { if (mode === "live") endLive(); });
+    // Timing for the per-turn console line, and the progress that keeps the
+    // watchdog from firing on a slow but healthy turn.
+    liveVideo.addEventListener("playing", () => {
+        if (mode === "live" && live && live.stats.playing === null) live.stats.playing = Math.round(performance.now() - live.stats.t0);
+    });
+    liveVideo.addEventListener("waiting", () => { if (mode === "live" && live && live.started) live.stats.waits += 1; });
+    liveVideo.addEventListener("timeupdate", () => {
+        if (mode !== "live" || !live) return;
+        armWatchdog(live);
+        keepLive(live);
+    });
     // A genuine decode/network failure (MediaError) will never reach "ended"
     // on its own, so without this the session — and the karaoke loop reading
     // its `closed` flag — would hang until the watchdog below finally times
@@ -189,6 +203,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         if (!l) return;
         if (l.watchdog) clearTimeout(l.watchdog);
         l.closed = true;
+        logTurn(l);
         liveVideo.classList.remove("is-on");
         liveVideo.pause();
         liveVideo.removeAttribute("src");
@@ -204,18 +219,14 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         // The idle loop keeps breathing underneath until the live frames land.
         if (mode === "greeting") showIdle();
         mode = "live";
-        const l = { queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null };
+        const l = {
+            queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null,
+            stats: { t0: performance.now(), firstChunk: null, playing: null, waits: 0, maxLag: 0, bytes: 0, chunks: 0 },
+        };
         live = l;
         setState("listening");
         video.setAttribute("aria-label", "Atlas, thinking");
-        // See LIVE_WATCHDOG_MS above: a last-resort guarantee this session
-        // (and the karaoke loop it feeds) can't run forever if it never
-        // reaches "ended" or "error" on its own.
-        l.watchdog = setTimeout(() => {
-            if (live !== l || l.closed) return;
-            console.warn("[atlas-avatar] live turn watchdog: forcing cleanup after", LIVE_WATCHDOG_MS, "ms with no end signal");
-            endLive();
-        }, LIVE_WATCHDOG_MS);
+        armWatchdog(l);
 
         const ms = new MS();
         l.ms = ms;
@@ -231,7 +242,12 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         return {
             push(b64) {
                 if (l.closed) return;
-                l.queue.push(b64ToBytes(b64));
+                const bytes = b64ToBytes(b64);
+                if (l.stats.firstChunk === null) l.stats.firstChunk = Math.round(performance.now() - l.stats.t0);
+                l.stats.chunks += 1;
+                l.stats.bytes += bytes.byteLength;
+                l.queue.push(bytes);
+                armWatchdog(l);
                 pump(l);
             },
             speaking() {
@@ -280,7 +296,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
                     console.warn("[atlas-avatar] liveVideo.play() rejected:", err);
                 });
             }
-            keepLive();
+            keepLive(l);
             return;
         }
         if (l.ended && l.ms.readyState === "open") {
@@ -290,11 +306,43 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         }
     }
 
-    function keepLive() {
+    // Never discards unheard speech. The one seek left is forward over a gap
+    // *before* the first frame (a stream whose first fragment doesn't start
+    // at 0 would otherwise wait there forever), which skips nothing audible.
+    function keepLive(l) {
         const b = liveVideo.buffered;
         if (!b.length) return;
-        const edge = b.end(b.length - 1);
-        if (edge - liveVideo.currentTime > MAX_LAG_S) liveVideo.currentTime = Math.max(0, edge - 0.25);
+        if (liveVideo.currentTime < b.start(0) - 0.05) liveVideo.currentTime = b.start(0);
+        const lag = b.end(b.length - 1) - liveVideo.currentTime;
+        if (lag > l.stats.maxLag) l.stats.maxLag = lag;
+    }
+
+    function armWatchdog(l) {
+        if (l.watchdog) clearTimeout(l.watchdog);
+        l.watchdog = setTimeout(() => {
+            if (live !== l || l.closed) return;
+            console.warn("[atlas-avatar] live turn watchdog: no progress for", LIVE_WATCHDOG_MS, "ms, forcing cleanup");
+            endLive();
+        }, LIVE_WATCHDOG_MS);
+    }
+
+    // One line per live turn, so a slow or silent turn on a machine we can't
+    // reach can be read from its console: when the first video arrived
+    // (server + network), when it began playing (this machine's decoder), how
+    // often playback starved, and how far behind it ran.
+    function logTurn(l) {
+        const s = l.stats;
+        if (!s.chunks) return;
+        console.info("[atlas-avatar] turn:", JSON.stringify({
+            firstVideoMs: s.firstChunk,
+            playingMs: s.playing,
+            startDelayMs: s.playing === null ? null : s.playing - s.firstChunk,
+            stalls: s.waits,
+            maxLagS: Math.round(s.maxLag * 100) / 100,
+            chunks: s.chunks,
+            kb: Math.round(s.bytes / 1024),
+            totalMs: Math.round(performance.now() - s.t0),
+        }));
     }
 
     if (autoplay && !REDUCE_MOTION) playGreeting(); else showIdle();

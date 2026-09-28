@@ -540,6 +540,17 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // turn streams, and also while Atlas is still talking afterwards, by
     // voice or as the avatar, so there is always a way to cut it off. Typing
     // a new question turns it back into Send (sending interrupts anyway).
+    // Console-only timing, one line per milestone per turn, so a slow turn
+    // on a machine we can't reach (reported on Windows) can be read from its
+    // console: text late means server or network, voice late on top of
+    // prompt text means synthesis. The avatar logs its own line on turn end.
+    let turnTiming = null;
+    function logTurnTiming(name) {
+        if (!turnTiming || turnTiming.logged.has(name)) return;
+        turnTiming.logged.add(name);
+        console.info(`[atlas] ${name}:`, Math.round(performance.now() - turnTiming.t0));
+    }
+
     function atlasTalking() { return isSpeaking || avatarBusy; }
     function refreshSendMode() {
         const hasText = !!(input.value || "").trim();
@@ -741,6 +752,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     // it appears when the voice does rather than while the
                     // first chunk is still being synthesized.
                     onPlaying: () => {
+                        logTurnTiming("voiceAudibleMs");
                         pauseAvatar(); // spec 67: Atlas's voice wins over a recorded clip
                         showVoiceNote("Speaking…", 0);
                         showSpeakingIndicator(currentAssistantLi);
@@ -1245,6 +1257,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         // Spec 67: in Avatar mode the face speaks this answer instead of the
         // TTS voice. Decided once per turn; the voice stays loaded as the
         // fallback for when the avatar can't (cap, budget, error, browser).
+        turnTiming = { t0: performance.now(), logged: new Set() };
         let avatarVoice = !!(FEATURES.avatarMode && avatarOn && avatar && avatar.canSpeak && !avatarResting);
         // The live face for this turn: goes live now (idling while Atlas
         // thinks), then speaks the reply as it arrives on this same stream.
@@ -1349,6 +1362,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         function markFirstDelta() {
             if (!firstDelta) return;
             firstDelta = false;
+            logTurnTiming("firstTextMs");
             sessionWarmed = true;
             stages.cancel();
             settleThinking();
@@ -1374,7 +1388,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     video(b64) { if (avatarVoice) liveTurn.push(b64); },
                     words(text, at) {
                         if (!avatarVoice) return;
-                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); }
+                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); logTurnTiming("avatarFirstWordsMs"); }
                         addCaptionChunk(avatarWordsEl, text, at);
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
