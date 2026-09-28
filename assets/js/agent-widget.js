@@ -181,6 +181,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
     if (FEATURES.voiceInput && !(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function" && typeof window.MediaRecorder === "function")) {
         micBtn.classList.add("is-hidden");
     }
+    // The placeholder names the mic only when there is one to tap.
+    if (FEATURES.voiceInput && !micBtn.classList.contains("is-hidden")) {
+        input.placeholder = "Type or tap the mic to ask…";
+    }
+    refreshActionSlot();
 
     fab.addEventListener("click", togglePanel);
     dom.closeBtn.addEventListener("click", closePanel);
@@ -544,6 +549,28 @@ export function initAgentWidget(root, profile, pageSessionId) {
         sendBtn.setAttribute("aria-label", label);
         sendBtn.title = label;
         updateSendReadiness();
+        refreshActionSlot();
+    }
+
+    // Mic and send share one slot, so a visitor never has to pick between
+    // two look-alike buttons: an empty composer offers the mic, any text
+    // (typed or transcribed) offers send, and stop takes the slot while a
+    // turn streams or Atlas talks. Hiding the mic once there's text also
+    // keeps a transcript from overwriting what the visitor typed, since
+    // prefillComposer replaces the composer's value.
+    function refreshActionSlot() {
+        const micAvailable = FEATURES.voiceInput && !micBtn.classList.contains("is-hidden");
+        const micActive = micBtn.dataset.mode !== "idle"; // recording or transcribing
+        const hasText = !!(input.value || "").trim();
+        const showMic = micAvailable && (micActive || (sendBtn.dataset.mode === "send" && !hasText));
+        const slot = showMic ? "mic" : "send";
+        const row = dom.inputRow;
+        if (row.dataset.slot === slot) return;
+        // A keyboard user who pressed the button that's about to hide keeps
+        // focus on the one that replaces it.
+        const hadFocus = document.activeElement === micBtn || document.activeElement === sendBtn;
+        row.dataset.slot = slot;
+        if (hadFocus) (showMic ? micBtn : sendBtn).focus();
     }
 
     // Mirrors the mic button's idle/active look: muted while there's
@@ -840,16 +867,18 @@ export function initAgentWidget(root, profile, pageSessionId) {
     let recordTickTimer = null;
     function setMicMode(mode) {
         micBtn.dataset.mode = mode === "recording" ? "recording" : mode === "busy" ? "busy" : "idle";
-        micBtn.setAttribute("aria-label", mode === "recording" ? "Stop recording" : mode === "busy" ? "Transcribing" : "Ask by voice");
+        const micLabel = mode === "recording" ? "Stop recording" : mode === "busy" ? "Transcribing" : "Ask by voice";
+        micBtn.setAttribute("aria-label", micLabel);
+        micBtn.title = micLabel;
         clearInterval(recordTickTimer);
         recordTickTimer = null;
         if (mode === "recording") {
             recordStartedAt = Date.now();
             voiceStatus.classList.remove("is-hidden");
-            voiceStatus.textContent = "Listening… 0:00";
+            voiceStatus.textContent = "Listening… 0:00 · tap to finish";
             recordTickTimer = setInterval(() => {
                 const secs = Math.floor((Date.now() - recordStartedAt) / 1000);
-                voiceStatus.textContent = `Listening… 0:${String(secs).padStart(2, "0")}`;
+                voiceStatus.textContent = `Listening… 0:${String(secs).padStart(2, "0")} · tap to finish`;
             }, 1000);
         } else if (mode === "busy") {
             voiceStatus.classList.remove("is-hidden");
@@ -859,6 +888,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
             // must not wipe a live "Speaking…" out from under it.
             voiceStatus.classList.add("is-hidden");
         }
+        refreshActionSlot();
     }
 
     // Lazy-imports agent-voice.js on first use so MediaRecorder code never
@@ -874,6 +904,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     // Shouldn't happen — the button is hidden when unsupported —
                     // but guards a race between render and the capability check.
                     micBtn.classList.add("is-hidden");
+                    refreshActionSlot();
                     return;
                 }
                 voiceEngine = mod.initVoiceInput({
@@ -2740,6 +2771,7 @@ function renderShell(root, agentExplainer) {
     sendBtn.className = "agent-send is-empty";
     sendBtn.dataset.mode = "send";
     sendBtn.setAttribute("aria-label", "Send");
+    sendBtn.title = "Send";
     sendBtn.innerHTML = `
         <svg class="agent-send-glyph agent-send-glyph-send" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 8 L14 2 L10 14 L8 9 Z"/>
@@ -2757,6 +2789,7 @@ function renderShell(root, agentExplainer) {
     micBtn.className = "agent-mic";
     micBtn.dataset.mode = "idle";
     micBtn.setAttribute("aria-label", "Ask by voice");
+    micBtn.title = "Ask by voice";
     micBtn.innerHTML = `
         <svg class="agent-mic-glyph agent-mic-glyph-idle" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
             <rect x="6" y="1.5" width="4" height="7" rx="2"/>

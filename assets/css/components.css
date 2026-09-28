@@ -2454,13 +2454,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     background: var(--bg-card);
 }
 .agent-input {
-    flex: 1 1 auto;
-    /* Flex items default to min-width: auto, which floors shrinking at the
-       textarea's intrinsic content width — on narrow mobile viewports that
-       floor left no room for both the mic and send buttons (flex: 0 0 auto,
-       never shrink) on the same line, so .agent-input-row's flex-wrap: wrap
-       (added for the voice-status line) pushed the send button onto its own
-       row instead. min-width: 0 lets the textarea actually shrink to fit. */
+    /* Basis 0, not auto: flex-wrap breaks lines on flex-basis, and auto
+       (the textarea's intrinsic ~20-column width) is what used to push the
+       buttons onto their own row on narrow phones. Now that mic and send
+       share one slot, basis 0 keeps the textarea and that one button on a
+       single line at any width; only the full-width voice-status line wraps.
+       min-width: 0 lifts the flex default floor so it can actually shrink. */
+    flex: 1 1 0;
     min-width: 0;
     resize: none;
     min-height: 44px;
@@ -2803,20 +2803,24 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 }
 .agent-voice-status.is-hidden { display: none; }
 
-/* Below 767px (the mobile bottom-sheet breakpoint used elsewhere in this
-   file), don't rely on the textarea implicitly shrinking enough to keep
-   mic+send on the same line as it — that reflow is sensitive to exact
-   viewport width and font metrics, and doesn't hold on every real device
-   (e.g. reported broken on a Samsung Z Fold's narrow cover-screen browser,
-   which didn't reproduce in emulation down to 344px — evidently narrower
-   or otherwise different from anything tested here). Forcing the textarea
-   onto its own full-width row is deterministic instead: mic+send always
-   land together on the row below, correct by construction rather than by
-   flex-wrap math happening to work out. */
-@media (max-width: 767px) {
-    .agent-input {
-        flex-basis: 100%;
-    }
+/* Mic and send share one slot. agent-widget.js sets data-slot: "mic" while
+   the composer is empty (or a recording is live), "send" once there's text
+   or while send is acting as stop. One button means there's nothing to pick
+   between. */
+.agent-input-row[data-slot="mic"] .agent-send,
+.agent-input-row[data-slot="send"] .agent-mic { display: none; }
+.agent-input-row[data-slot] .agent-mic,
+.agent-input-row[data-slot] .agent-send {
+    animation: agent-slot-in var(--dur-fast) var(--ease-out);
+}
+@keyframes agent-slot-in {
+    from { opacity: 0; transform: scale(0.85); }
+}
+/* With the mic alone at rest, it's the primary action, not a secondary one. */
+.agent-input-row[data-slot="mic"] .agent-mic[data-mode="idle"] { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+    .agent-input-row[data-slot] .agent-mic,
+    .agent-input-row[data-slot] .agent-send { animation: none; }
 }
 
 /* Muted marker under a response the visitor cut short with the stop button. */
