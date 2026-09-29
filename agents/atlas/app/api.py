@@ -43,7 +43,7 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.events import Event
@@ -1037,6 +1037,52 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/healthz")
     async def healthz() -> dict[str, bool]:
         return {"ok": True}
+
+    # Network probes: no model, no data, no cost. They stream a timestamped
+    # tick every `interval_ms`, so a browser can see whether something between
+    # it and Atlas (a corporate inspection proxy such as Netskope or Zscaler)
+    # holds a stream back and releases it in bursts, and whether padding the
+    # start or switching to a WebSocket gets through live. Open to any origin
+    # on purpose: they return nothing but the server's own clock.
+    _PROBE_MAX_TICKS = 20
+    _PROBE_MAX_PAD = 16384
+
+    def _probe_args(pad: int, interval_ms: int, ticks: int) -> tuple[int, float, int]:
+        return (max(0, min(pad, _PROBE_MAX_PAD)), max(100, min(interval_ms, 2000)) / 1000,
+                max(1, min(ticks, _PROBE_MAX_TICKS)))
+
+    @app.get("/api/stream-probe")
+    async def stream_probe(pad: int = 0, interval_ms: int = 500, ticks: int = 10) -> StreamingResponse:
+        pad, interval, ticks = _probe_args(pad, interval_ms, ticks)
+
+        async def gen() -> AsyncIterator[str]:
+            if pad:
+                yield ":" + " " * pad + "\n\n"
+            start = time.monotonic()
+            for i in range(ticks):
+                yield _sse({"tick": i, "serverMs": int((time.monotonic() - start) * 1000)})
+                await asyncio.sleep(interval)
+            yield _sse({"done": True})
+
+        return StreamingResponse(gen(), media_type="text/event-stream", headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        })
+
+    @app.websocket("/api/stream-probe-ws")
+    async def stream_probe_ws(ws: WebSocket, interval_ms: int = 500, ticks: int = 10) -> None:
+        _, interval, ticks = _probe_args(0, interval_ms, ticks)
+        await ws.accept()
+        start = time.monotonic()
+        try:
+            for i in range(ticks):
+                await ws.send_json({"tick": i, "serverMs": int((time.monotonic() - start) * 1000)})
+                await asyncio.sleep(interval)
+            await ws.send_json({"done": True})
+            await ws.close()
+        except WebSocketDisconnect:
+            pass
 
     @app.post("/api/agent-live/warm")
     async def live_warm(request: Request) -> JSONResponse:
