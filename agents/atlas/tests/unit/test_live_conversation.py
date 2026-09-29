@@ -306,6 +306,64 @@ class TestFillerBeforeTools:
         assert turns[0]["question"] == "Tell me about EY."
 
 
+    # Spec 75: the order the Live server really sends. Every generation that
+    # ends in a tool call closes with its own turn_complete, and a filler's
+    # transcript trails its audio, so it often lands after the tool has
+    # already answered. That used to end the reply at the filler.
+    @pytest.mark.asyncio
+    async def test_a_late_filler_transcript_does_not_split_the_reply(self, monkeypatch) -> None:
+        async def get_certifications():
+            return [{"name": "AWS Certified AI Practitioner"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_certifications])
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_certifications", args={})])
+        out = await _run_convo([
+            _msg(heard="What certifications does he hold?"),
+            _msg(tool=call), "pause",
+            _msg(said="Let me check his certifications for you."), _msg(complete=True),
+            "pause",
+            _msg(said="Gaurav holds "), _msg(said="several AI certifications."), _msg(complete=True),
+        ], seconds=2.0)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert len(turns) == 1
+        assert turns[0]["question"] == "What certifications does he hold?"
+        assert turns[0]["answer"] == "Let me check his certifications for you. Gaurav holds several AI certifications."
+
+    @pytest.mark.asyncio
+    async def test_a_tool_call_with_no_filler_is_one_reply(self, monkeypatch) -> None:
+        async def get_work_history(role_filter=None):
+            return [{"company": "Deloitte"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_work_history])
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_work_history", args={})])
+        out = await _run_convo([
+            _msg(heard="Where does he work now?"),
+            _msg(tool=call), _msg(complete=True), "pause",
+            _msg(said="Gaurav works at Deloitte."), _msg(complete=True),
+        ], seconds=1.5)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert [t["answer"] for t in turns] == ["Gaurav works at Deloitte."]
+        assert turns[0]["question"] == "Where does he work now?"
+
+    @pytest.mark.asyncio
+    async def test_two_rounds_of_tools_are_still_one_reply(self, monkeypatch) -> None:
+        async def get_projects(domain=None):
+            return [{"name": "fabric"}]
+        async def get_live_agents(agent_name=None):
+            return [{"name": "ErrorLens"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_projects, get_live_agents])
+        first = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_projects", args={})])
+        second = SimpleNamespace(function_calls=[SimpleNamespace(id="t2", name="get_live_agents", args={})])
+        out = await _run_convo([
+            _msg(heard="What has he shipped?"),
+            _msg(said="One moment."), _msg(tool=first), _msg(complete=True), "pause",
+            _msg(tool=second), _msg(complete=True), "pause",
+            _msg(said="He shipped a fabric and ErrorLens."), _msg(complete=True),
+            _msg(heard="Nice."),
+        ], seconds=2.5)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert len(turns) == 1
+        assert turns[0]["answer"] == "One moment. He shipped a fabric and ErrorLens."
+
+
 class TestToolCallsStayServerSide:
     """Spec 74: the avatar just answers. Which tools it used, and with what,
     never reaches the page."""
