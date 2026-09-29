@@ -306,22 +306,16 @@ class TestFillerBeforeTools:
         assert turns[0]["question"] == "Tell me about EY."
 
 
-class TestToolEvents:
-    """Spec 73: the widget shows each tool call as a hex, from names alone."""
+class TestToolCallsStayServerSide:
+    """Spec 74: the avatar just answers. Which tools it used, and with what,
+    never reaches the page."""
 
     @pytest.mark.asyncio
-    async def test_a_tool_call_is_announced_by_name(self) -> None:
-        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_projects", args={"domain": "ai"})])
-        out = await _run_convo([_msg(heard="What has he built?"), _msg(tool=call)], seconds=0.3)
-        assert ("tool", ["get_projects"]) in out
-
-    @pytest.mark.asyncio
-    async def test_arguments_and_unknown_names_never_reach_the_page(self) -> None:
+    async def test_a_tool_call_sends_nothing_about_the_tool(self) -> None:
         call = SimpleNamespace(function_calls=[
             SimpleNamespace(id="t1", name="send_resume", args={"email": "visitor@example.com"}),
-            SimpleNamespace(id="t2", name="made_up_tool", args={}),
         ])
-        out = await _run_convo([_msg(tool=call)], seconds=0.3)
-        tools = [v for k, v in out if k == "tool"]
-        assert tools == [["send_resume"]]
-        assert "visitor@example.com" not in repr(tools)
+        out = await _run_convo([_msg(heard="Send me the resume."), _msg(tool=call)], seconds=0.3)
+        assert all(k != "tool" for k, _ in out)
+        assert "send_resume" not in repr(out)
+        assert "visitor@example.com" not in repr(out)

@@ -5125,49 +5125,6 @@ a.agent-badge-tile:focus-visible {
 .agent-avatar-slot.is-leaving { pointer-events: none; }
 .agent-avatar-slot.is-leaving .agent-convo { visibility: hidden; }
 
-/* Spec 73: a tool call, as a chip in the chat. In Avatar mode a hex flies in
-   from the ring and the chip appears as it lands. */
-.agent-tool-chip {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    max-width: 100%;
-    padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
-    border: 1px solid var(--mode-avatar);
-    border-radius: var(--radius-lg);
-    background: var(--mode-avatar-soft);
-    font-size: var(--text-xs);
-    color: var(--ink-muted);
-}
-.agent-tool-chip code { font-family: var(--font-mono); color: var(--ink); }
-.agent-tool-chip.is-pending { visibility: hidden; }
-.agent-tool-chip:not(.is-pending) { animation: agent-tool-land 360ms var(--ease-spring); }
-@keyframes agent-tool-land {
-    0%   { scale: 0.85; }
-    60%  { scale: 1.06; }
-    100% { scale: 1; }
-}
-.agent-tool-hex,
-.agent-hex-flyer {
-    flex: none;
-    background: linear-gradient(135deg, var(--mode-avatar), var(--mode-avatar-2));
-    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-}
-.agent-tool-hex { width: var(--space-3); height: calc(var(--space-3) * 1.15); }
-.agent-hex-flyer {
-    position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 70; /* over the widget host */
-    width: var(--space-8);
-    height: calc(var(--space-8) * 1.15);
-    pointer-events: none;
-    filter: drop-shadow(0 0 var(--space-2) var(--mode-avatar));
-}
-@media (prefers-reduced-motion: reduce) {
-    .agent-tool-chip:not(.is-pending) { animation: none; }
-}
 .agent-avatar-frame {
     position: relative;
     width: min(240px, 100%);

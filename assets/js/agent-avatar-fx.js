@@ -1,14 +1,12 @@
 // agent-avatar-fx.js — the avatar's hex effects (spec 73).
 //
-// One canvas over the avatar stage draws four things, all at the face's
+// One canvas over the avatar stage draws three things, all at the face's
 // edges or between turns, never over the face while it talks (a moving
 // mosaic on a talking mouth reads as a glitch):
 //   - arrival: the face builds itself from hex tiles, like a call connecting,
 //     and breaks back into them on the way out;
 //   - a voice ring: hex cells around the frame that follow the real audio
 //     level, magenta to amber while Atlas talks, cyan while the visitor does;
-//   - tool hexes: a hex breaks off the ring and flies to the chat when Atlas
-//     uses a tool;
 //   - an interrupt burst: the ring scatters and snaps back on barge-in.
 //
 // Imported by agent-avatar.js, so it only loads with Avatar mode. Colours come
@@ -17,7 +15,6 @@
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const ARRIVE_S = 1.1;      // tiles flipping away, centre first
 const BURST_S = 1.2;       // scatter and settle
-const FLY_MS = 1000;
 const HANG_UP_HOLD_MS = 350; // tiles rest this long before the face re-forms
 
 function tokenRgb(style, name, fallback) {
@@ -261,30 +258,6 @@ export function mountHexFx(stage, frame) {
             hangUpTimer = setTimeout(() => { revealTarget = 1; wake(); }, ARRIVE_S * 1000 + HANG_UP_HOLD_MS);
         },
         burst() { burstAt = performance.now(); wake(); },
-        // A hex leaves the ring's upper right and lands on `target` (the tool
-        // chip's hex in the chat). Resolves when it lands.
-        tool(target) {
-            const s = stage.getBoundingClientRect();
-            const to = target && target.getBoundingClientRect();
-            if (REDUCE_MOTION || !F || !to || !s.width || !to.width) return Promise.resolve();
-            const src = ring.filter((c) => c.d < c.r * 2 && c.x > F.cx && c.y < F.cy).sort((a, b) => b.x - a.x)[0]
-                || { x: F.x + F.w, y: F.y };
-            const fly = document.createElement("div");
-            fly.className = "agent-hex-flyer";
-            fly.setAttribute("aria-hidden", "true");
-            document.body.appendChild(fly);
-            const half = fly.offsetWidth / 2, halfH = fly.offsetHeight / 2;
-            const a = { x: s.left + src.x - half, y: s.top + src.y - halfH };
-            const b = { x: to.left + to.width / 2 - half, y: to.top + to.height / 2 - halfH };
-            const mid = { x: Math.max(a.x, b.x) + 50, y: (a.y + b.y) / 2 - 20 };
-            const anim = fly.animate([
-                { transform: `translate(${a.x}px, ${a.y}px) scale(0.3) rotate(0deg)`, opacity: 0.2 },
-                { transform: `translate(${a.x + 18}px, ${a.y - 14}px) scale(1.2) rotate(40deg)`, opacity: 1, offset: 0.2 },
-                { transform: `translate(${mid.x}px, ${mid.y}px) scale(1) rotate(160deg)`, opacity: 1, offset: 0.6 },
-                { transform: `translate(${b.x}px, ${b.y}px) scale(0.45) rotate(360deg)`, opacity: 1 },
-            ], { duration: FLY_MS, easing: "cubic-bezier(.5,0,.3,1)" });
-            return anim.finished.catch(() => {}).then(() => fly.remove());
-        },
         dispose() {
             disposed = true;
             clearTimeout(hangUpTimer);
