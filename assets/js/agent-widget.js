@@ -63,6 +63,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
     const transcribeApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-transcribe") : apiUrl;
     // Spec 49: same again for spoken replies.
     const speakApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-speak") : apiUrl;
+    // Avatar answers come from a live session that is ~1.5s faster once it
+    // has been open a moment, so one is opened as the visitor starts typing.
+    const liveWarmUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-live/warm") : apiUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -528,6 +531,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
     });
     input.addEventListener("input", autoGrowInput);
+    input.addEventListener("input", warmLiveAvatar);
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
@@ -906,7 +910,25 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Lazy-imports agent-voice.js on first use so MediaRecorder code never
     // ships in the initial page payload (matches how main.js defers this
     // whole module until idle).
+    // Ask the server to open this visitor's avatar session while they type or
+    // talk, so it's warm when they send. At most once per 90s (the server
+    // keeps a warm session 120s); a server with live answers off says no.
+    let liveWarmedAt = 0;
+    function warmLiveAvatar() {
+        if (!FEATURES.avatarMode || !avatarOn || !avatar || !avatar.canSpeak || avatarResting || !liveWarmUrl) return;
+        const now = Date.now();
+        if (now - liveWarmedAt < 90_000) return;
+        liveWarmedAt = now;
+        fetch(liveWarmUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+            keepalive: true,
+        }).catch(() => { liveWarmedAt = 0; });
+    }
+
     async function startVoiceInput() {
+        warmLiveAvatar();
         if (micLoading) return;
         if (!voiceEngine) {
             micLoading = true;

@@ -46,10 +46,12 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from google.adk.agents.run_config import RunConfig, StreamingMode
+from google.adk.events import Event
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 from google.genai.errors import APIError
 
+from app import live_brain
 from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
@@ -64,6 +66,7 @@ from app.app_utils.speak import warm as warm_speak
 from app.app_utils.transcribe import normalize_mime, transcribe_audio
 from app.app_utils.transcribe import warm as warm_transcribe
 from app.guardrails import (
+    _INJECTION_RE,
     GUARDRAIL_BLOCK_CODE,
     INJECTION_REPLY_PREFIX,
     REPLY_MODES,
@@ -423,6 +426,145 @@ async def _relay_avatar(
     if aligner and (tail := aligner[0].rest().strip()):
         await out.put(_sse({"avatarWords": _words_event(" " + tail, live)}))
     await out.put(_sse({"avatarEnd": True}))
+
+
+# --- avatar turns answered by gemini-3.8-live directly -------------------------
+# ATLAS_LIVE_BRAIN=1 routes Avatar-mode questions to `live_brain`: one Live
+# session answers with Atlas's tools and speaks as it goes, instead of
+# gemini-3.6-flash writing a whole reply for the avatar to read. Read per
+# request, so it is switched on or off with an env change alone.
+_LIVE_HISTORY_TURNS = 12
+_META_BLOCK_RE = re.compile(r"\[\[META\]\].*", re.DOTALL)
+
+
+def _live_brain_on() -> bool:
+    return os.environ.get("ATLAS_LIVE_BRAIN", "") == "1"
+
+
+async def _chat_history(session_id: str) -> list[types.Content]:
+    """The chat so far, from any mode, as plain user/model text turns."""
+    session = await _runner.session_service.get_session(
+        app_name=APP_NAME, user_id=session_id, session_id=session_id
+    )
+    turns: list[types.Content] = []
+    for event in (session.events if session else []):
+        content = event.content
+        if not content or not content.parts:
+            continue
+        text = "".join(p.text or "" for p in content.parts if p.text and not p.thought)
+        if content.role == "model":
+            text = split_markers(_META_BLOCK_RE.sub("", text))
+        text = text.strip()
+        if text:
+            turns.append(types.Content(role="user" if content.role == "user" else "model",
+                                       parts=[types.Part.from_text(text=text)]))
+    return turns[-_LIVE_HISTORY_TURNS:]
+
+
+async def _remember_live_turn(session_id: str, question: str, answer: str) -> None:
+    """Write the avatar turn into the chat's ADK session, so a follow-up in
+    Text or Voice mode knows what was asked and said (one shared chat)."""
+    svc = _runner.session_service
+    session = await svc.get_session(app_name=APP_NAME, user_id=session_id, session_id=session_id)
+    if session is None:
+        return
+    await svc.append_event(session, Event(
+        author="user", content=types.Content(role="user", parts=[types.Part.from_text(text=question)])))
+    if answer:
+        await svc.append_event(session, Event(
+            author=root_agent.name, content=types.Content(role="model", parts=[types.Part.from_text(text=answer)])))
+
+
+async def _live_avatar_stream(
+    session_id: str,
+    user_text: str,
+    *,
+    turn_index: int,
+    identity: dict[str, str] | None,
+    client_meta: dict[str, str],
+    geo_task: asyncio.Task | None,
+    fallback: AsyncIterator[str],
+) -> AsyncIterator[str]:
+    """One avatar turn answered by gemini-3.8-live itself, on the same SSE
+    events the widget already plays (`avatarVideo`, `avatarWords`,
+    `avatarEnd`, `done`). The spoken words also go out as `delta`, so the
+    turn reads the same in Text and Voice mode. If the session fails before
+    a word is spoken, the turn becomes a normal text answer (`fallback`).
+    """
+    start = time.monotonic()
+    dispatcher = live_brain.ToolDispatcher(session_id)
+    # A session the widget warmed while the visitor was typing answers ~1.5s
+    # sooner; otherwise open one now.
+    turn = live_brain.warm_pool.claim(session_id)
+    warm = turn is not None
+    if turn is None:
+        turn = live_brain.LiveBrainTurn(dispatcher)
+    else:
+        turn.attach(dispatcher)
+    status, error_message = "ok", None
+    spoke = False
+    try:
+        history = await _chat_history(session_id)
+        if not warm:
+            await turn.open()
+        await turn.ask(user_text, history)
+        async with asyncio.timeout(_AVATAR_TIMEOUT_S):
+            async for kind, value in turn.events():
+                if kind == "video":
+                    yield _sse({"avatarVideo": base64.b64encode(value).decode("ascii")})
+                else:
+                    spoke = True
+                    yield _sse({"avatarWords": _words_event(value, turn)})
+                    yield _sse({"delta": value})
+        yield _sse({"avatarEnd": True})
+        yield _sse({"done": True})
+    except asyncio.CancelledError:
+        status = "cancelled"
+        raise
+    except Exception as err:  # noqa: BLE001 - the visitor still gets an answer
+        logger.exception("live avatar turn failed")
+        status, error_message = "error", type(err).__name__
+        if spoke:
+            yield _sse({"avatarEnd": True})
+            yield _sse({"done": True})
+        else:
+            # Nothing said yet: drop the face and answer in text instead.
+            yield _sse({"avatarUnavailable": {"reason": "Avatar is unavailable right now."}})
+            async for chunk in fallback:
+                yield chunk
+    finally:
+        await turn.close()
+        spoken = turn.spoken_seconds
+        avatar_speak.budget.settle(avatar_speak.RESERVE_SECONDS, spoken)
+        answer = turn.text
+        logger.info(
+            "live-avatar: turn=%d warm=%s first_word_ms=%s tools=%s spoke=%.1fs ($%.3f) status=%s",
+            turn_index, warm, turn.first_word_ms, [c["name"] for c in turn.dispatcher.calls],
+            spoken, spoken * avatar_speak.USD_PER_SPEAKING_SECOND, status,
+        )
+        if spoke:
+            try:
+                await _remember_live_turn(session_id, user_text, answer)
+            except Exception:  # history is best effort; the answer already went out
+                logger.exception("live avatar: could not record the turn in the session")
+        asyncio.create_task(
+            _log_turn(geo_task, {
+                "sessionId":  session_id,
+                "turnIndex":  turn_index,
+                "question":   user_text[:4000],
+                "response":   answer[:16000],
+                "toolCalls":  turn.dispatcher.calls[:20],
+                "model":      avatar_speak.AVATAR_MODEL,
+                "latencyMs":  turn.first_word_ms or int((time.monotonic() - start) * 1000),
+                "status":     status,
+                "errorMessage": error_message,
+                "identity":   identity,
+                "userAgent":  client_meta.get("ua"),
+                "referrer":   client_meta.get("ref"),
+                "ip":         client_meta.get("ip_truncated"),
+                "agentVersion": _AGENT_VERSION,
+            })
+        )
 
 
 class _OutputFilter:
@@ -896,6 +1038,28 @@ def register_routes(app: FastAPI) -> None:
     async def healthz() -> dict[str, bool]:
         return {"ok": True}
 
+    @app.post("/api/agent-live/warm")
+    async def live_warm(request: Request) -> JSONResponse:
+        """The widget calls this when a visitor starts typing in Avatar mode,
+        so the Live session is open (and ~1.5s faster) by the time they send.
+        Never blocks the visitor: the session opens in the background."""
+        if not _live_brain_on():
+            return JSONResponse({"warming": False})
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = None
+        session_id = (body or {}).get("sessionId") if isinstance(body, dict) else None
+        if not isinstance(session_id, str) or not (8 <= len(session_id) <= 128):
+            return JSONResponse({"error": "sessionId required"}, status_code=400)
+        ip_hash = limiter.hash_ip(_client_ip(request))
+        ok, _ = limiter.check_and_record(session_id, ip_hash, bucket="live_warm")
+        if not ok:
+            return JSONResponse({"warming": False})
+        await _ensure_session(session_id)
+        asyncio.create_task(live_brain.warm_pool.warm(session_id))
+        return JSONResponse({"warming": True})
+
     @app.get("/api/agent-chat/warm")
     async def warm() -> dict[str, bool]:
         # Mere arrival of this request spins up Cloud Run if cold. Also nudge the
@@ -1212,7 +1376,19 @@ def register_routes(app: FastAPI) -> None:
             ),
             contact_intent=has_contact_intent(user_text),
         )
-        stream = _with_avatar(text_stream) if want_avatar else text_stream
+        # Prompt-injection attempts keep the text agent's fixed refusal.
+        if want_avatar and _live_brain_on() and not _INJECTION_RE.search(user_text):
+            fallback = _stream_agent(
+                session_id, user_text, turn_index=turn_index, identity=identity,
+                client_meta=client_meta, geo_task=None, avatar=False, reply_mode="text",
+                contact_intent=has_contact_intent(user_text),
+            )
+            stream = _live_avatar_stream(
+                session_id, user_text, turn_index=turn_index, identity=identity,
+                client_meta=client_meta, geo_task=geo_task, fallback=fallback,
+            )
+        else:
+            stream = _with_avatar(text_stream) if want_avatar else text_stream
 
         return StreamingResponse(
             stream,
