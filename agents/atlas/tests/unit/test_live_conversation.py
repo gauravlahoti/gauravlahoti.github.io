@@ -55,6 +55,9 @@ class FakeSession:
     async def send_tool_response(self, function_responses=None):
         self.tool_responses = function_responses
 
+    async def send_client_content(self, turns=None, turn_complete=None):
+        self.client_content = getattr(self, "client_content", []) + [turns]
+
 
 async def _run_convo(script, seconds=1.5):
     convo = live_brain.LiveConversation(live_brain.ToolDispatcher("c1"))
@@ -72,6 +75,24 @@ async def _run_convo(script, seconds=1.5):
     for t in convo._tasks:
         t.cancel()
     return out
+
+
+async def _run_convo_keep(script, seconds=1.5):
+    convo = live_brain.LiveConversation(live_brain.ToolDispatcher("c1"))
+    convo._session = FakeSession(script)
+    convo._tasks = [asyncio.ensure_future(convo._read()), asyncio.ensure_future(convo._tick())]
+    out = []
+
+    async def collect():
+        async for kind, value in convo.events():
+            out.append((kind, value))
+
+    task = asyncio.ensure_future(collect())
+    await asyncio.sleep(seconds)
+    task.cancel()
+    for t in convo._tasks:
+        t.cancel()
+    return convo, out
 
 
 class TestConversationStates:
@@ -103,10 +124,59 @@ class TestConversationStates:
         assert [v for k, v in out if k == "user_words"][-1] == "Actually, his certs?"
 
     @pytest.mark.asyncio
-    async def test_idle_conversation_ends(self, monkeypatch) -> None:
-        monkeypatch.setattr(live_brain, "CONVO_IDLE_S", 0.3)
-        out = await _run_convo([], seconds=1.0)
-        assert ("end", "idle") in out
+    async def test_a_quiet_call_is_checked_in_on_then_ends(self, monkeypatch) -> None:
+        # Spec 79: silence gets one "anything else?" before the call ends.
+        monkeypatch.setattr(live_brain, "CONVO_CHECK_IN_S", 0.3)
+        monkeypatch.setattr(live_brain, "CONVO_AFTER_CHECK_IN_S", 0.4)
+        convo, out = await _run_convo_keep([], seconds=1.4)
+        sent = convo._session.client_content
+        assert len(sent) == 1 and "gone quiet" in sent[0][0].parts[0].text
+        assert out[-1] == ("end", "idle")
+
+    @pytest.mark.asyncio
+    async def test_speaking_after_the_check_in_keeps_the_call_open(self, monkeypatch) -> None:
+        monkeypatch.setattr(live_brain, "CONVO_CHECK_IN_S", 0.3)
+        monkeypatch.setattr(live_brain, "CONVO_AFTER_CHECK_IN_S", 0.6)
+        convo, out = await _run_convo_keep([
+            "pause", _msg(said="Anything else, or shall we wrap up?"), _msg(complete=True),
+            _msg(heard="Yes, where does he work?"), _msg(said="At Deloitte."), _msg(complete=True),
+        ], seconds=1.2)
+        assert ("end", "idle") not in out
+        assert [v["question"] for k, v in out if k == "turn_end"] == ["", "Yes, where does he work?"]
+
+
+class TestEndingTheCall:
+    """Spec 79: a goodbye ends the call. end_conversation is never answered
+    (an answer made the model talk on, or read the result aloud); the
+    goodbye said before it plays out, then the call ends."""
+
+    @pytest.mark.asyncio
+    async def test_goodbye_then_the_call_ends(self, monkeypatch) -> None:
+        monkeypatch.setattr(live_brain, "END_TAIL_S", 0.2)
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="end_conversation", args={})])
+        convo, out = await _run_convo_keep([
+            _msg(heard="That's all, thanks. Bye!"),
+            _msg(said="Thanks for stopping by, "), _msg(tool=call), _msg(complete=True),
+            _msg(said="take care."),  # the transcript trails the audio
+        ], seconds=1.0)
+        assert out[-1] == ("end", "goodbye")
+        turns = [v for k, v in out if k == "turn_end"]
+        assert len(turns) == 1 and turns[0]["answer"] == "Thanks for stopping by, take care."
+        assert turns[0]["tools"] == ["end_conversation"]
+        assert not hasattr(convo._session, "tool_responses")  # never answered
+
+    @pytest.mark.asyncio
+    async def test_it_ends_even_without_a_turn_complete(self, monkeypatch) -> None:
+        monkeypatch.setattr(live_brain, "END_MAX_S", 0.4)
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="end_conversation", args={})])
+        out = await _run_convo([_msg(heard="Bye."), _msg(said="Goodbye!"), _msg(tool=call)], seconds=1.0)
+        assert out[-1] == ("end", "goodbye")
+
+    @pytest.mark.asyncio
+    async def test_a_single_typed_turn_has_no_call_to_end(self) -> None:
+        resp = await live_brain.ToolDispatcher("s").run(
+            SimpleNamespace(id="t1", name="end_conversation", args={}))
+        assert resp.response["status"] == "unavailable"
 
 
 # --- the route ------------------------------------------------------------------
@@ -362,6 +432,18 @@ class TestFillerBeforeTools:
         turns = [v for k, v in out if k == "turn_end"]
         assert len(turns) == 1
         assert turns[0]["answer"] == "One moment. He shipped a fabric and ErrorLens."
+
+
+    @pytest.mark.asyncio
+    async def test_showing_a_page_mid_answer_is_still_one_reply(self) -> None:
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="show_on_site", args={"target": "mcp-lab"})])
+        out = await _run_convo([
+            _msg(heard="Show me the MCP lab."),
+            _msg(tool=call), _msg(complete=True), "pause",
+            _msg(said="That's his MCP lab, open beside me."), _msg(complete=True),
+        ], seconds=1.5)
+        assert [v for k, v in out if k == "show"] == ["mcp-lab"]
+        assert [v["answer"] for k, v in out if k == "turn_end"] == ["That's his MCP lab, open beside me."]
 
 
 class TestToolCallsStayServerSide:

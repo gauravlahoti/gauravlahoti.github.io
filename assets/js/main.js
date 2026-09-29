@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "338";
+const ASSET_VERSION = "339";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -249,6 +249,9 @@ function initAnalyticsWhenIdle(profile, sessionId) {
 
 function initAgentWidgetWhenIdle(profile, sessionId) {
     if (!profile || !profile.links || !profile.links.agentApi) return;
+    // Spec 78: inside the frame Atlas opens a page in, the home page is the
+    // one behind it. A second Atlas here would be a second mic and a second call.
+    if (window.self !== window.top) return;
     // Skip on bandwidth-saver + reduced-motion combo (per spec #20).
     if (saveData && reduceMotion) return;
     const root = document.getElementById("agent-root");

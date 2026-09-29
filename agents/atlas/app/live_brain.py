@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import struct
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -56,6 +57,8 @@ Your tool calls run in the background, so a result can arrive after you start ta
 - get_site_stats: how many questions you have answered.
 - send_resume: emails his resume. Only on an explicit request with an address.
 - send_note_to_gaurav: relays the visitor's own note to Gaurav, with their email.
+- show_on_site: puts a page or a section of the site on the visitor's screen while you keep talking.
+- end_conversation: ends the spoken call after your goodbye.
 Call tools without filter arguments unless the visitor names something specific. For "what has he built or shipped", "his projects" or "his work", call get_projects AND get_live_agents, and mention something from each. Every answer names one or two concrete facts from the tool data, such as a company, a project, a certification or a date; never answer with only generalities.
 If a tool returns no results, say so instead of searching again with variations. Never run more than two consecutive tool calls without speaking.
 
@@ -67,6 +70,13 @@ If a tool returns no results, say so instead of searching again with variations.
 - Awards or wins: check get_certifications and get_recent_posts before saying there are none; a champion title is listed under certifications.
 - Follow-ups ("tell me more", "which one?"): resolve them from the earlier turns, and call a tool again when the answer needs new facts.
 - A question with a request in it: answer what you can first, then ask for the one missing thing as your last sentence.
+
+# Showing the site
+When the visitor asks to see, open or go to something on the site ("show me the labs", "take me to his career", "open the MCP lab"), call show_on_site with the closest target, then say in one short line what's now on screen. If they ask about something you could show, you may offer to open it; open it only once they say yes. Never open a page on your own, and at most one per turn. The Agentic RAG lab can't open here; say it's linked from the AI Labs page.
+
+# Ending the call
+When the visitor says goodbye, says they're done or that's all, or asks to end or close the conversation: say one short, warm goodbye first, then call end_conversation, and say nothing after it. Don't end the call for any other reason, and never read out what the tool returns.
+A bracketed note from the site means the visitor has gone quiet: ask once, in one short sentence, whether there's anything else or whether to wrap up. If they then say no or that's all, say goodbye and call end_conversation.
 
 # About you
 If asked whether you are Gaurav, a person, or what you are: you are Atlas, an AI agent that represents him on this site, you can get things wrong, and for anything important the visitor should reach Gaurav directly. For how you work or what you run on, call get_live_agents and answer from your own entry.
@@ -139,6 +149,58 @@ READ_TOOLS: list[Callable[..., Awaitable[Any]]] = [
 ]
 WRITE_TOOLS = [send_resume, send_note_to_gaurav]
 
+
+# --- showing the site (spec 78) ------------------------------------------------
+# What the avatar can put on the visitor's screen while the call goes on. The
+# page gets only the key: the widget owns the key -> path map
+# (assets/js/site-stage.js), so a string the model chose never becomes a URL.
+SHOW_TARGETS: dict[str, str] = {
+    "top": "The top of the home page",
+    "career": "His career section",
+    "about": "The about section",
+    "insights": "His LinkedIn insights section",
+    "labs": "The AI Labs page",
+    "mcp-lab": "The Model Context Protocol lab",
+    "engineering-loops": "The Engineering Loops lab",
+    "agent-ready": "The Agent-Ready Web lab",
+    "live-agents": "The Live Agents page",
+}
+# Real places that can't open inside the site.
+OFF_SITE: dict[str, str] = {
+    "rag-lab": "The Agentic RAG lab runs on its own site, so it can't open here. "
+               "Say it's linked from the AI Labs page, and offer to open that instead.",
+}
+
+
+async def show_on_site(target: str) -> dict[str, Any]:
+    """Put a page or a home-page section on the visitor's screen, beside you.
+    The conversation keeps going while it's open.
+
+    Call it only when the visitor asks to see, open or go to something, or
+    says yes to your offer to show it. At most once per turn.
+
+    Args:
+        target: One of top, career, about, insights (sections of the home
+            page); labs (the AI Labs page); mcp-lab, engineering-loops,
+            agent-ready, rag-lab (one lab); live-agents (the page of agents
+            he built).
+    """
+    raise NotImplementedError("run by ToolDispatcher, which owns the screen")
+
+
+async def end_conversation() -> dict[str, Any]:
+    """End the spoken call, after the goodbye you are saying now.
+
+    Call it when the visitor says goodbye, says they're done or that's all,
+    asks to end or close the conversation, or answers your check-in with
+    nothing more to ask. Say your one short goodbye before calling it, and
+    nothing after. Never call it for any other reason.
+    """
+    raise NotImplementedError("run by ToolDispatcher, which owns the call")
+
+
+CLIENT_TOOLS = [show_on_site, end_conversation]
+
 # Filter argument per read tool: a filtered call that finds nothing answers
 # with the unfiltered data instead of a dead end the model reads as "none".
 FILTER_ARGS = {"get_work_history": "role_filter", "get_live_agents": "agent_name", "get_projects": "domain"}
@@ -150,7 +212,7 @@ def declarations() -> list[types.FunctionDeclaration]:
     # only from its result.
     return [
         types.FunctionDeclaration.from_callable_with_api_option(callable=fn, api_option="VERTEX_AI")
-        for fn in READ_TOOLS + WRITE_TOOLS
+        for fn in READ_TOOLS + WRITE_TOOLS + CLIENT_TOOLS
     ]
 
 
@@ -191,6 +253,9 @@ class ToolDispatcher:
         self._send_note = send_note_fn
         self._reads = {fn.__name__: fn for fn in READ_TOOLS}
         self.calls: list[dict[str, Any]] = []
+        # Set by the session that relays to the page (spec 78); without one,
+        # nothing can be shown and the model is told to describe it instead.
+        self.on_show: Callable[[str], None] | None = None
 
     async def run(self, call: types.FunctionCall) -> types.FunctionResponse:
         args = dict(call.args or {})
@@ -203,6 +268,12 @@ class ToolDispatcher:
         return types.FunctionResponse(id=call.id, name=call.name, response=body)
 
     async def _run(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        if name == "show_on_site":
+            return self._show(str(args.get("target", "")).strip().lower())
+        if name == "end_conversation":
+            # A hands-free conversation handles this itself (LiveConversation
+            # never answers it); only a single typed turn gets here.
+            return _wrap("unavailable", "There's no call to end here. Just say goodbye.")
         if name == "send_resume":
             result = await self._send_resume(args.get("email", ""), session_id=self.session_id)
             return _wrap("ok" if result.get("ok") else result.get("code", "error"), result.get("message", ""), result)
@@ -227,6 +298,17 @@ class ToolDispatcher:
         if name == "get_certifications" and isinstance(data, list):
             return _wrap("ok", cert_counts(data), data)
         return _wrap("ok", "Answer from this data only.", data)
+
+    def _show(self, target: str) -> dict[str, Any]:
+        if target in OFF_SITE:
+            return _wrap("off_site", OFF_SITE[target])
+        if target not in SHOW_TARGETS:
+            return _wrap("invalid_argument", f"Nothing called {target!r} can be shown. Pick one of: {', '.join(SHOW_TARGETS)}.")
+        if self.on_show is None:
+            return _wrap("unavailable", "Pages can't be opened from here. Say it's linked on the site instead.")
+        self.on_show(target)
+        return _wrap("ok", f"{SHOW_TARGETS[target]} is now on the visitor's screen, beside you. "
+                           "Say in one short line what they're looking at, then offer to walk them through it.")
 
 
 def cert_counts(certs: list[dict[str, Any]]) -> str:
@@ -409,6 +491,10 @@ class LiveBrainTurn:
         self.words_first_at: float | None = None
         self.last_media_at: float | None = None
         self.transcript: list[str] = []
+        self._bind(dispatcher)
+
+    def _bind(self, dispatcher: ToolDispatcher) -> None:
+        dispatcher.on_show = lambda target: self._out.put_nowait(("show", target))
 
     @property
     def alive(self) -> bool:
@@ -430,6 +516,7 @@ class LiveBrainTurn:
         """A warm session was opened for this visitor; bind this turn's
         tools (and their log) before asking."""
         self.dispatcher = dispatcher
+        self._bind(dispatcher)
 
     async def ask(self, question: str, history: list[types.Content] | None = None) -> None:
         held = self._trim.release()
@@ -603,7 +690,20 @@ warm_pool = WarmPool()
 # works on Vertex, seeded history is not answered on its own, follow-ups use
 # it, barge-in fires `interrupted`, and end of speech -> first word is ~2.1s.
 CONVO_MAX_S = 300.0   # a conversation ends after five minutes
-CONVO_IDLE_S = 60.0   # ...or after a minute with nobody talking
+# Spec 79: after this long with nobody talking, Atlas asks once whether
+# there's anything else; this long after that with no answer, the call ends.
+CONVO_CHECK_IN_S = 30.0
+CONVO_AFTER_CHECK_IN_S = 15.0
+# After end_conversation: the goodbye's transcript trails its audio by about a
+# second, so the call ends this long after the model's turn completes, or this
+# long at most after the call if it never does.
+END_TAIL_S = 1.2
+END_MAX_S = 5.0
+# Sent as the site, not the visitor, when the visitor has gone quiet.
+CHECK_IN_NOTE = (
+    "[Note from the site, not the visitor: they have gone quiet. In one short sentence, "
+    "ask whether there's anything else they'd like to know, or whether to wrap up. Call no tool.]"
+)
 _THINKING_AFTER_S = 0.35  # the visitor's words stopped and no answer yet
 
 
@@ -633,8 +733,9 @@ class LiveConversation:
       ("words", str)              the avatar's words, as spoken
       ("state", "listening" | "thinking" | "speaking")
       ("interrupted", None)       the visitor talked over the avatar
+      ("show", str)               a page or section to put on screen (spec 78)
       ("turn_end", dict)          question, answer, tools, timing, status
-      ("end", str)                "idle" | "max" | "error"
+      ("end", str)                "goodbye" | "idle" | "max" | "error"
     """
 
     def __init__(self, dispatcher: ToolDispatcher) -> None:
@@ -646,6 +747,10 @@ class LiveConversation:
         self._trim = StreamTrimmer()
         self.clock = avatar_speak.FragmentClock()
         self.opened_at: float | None = None
+        dispatcher.on_show = lambda target: self._out.put_nowait(("show", target))
+        self._ending = False      # end_conversation was called (see _read)
+        self._end_at: float | None = None
+        self._checked_in = False  # asked "anything else?" since the visitor last spoke
         self.last_activity = time.monotonic()
         self.state = "listening"
         self._reset_turn()
@@ -731,16 +836,27 @@ class LiveConversation:
             while True:
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
+                        calls = list(msg.tool_call.function_calls)
+                        if any(c.name == "end_conversation" for c in calls):
+                            # Spec 79: never answered. An answer makes the model
+                            # talk again ("let me know when you're ready..."), or
+                            # read the result aloud. The goodbye it said before
+                            # the call plays out, then the call ends (_tick).
+                            self.dispatcher.calls.append({"name": "end_conversation", "args": {}})
+                            self._ending = True
+                            self._end_at = time.monotonic() + END_MAX_S
+                            continue
                         self._completes_to_skip += 1
                         if not self._said:
                             await self._put_state("thinking")
-                        asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
+                        asyncio.ensure_future(self._respond(calls))
                     sc = msg.server_content
                     if not sc:
                         continue
                     if sc.input_transcription and sc.input_transcription.text:
                         self._heard.append(sc.input_transcription.text)
                         self._last_heard_at = self.last_activity = time.monotonic()
+                        self._checked_in = False
                         await self._out.put(("user_words", sc.input_transcription.text))
                     if sc.output_transcription and sc.output_transcription.text:
                         if self._first_word_at is None:
@@ -765,6 +881,9 @@ class LiveConversation:
                     elif sc.turn_complete:
                         if self._completes_to_skip:
                             self._completes_to_skip -= 1
+                        elif self._ending:
+                            # The goodbye is done; wait for its trailing words.
+                            self._end_at = min(self._end_at or math.inf, time.monotonic() + END_TAIL_S)
                         elif self._said:
                             await self._finish_turn("ok")
         except asyncio.CancelledError:
@@ -780,9 +899,22 @@ class LiveConversation:
             if (self.state == "listening" and self._heard and self._last_heard_at is not None
                     and now - self._last_heard_at > _THINKING_AFTER_S):
                 await self._put_state("thinking")
-            if self.state == "listening" and now - self.last_activity > CONVO_IDLE_S:
-                await self._out.put(("end", "idle"))
+            if self._end_at is not None and now >= self._end_at:
+                await self._finish_turn("ok")
+                await self._out.put(("end", "goodbye"))
                 return
+            quiet = now - self.last_activity
+            if self.state == "listening" and not self._ending and not self._heard:
+                if not self._checked_in and quiet > CONVO_CHECK_IN_S:
+                    self._checked_in = True
+                    self.last_activity = now  # if the check-in says nothing, still wait before ending
+                    await self._session.send_client_content(
+                        turns=[types.Content(role="user", parts=[types.Part.from_text(text=CHECK_IN_NOTE)])],
+                        turn_complete=True,
+                    )
+                elif self._checked_in and quiet > CONVO_AFTER_CHECK_IN_S:
+                    await self._out.put(("end", "idle"))
+                    return
             if self.opened_at is not None and now - self.opened_at > CONVO_MAX_S:
                 await self._out.put(("end", "max"))
                 return
