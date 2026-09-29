@@ -5005,6 +5005,69 @@ a.agent-badge-tile:focus-visible {
     animation: agent-avatar-in var(--dur-slow) var(--ease-out);
 }
 .agent-panel.is-minimized .agent-avatar-slot { display: none; }
+
+/* Spec 71: hands-free conversation controls, a row under the face. The slot
+   stacks the face and this row. */
+.agent-avatar-slot { flex-direction: column; align-items: center; }
+.agent-convo {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-2);
+    padding-block: var(--space-3) 0;
+}
+.agent-convo[hidden] { display: none; }
+.agent-convo-btn {
+    font: 500 var(--text-sm) / 1 var(--font-sans);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card);
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.agent-convo-btn:hover:not(:disabled) { border-color: var(--accent); }
+.agent-convo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.agent-convo-btn:disabled { opacity: 0.6; cursor: progress; }
+.agent-convo-start {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.agent-convo-mute[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.agent-convo-end { border-color: var(--danger); color: var(--danger); }
+.agent-convo-hint {
+    flex-basis: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+/* Spec 71: who said it, on spoken conversation turns. (Not .agent-speaker:
+   that name belongs to the panel's legacy speaker button.) */
+.agent-who {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: var(--space-1);
+}
+.agent-message-user .agent-who { text-align: right; }
+.agent-message-assistant .agent-who {
+    padding-left: var(--space-3);
+    color: var(--mode-c, var(--accent));
+}
+
+/* Mid-conversation the visitor talks, so the composer steps aside. "Type"
+   brings it back for what's easier typed than said, like an email address.
+   The mic button stays hidden either way: it would open a second mic. */
+.agent-panel.is-conversing .agent-mic { display: none; }
+.agent-panel.is-conversing:not(.is-typing) .agent-input-row { display: none; }
+.agent-convo-type[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 /* Switching to Avatar flips the call in, like a card turning over. */
 .agent-avatar-slot { perspective: 900px; }
 .agent-avatar-slot .agent-avatar { animation: agent-avatar-flip 700ms var(--ease-spring); transform-origin: 50% 0; }

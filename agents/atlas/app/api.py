@@ -468,8 +468,9 @@ async def _remember_live_turn(session_id: str, question: str, answer: str) -> No
     session = await svc.get_session(app_name=APP_NAME, user_id=session_id, session_id=session_id)
     if session is None:
         return
-    await svc.append_event(session, Event(
-        author="user", content=types.Content(role="user", parts=[types.Part.from_text(text=question)])))
+    if question:
+        await svc.append_event(session, Event(
+            author="user", content=types.Content(role="user", parts=[types.Part.from_text(text=question)])))
     if answer:
         await svc.append_event(session, Event(
             author=root_agent.name, content=types.Content(role="model", parts=[types.Part.from_text(text=answer)])))
@@ -1476,6 +1477,166 @@ def register_routes(app: FastAPI) -> None:
         if isinstance(result, tuple):
             return JSONResponse(status_code=result[0], content=result[1])
         return StreamingResponse(result, media_type="text/event-stream", headers=_SSE_HEADERS)
+
+    @app.websocket("/api/agent-live")
+    async def agent_live(ws: WebSocket) -> None:
+        """A hands-free avatar conversation (spec 71).
+
+        In: the first text frame is {"start": {"sessionId"}}; then binary
+        frames of 16 kHz PCM16 mic audio (100 ms at most each) and text
+        frames {"text"}, {"mute"}, {"end"}. Out: binary frames are the
+        face's fMP4 video; text frames are JSON events: state, userWords,
+        words {text, at}, interrupted, turnEnd, end {reason, capped}.
+        Gated by ATLAS_LIVE_CONVO=1.
+        """
+        if os.environ.get("ATLAS_LIVE_CONVO", "") != "1" or not _ws_origin_allowed(ws):
+            await ws.close(code=1008)
+            return
+        await ws.accept()
+        try:
+            first = await ws.receive_json()
+            session_id = first["start"]["sessionId"]
+            assert isinstance(session_id, str) and 8 <= len(session_id) <= 128
+        except Exception:  # noqa: BLE001 - malformed start
+            await ws.send_json({"end": {"reason": "bad request", "capped": False}})
+            await ws.close()
+            return
+
+        raw_ip = _client_ip(ws)
+        ip_hash = limiter.hash_ip(raw_ip)
+        client_meta = {
+            "ip_truncated": _truncate_ip(raw_ip),
+            "ua": (ws.headers.get("user-agent") or "")[:500],
+            "ref": (ws.headers.get("referer") or "")[:500],
+        }
+
+        async def refuse(reason: str) -> None:
+            await ws.send_json({"end": {"reason": reason, "capped": True}})
+            await ws.close()
+
+        # A conversation is charged like questions: the first here, each
+        # later one as its turn ends.
+        if not limiter.check_and_record(session_id, ip_hash)[0]:
+            return await refuse("That's the question budget for today (10 per visitor).")
+        if not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
+            return await refuse("You've reached today's avatar limit.")
+        reserved = avatar_speak.RESERVE_SECONDS
+        if not avatar_speak.budget.reserve(reserved):
+            return await refuse("The avatar has reached its limit for today.")
+
+        await _ensure_session(session_id)
+        convo = live_brain.LiveConversation(live_brain.ToolDispatcher(session_id))
+        turns = 0
+        end_reason, capped = "ended", False
+        try:
+            await convo.open()
+            await convo.seed(await _chat_history(session_id))
+        except Exception:  # noqa: BLE001
+            logger.exception("live conversation: could not open")
+            avatar_speak.budget.settle(reserved, 0.0)
+            await ws.send_json({"end": {"reason": "Avatar is unavailable right now.", "capped": False}})
+            await ws.close()
+            await convo.close()
+            return
+        await ws.send_json({"state": "listening"})
+
+        async def uplink() -> None:
+            # Mic audio and controls from the browser.
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    return
+                if msg.get("bytes") is not None:
+                    pcm = msg["bytes"]
+                    if 0 < len(pcm) <= 3200 and len(pcm) % 2 == 0:  # <= 100 ms of 16 kHz PCM16
+                        await convo.send_audio(pcm)
+                    continue
+                try:
+                    ctl = json.loads(msg.get("text") or "{}")
+                except ValueError:
+                    continue
+                if ctl.get("end"):
+                    return
+                if ctl.get("mute"):
+                    await convo.mute()
+                if isinstance(ctl.get("text"), str) and ctl["text"].strip():
+                    await convo.send_text(ctl["text"].strip()[:1000])
+
+        up = asyncio.ensure_future(uplink())
+        try:
+            events = convo.events().__aiter__()
+            while True:
+                nxt = asyncio.ensure_future(events.__anext__())
+                done, _ = await asyncio.wait({nxt, up}, return_when=asyncio.FIRST_COMPLETED)
+                if up in done:
+                    nxt.cancel()
+                    break
+                try:
+                    kind, value = nxt.result()
+                except StopAsyncIteration:
+                    break
+                if kind == "video":
+                    await ws.send_bytes(value)
+                elif kind == "words":
+                    await ws.send_json({"words": _words_event(value, convo)})
+                elif kind == "user_words":
+                    await ws.send_json({"userWords": value})
+                elif kind == "state":
+                    await ws.send_json({"state": value})
+                elif kind == "interrupted":
+                    await ws.send_json({"interrupted": True})
+                elif kind == "turn_end":
+                    turn = value
+                    turns += 1
+                    avatar_speak.budget.settle(reserved, turn["spoken_seconds"])
+                    reserved = 0.0  # settled; the next question reserves afresh
+                    await ws.send_json({"turnEnd": {k: turn[k] for k in ("question", "answer", "status", "first_word_ms")}})
+                    if turn["question"] or turn["answer"]:
+                        try:
+                            await _remember_live_turn(session_id, turn["question"], turn["answer"])
+                        except Exception:  # history is best effort
+                            logger.exception("live conversation: could not record the turn")
+                    logger.info(
+                        "live-convo: turn=%d first_word_ms=%s tools=%s spoke=%.1fs ($%.3f) status=%s",
+                        turns, turn["first_word_ms"], turn["tools"], turn["spoken_seconds"],
+                        turn["spoken_seconds"] * avatar_speak.USD_PER_SPEAKING_SECOND, turn["status"],
+                    )
+                    asyncio.create_task(_log_turn(None, {
+                        "sessionId": session_id, "turnIndex": turns,
+                        "question": turn["question"][:4000], "response": turn["answer"][:16000],
+                        "toolCalls": turn["calls"][:20], "model": avatar_speak.AVATAR_MODEL,
+                        "latencyMs": turn["first_word_ms"],
+                        "status": "injection" if _INJECTION_RE.search(turn["question"]) else turn["status"],
+                        "userAgent": client_meta["ua"], "referrer": client_meta["ref"],
+                        "ip": client_meta["ip_truncated"], "agentVersion": _AGENT_VERSION,
+                    }))
+                    # The next question is charged now, so a visitor at a cap
+                    # is told before asking rather than cut off mid-answer.
+                    if not limiter.check_and_record(session_id, ip_hash)[0] or \
+                            not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
+                        end_reason, capped = "That's today's limit for the avatar.", True
+                        break
+                    if not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
+                        end_reason, capped = "The avatar has reached its limit for today.", True
+                        break
+                    reserved = avatar_speak.RESERVE_SECONDS
+                elif kind == "end":
+                    end_reason = {"idle": "Ended after a quiet minute.", "max": "Conversations last up to five minutes.",
+                                  "error": "The avatar dropped the connection."}.get(value, "ended")
+                    break
+        except Exception:  # noqa: BLE001 - browser gone mid-send
+            logger.info("live conversation: client left")
+        finally:
+            up.cancel()
+            await convo.close()
+            if reserved:
+                avatar_speak.budget.settle(reserved, 0.0)
+            try:
+                await ws.send_json({"end": {"reason": end_reason, "capped": capped}})
+                await ws.close()
+            except Exception:  # noqa: BLE001 - already closed
+                pass
+            logger.info("live-convo: ended session=%s turns=%d reason=%s", session_id[:8], turns, end_reason)
 
     @app.websocket("/api/agent-chat-ws")
     async def agent_chat_ws(ws: WebSocket) -> None:

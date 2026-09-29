@@ -154,7 +154,9 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     stage.append(frame);
     host.appendChild(stage);
 
-    const LABEL = { idle: "live", listening: "thinking", speaking: "speaking" };
+    // "hearing" is the hands-free conversation's own state: the face is
+    // live and the visitor has the floor (spec 71).
+    const LABEL = { idle: "live", listening: "thinking", speaking: "speaking", hearing: "listening" };
     function setState(state) {
         stage.dataset.state = state;
         tagState.textContent = LABEL[state] || LABEL.idle;
@@ -236,7 +238,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         mode = "live";
         const l = {
             queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null,
-            speechStarted: false, speechAt: null, lastSeekAt: 0,
+            speechStarted: false, speechAt: null, lastSeekAt: 0, lastTrim: 0,
             stats: { t0: performance.now(), firstChunk: null, playing: null, waits: 0, maxLag: 0, bytes: 0, chunks: 0, idleSkips: 0, idleSkippedS: 0 },
         };
         live = l;
@@ -255,10 +257,10 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
             pump(l);
         }, { once: true });
 
-        return {
-            push(b64) {
+        const handle = {
+            push(b64) { handle.pushBytes(b64ToBytes(b64)); },
+            pushBytes(bytes) {
                 if (l.closed) return;
-                const bytes = b64ToBytes(b64);
                 if (l.stats.firstChunk === null) l.stats.firstChunk = Math.round(performance.now() - l.stats.t0);
                 l.stats.chunks += 1;
                 l.stats.bytes += bytes.byteLength;
@@ -292,11 +294,40 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
                 return b.length ? b.end(b.length - 1) : 0;
             },
             get closed() { return l.closed; },
+            // --- hands-free conversation (spec 71): one stream, many turns --
+            // Talking over the avatar: jump to the newest frame. Skipping is
+            // right here, the visitor asked it to stop.
+            interrupt() {
+                if (l.closed) return;
+                const b = liveVideo.buffered;
+                if (b.length) liveVideo.currentTime = Math.max(liveVideo.currentTime, b.end(b.length - 1) - 0.1);
+                handle.newTurn();
+            },
+            // A turn ended: the idle face before the next answer may be
+            // skipped again (see catchUp), never the answer itself.
+            newTurn() {
+                l.speechStarted = false;
+                l.speechAt = null;
+            },
+            // The conversation's own states on the tag.
+            convoState(state) {
+                if (l.closed) return;
+                const internal = { listening: "hearing", thinking: "listening", speaking: "speaking" }[state];
+                if (!internal) return;
+                setState(internal);
+                video.setAttribute("aria-label", `Atlas, ${LABEL[internal]}`);
+            },
         };
+        return handle;
     }
 
     function pump(l) {
         if (l.closed || !l.sb || l.appending || l.sb.updating) return;
+        if (l.pendingTrim) {
+            const upTo = l.pendingTrim;
+            l.pendingTrim = 0;
+            try { l.appending = true; l.sb.remove(0, upTo); return; } catch (_) { l.appending = false; }
+        }
         if (l.queue.length) {
             l.appending = true;
             const chunk = l.queue.shift();
@@ -318,6 +349,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
                 });
             }
             keepLive(l);
+            trimPlayed(l);
             return;
         }
         if (l.ended && l.ms.readyState === "open") {
@@ -359,6 +391,18 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         l.lastSeekAt = now;
         l.stats.idleSkips += 1;
         l.stats.idleSkippedS += target - from;
+    }
+
+    // A conversation can stream for minutes: drop what has already played,
+    // keeping ten seconds behind the playhead, so the buffer never fills.
+    function trimPlayed(l) {
+        const now = performance.now();
+        if (now - l.lastTrim < 10_000 || liveVideo.currentTime < 20) return;
+        l.lastTrim = now;
+        const upTo = liveVideo.currentTime - 10;
+        const b = liveVideo.buffered;
+        if (!b.length || b.start(0) >= upTo) return;
+        l.pendingTrim = upTo; // applied by pump once the buffer is idle
     }
 
     function armWatchdog(l) {
