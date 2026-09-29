@@ -32,7 +32,8 @@ class TestDeclarations:
         assert names == {
             "get_profile", "get_work_history", "get_projects", "get_recent_posts",
             "get_certifications", "get_live_agents", "get_build_story", "get_ai_labs",
-            "get_site_stats", "send_resume", "send_note_to_gaurav",
+            "get_site_stats", "send_resume", "send_note_to_gaurav", "show_on_site",
+            "end_conversation",
         }
 
     def test_read_tools_are_the_text_agents_own_functions(self) -> None:
@@ -403,3 +404,76 @@ class TestCertCounts:
         assert "1 from Anthropic, 1 from AWS, 2 from Google Cloud" in msg
         assert "not the vendor" in msg
         assert len(resp.response["data"]) == 4
+
+
+class TestShowOnSite:
+    """Spec 78: the avatar puts a page or section on screen by key. Only a
+    known key reaches the page, and the widget owns what each key means."""
+
+    @staticmethod
+    def _dispatcher() -> tuple[live_brain.ToolDispatcher, list[str]]:
+        d = live_brain.ToolDispatcher("s-78")
+        shown: list[str] = []
+        d.on_show = shown.append
+        return d, shown
+
+    @pytest.mark.asyncio
+    async def test_a_known_target_is_shown(self) -> None:
+        d, shown = self._dispatcher()
+        resp = await d.run(_call("show_on_site", target="MCP-Lab"))
+        assert shown == ["mcp-lab"]
+        assert resp.response["status"] == "ok"
+        assert "on the visitor's screen" in resp.response["message"]
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_target_never_reaches_the_page(self) -> None:
+        d, shown = self._dispatcher()
+        for target in ("https://evil.example", "/admin", "__proto__", ""):
+            resp = await d.run(_call("show_on_site", target=target))
+            assert resp.response["status"] == "invalid_argument"
+        assert shown == []
+
+    @pytest.mark.asyncio
+    async def test_the_off_site_lab_is_a_link_not_a_page(self) -> None:
+        d, shown = self._dispatcher()
+        resp = await d.run(_call("show_on_site", target="rag-lab"))
+        assert resp.response["status"] == "off_site" and shown == []
+
+    @pytest.mark.asyncio
+    async def test_without_a_page_to_show_on_it_says_so(self) -> None:
+        resp = await live_brain.ToolDispatcher("s-78").run(_call("show_on_site", target="labs"))
+        assert resp.response["status"] == "unavailable"
+
+    @pytest.mark.asyncio
+    async def test_a_single_turn_relays_it_and_rebinds_on_attach(self) -> None:
+        turn = live_brain.LiveBrainTurn(live_brain.ToolDispatcher("warm"))
+        visitor = live_brain.ToolDispatcher("visitor")
+        turn.attach(visitor)
+        await visitor.run(_call("show_on_site", target="labs"))
+        assert turn._out.get_nowait() == ("show", "labs")
+
+    @pytest.mark.asyncio
+    async def test_the_stream_sends_the_key_as_avatarShow(self, fake_turn, monkeypatch) -> None:
+        async def events(self):
+            yield ("show", "mcp-lab")
+            yield ("words", "Here's the MCP lab.")
+        monkeypatch.setattr(FakeTurn, "events", events)
+        out = await _run("live-78", "Show me the MCP lab")
+        assert {"avatarShow": "mcp-lab"} in out
+        assert all(e.get("delta") != "mcp-lab" for e in out)
+
+    def test_targets_match_the_widgets_map(self) -> None:
+        import re
+        from pathlib import Path
+        js = (Path(__file__).resolve().parents[4] / "assets/js/site-stage.js").read_text()
+        block = js[js.index("export const SITE_TARGETS"):js.index("};", js.index("export const SITE_TARGETS"))]
+        keys = set(re.findall(r'^\s*"([a-z-]+)":', block, re.M))
+        assert keys == set(live_brain.SHOW_TARGETS)
+
+    def test_every_lab_on_the_site_can_be_shown_or_linked(self) -> None:
+        from pathlib import Path
+        concepts = json.loads((Path(__file__).resolve().parents[4] / "content/ai-concepts.json").read_text())["concepts"]
+        for c in concepts:
+            slug = c["href"].strip("/").split("/")[-1]
+            assert slug in live_brain.SHOW_TARGETS or slug in live_brain.OFF_SITE, slug
+

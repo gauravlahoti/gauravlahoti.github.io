@@ -519,6 +519,8 @@ async def _live_avatar_stream(
             async for kind, value in turn.events():
                 if kind == "video":
                     yield _sse({"avatarVideo": base64.b64encode(value).decode("ascii")})
+                elif kind == "show":
+                    yield _sse({"avatarShow": value})  # spec 78: a target key, never a URL
                 else:
                     spoke = True
                     yield _sse({"avatarWords": _words_event(value, turn)})
@@ -1495,7 +1497,7 @@ def register_routes(app: FastAPI) -> None:
         frames of 16 kHz PCM16 mic audio (100 ms at most each) and text
         frames {"text"}, {"mute"}, {"end"}. Out: binary frames are the
         face's fMP4 video; text frames are JSON events: state, userWords,
-        words {text, at}, interrupted, turnEnd, end {reason, capped, kind}.
+        words {text, at}, interrupted, show (a target key), turnEnd, end {reason, capped, kind}.
         Gated by ATLAS_LIVE_CONVO=1.
         """
         if os.environ.get("ATLAS_LIVE_CONVO", "") != "1" or not _ws_origin_allowed(ws):
@@ -1538,6 +1540,7 @@ def register_routes(app: FastAPI) -> None:
         convo = live_brain.LiveConversation(live_brain.ToolDispatcher(session_id))
         turns = 0
         end_reason, capped, cap_kind = "ended", False, None
+        goodbye = False
         try:
             await convo.open()
             await convo.seed(await _chat_history(session_id))
@@ -1595,6 +1598,8 @@ def register_routes(app: FastAPI) -> None:
                     await ws.send_json({"state": value})
                 elif kind == "interrupted":
                     await ws.send_json({"interrupted": True})
+                elif kind == "show":
+                    await ws.send_json({"show": value})  # spec 78: a target key, never a URL
                 elif kind == "turn_end":
                     turn = value
                     turns += 1
@@ -1621,7 +1626,10 @@ def register_routes(app: FastAPI) -> None:
                         "ip": client_meta["ip_truncated"], "agentVersion": _AGENT_VERSION,
                     }))
                     # The next question is charged now, so a visitor at a cap
-                    # is told before asking rather than cut off mid-answer.
+                    # is told before asking rather than cut off mid-answer. Not
+                    # after Atlas's own check-in (spec 79): nobody asked anything.
+                    if not turn["question"]:
+                        continue
                     if not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
                         end_reason, capped, cap_kind = AVATAR_VISITOR_CAP_REPLY, True, "avatar"
                         break
@@ -1630,7 +1638,8 @@ def register_routes(app: FastAPI) -> None:
                         break
                     reserved = avatar_speak.RESERVE_SECONDS
                 elif kind == "end":
-                    end_reason = {"idle": "Ended after a quiet minute.", "max": "Conversations last up to five minutes.",
+                    goodbye = value == "goodbye"  # spec 79: Atlas said goodbye; nothing to explain
+                    end_reason = {"goodbye": "", "idle": "Ended after a quiet stretch.", "max": "Conversations last up to five minutes.",
                                   "error": "The avatar dropped the connection."}.get(value, "ended")
                     break
         except Exception:  # noqa: BLE001 - browser gone mid-send
@@ -1642,13 +1651,15 @@ def register_routes(app: FastAPI) -> None:
                 avatar_speak.budget.settle(reserved, 0.0)
             try:
                 end_evt = {"reason": end_reason, "capped": capped}
+                if goodbye:
+                    end_evt["goodbye"] = True
                 if cap_kind:
                     end_evt["kind"] = cap_kind
                 await ws.send_json({"end": end_evt})
                 await ws.close()
             except Exception:  # noqa: BLE001 - already closed
                 pass
-            logger.info("live-convo: ended session=%s turns=%d reason=%s", session_id[:8], turns, end_reason)
+            logger.info("live-convo: ended session=%s turns=%d reason=%s", session_id[:8], turns, "goodbye" if goodbye else end_reason)
 
     @app.websocket("/api/agent-chat-ws")
     async def agent_chat_ws(ws: WebSocket) -> None:

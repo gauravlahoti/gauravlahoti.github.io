@@ -5284,3 +5284,86 @@ a.agent-badge-tile:focus-visible {
     border-color: var(--mode-c, var(--accent));
     outline: none;
 }
+
+/* Spec 78: a page Atlas put on screen mid-conversation. A same-origin frame
+   over the home page and under the Atlas panel, so the live call keeps
+   running. The home page stays still behind it. */
+.site-stage {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-site-stage);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+.site-stage.is-open { opacity: 1; }
+body[data-site-stage-open="true"] { overflow: hidden; }
+.site-stage-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) max(var(--space-4), env(safe-area-inset-right)) var(--space-2) max(var(--space-4), env(safe-area-inset-left));
+    padding-top: max(var(--space-2), env(safe-area-inset-top));
+    border-bottom: 1px solid var(--border-strong);
+    background: var(--bg-card);
+}
+.site-stage-title {
+    font: 500 var(--text-sm) / 1.2 var(--font-sans);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.site-stage-close {
+    flex-shrink: 0;
+    min-height: var(--tap-min);
+    font: 500 var(--text-sm) / 1 var(--font-sans);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elev);
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out);
+}
+.site-stage-close:hover { border-color: var(--accent); }
+.site-stage-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.site-stage-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    border: 0;
+    background: var(--bg);
+}
+@media (prefers-reduced-motion: reduce) {
+    .site-stage { transition: none; }
+}
+
+/* Spec 78: with a page on screen the panel floats as a small face, with Mute
+   and End, so the whole page is visible and the call carries on. A click on
+   the face brings the full panel back over the page. On desktop it keeps the
+   panel's own corner, above the launcher. */
+.agent-panel.is-floating {
+    width: calc(var(--space-24) * 2);
+    min-height: 0;
+    max-height: none;
+    touch-action: auto;
+}
+.agent-panel.is-floating > :not(.agent-panel-head),
+.agent-panel.is-floating .agent-panel-head > :not(.agent-avatar-slot),
+.agent-panel.is-floating .agent-convo-hint,
+.agent-panel.is-floating .agent-avatar-tag { display: none; }
+.agent-panel.is-floating .agent-panel-head { padding: var(--space-2); cursor: pointer; }
+.agent-panel.is-floating .agent-avatar { padding-block: var(--space-1); }
+.agent-panel.is-floating .agent-avatar-frame { width: 100%; }
+.agent-panel.is-floating .agent-convo { padding-block: var(--space-2) 0; gap: var(--space-1); }
+.agent-panel.is-floating .agent-convo-btn { padding: var(--space-2) var(--space-3); font-size: var(--text-xs); }
+@media (max-width: 767px) {
+    .agent-panel.is-floating {
+        inset: auto var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)) auto;
+        width: calc(var(--space-24) * 1.6);
+        border-radius: var(--radius-lg);
+    }
+}

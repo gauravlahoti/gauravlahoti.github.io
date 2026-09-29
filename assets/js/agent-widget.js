@@ -199,6 +199,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Click on the minimized header bar to restore
     dom.head.addEventListener("click", (e) => {
         if (isMinimized && !e.target.closest("button")) restore();
+        else if (panel.classList.contains("is-floating") && !e.target.closest("button")) setFloating(false);
     });
 
     // Spec 22: drag-to-dismiss on the bottom-sheet drag handle (mobile only).
@@ -383,7 +384,14 @@ export function initAgentWidget(root, profile, pageSessionId) {
                 sessionId,
                 onVideo: (bytes) => face.pushBytes(bytes),
                 onEvent: onConvoEvent,
-                onEnd: (end) => { endConversation(end); if (!(end && end.capped)) hangUpFace(); },
+                onEnd: async (end) => {
+                    // Spec 79: after a goodbye, let the last words play out
+                    // before hanging up; the server has already stopped.
+                    if (end && end.goodbye) await playedOut(face);
+                    if (convo !== s) return; // ended from here meanwhile
+                    endConversation(end);
+                    if (!(end && end.capped)) hangUpFace();
+                },
             });
         } catch (err) {
             if (convo === s) convo = null;
@@ -455,12 +463,42 @@ export function initAgentWidget(root, profile, pageSessionId) {
             if (!s.spoke) { s.spoke = true; s.face.speaking(heardFrom); }
             const turn = s.turn;
             runKaraoke(s.wordsEl, () => s.face.time(), () => turn.done || s.face.closed);
+        } else if (typeof evt.show === "string") {
+            showOnSite(evt.show);
         } else if (evt.interrupted) {
             s.face.interrupt();
             if (s.assistantLi) appendStoppedNote(s.assistantLi);
         } else if (evt.turnEnd) {
             closeConvoTurn(s, evt.turnEnd);
         }
+    }
+
+    // Spec 78: Atlas puts a page or a home section on screen while the call
+    // goes on. The key is resolved in site-stage.js; an unknown one does
+    // nothing. The panel shrinks to a floating face so the whole page is
+    // visible, and the call and its voice carry on (minimize would pause it).
+    // A click on the face brings the full panel back.
+    let siteStage = null;
+    let stageOpen = false;
+    async function showOnSite(key) {
+        try {
+            siteStage = siteStage || await import(_vq("./site-stage.js"));
+        } catch (err) {
+            console.warn("[atlas] site stage unavailable:", err);
+            return;
+        }
+        const title = siteStage.showTarget(key, { onChange: onStageChange });
+        if (title) liveRegion.textContent = `Opened ${title}.`;
+    }
+    function onStageChange(open) {
+        stageOpen = open;
+        setFloating(open && isOpen);
+    }
+    function setFloating(on) {
+        panel.classList.toggle("is-floating", on);
+        // Floating, the panel no longer covers the page, so it isn't modal.
+        panel.setAttribute("aria-modal", on ? "false" : "true");
+        if (!on) requestAnimationFrame(syncScrollHint);
     }
 
     // One turn done: settle both bubbles into the shared chat, as what was
@@ -506,6 +544,19 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // face into hexes and re-forms it idle. Not on a mode switch or a closed
     // panel: leaving Avatar has its own dissolve, and a capped call hands off
     // to Voice, which runs that one.
+    // Resolves once the face has played everything it was sent, or after
+    // `maxMs` so a stalled stream never leaves the call open.
+    function playedOut(face, maxMs = 8000) {
+        const until = performance.now() + maxMs;
+        return new Promise((resolve) => {
+            const check = () => {
+                if (face.closed || face.time() >= face.edge() - 0.15 || performance.now() > until) resolve();
+                else setTimeout(check, 100);
+            };
+            check();
+        });
+    }
+
     function hangUpFace() {
         if (avatar && avatarOn) avatar.hangUp();
     }
@@ -801,6 +852,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
     input.addEventListener("input", autoGrowInput);
     input.addEventListener("input", warmLiveAvatar);
     document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && stageOpen && siteStage) {
+            e.preventDefault();
+            siteStage.closeStage();
+            return;
+        }
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
             if (isPending || atlasTalking()) stopStreaming();
@@ -1273,6 +1329,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
     }
     function toggleMinimize() {
+        if (stageOpen) { setFloating(!panel.classList.contains("is-floating")); return; }
         if (isMinimized) restore(); else minimize();
     }
     function minimize() {
@@ -1423,6 +1480,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     function closePanel() {
         isOpen = false;
         panel.classList.remove("is-open");
+        setFloating(false);
         panel.setAttribute("aria-hidden", "true");
         fab.setAttribute("aria-expanded", "false");
         document.body.removeAttribute("data-agent-panel-open");
@@ -1773,6 +1831,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
+                    show(key) { showOnSite(key); },
                     unavailable(reason, capped) {
                         if (capped) {
                             cappedReason = reason || "The avatar has reached its limit for today.";
@@ -3477,6 +3536,8 @@ function chatEventSink({ onThinking, onDelta, onCitations, onSuggestions, onCta,
             const w = evt.avatarWords;
             if (typeof w === "string") onAvatar.words(w, NaN);
             else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
+        } else if (onAvatar && typeof evt.avatarShow === "string") {
+            onAvatar.show(evt.avatarShow); // spec 78: a target key, resolved by site-stage.js
         } else if (onAvatar && evt.avatarEnd) {
             onAvatar.end();
         } else if (onAvatar && evt.avatarUnavailable) {
