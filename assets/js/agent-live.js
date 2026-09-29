@@ -44,6 +44,11 @@ export async function startLiveConversation({ url, sessionId, onEvent, onVideo, 
     const source = ctx.createMediaStreamSource(stream);
     const node = new AudioWorkletNode(ctx, "pcm16k");
     source.connect(node); // not to the speakers: the visitor shouldn't hear themselves
+    // Spec 73: how loud the visitor is, for the avatar's cyan ring.
+    const meter = ctx.createAnalyser();
+    meter.fftSize = 512;
+    const meterBuf = new Float32Array(meter.fftSize);
+    source.connect(meter);
 
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
@@ -54,7 +59,7 @@ export async function startLiveConversation({ url, sessionId, onEvent, onVideo, 
         if (closed) return;
         closed = true;
         node.port.onmessage = null;
-        try { source.disconnect(); node.disconnect(); } catch (_) { /* already */ }
+        try { source.disconnect(); node.disconnect(); meter.disconnect(); } catch (_) { /* already */ }
         stream.getTracks().forEach((t) => t.stop());
         ctx.close().catch(() => {});
         try { ws.close(); } catch (_) { /* already */ }
@@ -84,6 +89,14 @@ export async function startLiveConversation({ url, sessionId, onEvent, onVideo, 
                 if (muted && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ mute: true }));
             },
             get muted() { return muted; },
+            // 0..1, read once a frame by the avatar's ring (spec 73).
+            level() {
+                if (muted || closed) return 0;
+                meter.getFloatTimeDomainData(meterBuf);
+                let sum = 0;
+                for (let i = 0; i < meterBuf.length; i++) sum += meterBuf[i] * meterBuf[i];
+                return Math.min(1, Math.sqrt(sum / meterBuf.length) * 6);
+            },
             sendText(text) {
                 if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ text }));
             },

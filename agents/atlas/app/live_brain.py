@@ -121,6 +121,15 @@ READ_TOOLS: list[Callable[..., Awaitable[Any]]] = [
 ]
 WRITE_TOOLS = [send_resume, send_note_to_gaurav]
 
+# Spec 73: the names the widget may show as a tool hex. Only names, never
+# arguments (they can hold a visitor's email), and only tools that exist, so
+# a name the model made up never reaches the page.
+TOOL_NAMES = frozenset(fn.__name__ for fn in READ_TOOLS) | {"send_resume", "send_note_to_gaurav"}
+
+
+def shown_tool_names(calls: list[types.FunctionCall]) -> list[str]:
+    return [c.name for c in calls if c.name in TOOL_NAMES]
+
 # Filter argument per read tool: a filtered call that finds nothing answers
 # with the unfiltered data instead of a dead end the model reads as "none".
 FILTER_ARGS = {"get_work_history": "role_filter", "get_live_agents": "agent_name", "get_projects": "domain"}
@@ -405,6 +414,9 @@ class LiveBrainTurn:
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
                         tools_called = True
+                        names = shown_tool_names(list(msg.tool_call.function_calls))
+                        if names:
+                            await self._out.put(("tool", names))
                         task = asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
                         pending.add(task)
                         task.add_done_callback(pending.discard)
@@ -683,6 +695,9 @@ class LiveConversation:
                         self._spoke_after_tools = False
                         if not self._said:
                             await self._put_state("thinking")
+                        names = shown_tool_names(list(msg.tool_call.function_calls))
+                        if names:
+                            await self._out.put(("tool", names))
                         asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
                     sc = msg.server_content
                     if not sc:

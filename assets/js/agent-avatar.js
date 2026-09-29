@@ -21,6 +21,9 @@ const SITE_ROOT = new URL("../../", import.meta.url);
 const at = (path) => new URL(path, SITE_ROOT).href;
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Same ?v= cache-bust as the module that loaded this one.
+const _selfV = new URL(import.meta.url).searchParams.get("v");
+const _vq = (path) => (_selfV ? `${path}?v=${_selfV}` : path);
 
 // What the Live API streams: H.264 Constrained Baseline + AAC-LC in
 // fragmented MP4, read from the stream's own avcC box (spec 67).
@@ -154,11 +157,23 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     stage.append(frame);
     host.appendChild(stage);
 
+    // Spec 73: the hex effects. Optional: the face works the same without them.
+    let fx = null;
+    try {
+        const { mountHexFx } = await import(_vq("./agent-avatar-fx.js"));
+        fx = mountHexFx(stage, frame);
+        fx.arrive();
+    } catch (err) {
+        console.warn("[atlas-avatar] hex effects unavailable:", err);
+    }
+    liveVideo.addEventListener("playing", () => { if (fx) fx.watch(liveVideo); });
+
     // "hearing" is the hands-free conversation's own state: the face is
     // live and the visitor has the floor (spec 71).
     const LABEL = { idle: "live", listening: "thinking", speaking: "speaking", hearing: "listening" };
     function setState(state) {
         stage.dataset.state = state;
+        if (fx) fx.setState(state);
         tagState.textContent = LABEL[state] || LABEL.idle;
         if (onState) onState(state);
     }
@@ -195,7 +210,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     }
 
     video.addEventListener("play", () => {
-        if (mode === "greeting") { setState("speaking"); onPlay && onPlay(); }
+        if (mode === "greeting") { if (fx) fx.watch(video); setState("speaking"); onPlay && onPlay(); }
     });
     video.addEventListener("ended", () => {
         if (mode === "greeting") showIdle();
@@ -299,6 +314,7 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
             // right here, the visitor asked it to stop.
             interrupt() {
                 if (l.closed) return;
+                if (fx) fx.burst(); // spec 73
                 const b = liveVideo.buffered;
                 if (b.length) liveVideo.currentTime = Math.max(liveVideo.currentTime, b.end(b.length - 1) - 0.1);
                 handle.newTurn();
@@ -457,7 +473,14 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         },
         idle() { if (mode === "live") endLive(); else if (mode === "greeting") showIdle(); },
         replay() { playGreeting(); },
+        // Spec 73: the hex effects the widget drives.
+        arrive() { if (fx) fx.arrive(); },
+        depart() { return fx ? fx.depart() : Promise.resolve(); },
+        hangUp() { if (fx) fx.hangUp(); },
+        tool(target) { return fx ? fx.tool(target) : Promise.resolve(); },
+        setMicLevel(fn) { if (fx) fx.setMicLevel(fn); },
         dispose() {
+            if (fx) fx.dispose();
             endLive();
             liveVideo.remove();
             video.pause();
