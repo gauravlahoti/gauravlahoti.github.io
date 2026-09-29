@@ -42,7 +42,7 @@ You are Atlas, the AI agent on Gaurav Lahoti's portfolio site, appearing as a vi
 # Grounding
 Every fact about Gaurav must come from a tool result in this conversation. Call the relevant tool before stating any fact; never answer from memory. If a fact is not in a tool result, do not state it. Never invent employers, projects, dates, numbers, certifications or links.
 Never say he lacks something the tool data contains. Read the data before you answer: certifications carry an issuer and a category, so "cloud certifications" means the ones issued by Google Cloud, AWS or Microsoft. If you are unsure whether something is in the data, say what the data does show instead of denying it.
-Your tool calls run in the background, so a result can arrive after you start talking. Until the result for a question has arrived, you may say a few words such as "let me check", but state no fact about Gaurav, and above all never say he lacks, doesn't hold or hasn't done something. When a question has two parts, answer each part only from its own tool result.
+Your tool calls run in the background, so a result can arrive after you start talking. Until the result for a question has arrived, you may say a few words first, at most four, worded differently each time (never the same phrase twice in a row), but state no fact about Gaurav, and above all never say he lacks, doesn't hold or hasn't done something. When a question has two parts, answer each part only from its own tool result.
 - get_profile: identity, bio, capabilities, availability, contact links.
 - get_work_history: roles, companies, dates, skills per role.
 - get_projects: notable enterprise projects (company, domains, skills).
@@ -326,6 +326,24 @@ class StreamTrimmer:
         return False
 
 
+# _COMPLETES_NOTE (spec 75): every generation that ends in a tool call closes
+# with its own turn_complete, straight after the tool call, whether or not the
+# model said a line first ("let me check"); the answer then comes as a new
+# generation with its own turn_complete. So each tool call means one
+# turn_complete that doesn't end the reply. Counting them is the boundary.
+# Transcripts can't be: they trail the audio by about a second, so a filler's
+# words often arrive after its tool has already answered, and reading them as
+# "spoke after the tools" split filler and answer into two replies.
+
+
+def _append_spoken(said: list[str], chunk: str) -> None:
+    """Add a transcript chunk, with a space after a sentence that ended with
+    none (a filler's "…for you." and then the answer's "Gaurav holds")."""
+    if said and said[-1][-1:] in ".!?,;:" and chunk[:1] and not chunk[:1].isspace():
+        said.append(" ")
+    said.append(chunk)
+
+
 class LiveBrainTurn:
     """One avatar question, answered and spoken by one Live session.
 
@@ -396,15 +414,14 @@ class LiveBrainTurn:
 
     async def _read(self) -> None:
         pending: set[asyncio.Task] = set()
-        tools_called = False
-        spoke_after_tools = False
+        completes_to_skip = 0  # see _COMPLETES_NOTE
         try:
             while True:
                 # receive() ends at every model turn boundary, and a tool call
                 # is one, so re-enter it until the answer has been spoken.
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
-                        tools_called = True
+                        completes_to_skip += 1
                         task = asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
                         pending.add(task)
                         task.add_done_callback(pending.discard)
@@ -414,8 +431,6 @@ class LiveBrainTurn:
                     if sc.output_transcription and sc.output_transcription.text and self.asked_at is not None:
                         if self.words_first_at is None:
                             self.words_first_at = time.monotonic()
-                        if tools_called:
-                            spoke_after_tools = True
                         self.transcript.append(sc.output_transcription.text)
                         await self._out.put(("words", sc.output_transcription.text))
                     if sc.model_turn:
@@ -433,10 +448,13 @@ class LiveBrainTurn:
                                 if boxes:  # one append per chunk, as the browser had before
                                     await self._out.put(("video", b"".join(boxes)))
                     # Done once a turn completes with no tool still running,
-                    # and (if tools ran) after speaking from their results.
-                    if sc.turn_complete and not pending and self.transcript and (not tools_called or spoke_after_tools):
-                        await self._out.put(("end", None))
-                        return
+                    # and not the completion that closes a tool call.
+                    if sc.turn_complete:
+                        if completes_to_skip:
+                            completes_to_skip -= 1
+                        elif not pending and self.transcript:
+                            await self._out.put(("end", None))
+                            return
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001 - surfaced through events()
@@ -601,12 +619,9 @@ class LiveConversation:
         self._last_heard_at: float | None = None
         self._first_word_at: float | None = None
         self._last_media_at: float | None = None
-        # A tool call inside the turn: the model often says a line ("let me
-        # look that up") and completes that as a turn before the results are
-        # back. The visitor's turn stays open until it has spoken from them,
-        # so filler and answer are one reply, not two.
-        self._tool_pending = False
-        self._spoke_after_tools = True
+        # A tool call inside the turn: see _COMPLETES_NOTE. The visitor's turn
+        # stays open past it, so filler and answer are one reply, not two.
+        self._completes_to_skip = 0
 
     async def open(self) -> None:
         self._cm = avatar_speak._get_client().aio.live.connect(
@@ -652,7 +667,6 @@ class LiveConversation:
     async def _respond(self, calls: list[types.FunctionCall]) -> None:
         responses = await asyncio.gather(*(self.dispatcher.run(c) for c in calls))
         await self._session.send_tool_response(function_responses=list(responses))
-        self._tool_pending = False
 
     async def _finish_turn(self, status: str) -> None:
         if self._heard or self._said:
@@ -679,8 +693,7 @@ class LiveConversation:
             while True:
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
-                        self._tool_pending = True
-                        self._spoke_after_tools = False
+                        self._completes_to_skip += 1
                         if not self._said:
                             await self._put_state("thinking")
                         asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
@@ -695,11 +708,7 @@ class LiveConversation:
                         if self._first_word_at is None:
                             self._first_word_at = time.monotonic()
                         self.last_activity = time.monotonic()
-                        if self._said and not self._tool_pending and not self._spoke_after_tools:
-                            self._said.append(" ")  # filler then answer read as one reply
-                        self._said.append(sc.output_transcription.text)
-                        if not self._tool_pending:
-                            self._spoke_after_tools = True
+                        _append_spoken(self._said, sc.output_transcription.text)
                         await self._put_state("speaking")
                         await self._out.put(("words", sc.output_transcription.text))
                     if sc.model_turn:
@@ -715,8 +724,11 @@ class LiveConversation:
                     if sc.interrupted:
                         await self._out.put(("interrupted", None))
                         await self._finish_turn("interrupted")
-                    elif sc.turn_complete and self._said and self._spoke_after_tools:
-                        await self._finish_turn("ok")
+                    elif sc.turn_complete:
+                        if self._completes_to_skip:
+                            self._completes_to_skip -= 1
+                        elif self._said:
+                            await self._finish_turn("ok")
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - the route ends the conversation

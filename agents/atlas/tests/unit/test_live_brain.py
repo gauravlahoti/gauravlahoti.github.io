@@ -299,3 +299,58 @@ class TestStreamTrimmer:
         t.feed(_init() + _frag(2, True, b"a0") + _frag(1, False, b"v0") + _frag(1, True, b"k1"))
         held = b"".join(t.release())
         assert b"a0" not in held and b"v0" not in held and b"k1" in held
+
+
+
+class TestTurnEndsAfterTheAnswer:
+    """Spec 75: a single avatar turn ends after the answer, not at the
+    turn_complete that closes the tool call, even when the filler's
+    transcript trails in after the tool has answered."""
+
+    class _Session:
+        def __init__(self, script):
+            self.script = list(script)
+
+        async def receive(self):
+            while self.script:
+                item = self.script.pop(0)
+                if item == "pause":
+                    await asyncio.sleep(0.2)
+                    continue
+                yield item
+            await asyncio.sleep(3600)
+
+        async def send_tool_response(self, function_responses=None):
+            pass
+
+    @staticmethod
+    def _msg(said=None, complete=False, tool=None):
+        sc = SimpleNamespace(
+            output_transcription=SimpleNamespace(text=said) if said else None,
+            model_turn=None, turn_complete=complete,
+        )
+        return SimpleNamespace(tool_call=tool, server_content=sc)
+
+    @pytest.mark.asyncio
+    async def test_filler_then_tool_then_answer(self, monkeypatch) -> None:
+        async def get_certifications():
+            return [{"name": "AWS Certified AI Practitioner"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_certifications])
+        turn = live_brain.LiveBrainTurn(live_brain.ToolDispatcher("s-75"))
+        call = SimpleNamespace(function_calls=[_call("get_certifications")])
+        m = self._msg
+        turn._session = self._Session([
+            m(tool=call), "pause",
+            m(said="Let me check."), m(complete=True), "pause",
+            m(said="He holds an AWS AI cert."), m(complete=True),
+        ])
+        turn.asked_at = 0.0
+        turn._reader = asyncio.ensure_future(turn._read())
+        events = []
+        while True:
+            kind, value = await asyncio.wait_for(turn._out.get(), timeout=3)
+            events.append((kind, value))
+            if kind == "end":
+                break
+        turn._reader.cancel()
+        assert [v for k, v in events if k == "words"] == ["Let me check.", "He holds an AWS AI cert."]
