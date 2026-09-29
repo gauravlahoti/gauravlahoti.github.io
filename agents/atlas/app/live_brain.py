@@ -206,7 +206,27 @@ class ToolDispatcher:
             return _wrap("ok", f"Nothing matched {args[filt]!r}; here is everything. Answer from it.", await fn())
         if data in (None, [], {}):
             return _wrap("no_results", "Nothing found. Tell the visitor instead of searching again.")
+        if name == "get_certifications" and isinstance(data, list):
+            return _wrap("ok", cert_counts(data), data)
         return _wrap("ok", "Answer from this data only.", data)
+
+
+def cert_counts(certs: list[dict[str, Any]]) -> str:
+    """Spec 76: the counts, stated for the model. Left to count a spoken list
+    itself, it answered "how many certifications?" with the three tagged
+    `cloud`, when he holds fourteen."""
+    by_issuer: dict[str, int] = {}
+    for c in certs:
+        issuer = c.get("issuer") or "Other"
+        by_issuer[issuer] = by_issuer.get(issuer, 0) + 1
+    split = ", ".join(f"{n} from {issuer}" for issuer, n in by_issuer.items())
+    return (
+        f"He holds {len(certs)} certifications in total: {split}. "
+        "For how many he holds, say this total first. `category` is a topic tag "
+        "(ai, cloud, security), not the vendor: never give the number tagged "
+        "cloud as his cloud certifications; those are the ones issued by Google "
+        "Cloud, AWS or Microsoft. Answer from this data only."
+    )
 
 
 class StreamTrimmer:
