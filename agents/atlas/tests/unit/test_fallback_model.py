@@ -238,6 +238,7 @@ def _stalling(served: list, *, stall: set, stall_s: float = 5.0, slow_after_firs
 async def test_stalled_primary_falls_back_after_first_token_timeout(monkeypatch):
     import app.fallback_model as fm
     monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(fm, "HEDGE_AFTER_S", 0.02)
     served = []
     out = await _drain(_model(), monkeypatch, _stalling(served, stall={"gemini-3.5-flash"}))
     assert served == ["gemini-3.5-flash", "gemini-2.5-flash"]
@@ -250,6 +251,7 @@ async def test_stalled_primary_falls_back_after_first_token_timeout(monkeypatch)
 async def test_started_answer_is_never_cut_off(monkeypatch):
     import app.fallback_model as fm
     monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(fm, "HEDGE_AFTER_S", 0.02)
     served = []
     out = await _drain(
         _model(), monkeypatch,
@@ -263,12 +265,153 @@ async def test_started_answer_is_never_cut_off(monkeypatch):
 async def test_last_candidate_is_never_timed_out(monkeypatch):
     import app.fallback_model as fm
     monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(fm, "HEDGE_AFTER_S", 0.02)
     served = []
     out = await _drain(
         _model(), monkeypatch,
         _stalling(served, stall=set(CHAIN), stall_s=0.1),
     )
-    # The first two stall past the watchdog; the last one has nowhere to go,
-    # so it is allowed to take its time rather than fail the turn.
+    # The first two stall past the race deadline; the last one has nowhere to
+    # go, so it is allowed to take its time rather than fail the turn.
     assert served == CHAIN
     assert out[-1].content.parts[0].text == "rest from gemini-2.5-flash-lite"
+
+
+# --- hedged first token: race the next model instead of waiting it out ------
+
+def _timed(served: list, first_after: dict, *, closed: list | None = None, fail_after: dict | None = None):
+    """A fake whose models each produce their first chunk after
+    `first_after[model]` seconds (or raise a 429 after `fail_after[model]`),
+    recording which were started and which were torn down unfinished."""
+    import asyncio
+
+    fail_after = fail_after or {}
+
+    async def fake(self, llm_request, stream=False):
+        m = llm_request.model
+        served.append(m)
+        try:
+            if m in fail_after:
+                await asyncio.sleep(fail_after[m])
+                raise _exhausted(m)
+            await asyncio.sleep(first_after.get(m, 0))
+            yield _resp(f"first from {m}")
+            yield _resp(f"rest from {m}")
+        except (asyncio.CancelledError, GeneratorExit):
+            if closed is not None:
+                closed.append(m)
+            raise
+
+    return fake
+
+
+def _texts(out):
+    return [r.content.parts[0].text for r in out]
+
+
+@pytest.fixture
+def fast_race(monkeypatch):
+    import app.fallback_model as fm
+    monkeypatch.setattr(fm, "HEDGE_AFTER_S", 0.05)
+    monkeypatch.setattr(fm, "PRIMARY_FIRST_TOKEN_TIMEOUT_S", 0.5)
+
+
+@pytest.mark.asyncio
+async def test_fast_primary_never_starts_the_hedge(monkeypatch, fast_race):
+    served = []
+    out = await _drain(_model(), monkeypatch, _timed(served, {CHAIN[0]: 0.0}))
+    assert served == [CHAIN[0]]
+    assert _texts(out) == [f"first from {CHAIN[0]}", f"rest from {CHAIN[0]}"]
+
+
+@pytest.mark.asyncio
+async def test_slow_primary_still_wins_if_it_speaks_first(monkeypatch, fast_race):
+    served, closed = [], []
+    out = await _drain(
+        _model(), monkeypatch,
+        _timed(served, {CHAIN[0]: 0.1, CHAIN[1]: 0.4}, closed=closed),
+    )
+    assert served == [CHAIN[0], CHAIN[1]]  # hedge started at 0.05s...
+    assert _texts(out) == [f"first from {CHAIN[0]}", f"rest from {CHAIN[0]}"]
+    import asyncio
+    await asyncio.sleep(0.05)
+    assert closed == [CHAIN[1]]  # ...and the losing hedge was torn down
+
+
+@pytest.mark.asyncio
+async def test_stalled_primary_loses_to_the_hedge(monkeypatch, fast_race):
+    served, closed = [], []
+    out = await _drain(
+        _model(), monkeypatch,
+        _timed(served, {CHAIN[0]: 5.0, CHAIN[1]: 0.05}, closed=closed),
+    )
+    assert served == [CHAIN[0], CHAIN[1]]
+    assert _texts(out) == [f"first from {CHAIN[1]}", f"rest from {CHAIN[1]}"]
+    import asyncio
+    await asyncio.sleep(0.05)
+    assert closed == [CHAIN[0]]
+
+
+@pytest.mark.asyncio
+async def test_primary_429_after_the_hedge_leaves_the_hedge_serving(monkeypatch, fast_race):
+    served = []
+    out = await _drain(
+        _model(), monkeypatch,
+        _timed(served, {CHAIN[1]: 0.2}, fail_after={CHAIN[0]: 0.1}),
+    )
+    assert served == [CHAIN[0], CHAIN[1]]
+    assert _texts(out)[-1] == f"rest from {CHAIN[1]}"
+
+
+@pytest.mark.asyncio
+async def test_hedge_429_leaves_the_primary_serving(monkeypatch, fast_race):
+    served = []
+    out = await _drain(
+        _model(), monkeypatch,
+        _timed(served, {CHAIN[0]: 0.2}, fail_after={CHAIN[1]: 0.0}),
+    )
+    assert served == [CHAIN[0], CHAIN[1]]
+    assert _texts(out)[-1] == f"rest from {CHAIN[0]}"
+
+
+@pytest.mark.asyncio
+async def test_both_silent_past_the_deadline_goes_to_the_last_model(monkeypatch, fast_race):
+    served, closed = [], []
+    out = await _drain(
+        _model(), monkeypatch,
+        _timed(served, {CHAIN[0]: 5.0, CHAIN[1]: 5.0, CHAIN[2]: 0.0}, closed=closed),
+    )
+    assert served == CHAIN
+    assert _texts(out)[-1] == f"rest from {CHAIN[2]}"
+    import asyncio
+    await asyncio.sleep(0.05)
+    assert sorted(closed) == sorted(CHAIN[:2])
+
+
+@pytest.mark.asyncio
+async def test_hedge_winner_is_never_cut_off_between_chunks(monkeypatch, fast_race):
+    import asyncio
+
+    served = []
+
+    async def fake(self, llm_request, stream=False):
+        m = llm_request.model
+        served.append(m)
+        if m == CHAIN[0]:
+            await asyncio.sleep(5.0)
+        yield _resp(f"first from {m}")
+        await asyncio.sleep(0.7)  # longer than the race deadline, after starting
+        yield _resp(f"rest from {m}")
+
+    out = await _drain(_model(), monkeypatch, fake)
+    assert served == [CHAIN[0], CHAIN[1]]
+    assert _texts(out) == [f"first from {CHAIN[1]}", f"rest from {CHAIN[1]}"]
+
+
+@pytest.mark.asyncio
+async def test_two_model_chain_never_times_out_the_hedge(monkeypatch, fast_race):
+    served = []
+    model = FallbackGemini(model=CHAIN[0], fallback_models=[CHAIN[1]])
+    out = await _drain(model, monkeypatch, _timed(served, {CHAIN[0]: 5.0, CHAIN[1]: 0.8}))
+    # 0.8s is past the 0.5s race deadline, but lite is the last candidate.
+    assert _texts(out)[-1] == f"rest from {CHAIN[1]}"
