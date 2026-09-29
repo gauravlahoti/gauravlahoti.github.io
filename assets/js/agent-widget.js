@@ -63,6 +63,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     const transcribeApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-transcribe") : apiUrl;
     // Spec 49: same again for spoken replies.
     const speakApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-speak") : apiUrl;
+    const probeBase = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/stream-probe") : apiUrl;
     // Avatar answers come from a live session that is ~1.5s faster once it
     // has been open a moment, so one is opened as the visitor starts typing.
     const liveWarmUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-live/warm") : apiUrl;
@@ -1028,7 +1029,79 @@ export function initAgentWidget(root, profile, pageSessionId) {
         dom.expandBtn.setAttribute("aria-label", expanded ? "Shrink panel" : "Expand panel");
         dom.expandBtn.title = expanded ? "Shrink" : "Expand";
     }
+    // Once a day, in the background: does this visitor's network deliver
+    // Atlas's streams live? A Netskope-managed laptop got text, voice and the
+    // avatar seconds late although the server answered in ~1.6s; inspection
+    // proxies can hold a stream and release it in one burst. This streams a
+    // few clock ticks over SSE, padded SSE and a WebSocket (no AI, a few KB)
+    // and posts only the per-tick delays, so the right fix can be chosen from
+    // real visitors instead of guesses.
+    const PROBE_KEY = "atlasStreamProbe_v1";
+    let probeStarted = false;
+    function runStreamProbe() {
+        if (probeStarted || !probeBase) return;
+        probeStarted = true;
+        try {
+            const last = Number(localStorage.getItem(PROBE_KEY) || 0);
+            if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+            localStorage.setItem(PROBE_KEY, String(Date.now()));
+        } catch (_) { return; } // no storage: skip rather than probe every visit
+        if (navigator.connection && navigator.connection.saveData) return;
+        const sse = async (pad) => {
+            const t0 = performance.now();
+            const r = await fetch(`${probeBase}?pad=${pad}&ticks=8`);
+            const reader = r.body.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            const lag = [];
+            for (;;) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, { stream: true });
+                let i;
+                while ((i = buf.indexOf("\n\n")) >= 0) {
+                    const frame = buf.slice(0, i);
+                    buf = buf.slice(i + 2);
+                    if (!frame.startsWith("data: ")) continue;
+                    const ev = JSON.parse(frame.slice(6));
+                    if ("tick" in ev) lag.push(Math.round(performance.now() - t0) - ev.serverMs);
+                }
+            }
+            return lag;
+        };
+        const ws = () => new Promise((resolve) => {
+            let sock;
+            const lag = [];
+            const t0 = performance.now();
+            try { sock = new WebSocket(`${probeBase.replace(/^http/, "ws")}-ws?ticks=8`); }
+            catch (err) { resolve(`ws blocked: ${err && err.name}`); return; }
+            const giveUp = setTimeout(() => { try { sock.close(); } catch (_) { /* ignore */ } resolve(lag.length ? lag : "ws timeout"); }, 15000);
+            sock.onmessage = (m) => {
+                const ev = JSON.parse(m.data);
+                if ("tick" in ev) lag.push(Math.round(performance.now() - t0) - ev.serverMs);
+            };
+            sock.onclose = () => { clearTimeout(giveUp); resolve(lag.length ? lag : "ws closed"); };
+            sock.onerror = () => { clearTimeout(giveUp); resolve(lag.length ? lag : "ws error"); };
+        });
+        const settle = (p) => p.then((v) => v, (err) => `failed: ${err && err.name}`);
+        (async () => {
+            const result = {
+                sessionId,
+                sse: await settle(sse(0)),
+                ssePadded: await settle(sse(8192)),
+                ws: await settle(ws()),
+            };
+            fetch(`${probeBase}/report`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(result),
+                keepalive: true,
+            }).catch(() => {});
+        })();
+    }
+
     function openPanel() {
+        setTimeout(runStreamProbe, 1500);
         isOpen = true;
         panelEverOpened = true;
         _cancelTooltip();

@@ -51,3 +51,21 @@ def test_websocket_probe_streams_ticks_then_done() -> None:
         got = [ws.receive_json() for _ in range(3)]
     assert [g.get("tick") for g in got[:2]] == [0, 1]
     assert got[2] == {"done": True}
+
+
+def test_report_logs_only_the_timings(caplog) -> None:
+    import logging
+    caplog.set_level(logging.INFO, logger="app.api")
+    r = _client().post(
+        "/api/stream-probe/report",
+        json={"sessionId": "probe-sess-1", "sse": [300, 290, "x"], "ssePadded": [310], "ws": "ws error", "extra": "ignored"},
+        headers={"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/152"},
+    )
+    assert r.json() == {"ok": True}
+    line = next(m for m in caplog.messages if m.startswith("stream-probe:"))
+    assert "os=Windows" in line and "sse=[300, 290]" in line and "ws=ws error" in line
+    assert "ignored" not in line
+
+
+def test_report_rejects_a_body_without_a_session() -> None:
+    assert _client().post("/api/stream-probe/report", json={"sse": [1]}).status_code == 400
