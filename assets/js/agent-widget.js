@@ -317,6 +317,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const start = k.end !== null && end - k.end < dur * 2 ? k.end : end - dur;
         addWords(p, text, start, end);
         k.end = end;
+        return start;
     }
     function paintCaptions(p, now) {
         let current = null;
@@ -1410,8 +1411,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     video(b64) { if (avatarVoice) liveTurn.push(b64); },
                     words(text, at) {
                         if (!avatarVoice) return;
-                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); logTurnTiming("avatarFirstWordsMs"); }
-                        addCaptionChunk(avatarWordsEl, text, at);
+                        const heardFrom = addCaptionChunk(avatarWordsEl, text, at);
+                        // The first caption's start is where speech begins on
+                        // the video clock; the player may skip idle frames up
+                        // to just before it, never past it.
+                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(heardFrom); logTurnTiming("avatarFirstWordsMs"); }
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
