@@ -1646,6 +1646,10 @@ export function initAgentWidget(root, profile, pageSessionId) {
             abortController = null;
             refreshSendMode();
             if (FEATURES.voiceInput) micBtn.disabled = false;
+            // The question used up this visitor's warm avatar session, so
+            // open the next one now: follow-ups get the same ~1.5s head start
+            // instead of paying a cold start (seen in logs as warm=False).
+            if (avatarVoice) { liveWarmedAt = 0; warmLiveAvatar(); }
         }
         if (clearPending) { clearConversation(); return; }
         syncClearBtn();
@@ -3161,21 +3165,159 @@ function newSessionId() {
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avatar, mode, onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar, onDone, onError }) {
+// One chat turn. Tried over a WebSocket first: a corporate inspection proxy
+// (measured on a Netskope-managed laptop) held the SSE stream until it was
+// complete and released it in one burst, so text, voice and the avatar all
+// arrived seconds late, while WebSocket frames came through live. Same
+// server turn, same JSON events. If the socket can't open, the turn goes
+// over SSE instead, and this tab stops trying sockets; once a turn has been
+// sent over a socket it is never re-sent, so it can't be answered twice.
+let chatSocketBroken = false;
+
+async function streamAgent(opts) {
+    if (!chatSocketBroken && typeof WebSocket === "function") {
+        const outcome = await streamAgentSocket(opts);
+        if (outcome !== "unavailable") return;
+        chatSocketBroken = true;
+    }
+    return streamAgentSse(opts);
+}
+
+function chatRequestBody({ sessionId, messages, identity, avatar, mode }) {
+    const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
+    // Spec 67: ask this turn to be spoken by the avatar, on this stream.
+    if (avatar) reqBody.avatar = true;
+    // How the answer will reach the visitor; spoken modes get shorter ones.
+    if (mode) reqBody.mode = mode;
+    return reqBody;
+}
+
+function reportChatHttpError(status, detail, onError) {
+    if (status === 429) {
+        onError(detail || "Lots of people are chatting right now. Give it a minute, or find Gaurav on LinkedIn.", false);
+    } else if (status >= 500) {
+        onError("Hmm, something went wrong on my end. Mind trying that again?", false);
+    } else {
+        onError(detail || `Request failed (${status}).`, false);
+    }
+}
+
+// Routes one server event to the turn's callbacks, the same for both
+// transports. Returns true on `done`.
+function chatEventSink({ onThinking, onDelta, onCitations, onSuggestions, onCta, onBadges, onAvatar }) {
+    const sink = { full: "", hadDeltas: false };
+    sink.handle = (evt) => {
+        if (typeof evt.delta === "string") {
+            sink.full += evt.delta;
+            sink.hadDeltas = true;
+            onDelta(evt.delta);
+        } else if (typeof evt.thinking === "string" && FEATURES.thinking) {
+            onThinking(evt.thinking);
+        } else if (evt.citations && FEATURES.citations) {
+            onCitations(evt.citations);
+        } else if (evt.suggestions && FEATURES.suggestions) {
+            onSuggestions(evt.suggestions);
+        } else if (evt.cta && FEATURES.cta) {
+            onCta(evt.cta);
+        } else if (evt.badges && FEATURES.badges) {
+            onBadges(evt.badges);
+        } else if (onAvatar && typeof evt.avatarVideo === "string") {
+            onAvatar.video(evt.avatarVideo); // spec 67: live avatar frames
+        } else if (onAvatar && evt.avatarWords) {
+            // { text, at }: `at` is when the chunk's last word is heard.
+            const w = evt.avatarWords;
+            if (typeof w === "string") onAvatar.words(w, NaN);
+            else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
+        } else if (onAvatar && evt.avatarEnd) {
+            onAvatar.end();
+        } else if (onAvatar && evt.avatarUnavailable) {
+            onAvatar.unavailable(evt.avatarUnavailable.reason || "", evt.avatarUnavailable.capped === true);
+        } else if (evt.done === true) {
+            return true;
+        }
+        return false;
+    };
+    return sink;
+}
+
+// Resolves "unavailable" only when nothing was sent (the socket never
+// opened), so the caller may safely retry over SSE; otherwise "done".
+function streamAgentSocket(opts) {
+    const { apiUrl, signal, onDone, onError } = opts;
+    const url = apiUrl.replace(/^http/, "ws").replace(/\/api\/agent-chat$/, "/api/agent-chat-ws");
+    const sink = chatEventSink(opts);
+    return new Promise((resolve) => {
+        let ws;
+        try { ws = new WebSocket(url); } catch (_) { resolve("unavailable"); return; }
+        let opened = false;
+        let finished = false;
+        const finish = (text) => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(openTimer);
+            signal?.removeEventListener("abort", onAbort);
+            try { ws.close(); } catch (_) { /* already closed */ }
+            onDone(text);
+            resolve("done");
+        };
+        const onAbort = () => {
+            if (opened) { try { ws.send(JSON.stringify({ abort: true })); } catch (_) { /* closing anyway */ } }
+            finish(sink.hadDeltas ? sink.full : "");
+        };
+        // A socket that neither opens nor fails promptly is treated as
+        // blocked, before anything has been sent.
+        const openTimer = setTimeout(() => {
+            if (opened || finished) return;
+            finished = true;
+            try { ws.close(); } catch (_) { /* ignore */ }
+            resolve("unavailable");
+        }, 4000);
+        if (signal?.aborted) { clearTimeout(openTimer); onDone(""); resolve("done"); return; }
+        signal?.addEventListener("abort", onAbort, { once: true });
+        ws.onopen = () => {
+            opened = true;
+            clearTimeout(openTimer);
+            ws.send(JSON.stringify(chatRequestBody(opts)));
+        };
+        ws.onmessage = (m) => {
+            let evt;
+            try { evt = JSON.parse(m.data); } catch { return; }
+            if (typeof evt.httpStatus === "number") {
+                reportChatHttpError(evt.httpStatus, evt.error, onError);
+                finish("");
+                return;
+            }
+            if (sink.handle(evt)) finish(sink.full);
+        };
+        const onBroken = () => {
+            if (finished) return;
+            if (!opened) {
+                finished = true;
+                clearTimeout(openTimer);
+                signal?.removeEventListener("abort", onAbort);
+                resolve("unavailable");
+                return;
+            }
+            // Dropped mid-turn: same handling as a dropped SSE stream.
+            onError("", sink.hadDeltas /* isMidStream */);
+            finish(sink.hadDeltas ? sink.full : "");
+        };
+        ws.onerror = onBroken;
+        ws.onclose = onBroken;
+    });
+}
+
+async function streamAgentSse(opts) {
+    const { apiUrl, signal, onDone, onError } = opts;
     let response;
     try {
-        const reqBody = identity ? { sessionId, messages, identity } : { sessionId, messages };
-        // Spec 67: ask this turn to be spoken by the avatar, on this stream.
-        if (avatar) reqBody.avatar = true;
-        // How the answer will reach the visitor; spoken modes get shorter ones.
-        if (mode) reqBody.mode = mode;
         response = await fetch(apiUrl, {
             method: "POST",
             mode: "cors",
             cache: "no-store",
             signal,
             headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-            body: JSON.stringify(reqBody),
+            body: JSON.stringify(chatRequestBody(opts)),
         });
     } catch (err) {
         if (signal?.aborted) { onDone(""); return; }
@@ -3186,23 +3328,16 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
     if (!response.ok) {
         let detail;
         try { detail = (await response.json()).error; } catch { detail = null; }
-        if (response.status === 429) {
-            onError(detail || "Lots of people are chatting right now. Give it a minute, or find Gaurav on LinkedIn.", false);
-        } else if (response.status >= 500) {
-            onError("Hmm, something went wrong on my end. Mind trying that again?", false);
-        } else {
-            onError(detail || `Request failed (${response.status}).`, false);
-        }
+        reportChatHttpError(response.status, detail, onError);
         onDone("");
         return;
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
+    const sink = chatEventSink(opts);
     let buffer = "";
-    let full = "";
     let done = false;
-    let hadDeltas = false;
 
     try {
         while (true) {
@@ -3210,10 +3345,10 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
             try {
                 chunk = await reader.read();
             } catch (readErr) {
-                if (signal?.aborted) { onDone(hadDeltas ? full : ""); return; }
+                if (signal?.aborted) { onDone(sink.hadDeltas ? sink.full : ""); return; }
                 // Network dropped mid-stream
                 onError("", true /* isMidStream */);
-                onDone(hadDeltas ? full : "");
+                onDone(sink.hadDeltas ? sink.full : "");
                 return;
             }
             if (chunk.done) break;
@@ -3228,46 +3363,17 @@ async function streamAgent({ apiUrl, sessionId, messages, identity, signal, avat
                 if (!payload) continue;
                 let evt;
                 try { evt = JSON.parse(payload); } catch { continue; }
-
-                if (typeof evt.delta === "string") {
-                    full += evt.delta;
-                    hadDeltas = true;
-                    onDelta(evt.delta);
-                } else if (typeof evt.thinking === "string" && FEATURES.thinking) {
-                    onThinking(evt.thinking);
-                } else if (evt.citations && FEATURES.citations) {
-                    onCitations(evt.citations);
-                } else if (evt.suggestions && FEATURES.suggestions) {
-                    onSuggestions(evt.suggestions);
-                } else if (evt.cta && FEATURES.cta) {
-                    onCta(evt.cta);
-                } else if (evt.badges && FEATURES.badges) {
-                    onBadges(evt.badges);
-                } else if (onAvatar && typeof evt.avatarVideo === "string") {
-                    onAvatar.video(evt.avatarVideo); // spec 67: live avatar frames
-                } else if (onAvatar && evt.avatarWords) {
-                    // { text, at }: `at` is when the chunk's last word is heard.
-                    const w = evt.avatarWords;
-                    if (typeof w === "string") onAvatar.words(w, NaN);
-                    else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
-                } else if (onAvatar && evt.avatarEnd) {
-                    onAvatar.end();
-                } else if (onAvatar && evt.avatarUnavailable) {
-                    onAvatar.unavailable(evt.avatarUnavailable.reason || "", evt.avatarUnavailable.capped === true);
-                } else if (evt.done === true) {
-                    done = true;
-                    break;
-                }
+                if (sink.handle(evt)) { done = true; break; }
             }
             if (done) break;
         }
     } catch (err) {
-        if (signal?.aborted) { onDone(hadDeltas ? full : ""); return; }
-        onError("", hadDeltas /* isMidStream */);
-        onDone(hadDeltas ? full : "");
+        if (signal?.aborted) { onDone(sink.hadDeltas ? sink.full : ""); return; }
+        onError("", sink.hadDeltas /* isMidStream */);
+        onDone(sink.hadDeltas ? sink.full : "");
         return;
     }
-    onDone(full);
+    onDone(sink.full);
 }
 
 // --- text rendering ---------------------------------------------------------

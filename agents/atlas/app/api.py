@@ -1031,6 +1031,184 @@ def _fr_value(resp: Any) -> Any:
     return resp
 
 
+
+def _ws_origin_allowed(ws: WebSocket) -> bool:
+    """CORS doesn't cover WebSockets and ADK's origin middleware skips them,
+    so check the Origin header against ALLOW_ORIGINS here. With no allowlist
+    configured (local dev), anything goes, as for HTTP."""
+    allowed = [o.strip() for o in os.environ.get("ALLOW_ORIGINS", "").split(",") if o.strip()]
+    return not allowed or ws.headers.get("origin") in allowed
+
+
+async def _open_chat_turn(body: Any, conn: Any) -> tuple[int, dict[str, Any]] | AsyncIterator[str]:
+    """Validate one chat turn, apply the limits, and start its SSE-shaped
+    stream. Returns (status, error body) when the turn can't run.
+
+    Shared by the HTTP route (SSE) and the WebSocket route, so both answer
+    identically: same limits, audit log, avatar paths and fallbacks. `conn`
+    is the Request or WebSocket (headers and client address only).
+    """
+    session_id = (body or {}).get("sessionId")
+    messages = (body or {}).get("messages")
+    if not isinstance(session_id, str) or not session_id:
+        return (400, {"error": "Missing sessionId."})
+    if not isinstance(messages, list) or not messages:
+        return (400, {"error": "Missing messages."})
+
+    # Pull the latest user message.
+    last_user = next(
+        (
+            m
+            for m in reversed(messages)
+            if isinstance(m, dict)
+            and m.get("role") == "user"
+            and isinstance(m.get("content"), str)
+        ),
+        None,
+    )
+    if last_user is None:
+        return (400, {"error": "No user message in payload."})
+    user_text = last_user["content"].strip()
+    if not user_text:
+        return (400, {"error": "Empty user message."})
+
+    # Parse optional self-asserted identity (forwarded from localStorage by
+    # agent-widget.js when the visitor has signed in for the resume gate).
+    raw_identity = (body or {}).get("identity")
+    identity: dict[str, str] | None = None
+    if isinstance(raw_identity, dict):
+        sub = raw_identity.get("sub")
+        email = raw_identity.get("email")
+        if (
+            isinstance(sub, str) and 1 <= len(sub) <= 200
+            and isinstance(email, str) and 1 <= len(email) <= 200
+        ):
+            identity = {"sub": sub, "email": email}
+
+    # Compute turn index (0-based count of user messages so far).
+    turn_index = max(
+        0,
+        sum(1 for m in messages if isinstance(m, dict) and m.get("role") == "user") - 1,
+    )
+
+    raw_ip = _client_ip(conn)
+
+    # Rate-limit first — this needs only raw_ip, no geo, and is effectively
+    # free (in-memory), so it's the cheapest possible early-exit.
+    ip_hash = limiter.hash_ip(raw_ip)
+    allowed, _reason = limiter.check_and_record(session_id, ip_hash)
+
+    # Best-effort geo on the untruncated IP, only for the audit log — it
+    # never feeds the model. Kick it off now so it runs concurrently with
+    # _ensure_session below instead of serially gating the stream start;
+    # bounded by lookup_geo's 250ms timeout and exception-swallowing.
+    geo_task = asyncio.create_task(lookup_geo(raw_ip))
+
+    if not allowed:
+        geo = await geo_task
+        client_meta = {
+            "ip_truncated": _truncate_ip(raw_ip),
+            "ua":           (conn.headers.get("user-agent") or "")[:500],
+            "ref":          (conn.headers.get("referer") or "")[:500],
+            "country":      (geo or {}).get("country"),
+            "region":       (geo or {}).get("region"),
+            "city":         (geo or {}).get("city"),
+        }
+        # Both session and IP buckets cap at 10/24h, so the user-facing
+        # message is the same regardless of which one fired.
+        msg = (
+            "Thanks for the conversation. That's the question budget for "
+            "today (10 per visitor). For anything more, the best place is "
+            "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
+            "tomorrow!"
+        )
+        asyncio.create_task(
+            log_interaction({
+                "sessionId":      session_id,
+                "turnIndex":      turn_index,
+                "question":       user_text[:4000],
+                "response":       "",
+                "toolCalls":      [],
+                "tokensInput":    None,
+                "tokensOutput":   None,
+                "model":          None,
+                "modelFallbackDepth": None,
+                "latencyMs":      None,
+                "status":         "rate_limited",
+                "errorMessage":   None,
+                "identity":       identity,
+                "userAgent":      client_meta.get("ua"),
+                "referrer":       client_meta.get("ref"),
+                "ip":             client_meta.get("ip_truncated"),
+                "country":        client_meta.get("country"),
+                "region":         client_meta.get("region"),
+                "city":           client_meta.get("city"),
+                "agentVersion":   _AGENT_VERSION,
+                "citationsCount": None,
+                "suggestionsCount": None,
+                "cta":            None,
+            })
+        )
+        return (429, {"error": msg})
+
+    # Only the session is on the critical path. `geo_task` keeps running in
+    # the background and is awaited by `_log_turn` after the stream closes.
+    await _ensure_session(session_id)
+    client_meta = {
+        "ip_truncated": _truncate_ip(raw_ip),
+        "ua":           (conn.headers.get("user-agent") or "")[:500],
+        "ref":          (conn.headers.get("referer") or "")[:500],
+    }
+
+    # Spec 67: Avatar mode. A capped avatar turn is not an error and does
+    # not run the agent: the widget offers Voice mode and re-asks the same
+    # question there, so answering it here too would be paid for twice
+    # (and put the question in the session history twice).
+    avatar_refusal: str | None = None
+    want_avatar = (body or {}).get("avatar") is True
+    if want_avatar:
+        ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
+        if not ok_visitor:
+            avatar_refusal = "You've reached today's avatar limit."
+        elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
+            avatar_refusal = "The avatar has reached its limit for today."
+            logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
+    if avatar_refusal:
+        geo_task.cancel()
+        return _capped_avatar_stream(avatar_refusal)
+
+    text_stream = _stream_agent(
+        session_id,
+        user_text,
+        turn_index=turn_index,
+        identity=identity,
+        client_meta=client_meta,
+        geo_task=geo_task,
+        avatar=want_avatar,
+        reply_mode=_reply_mode(body, want_avatar),
+        visitor_emails=frozenset(
+            e for m in messages if isinstance(m, dict) and m.get("role") == "user"
+            for e in emails_in(str(m.get("content") or ""))
+        ),
+        contact_intent=has_contact_intent(user_text),
+    )
+    # Prompt-injection attempts keep the text agent's fixed refusal.
+    if want_avatar and _live_brain_on() and not _INJECTION_RE.search(user_text):
+        fallback = _stream_agent(
+            session_id, user_text, turn_index=turn_index, identity=identity,
+            client_meta=client_meta, geo_task=None, avatar=False, reply_mode="text",
+            contact_intent=has_contact_intent(user_text),
+        )
+        stream = _live_avatar_stream(
+            session_id, user_text, turn_index=turn_index, identity=identity,
+            client_meta=client_meta, geo_task=geo_task, fallback=fallback,
+        )
+    else:
+        stream = _with_avatar(text_stream) if want_avatar else text_stream
+
+    return stream
+
+
 def register_routes(app: FastAPI) -> None:
     """Attach the portfolio chat routes to a FastAPI app."""
 
@@ -1284,6 +1462,8 @@ def register_routes(app: FastAPI) -> None:
             )
         return {"audio": audio_b64, "mime": "audio/wav", "model": model_used}
 
+    _SSE_HEADERS = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
+
     @app.post("/api/agent-chat")
     async def agent_chat(request: Request) -> Any:
         try:
@@ -1292,185 +1472,64 @@ def register_routes(app: FastAPI) -> None:
             return JSONResponse(
                 status_code=400, content={"error": "Body must be JSON."}
             )
+        result = await _open_chat_turn(body, request)
+        if isinstance(result, tuple):
+            return JSONResponse(status_code=result[0], content=result[1])
+        return StreamingResponse(result, media_type="text/event-stream", headers=_SSE_HEADERS)
 
-        session_id = (body or {}).get("sessionId")
-        messages = (body or {}).get("messages")
-        if not isinstance(session_id, str) or not session_id:
-            return JSONResponse(
-                status_code=400, content={"error": "Missing sessionId."}
-            )
-        if not isinstance(messages, list) or not messages:
-            return JSONResponse(
-                status_code=400, content={"error": "Missing messages."}
-            )
+    @app.websocket("/api/agent-chat-ws")
+    async def agent_chat_ws(ws: WebSocket) -> None:
+        """The same turn as /api/agent-chat, over a WebSocket.
 
-        # Pull the latest user message.
-        last_user = next(
-            (
-                m
-                for m in reversed(messages)
-                if isinstance(m, dict)
-                and m.get("role") == "user"
-                and isinstance(m.get("content"), str)
-            ),
-            None,
-        )
-        if last_user is None:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "No user message in payload."},
-            )
-        user_text = last_user["content"].strip()
-        if not user_text:
-            return JSONResponse(
-                status_code=400, content={"error": "Empty user message."}
-            )
+        Corporate inspection proxies (measured: a Netskope-managed laptop)
+        hold an HTTP stream until it completes and release it in one burst,
+        so text, voice and avatar arrive seconds late; the same proxy passed
+        WebSocket frames through live (stream-probe, 2026-09-29). Each SSE
+        event goes out as one text frame with the same JSON; the client sends
+        the request as its first frame and `{"abort": true}` to stop.
+        """
+        if not _ws_origin_allowed(ws):
+            await ws.close(code=1008)
+            return
+        await ws.accept()
+        try:
+            body = await ws.receive_json()
+        except Exception:  # noqa: BLE001 - not JSON, or gone already
+            await ws.close(code=1003)
+            return
+        result = await _open_chat_turn(body, ws)
+        if isinstance(result, tuple):
+            await ws.send_json({"httpStatus": result[0], **result[1]})
+            await ws.close()
+            return
+        stop = asyncio.Event()
 
-        # Parse optional self-asserted identity (forwarded from localStorage by
-        # agent-widget.js when the visitor has signed in for the resume gate).
-        raw_identity = (body or {}).get("identity")
-        identity: dict[str, str] | None = None
-        if isinstance(raw_identity, dict):
-            sub = raw_identity.get("sub")
-            email = raw_identity.get("email")
-            if (
-                isinstance(sub, str) and 1 <= len(sub) <= 200
-                and isinstance(email, str) and 1 <= len(email) <= 200
-            ):
-                identity = {"sub": sub, "email": email}
+        async def watch() -> None:
+            # A disconnect or {"abort": true} ends the turn at once, so a
+            # closed tab never keeps a model or avatar session running.
+            try:
+                while True:
+                    msg = await ws.receive_json()
+                    if isinstance(msg, dict) and msg.get("abort"):
+                        break
+            except Exception:  # noqa: BLE001 - disconnect
+                pass
+            stop.set()
 
-        # Compute turn index (0-based count of user messages so far).
-        turn_index = max(
-            0,
-            sum(1 for m in messages if isinstance(m, dict) and m.get("role") == "user") - 1,
-        )
-
-        raw_ip = _client_ip(request)
-
-        # Rate-limit first — this needs only raw_ip, no geo, and is effectively
-        # free (in-memory), so it's the cheapest possible early-exit.
-        ip_hash = limiter.hash_ip(raw_ip)
-        allowed, _reason = limiter.check_and_record(session_id, ip_hash)
-
-        # Best-effort geo on the untruncated IP, only for the audit log — it
-        # never feeds the model. Kick it off now so it runs concurrently with
-        # _ensure_session below instead of serially gating the stream start;
-        # bounded by lookup_geo's 250ms timeout and exception-swallowing.
-        geo_task = asyncio.create_task(lookup_geo(raw_ip))
-
-        if not allowed:
-            geo = await geo_task
-            client_meta = {
-                "ip_truncated": _truncate_ip(raw_ip),
-                "ua":           (request.headers.get("user-agent") or "")[:500],
-                "ref":          (request.headers.get("referer") or "")[:500],
-                "country":      (geo or {}).get("country"),
-                "region":       (geo or {}).get("region"),
-                "city":         (geo or {}).get("city"),
-            }
-            # Both session and IP buckets cap at 10/24h, so the user-facing
-            # message is the same regardless of which one fired.
-            msg = (
-                "Thanks for the conversation. That's the question budget for "
-                "today (10 per visitor). For anything more, the best place is "
-                "LinkedIn: https://www.linkedin.com/in/glahoti/. Catch you "
-                "tomorrow!"
-            )
-            asyncio.create_task(
-                log_interaction({
-                    "sessionId":      session_id,
-                    "turnIndex":      turn_index,
-                    "question":       user_text[:4000],
-                    "response":       "",
-                    "toolCalls":      [],
-                    "tokensInput":    None,
-                    "tokensOutput":   None,
-                    "model":          None,
-                    "modelFallbackDepth": None,
-                    "latencyMs":      None,
-                    "status":         "rate_limited",
-                    "errorMessage":   None,
-                    "identity":       identity,
-                    "userAgent":      client_meta.get("ua"),
-                    "referrer":       client_meta.get("ref"),
-                    "ip":             client_meta.get("ip_truncated"),
-                    "country":        client_meta.get("country"),
-                    "region":         client_meta.get("region"),
-                    "city":           client_meta.get("city"),
-                    "agentVersion":   _AGENT_VERSION,
-                    "citationsCount": None,
-                    "suggestionsCount": None,
-                    "cta":            None,
-                })
-            )
-            return JSONResponse(
-                status_code=429, content={"error": msg}
-            )
-
-        # Only the session is on the critical path. `geo_task` keeps running in
-        # the background and is awaited by `_log_turn` after the stream closes.
-        await _ensure_session(session_id)
-        client_meta = {
-            "ip_truncated": _truncate_ip(raw_ip),
-            "ua":           (request.headers.get("user-agent") or "")[:500],
-            "ref":          (request.headers.get("referer") or "")[:500],
-        }
-
-        # Spec 67: Avatar mode. A capped avatar turn is not an error and does
-        # not run the agent: the widget offers Voice mode and re-asks the same
-        # question there, so answering it here too would be paid for twice
-        # (and put the question in the session history twice).
-        avatar_refusal: str | None = None
-        want_avatar = (body or {}).get("avatar") is True
-        if want_avatar:
-            ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
-            if not ok_visitor:
-                avatar_refusal = "You've reached today's avatar limit."
-            elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
-                avatar_refusal = "The avatar has reached its limit for today."
-                logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
-        if avatar_refusal:
-            geo_task.cancel()
-            return StreamingResponse(
-                _capped_avatar_stream(avatar_refusal),
-                media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
-            )
-
-        text_stream = _stream_agent(
-            session_id,
-            user_text,
-            turn_index=turn_index,
-            identity=identity,
-            client_meta=client_meta,
-            geo_task=geo_task,
-            avatar=want_avatar,
-            reply_mode=_reply_mode(body, want_avatar),
-            visitor_emails=frozenset(
-                e for m in messages if isinstance(m, dict) and m.get("role") == "user"
-                for e in emails_in(str(m.get("content") or ""))
-            ),
-            contact_intent=has_contact_intent(user_text),
-        )
-        # Prompt-injection attempts keep the text agent's fixed refusal.
-        if want_avatar and _live_brain_on() and not _INJECTION_RE.search(user_text):
-            fallback = _stream_agent(
-                session_id, user_text, turn_index=turn_index, identity=identity,
-                client_meta=client_meta, geo_task=None, avatar=False, reply_mode="text",
-                contact_intent=has_contact_intent(user_text),
-            )
-            stream = _live_avatar_stream(
-                session_id, user_text, turn_index=turn_index, identity=identity,
-                client_meta=client_meta, geo_task=geo_task, fallback=fallback,
-            )
-        else:
-            stream = _with_avatar(text_stream) if want_avatar else text_stream
-
-        return StreamingResponse(
-            stream,
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache, no-transform",
-                "X-Accel-Buffering": "no",
-            },
-        )
+        watcher = asyncio.ensure_future(watch())
+        try:
+            async for chunk in result:
+                if stop.is_set():
+                    break
+                for line in chunk.split("\n"):
+                    if line.startswith("data: "):
+                        await ws.send_text(line[6:])
+        except Exception:  # noqa: BLE001 - client went away mid-send
+            logger.info("agent-chat-ws: client left mid-turn")
+        finally:
+            watcher.cancel()
+            await result.aclose()
+            try:
+                await ws.close()
+            except Exception:  # noqa: BLE001 - already closed
+                pass
