@@ -386,9 +386,13 @@ class LiveBrainTurn:
         self.asked_at = time.monotonic()
         await self._session.send_client_content(turns=turns, turn_complete=True)
 
-    async def _respond(self, call: types.FunctionCall) -> None:
-        response = await self.dispatcher.run(call)
-        await self._session.send_tool_response(function_responses=[response])
+    async def _respond(self, calls: list[types.FunctionCall]) -> None:
+        # All of one message's calls go back in ONE tool response. Sent one
+        # by one, each result let the model answer again: a question needing
+        # two tools was answered twice, the first time from half the data
+        # (live conversation spike, 2026-09-29).
+        responses = await asyncio.gather(*(self.dispatcher.run(c) for c in calls))
+        await self._session.send_tool_response(function_responses=list(responses))
 
     async def _read(self) -> None:
         pending: set[asyncio.Task] = set()
@@ -399,12 +403,11 @@ class LiveBrainTurn:
                 # receive() ends at every model turn boundary, and a tool call
                 # is one, so re-enter it until the answer has been spoken.
                 async for msg in self._session.receive():
-                    if msg.tool_call:
-                        for call in msg.tool_call.function_calls or []:
-                            tools_called = True
-                            task = asyncio.ensure_future(self._respond(call))
-                            pending.add(task)
-                            task.add_done_callback(pending.discard)
+                    if msg.tool_call and msg.tool_call.function_calls:
+                        tools_called = True
+                        task = asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
+                        pending.add(task)
+                        task.add_done_callback(pending.discard)
                     sc = msg.server_content
                     if not sc:
                         continue
@@ -534,3 +537,205 @@ class WarmPool:
 
 
 warm_pool = WarmPool()
+
+
+# --- hands-free conversation (spec 71) -----------------------------------------
+# One Live session for a whole spoken conversation: the visitor's mic streams
+# in continuously, the model's own voice activity detection takes turns, and
+# talking over the avatar interrupts it. Measured before building (live
+# conversation spike, 2026-09-29): turn-taking over a never-ending mic stream
+# works on Vertex, seeded history is not answered on its own, follow-ups use
+# it, barge-in fires `interrupted`, and end of speech -> first word is ~2.1s.
+CONVO_MAX_S = 300.0   # a conversation ends after five minutes
+CONVO_IDLE_S = 60.0   # ...or after a minute with nobody talking
+_THINKING_AFTER_S = 0.35  # the visitor's words stopped and no answer yet
+
+
+def conversation_config() -> types.LiveConnectConfig:
+    return live_config().model_copy(update=dict(
+        input_audio_transcription=types.AudioTranscriptionConfig(),
+        realtime_input_config=types.RealtimeInputConfig(
+            automatic_activity_detection=types.AutomaticActivityDetection(
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                silence_duration_ms=500,
+            )
+        ),
+        # Keeps a long chat inside the context window; accepted on Vertex.
+        context_window_compression=types.ContextWindowCompressionConfig(
+            trigger_tokens=100_000, sliding_window=types.SlidingWindow(target_tokens=50_000)
+        ),
+    ))
+
+
+class LiveConversation:
+    """A hands-free avatar conversation on one Live session.
+
+    Feed it the visitor's mic (`send_audio`, 16 kHz PCM16) and typed lines
+    (`send_text`); `events()` yields:
+      ("video", bytes)            fMP4 for the face, continuous
+      ("user_words", str)         the visitor's words, as heard
+      ("words", str)              the avatar's words, as spoken
+      ("state", "listening" | "thinking" | "speaking")
+      ("interrupted", None)       the visitor talked over the avatar
+      ("turn_end", dict)          question, answer, tools, timing, status
+      ("end", str)                "idle" | "max" | "error"
+    """
+
+    def __init__(self, dispatcher: ToolDispatcher) -> None:
+        self.dispatcher = dispatcher
+        self._cm = None
+        self._session = None
+        self._tasks: list[asyncio.Task] = []
+        self._out: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+        self._trim = StreamTrimmer()
+        self.clock = avatar_speak.FragmentClock()
+        self.opened_at: float | None = None
+        self.last_activity = time.monotonic()
+        self.state = "listening"
+        self._reset_turn()
+
+    def _reset_turn(self) -> None:
+        self._heard: list[str] = []
+        self._said: list[str] = []
+        self._calls_at = len(self.dispatcher.calls)
+        self._last_heard_at: float | None = None
+        self._first_word_at: float | None = None
+        self._last_media_at: float | None = None
+
+    async def open(self) -> None:
+        self._cm = avatar_speak._get_client().aio.live.connect(
+            model=avatar_speak.AVATAR_MODEL, config=conversation_config()
+        )
+        try:
+            self._session = await self._cm.__aenter__()
+        except BaseException:
+            self._cm = None
+            raise
+        self.opened_at = time.monotonic()
+        # A fresh session: the browser gets the stream from its first frame.
+        self._trim.release()
+        self._tasks = [asyncio.ensure_future(self._read()), asyncio.ensure_future(self._tick())]
+
+    async def seed(self, history: list[types.Content]) -> None:
+        """Earlier turns of the chat, as context only: not answered."""
+        if history:
+            await self._session.send_client_content(turns=history, turn_complete=False)
+
+    async def send_audio(self, pcm: bytes) -> None:
+        await self._session.send_realtime_input(audio=types.Blob(data=pcm, mime_type="audio/pcm;rate=16000"))
+
+    async def send_text(self, text: str) -> None:
+        self._heard = [text]
+        self._last_heard_at = time.monotonic()
+        self.last_activity = self._last_heard_at
+        await self._put_state("thinking")
+        await self._session.send_client_content(
+            turns=[types.Content(role="user", parts=[types.Part.from_text(text=text)])], turn_complete=True
+        )
+
+    async def mute(self) -> None:
+        # Flush what the server has buffered, so a half-heard word is taken
+        # as the end of the visitor's turn rather than left hanging.
+        await self._session.send_realtime_input(audio_stream_end=True)
+
+    async def _put_state(self, state: str) -> None:
+        if state != self.state:
+            self.state = state
+            await self._out.put(("state", state))
+
+    async def _respond(self, calls: list[types.FunctionCall]) -> None:
+        responses = await asyncio.gather(*(self.dispatcher.run(c) for c in calls))
+        await self._session.send_tool_response(function_responses=list(responses))
+
+    async def _finish_turn(self, status: str) -> None:
+        if self._heard or self._said:
+            first_ms = None
+            if self._first_word_at is not None and self._last_heard_at is not None:
+                first_ms = int(max(0.0, self._first_word_at - self._last_heard_at) * 1000)
+            spoken = 0.0
+            if self._first_word_at is not None and self._last_media_at is not None:
+                spoken = max(0.0, self._last_media_at - self._first_word_at)
+            await self._out.put(("turn_end", {
+                "question": "".join(self._heard).strip(),
+                "answer": "".join(self._said).strip(),
+                "tools": [c["name"] for c in self.dispatcher.calls[self._calls_at:]],
+                "calls": self.dispatcher.calls[self._calls_at:],
+                "first_word_ms": first_ms,
+                "spoken_seconds": spoken,
+                "status": status,
+            }))
+        self._reset_turn()
+        await self._put_state("listening")
+
+    async def _read(self) -> None:
+        try:
+            while True:
+                async for msg in self._session.receive():
+                    if msg.tool_call and msg.tool_call.function_calls:
+                        await self._put_state("thinking")
+                        asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
+                    sc = msg.server_content
+                    if not sc:
+                        continue
+                    if sc.input_transcription and sc.input_transcription.text:
+                        self._heard.append(sc.input_transcription.text)
+                        self._last_heard_at = self.last_activity = time.monotonic()
+                        await self._out.put(("user_words", sc.input_transcription.text))
+                    if sc.output_transcription and sc.output_transcription.text:
+                        if self._first_word_at is None:
+                            self._first_word_at = time.monotonic()
+                        self.last_activity = time.monotonic()
+                        self._said.append(sc.output_transcription.text)
+                        await self._put_state("speaking")
+                        await self._out.put(("words", sc.output_transcription.text))
+                    if sc.model_turn:
+                        for part in sc.model_turn.parts or []:
+                            data = part.inline_data
+                            if data and (data.mime_type or "").startswith("video") and data.data:
+                                self.clock.feed(data.data)
+                                if self._first_word_at is not None:
+                                    self._last_media_at = time.monotonic()
+                                boxes = self._trim.feed(data.data)
+                                if boxes:
+                                    await self._out.put(("video", b"".join(boxes)))
+                    if sc.interrupted:
+                        await self._out.put(("interrupted", None))
+                        await self._finish_turn("interrupted")
+                    elif sc.turn_complete and self._said:
+                        await self._finish_turn("ok")
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - the route ends the conversation
+            logger.exception("live conversation: session failed")
+            await self._out.put(("end", "error"))
+
+    async def _tick(self) -> None:
+        while True:
+            await asyncio.sleep(0.2)
+            now = time.monotonic()
+            if (self.state == "listening" and self._heard and self._last_heard_at is not None
+                    and now - self._last_heard_at > _THINKING_AFTER_S):
+                await self._put_state("thinking")
+            if self.state == "listening" and now - self.last_activity > CONVO_IDLE_S:
+                await self._out.put(("end", "idle"))
+                return
+            if self.opened_at is not None and now - self.opened_at > CONVO_MAX_S:
+                await self._out.put(("end", "max"))
+                return
+
+    async def events(self) -> AsyncIterator[tuple[str, object]]:
+        while True:
+            kind, value = await self._out.get()
+            yield kind, value
+            if kind == "end":
+                return
+
+    async def close(self) -> None:
+        for task in self._tasks:
+            task.cancel()
+        cm, self._cm = self._cm, None
+        if cm is not None:
+            try:
+                await cm.__aexit__(None, None, None)
+            except Exception:  # closing a dead socket is not an error worth surfacing
+                logger.debug("live conversation close failed", exc_info=True)

@@ -24,6 +24,7 @@ const FEATURES = Object.freeze({
     speakReplies:    true,
     badges:          true, // spec 56: cert badge art on certification answers
     avatarMode:      true, // spec 67: opt-in Gemini Live Avatar stage in the panel
+    avatarConversation: true, // spec 71: hands-free "Start conversation" in Avatar mode
 });
 
 const ALLOWED_HOSTS = ["linkedin.com", "github.com", "gauravlahoti.dev", "gauravlahoti.github.io", "topmate.io",
@@ -255,6 +256,8 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // switch modes, without another request.
     let avatarResting = false;
     let avatarRestReason = "";
+    let convo = null;         // spec 71: the active hands-free conversation
+    let convoControls = null; // { root, start, mute, type, end, hint }
     function readAvatarPref() {
         try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
@@ -282,6 +285,210 @@ export function initAgentWidget(root, profile, pageSessionId) {
     }
     let greetedThisPage = false;
     function pauseAvatar() { if (avatar) avatar.pause(); }
+
+    // ---- hands-free conversation (spec 71) ---------------------------------
+    // "Start conversation" under the face: the mic stays open, the avatar
+    // takes turns on its own, talking over it interrupts it, and every turn
+    // lands in the same chat as typed ones. Push-to-send stays the default;
+    // this is an explicit choice, because it opens the microphone.
+    const liveConvoUrl = apiUrl ? apiUrl.replace(/^http/, "ws").replace(/\/api\/agent-chat$/, "/api/agent-live") : apiUrl;
+
+    function mountConvoControls(slot, canSpeak) {
+        if (!FEATURES.avatarConversation || !liveConvoUrl) return;
+        const make = (cls, label) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = `agent-convo-btn ${cls}`;
+            b.textContent = label;
+            return b;
+        };
+        const root = document.createElement("div");
+        root.className = "agent-convo";
+        const start = make("agent-convo-start", "Start conversation");
+        const mute = make("agent-convo-mute", "Mute");
+        mute.setAttribute("aria-pressed", "false");
+        const type = make("agent-convo-type", "Type");
+        type.setAttribute("aria-pressed", "false");
+        const end = make("agent-convo-end", "End");
+        const hint = document.createElement("p");
+        hint.className = "agent-convo-hint";
+        hint.setAttribute("role", "status");
+        mute.hidden = type.hidden = end.hidden = hint.hidden = true;
+        root.append(start, mute, type, end, hint);
+        slot.appendChild(root);
+        start.addEventListener("click", startConversation);
+        mute.addEventListener("click", toggleConvoMute);
+        type.addEventListener("click", () => {
+            const on = !panel.classList.contains("is-typing");
+            panel.classList.toggle("is-typing", on);
+            type.setAttribute("aria-pressed", String(on));
+            if (on) input.focus();
+        });
+        end.addEventListener("click", () => endConversation());
+        convoControls = { root, start, mute, type, end, hint };
+        const supported = canSpeak && typeof WebSocket === "function" && typeof window.AudioWorkletNode === "function"
+            && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        if (!supported) root.hidden = true;
+    }
+
+    function showConvoHint(text) {
+        const c = convoControls;
+        if (!c) return;
+        c.hint.textContent = text || "";
+        c.hint.hidden = !text;
+    }
+
+    function resetConvoControls() {
+        const c = convoControls;
+        if (!c) return;
+        c.start.hidden = false;
+        c.start.disabled = false;
+        c.start.textContent = "Start conversation";
+        c.mute.hidden = c.type.hidden = c.end.hidden = true;
+        c.mute.setAttribute("aria-pressed", "false");
+        c.mute.textContent = "Mute";
+        c.type.setAttribute("aria-pressed", "false");
+        panel.classList.remove("is-typing");
+    }
+
+    async function startConversation() {
+        if (convo || !avatar || isPending || avatarResting) {
+            if (avatarResting) showConvoHint(avatarRestReason || "The avatar is resting for today.");
+            return;
+        }
+        const c = convoControls;
+        c.start.disabled = true;
+        c.start.textContent = "Connecting…";
+        showConvoHint("");
+        if (speaker) speaker.cancel();
+        let mod;
+        try {
+            mod = await import(_vq("./agent-live.js"));
+        } catch (_) {
+            resetConvoControls();
+            showConvoHint("Couldn't load the conversation. Try again in a moment.");
+            return;
+        }
+        if (!mod.liveSupported()) {
+            resetConvoControls();
+            showConvoHint("This browser can't hold a spoken conversation. Type, or use the mic button instead.");
+            return;
+        }
+        const face = avatar.startLive();
+        const s = { face, live: null, userLi: null, assistantLi: null, wordsEl: null, turn: null, spoke: false, heard: "" };
+        convo = s;
+        panel.classList.add("is-conversing");
+        refreshSendMode();
+        try {
+            s.live = await mod.startLiveConversation({
+                url: liveConvoUrl,
+                sessionId,
+                onVideo: (bytes) => face.pushBytes(bytes),
+                onEvent: onConvoEvent,
+                onEnd: (end) => endConversation(end),
+            });
+        } catch (err) {
+            if (convo === s) convo = null;
+            face.abort();
+            panel.classList.remove("is-conversing");
+            resetConvoControls();
+            showConvoHint(err && err.message);
+            refreshSendMode();
+            return;
+        }
+        if (convo !== s) { s.live.end(); return; } // ended while connecting
+        c.start.hidden = true;
+        c.mute.hidden = c.type.hidden = c.end.hidden = false;
+        liveRegion.textContent = "Conversation started. Atlas is listening.";
+    }
+
+    function toggleConvoMute() {
+        const s = convo;
+        if (!s || !s.live) return;
+        const on = !s.live.muted;
+        s.live.mute(on);
+        convoControls.mute.setAttribute("aria-pressed", String(on));
+        convoControls.mute.textContent = on ? "Unmute" : "Mute";
+    }
+
+    function openConvoAnswer(s) {
+        const li = document.createElement("li");
+        li.className = "agent-message agent-message-assistant is-avatar-turn";
+        const text = document.createElement("p");
+        text.className = "agent-message-text";
+        const words = document.createElement("p");
+        words.className = "agent-avatar-words";
+        li.append(text, words);
+        transcript.appendChild(li);
+        s.assistantLi = li;
+        s.wordsEl = words;
+        s.turn = { done: false };
+        maybeScrollToEnd();
+    }
+
+    function onConvoEvent(evt) {
+        const s = convo;
+        if (!s) return;
+        if (typeof evt.state === "string") {
+            s.face.convoState(evt.state);
+        } else if (typeof evt.userWords === "string") {
+            if (!s.userLi) { s.userLi = appendUser(""); s.heard = ""; }
+            s.heard += evt.userWords;
+            s.userLi.querySelector("p").textContent = s.heard.trim();
+            maybeScrollToEnd();
+        } else if (evt.words && typeof evt.words.text === "string") {
+            if (!s.assistantLi) openConvoAnswer(s);
+            const heardFrom = addCaptionChunk(s.wordsEl, evt.words.text, Number(evt.words.at));
+            if (!s.spoke) { s.spoke = true; s.face.speaking(heardFrom); }
+            const turn = s.turn;
+            runKaraoke(s.wordsEl, () => s.face.time(), () => turn.done || s.face.closed);
+        } else if (evt.interrupted) {
+            s.face.interrupt();
+            if (s.assistantLi) appendStoppedNote(s.assistantLi);
+        } else if (evt.turnEnd) {
+            closeConvoTurn(s, evt.turnEnd);
+        }
+    }
+
+    // One turn done: settle both bubbles into the shared chat, as what was
+    // actually said, so Text and Voice mode read it the same way.
+    function closeConvoTurn(s, t) {
+        const question = String(t.question || s.heard || "").trim();
+        if (s.userLi) s.userLi.querySelector("p").textContent = question || s.userLi.querySelector("p").textContent;
+        else if (question) s.userLi = appendUser(question);
+        if (question) messages.push({ role: "user", content: question });
+        const answer = String(t.answer || "").trim();
+        if (s.assistantLi) {
+            finalizeAssistant(s.assistantLi, answer, {});
+            tagVia(s.assistantLi, "avatar");
+            if (t.status === "interrupted") appendStoppedNote(s.assistantLi);
+        }
+        if (answer) messages.push({ role: "assistant", content: answer });
+        if (s.turn) s.turn.done = true;
+        s.face.newTurn();
+        if (Number.isFinite(t.first_word_ms)) console.info("[atlas] convoFirstWordMs:", t.first_word_ms);
+        s.userLi = s.assistantLi = s.wordsEl = s.turn = null;
+        s.spoke = false;
+        s.heard = "";
+        syncClearBtn();
+    }
+
+    function endConversation(end) {
+        const s = convo;
+        if (!s) return;
+        convo = null;
+        try { if (s.live) s.live.end(); } catch (_) { /* already closed */ }
+        if (s.turn) s.turn.done = true;
+        s.face.abort();
+        panel.classList.remove("is-conversing");
+        resetConvoControls();
+        if (end && end.reason) {
+            if (end.capped) { avatarResting = true; avatarRestReason = end.reason; }
+            showConvoHint(end.reason);
+        }
+        liveRegion.textContent = "Conversation ended.";
+        refreshSendMode();
+    }
 
     // Spec 67: karaoke captions, one word at a time. Every word is a span
     // stamped with the media time it starts being heard. As the video clock
@@ -440,12 +647,15 @@ export function initAgentWidget(root, profile, pageSessionId) {
                 })
                     .then((stage) => {
                         const unmount = () => {
+                            endConversation();
+                            convoControls = null;
                             stage.dispose();
                             slot.remove();
                             panel.classList.remove("has-avatar");
                         };
                         // Switched away again while it was still loading.
                         if (!avatarOn) { unmount(); return; }
+                        mountConvoControls(slot, stage.canSpeak);
                         avatar = {
                             canSpeak: stage.canSpeak,
                             pause: stage.pause,
@@ -557,7 +767,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
         console.info(`[atlas] ${name}:`, Math.round(performance.now() - turnTiming.t0));
     }
 
-    function atlasTalking() { return isSpeaking || avatarBusy; }
+    // In a hands-free conversation the face is always "busy", but the send
+    // button stays Send: typed lines go into the same conversation.
+    function atlasTalking() { return isSpeaking || (avatarBusy && !convo); }
     function refreshSendMode() {
         const hasText = !!(input.value || "").trim();
         const stop = isPending || (atlasTalking() && !hasText);
@@ -1156,6 +1368,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         fab.setAttribute("aria-expanded", "false");
         document.body.removeAttribute("data-agent-panel-open");
         fab.focus();
+        endConversation(); // spec 71: a closed panel never keeps listening
         pauseAvatar(); // spec 67: a closed panel never keeps talking
         // Dismissing the panel must not leave the mic listening in the
         // background. dispose() permanently silences that engine instance's
@@ -1339,6 +1552,15 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (emailError) {
             appendSystem(emailError);
             input.value = text;
+            return;
+        }
+        // Spec 71: mid-conversation, a typed line is just another turn.
+        if (convo && convo.live) {
+            input.value = "";
+            autoGrowInput();
+            convo.userLi = appendUser(text);
+            convo.heard = text;
+            convo.live.sendText(text);
             return;
         }
         pauseAvatar(); // spec 67: asking something stops a recorded clip mid-sentence
@@ -1704,6 +1926,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // new conversation.
     let clearPending = false;
     function clearConversation() {
+        endConversation();
         stopStreaming();
         if (isPending) { clearPending = true; return; }
         clearPending = false;
