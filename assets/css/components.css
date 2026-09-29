@@ -5045,8 +5045,9 @@ a.agent-badge-tile:focus-visible {
     font-size: var(--text-xs);
     color: var(--ink-muted);
 }
-/* Spec 71: who said it, on spoken conversation turns. */
-.agent-speaker {
+/* Spec 71: who said it, on spoken conversation turns. (Not .agent-speaker:
+   that name belongs to the panel's legacy speaker button.) */
+.agent-who {
     display: block;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
@@ -5055,8 +5056,8 @@ a.agent-badge-tile:focus-visible {
     color: var(--ink-muted);
     margin-bottom: var(--space-1);
 }
-.agent-message-user .agent-speaker { text-align: right; }
-.agent-message-assistant .agent-speaker {
+.agent-message-user .agent-who { text-align: right; }
+.agent-message-assistant .agent-who {
     padding-left: var(--space-3);
     color: var(--mode-c, var(--accent));
 }

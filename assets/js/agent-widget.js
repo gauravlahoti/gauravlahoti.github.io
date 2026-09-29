@@ -414,9 +414,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Who said it: in a spoken conversation both sides are voices, so each
     // turn carries a small YOU / ATLAS label rather than relying on colour.
     function labelSpeaker(li, who) {
-        if (!li || li.querySelector(".agent-speaker")) return li;
+        if (!li || li.querySelector(".agent-who")) return li;
         const tag = document.createElement("span");
-        tag.className = "agent-speaker";
+        tag.className = "agent-who";
         tag.textContent = who;
         li.prepend(tag);
         return li;
