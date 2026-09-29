@@ -248,6 +248,45 @@ def test_a_malformed_start_is_answered_and_closed(client) -> None:
         assert ws.receive_json() == {"end": {"reason": "bad request", "capped": False}}
 
 
+def _limiter_spent(monkeypatch, spent: str) -> list[str]:
+    """Every bucket open except `spent`; returns the buckets charged."""
+    charged: list[str] = []
+
+    def check(session_id, ip_hash, bucket="chat"):
+        charged.append(bucket)
+        return (bucket != spent, None)
+
+    monkeypatch.setattr(limiter, "check_and_record", check)
+    return charged
+
+
+def test_a_spent_chat_budget_doesnt_stop_a_conversation(client, monkeypatch) -> None:
+    # Spec 72: a conversation spends only the avatar's budget, so the 10
+    # chat questions stay for Voice mode and never gate the avatar.
+    charged = _limiter_spent(monkeypatch, "chat")
+    with client.websocket_connect("/api/agent-live", headers={"origin": ORIGIN}) as ws:
+        ws.send_json(_start("convo-sess-5"))
+        assert ws.receive_json() == {"state": "listening"}
+    assert "chat" not in charged and "avatar" in charged
+
+
+def test_a_spent_avatar_budget_refuses_with_its_kind(client, monkeypatch) -> None:
+    _limiter_spent(monkeypatch, "avatar")
+    with client.websocket_connect("/api/agent-live", headers={"origin": ORIGIN}) as ws:
+        ws.send_json(_start("convo-sess-6"))
+        end = ws.receive_json()["end"]
+    assert end == {"reason": api.AVATAR_VISITOR_CAP_REPLY, "capped": True, "kind": "avatar"}
+    assert FakeConvo.instances == []
+
+
+def test_a_spent_site_budget_refuses_as_site(client, monkeypatch) -> None:
+    monkeypatch.setattr(avatar_speak, "budget", avatar_speak.AvatarBudget(daily_seconds=0))
+    with client.websocket_connect("/api/agent-live", headers={"origin": ORIGIN}) as ws:
+        ws.send_json(_start("convo-sess-7"))
+        end = ws.receive_json()["end"]
+    assert end["kind"] == "site" and end["capped"] is True
+
+
 class TestFillerBeforeTools:
     @pytest.mark.asyncio
     async def test_filler_and_answer_after_a_tool_are_one_reply(self, monkeypatch) -> None:

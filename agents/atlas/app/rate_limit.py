@@ -47,8 +47,10 @@ the launch value of 3 on launch day: that was tight enough that ordinary
 testing (by a visitor, or by us verifying the feature) exhausted it in a
 handful of turns, well before the shared daily-seconds budget in
 `app_utils/avatar_speak.py` (also raised the same day) ever came into play.
-Like `speak`, going over it is harmless: the widget falls back to the TTS
-voice for that answer. The daily spend cap across all visitors lives in
+Like `speak`, going over it is harmless: the widget hands the visitor to
+Voice mode. Spec 72: an avatar turn (typed, or a hands-free conversation
+turn) spends this bucket *instead of* `chat`, never both, so a visitor out
+of avatar answers still has every chat question left for Voice. The daily spend cap across all visitors lives in
 `app_utils/avatar_speak.py`, not here; this bucket only bounds one visitor's
 share of it, so raising it doesn't change the site-wide ceiling.
 """

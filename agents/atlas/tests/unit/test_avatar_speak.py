@@ -133,7 +133,7 @@ class TestCappedAvatarStream:
         # turn must carry no answer of its own.
         events = await _collect(api._capped_avatar_stream("You've reached today's avatar limit."))
         assert events == [
-            {"avatarUnavailable": {"reason": "You've reached today's avatar limit.", "capped": True}},
+            {"avatarUnavailable": {"reason": "You've reached today's avatar limit.", "capped": True, "kind": "avatar"}},
             {"done": True},
         ]
 

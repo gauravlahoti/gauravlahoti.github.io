@@ -300,10 +300,16 @@ def _reply_mode(body: Any, want_avatar: bool) -> str:
     return mode if mode in REPLY_MODES else "text"
 
 
-async def _capped_avatar_stream(reason: str) -> AsyncIterator[str]:
+# Spec 72: the avatar's two caps. Both hand the visitor to Voice mode, which
+# draws on the separate chat budget, so the copy says where they're going.
+AVATAR_VISITOR_CAP_REPLY = "That's all the avatar time for today."
+AVATAR_SITE_CAP_REPLY = "The avatar is resting for the rest of today."
+
+
+async def _capped_avatar_stream(reason: str, kind: str = "avatar") -> AsyncIterator[str]:
     """The whole reply to an avatar turn over its cap: `capped` tells the
     widget to offer Voice mode for this same question."""
-    yield _sse({"avatarUnavailable": {"reason": reason, "capped": True}})
+    yield _sse({"avatarUnavailable": {"reason": reason, "capped": True, "kind": kind}})
     yield _sse({"done": True})
 
 
@@ -1096,8 +1102,12 @@ async def _open_chat_turn(body: Any, conn: Any) -> tuple[int, dict[str, Any]] | 
 
     # Rate-limit first — this needs only raw_ip, no geo, and is effectively
     # free (in-memory), so it's the cheapest possible early-exit.
+    # Spec 72: an avatar turn spends the avatar budget (checked below)
+    # instead of a chat question, so the budgets never overlap and running
+    # out of avatar still leaves every chat question for Voice.
     ip_hash = limiter.hash_ip(raw_ip)
-    allowed, _reason = limiter.check_and_record(session_id, ip_hash)
+    want_avatar = (body or {}).get("avatar") is True
+    allowed = want_avatar or limiter.check_and_record(session_id, ip_hash)[0]
 
     # Best-effort geo on the untruncated IP, only for the audit log — it
     # never feeds the model. Kick it off now so it runs concurrently with
@@ -1165,18 +1175,17 @@ async def _open_chat_turn(body: Any, conn: Any) -> tuple[int, dict[str, Any]] | 
     # not run the agent: the widget offers Voice mode and re-asks the same
     # question there, so answering it here too would be paid for twice
     # (and put the question in the session history twice).
-    avatar_refusal: str | None = None
-    want_avatar = (body or {}).get("avatar") is True
+    avatar_refusal: tuple[str, str] | None = None
     if want_avatar:
         ok_visitor, _ = limiter.check_and_record(session_id, ip_hash, bucket="avatar")
         if not ok_visitor:
-            avatar_refusal = "You've reached today's avatar limit."
+            avatar_refusal = (AVATAR_VISITOR_CAP_REPLY, "avatar")
         elif not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
-            avatar_refusal = "The avatar has reached its limit for today."
+            avatar_refusal = (AVATAR_SITE_CAP_REPLY, "site")
             logger.info("avatar daily budget spent (%.0fs used)", avatar_speak.budget.used_seconds)
     if avatar_refusal:
         geo_task.cancel()
-        return _capped_avatar_stream(avatar_refusal)
+        return _capped_avatar_stream(*avatar_refusal)
 
     text_stream = _stream_agent(
         session_id,
@@ -1486,7 +1495,7 @@ def register_routes(app: FastAPI) -> None:
         frames of 16 kHz PCM16 mic audio (100 ms at most each) and text
         frames {"text"}, {"mute"}, {"end"}. Out: binary frames are the
         face's fMP4 video; text frames are JSON events: state, userWords,
-        words {text, at}, interrupted, turnEnd, end {reason, capped}.
+        words {text, at}, interrupted, turnEnd, end {reason, capped, kind}.
         Gated by ATLAS_LIVE_CONVO=1.
         """
         if os.environ.get("ATLAS_LIVE_CONVO", "") != "1" or not _ws_origin_allowed(ws):
@@ -1510,24 +1519,25 @@ def register_routes(app: FastAPI) -> None:
             "ref": (ws.headers.get("referer") or "")[:500],
         }
 
-        async def refuse(reason: str) -> None:
-            await ws.send_json({"end": {"reason": reason, "capped": True}})
+        async def refuse(reason: str, kind: str) -> None:
+            await ws.send_json({"end": {"reason": reason, "capped": True, "kind": kind}})
             await ws.close()
 
-        # A conversation is charged like questions: the first here, each
-        # later one as its turn ends.
-        if not limiter.check_and_record(session_id, ip_hash)[0]:
-            return await refuse("That's the question budget for today (10 per visitor).")
+        # Spec 72: a conversation spends only the avatar's own budget, the
+        # first question here and each later one as its turn ends. It never
+        # touches the 10 chat questions, so a visitor out of avatar turns is
+        # handed to Voice with those still intact. `kind` says which cap:
+        # "avatar" is this visitor's share, "site" the day's spend for all.
         if not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
-            return await refuse("You've reached today's avatar limit.")
+            return await refuse(AVATAR_VISITOR_CAP_REPLY, "avatar")
         reserved = avatar_speak.RESERVE_SECONDS
         if not avatar_speak.budget.reserve(reserved):
-            return await refuse("The avatar has reached its limit for today.")
+            return await refuse(AVATAR_SITE_CAP_REPLY, "site")
 
         await _ensure_session(session_id)
         convo = live_brain.LiveConversation(live_brain.ToolDispatcher(session_id))
         turns = 0
-        end_reason, capped = "ended", False
+        end_reason, capped, cap_kind = "ended", False, None
         try:
             await convo.open()
             await convo.seed(await _chat_history(session_id))
@@ -1612,12 +1622,11 @@ def register_routes(app: FastAPI) -> None:
                     }))
                     # The next question is charged now, so a visitor at a cap
                     # is told before asking rather than cut off mid-answer.
-                    if not limiter.check_and_record(session_id, ip_hash)[0] or \
-                            not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
-                        end_reason, capped = "That's today's limit for the avatar.", True
+                    if not limiter.check_and_record(session_id, ip_hash, bucket="avatar")[0]:
+                        end_reason, capped, cap_kind = AVATAR_VISITOR_CAP_REPLY, True, "avatar"
                         break
                     if not avatar_speak.budget.reserve(avatar_speak.RESERVE_SECONDS):
-                        end_reason, capped = "The avatar has reached its limit for today.", True
+                        end_reason, capped, cap_kind = AVATAR_SITE_CAP_REPLY, True, "site"
                         break
                     reserved = avatar_speak.RESERVE_SECONDS
                 elif kind == "end":
@@ -1632,7 +1641,10 @@ def register_routes(app: FastAPI) -> None:
             if reserved:
                 avatar_speak.budget.settle(reserved, 0.0)
             try:
-                await ws.send_json({"end": {"reason": end_reason, "capped": capped}})
+                end_evt = {"reason": end_reason, "capped": capped}
+                if cap_kind:
+                    end_evt["kind"] = cap_kind
+                await ws.send_json({"end": end_evt})
                 await ws.close()
             except Exception:  # noqa: BLE001 - already closed
                 pass
