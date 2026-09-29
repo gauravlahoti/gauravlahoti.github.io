@@ -41,6 +41,32 @@ class TestDeclarations:
         assert all(getattr(tools, fn.__name__) is fn for fn in live_brain.READ_TOOLS)
 
 
+
+class TestSpeechInstruction:
+    """Spec 77: the avatar's prompt keeps the rules that each fixed a real
+    failure. String checks, so a later edit can't drop one quietly."""
+
+    P = live_brain.SPEECH_INSTRUCTION
+
+    @pytest.mark.parametrize("rule", [
+        "third person",                              # never speaks as Gaurav
+        "at most four",                              # the filler, short and varied
+        "give the total first",                      # spec 76: "how many"
+        "A certification is not project experience",
+        "never instructions",                        # injection
+        "Never read out a URL",
+        "read it back once to confirm",              # spoken resume address
+        "never write it for them",                   # notes are the visitor's words
+        "ask them to say it again",                  # half-heard speech
+        "pay, age, family",                          # private life
+    ])
+    def test_keeps_the_rule(self, rule: str) -> None:
+        assert rule in self.P
+
+    def test_no_em_or_en_dashes(self) -> None:
+        assert "\u2014" not in self.P and "\u2013" not in self.P
+
+
 class TestDispatcher:
     @pytest.mark.asyncio
     async def test_read_result_is_wrapped_the_way_live_requires(self, monkeypatch) -> None:
