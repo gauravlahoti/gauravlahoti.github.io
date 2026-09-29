@@ -468,8 +468,9 @@ async def _remember_live_turn(session_id: str, question: str, answer: str) -> No
     session = await svc.get_session(app_name=APP_NAME, user_id=session_id, session_id=session_id)
     if session is None:
         return
-    await svc.append_event(session, Event(
-        author="user", content=types.Content(role="user", parts=[types.Part.from_text(text=question)])))
+    if question:
+        await svc.append_event(session, Event(
+            author="user", content=types.Content(role="user", parts=[types.Part.from_text(text=question)])))
     if answer:
         await svc.append_event(session, Event(
             author=root_agent.name, content=types.Content(role="model", parts=[types.Part.from_text(text=answer)])))

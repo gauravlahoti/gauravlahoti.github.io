@@ -411,9 +411,21 @@ export function initAgentWidget(root, profile, pageSessionId) {
         convoControls.mute.textContent = on ? "Unmute" : "Mute";
     }
 
+    // Who said it: in a spoken conversation both sides are voices, so each
+    // turn carries a small YOU / ATLAS label rather than relying on colour.
+    function labelSpeaker(li, who) {
+        if (!li || li.querySelector(".agent-speaker")) return li;
+        const tag = document.createElement("span");
+        tag.className = "agent-speaker";
+        tag.textContent = who;
+        li.prepend(tag);
+        return li;
+    }
+
     function openConvoAnswer(s) {
         const li = document.createElement("li");
         li.className = "agent-message agent-message-assistant is-avatar-turn";
+        labelSpeaker(li, "Atlas");
         const text = document.createElement("p");
         text.className = "agent-message-text";
         const words = document.createElement("p");
@@ -432,7 +444,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (typeof evt.state === "string") {
             s.face.convoState(evt.state);
         } else if (typeof evt.userWords === "string") {
-            if (!s.userLi) { s.userLi = appendUser(""); s.heard = ""; }
+            if (!s.userLi) { s.userLi = labelSpeaker(appendUser(""), "You"); s.heard = ""; }
             s.heard += evt.userWords;
             s.userLi.querySelector("p").textContent = s.heard.trim();
             maybeScrollToEnd();
@@ -455,7 +467,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     function closeConvoTurn(s, t) {
         const question = String(t.question || s.heard || "").trim();
         if (s.userLi) s.userLi.querySelector("p").textContent = question || s.userLi.querySelector("p").textContent;
-        else if (question) s.userLi = appendUser(question);
+        else if (question) s.userLi = labelSpeaker(appendUser(question), "You");
         if (question) messages.push({ role: "user", content: question });
         const answer = String(t.answer || "").trim();
         if (s.assistantLi) {
@@ -1558,7 +1570,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (convo && convo.live) {
             input.value = "";
             autoGrowInput();
-            convo.userLi = appendUser(text);
+            convo.userLi = labelSpeaker(appendUser(text), "You");
             convo.heard = text;
             convo.live.sendText(text);
             return;

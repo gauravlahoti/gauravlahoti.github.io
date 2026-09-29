@@ -52,6 +52,9 @@ class FakeSession:
         if audio is not None:
             self.audio.append(audio.data)
 
+    async def send_tool_response(self, function_responses=None):
+        self.tool_responses = function_responses
+
 
 async def _run_convo(script, seconds=1.5):
     convo = live_brain.LiveConversation(live_brain.ToolDispatcher("c1"))
@@ -243,3 +246,22 @@ def test_a_malformed_start_is_answered_and_closed(client) -> None:
     with client.websocket_connect("/api/agent-live", headers={"origin": ORIGIN}) as ws:
         ws.send_json({"hello": 1})
         assert ws.receive_json() == {"end": {"reason": "bad request", "capped": False}}
+
+
+class TestFillerBeforeTools:
+    @pytest.mark.asyncio
+    async def test_filler_and_answer_after_a_tool_are_one_reply(self, monkeypatch) -> None:
+        async def get_work_history(role_filter=None):
+            return [{"company": "EY"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_work_history])
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_work_history", args={})])
+        out = await _run_convo([
+            _msg(heard="Tell me about EY."),
+            _msg(said="Let me look into that."), _msg(tool=call), _msg(complete=True),
+            "pause",
+            _msg(said="He was a Consultant at EY."), _msg(complete=True),
+        ], seconds=1.5)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert len(turns) == 1
+        assert turns[0]["answer"] == "Let me look into that. He was a Consultant at EY."
+        assert turns[0]["question"] == "Tell me about EY."

@@ -601,6 +601,12 @@ class LiveConversation:
         self._last_heard_at: float | None = None
         self._first_word_at: float | None = None
         self._last_media_at: float | None = None
+        # A tool call inside the turn: the model often says a line ("let me
+        # look that up") and completes that as a turn before the results are
+        # back. The visitor's turn stays open until it has spoken from them,
+        # so filler and answer are one reply, not two.
+        self._tool_pending = False
+        self._spoke_after_tools = True
 
     async def open(self) -> None:
         self._cm = avatar_speak._get_client().aio.live.connect(
@@ -646,6 +652,7 @@ class LiveConversation:
     async def _respond(self, calls: list[types.FunctionCall]) -> None:
         responses = await asyncio.gather(*(self.dispatcher.run(c) for c in calls))
         await self._session.send_tool_response(function_responses=list(responses))
+        self._tool_pending = False
 
     async def _finish_turn(self, status: str) -> None:
         if self._heard or self._said:
@@ -672,7 +679,10 @@ class LiveConversation:
             while True:
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
-                        await self._put_state("thinking")
+                        self._tool_pending = True
+                        self._spoke_after_tools = False
+                        if not self._said:
+                            await self._put_state("thinking")
                         asyncio.ensure_future(self._respond(list(msg.tool_call.function_calls)))
                     sc = msg.server_content
                     if not sc:
@@ -685,7 +695,11 @@ class LiveConversation:
                         if self._first_word_at is None:
                             self._first_word_at = time.monotonic()
                         self.last_activity = time.monotonic()
+                        if self._said and not self._tool_pending and not self._spoke_after_tools:
+                            self._said.append(" ")  # filler then answer read as one reply
                         self._said.append(sc.output_transcription.text)
+                        if not self._tool_pending:
+                            self._spoke_after_tools = True
                         await self._put_state("speaking")
                         await self._out.put(("words", sc.output_transcription.text))
                     if sc.model_turn:
@@ -701,7 +715,7 @@ class LiveConversation:
                     if sc.interrupted:
                         await self._out.put(("interrupted", None))
                         await self._finish_turn("interrupted")
-                    elif sc.turn_complete and self._said:
+                    elif sc.turn_complete and self._said and self._spoke_after_tools:
                         await self._finish_turn("ok")
         except asyncio.CancelledError:
             raise

@@ -5045,6 +5045,22 @@ a.agent-badge-tile:focus-visible {
     font-size: var(--text-xs);
     color: var(--ink-muted);
 }
+/* Spec 71: who said it, on spoken conversation turns. */
+.agent-speaker {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: var(--space-1);
+}
+.agent-message-user .agent-speaker { text-align: right; }
+.agent-message-assistant .agent-speaker {
+    padding-left: var(--space-3);
+    color: var(--mode-c, var(--accent));
+}
+
 /* Mid-conversation the visitor talks, so the composer steps aside. "Type"
    brings it back for what's easier typed than said, like an email address.
    The mic button stays hidden either way: it would open a second mic. */
