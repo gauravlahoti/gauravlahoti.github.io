@@ -1084,6 +1084,36 @@ def register_routes(app: FastAPI) -> None:
         except WebSocketDisconnect:
             pass
 
+    @app.post("/api/stream-probe/report")
+    async def stream_probe_report(request: Request) -> JSONResponse:
+        """The widget runs the probes above once a day in the background and
+        posts only the timings here (per tick: client arrival minus server
+        send, in ms), so a slow network path can be diagnosed without asking
+        the visitor to do anything. Logged, not stored."""
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = None
+        if not isinstance(body, dict) or not isinstance(body.get("sessionId"), str):
+            return JSONResponse({"error": "bad request"}, status_code=400)
+        ip = _client_ip(request)
+        ok, _ = limiter.check_and_record(body["sessionId"][:128], limiter.hash_ip(ip), bucket="probe_report")
+        if not ok:
+            return JSONResponse({"ok": False})
+
+        def ints(v: Any) -> list[int] | str:
+            if isinstance(v, list):
+                return [int(x) for x in v[:_PROBE_MAX_TICKS] if isinstance(x, (int, float))]
+            return str(v)[:40]
+
+        ua = (request.headers.get("user-agent") or "")[:300]
+        logger.info(
+            "stream-probe: os=%s ip=%s sse=%s padded=%s ws=%s ua=%s",
+            "Windows" if "Windows" in ua else "Mac" if "Mac OS" in ua else "iOS" if "iPhone" in ua else "Android" if "Android" in ua else "other",
+            _truncate_ip(ip), ints(body.get("sse")), ints(body.get("ssePadded")), ints(body.get("ws")), ua,
+        )
+        return JSONResponse({"ok": True})
+
     @app.post("/api/agent-live/warm")
     async def live_warm(request: Request) -> JSONResponse:
         """The widget calls this when a visitor starts typing in Avatar mode,

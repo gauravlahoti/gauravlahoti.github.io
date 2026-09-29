@@ -71,6 +71,8 @@ BUCKETS: dict[str, dict[str, int]] = {
     # like any other avatar spend: a few more than the avatar questions
     # themselves, since not every warm-up ends in a question.
     "live_warm": {"session": 16, "ip": 24, "window_s": 24 * 60 * 60},
+    # The widget's once-a-day stream health check (api.stream_probe_report).
+    "probe_report": {"session": 3, "ip": 10, "window_s": 24 * 60 * 60},
 }
 
 
