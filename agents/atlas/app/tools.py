@@ -142,7 +142,9 @@ async def get_projects(domain: str | None = None) -> list[dict]:
     """Return notable projects Gaurav has shipped, optionally filtered by domain.
 
     Domains include "agentic-ai", "cloud-architecture", "enterprise-integration",
-    "distributed-systems". The filter is case-insensitive substring match.
+    "distributed-systems". The filter is a case-insensitive substring match
+    on domain ids and labels, skills and the project name; a filter that
+    matches nothing returns every project.
 
     Args:
         domain: Optional domain id or substring.
@@ -158,6 +160,7 @@ async def get_projects(domain: str | None = None) -> list[dict]:
 
     project_company: dict[str, str] = {}
     project_domains: dict[str, list[str]] = {}
+    project_domain_ids: dict[str, list[str]] = {}
     project_skills: dict[str, list[str]] = {}
     for e in edges:
         src = e.get("source")
@@ -170,6 +173,7 @@ async def get_projects(domain: str | None = None) -> list[dict]:
             project_company[src] = tgt_n.get("label", tgt)
         if src_n.get("type") == "project" and tgt_n.get("type") == "domain":
             project_domains.setdefault(src, []).append(tgt_n.get("label", tgt))
+            project_domain_ids.setdefault(src, []).append(tgt)
         if src_n.get("type") == "project" and tgt_n.get("type") == "skill":
             project_skills.setdefault(src, []).append(tgt_n.get("label", tgt))
 
@@ -189,14 +193,26 @@ async def get_projects(domain: str | None = None) -> list[dict]:
 
     if domain is None:
         return projects
-    needle = domain.lower()
-    return [
+    # The docstring offers domain *ids* ("cloud-architecture") but projects
+    # carry domain *labels* ("Cloud-Native Architecture"), so match both,
+    # with hyphens and spaces treated alike. An id never matched a label
+    # before, so a filtered call came back empty and the model told the
+    # visitor he had no such projects.
+    needle = _norm(domain)
+    matched = [
         p
         for p in projects
-        if any(needle in d.lower() for d in p["domains"])
-        or any(needle in s.lower() for s in p["skills"])
-        or needle in p["label"].lower()
+        if any(needle in _norm(d) for d in p["domains"] + project_domain_ids.get(p["id"], []))
+        or any(needle in _norm(s) for s in p["skills"])
+        or needle in _norm(p["label"])
     ]
+    # There are only a handful of projects: a filter that matches none of
+    # them returns all of them rather than a dead end.
+    return matched or projects
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().replace("-", " ").split())
 
 
 async def get_recent_posts(limit: int = 5) -> list[dict]:
