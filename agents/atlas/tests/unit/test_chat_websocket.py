@@ -76,3 +76,31 @@ def test_the_turn_is_closed_when_it_ends(client) -> None:
         for _ in range(3):
             ws.receive_json()
     assert client.closed == [True]
+
+
+def _spend(monkeypatch: pytest.MonkeyPatch, *spent: str) -> list[str]:
+    charged: list[str] = []
+
+    def check(session_id, ip_hash, bucket="chat"):
+        charged.append(bucket)
+        return (bucket not in spent, None)
+
+    monkeypatch.setattr(limiter, "check_and_record", check)
+    return charged
+
+
+def test_an_avatar_turn_spends_the_avatar_budget_not_a_chat_question(client, monkeypatch) -> None:
+    # Spec 72: the budgets never overlap, so running out of avatar leaves
+    # every chat question for the Voice hand-off.
+    charged = _spend(monkeypatch, "avatar")
+    body = {**_turn("hi", "avatar-sess-1"), "avatar": True}
+    events = [json.loads(f[6:]) for f in client.post("/api/agent-chat", json=body).text.split("\n\n")
+              if f.startswith("data: ")]
+    assert charged == ["avatar"]
+    assert events[0] == {"avatarUnavailable": {"reason": api.AVATAR_VISITOR_CAP_REPLY, "capped": True, "kind": "avatar"}}
+
+
+def test_a_spent_chat_budget_still_refuses_text_and_voice(client, monkeypatch) -> None:
+    _spend(monkeypatch, "chat")
+    res = client.post("/api/agent-chat", json=_turn("hi", "chat-sess-9"))
+    assert res.status_code == 429

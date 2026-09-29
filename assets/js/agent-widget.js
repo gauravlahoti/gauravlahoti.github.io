@@ -254,10 +254,16 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Set once the server says this visitor (or the day's budget) is out of
     // avatar answers. Later Avatar-mode questions go straight to the offer to
     // switch modes, without another request.
-    let avatarResting = false;
-    let avatarRestReason = "";
+    // Spec 72: remembered for the rest of the UTC day, so a reload or a
+    // reopened panel goes straight to Voice instead of dead-ending again.
+    const AVATAR_REST_KEY = "atlasAvatarRest_v1";
+    const todayUtc = () => new Date().toISOString().slice(0, 10);
+    let avatarResting = (() => {
+        try { return localStorage.getItem(AVATAR_REST_KEY) === todayUtc(); } catch (_) { return false; }
+    })();
+    let avatarRestReason = avatarResting ? "That's all the avatar time for today." : "";
     let convo = null;         // spec 71: the active hands-free conversation
-    let convoControls = null; // { root, start, mute, type, end, hint }
+    let convoControls = null; // { root, start, mute, end, hint }
     function readAvatarPref() {
         try { return localStorage.getItem(AVATAR_PREF_KEY) === "1"; } catch (_) { return false; }
     }
@@ -305,27 +311,22 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const root = document.createElement("div");
         root.className = "agent-convo";
         const start = make("agent-convo-start", "Start conversation");
+        // Spec 72: a spoken call has two controls, Mute and End. Talking
+        // over Atlas interrupts it, so there is no Stop, and no composer:
+        // End brings the composer back for anything easier typed.
         const mute = make("agent-convo-mute", "Mute");
         mute.setAttribute("aria-pressed", "false");
-        const type = make("agent-convo-type", "Type");
-        type.setAttribute("aria-pressed", "false");
         const end = make("agent-convo-end", "End");
         const hint = document.createElement("p");
         hint.className = "agent-convo-hint";
         hint.setAttribute("role", "status");
-        mute.hidden = type.hidden = end.hidden = hint.hidden = true;
-        root.append(start, mute, type, end, hint);
+        mute.hidden = end.hidden = hint.hidden = true;
+        root.append(start, mute, end, hint);
         slot.appendChild(root);
         start.addEventListener("click", startConversation);
         mute.addEventListener("click", toggleConvoMute);
-        type.addEventListener("click", () => {
-            const on = !panel.classList.contains("is-typing");
-            panel.classList.toggle("is-typing", on);
-            type.setAttribute("aria-pressed", String(on));
-            if (on) input.focus();
-        });
         end.addEventListener("click", () => endConversation());
-        convoControls = { root, start, mute, type, end, hint };
+        convoControls = { root, start, mute, end, hint };
         const supported = canSpeak && typeof WebSocket === "function" && typeof window.AudioWorkletNode === "function"
             && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
         if (!supported) root.hidden = true;
@@ -344,18 +345,14 @@ export function initAgentWidget(root, profile, pageSessionId) {
         c.start.hidden = false;
         c.start.disabled = false;
         c.start.textContent = "Start conversation";
-        c.mute.hidden = c.type.hidden = c.end.hidden = true;
+        c.mute.hidden = c.end.hidden = true;
         c.mute.setAttribute("aria-pressed", "false");
         c.mute.textContent = "Mute";
-        c.type.setAttribute("aria-pressed", "false");
-        panel.classList.remove("is-typing");
     }
 
     async function startConversation() {
-        if (convo || !avatar || isPending || avatarResting) {
-            if (avatarResting) showConvoHint(avatarRestReason || "The avatar is resting for today.");
-            return;
-        }
+        if (avatarResting) { handOffToVoice(avatarRestReason); return; }
+        if (convo || !avatar || isPending) return;
         const c = convoControls;
         c.start.disabled = true;
         c.start.textContent = "Connecting…";
@@ -398,7 +395,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
         if (convo !== s) { s.live.end(); return; } // ended while connecting
         c.start.hidden = true;
-        c.mute.hidden = c.type.hidden = c.end.hidden = false;
+        c.mute.hidden = c.end.hidden = false;
         liveRegion.textContent = "Conversation started. Atlas is listening.";
     }
 
@@ -494,12 +491,29 @@ export function initAgentWidget(root, profile, pageSessionId) {
         s.face.abort();
         panel.classList.remove("is-conversing");
         resetConvoControls();
-        if (end && end.reason) {
-            if (end.capped) { avatarResting = true; avatarRestReason = end.reason; }
-            showConvoHint(end.reason);
-        }
         liveRegion.textContent = "Conversation ended.";
         refreshSendMode();
+        if (end && end.capped) handOffToVoice(end.reason);
+        else if (end && end.reason) showConvoHint(end.reason);
+    }
+
+    // Spec 72: the avatar is out for today (this visitor's share, or the
+    // site's). That's never a dead end: Atlas moves to Voice on its own,
+    // which draws on the separate chat budget, says so in one line, and
+    // asks the pending question there if there is one. Voice's audio
+    // unlocks on the visitor's next tap, the same gesture a send uses.
+    function handOffToVoice(reason, question) {
+        avatarResting = true;
+        avatarRestReason = reason || "That's all the avatar time for today.";
+        try { localStorage.setItem(AVATAR_REST_KEY, todayUtc()); } catch (_) { /* private mode */ }
+        const to = FEATURES.speakReplies ? "voice" : "text";
+        appendSystem(`${avatarRestReason} Switching you to ${to === "voice" ? "Voice" : "Text"}.`);
+        liveRegion.textContent = `${avatarRestReason} Switched to ${to}.`;
+        Promise.resolve(selectMode(to)).then(() => {
+            if (!question || isPending) return;
+            input.value = question;
+            sendCurrent();
+        });
     }
 
     // Spec 67: karaoke captions, one word at a time. Every word is a span
@@ -719,6 +733,8 @@ export function initAgentWidget(root, profile, pageSessionId) {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
             if (!speakerOn) ready = enableSpeaker();
         } else if (mode === "avatar") {
+            // Spec 72: already out for today; don't show a face that can't talk.
+            if (avatarResting) { handOffToVoice(avatarRestReason); return ready; }
             silenceSpeakerForAvatar();
             writeAvatarPref(true);
             const greet = takeAvatarGreeting();
@@ -1345,8 +1361,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
         // speakerOn true, so guarding this on `!speakerOn` skipped the unlock
         // entirely on reopen — synthesis ran, ctx was never created, and
         // every clip was silently dropped.
-        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref())
-            && !(FEATURES.avatarMode && (avatarOn || readAvatarPref()))) {
+        // Spec 72: a visitor whose avatar is out for today reopens in Voice,
+        // where the hand-off left them, and gets Avatar back tomorrow.
+        const avatarPref = readAvatarPref() && !avatarResting;
+        if (FEATURES.speakReplies && (speakerOn || readSpeakerPref() || (readAvatarPref() && avatarResting))
+            && !(FEATURES.avatarMode && (avatarOn || avatarPref))) {
             speakerOn = true;
             setSpeakerMode("on");
             // Opening the panel is itself a click, so bank it for audio the
@@ -1356,7 +1375,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         // Spec 67: bring a remembered avatar mode back, on its idle face. The
         // greeting plays once per visitor (takeAvatarGreeting), never on a
         // reopen.
-        if (FEATURES.avatarMode && !avatarOn && readAvatarPref()) {
+        if (FEATURES.avatarMode && !avatarOn && avatarPref) {
             setAvatarMode(true, { autoplay: false });
         }
         if (agentIntro?.text && !introRendered) {
@@ -1581,7 +1600,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (FEATURES.avatarMode && avatarOn && avatarResting) {
             input.value = "";
             autoGrowInput();
-            offerModeSwitch(appendUser(text), text, avatarRestReason);
+            handOffToVoice(avatarRestReason, text);
             return;
         }
         // Spec 67: in Avatar mode the face speaks this answer instead of the
@@ -1887,48 +1906,10 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
         if (clearPending) { clearConversation(); return; }
         syncClearBtn();
-        if (cappedReason && !wasStopped) offerModeSwitch(userLi, text, cappedReason);
-    }
-
-    // Spec 67: the avatar is out of answers for today. Offer Voice (or Text)
-    // for the question just asked, and ask it again there, so nobody has to
-    // retype it. The click is also the gesture Voice needs to play audio.
-    function offerModeSwitch(userLi, question, reason) {
-        transcript.querySelectorAll(".agent-avatar-offer").forEach((el) => el.remove());
-        const li = document.createElement("li");
-        li.className = "agent-message agent-avatar-offer";
-        li.setAttribute("role", "group");
-        li.setAttribute("aria-label", "Avatar limit reached");
-        const copy = document.createElement("p");
-        copy.className = "agent-consent-copy";
-        copy.textContent = `${reason} Want me to answer this in Voice mode instead?`;
-        const actions = document.createElement("div");
-        actions.className = "agent-consent-actions";
-        const asText = document.createElement("button");
-        asText.type = "button";
-        asText.className = "agent-consent-no";
-        asText.textContent = "Show as text";
-        const voice = document.createElement("button");
-        voice.type = "button";
-        voice.className = "agent-consent-yes";
-        voice.textContent = "Switch to Voice";
-        actions.append(asText, voice);
-        li.append(copy, actions);
-        transcript.appendChild(li);
-        liveRegion.textContent = copy.textContent;
-        scrollToEnd();
-
-        const ask = async (mode) => {
-            if (isPending) return;
-            li.remove();
-            if (userLi) userLi.remove(); // sendCurrent() shows the question again
-            await selectMode(mode);
-            input.value = question;
-            sendCurrent();
-        };
-        voice.addEventListener("click", () => ask("voice"));
-        asText.addEventListener("click", () => ask("text"));
-        voice.focus({ preventScroll: true });
+        if (cappedReason && !wasStopped) {
+            userLi.remove(); // sendCurrent() shows the question again in Voice
+            handOffToVoice(cappedReason, text);
+        }
     }
 
     // Clear conversation: stop whatever Atlas is doing, forget the history on
@@ -3233,6 +3214,7 @@ function renderShell(root, agentExplainer) {
 // rules read it via min(calc(var(--agent-vv-height, 80dvh) - 24px), 720px),
 // so the panel shrinks in real time when the soft keyboard opens. No-op
 // when visualViewport is unavailable (older browsers fall back to dvh).
+const SHORT_VIEWPORT_PX = 520;
 function trackVisualViewport(panel) {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -3242,6 +3224,10 @@ function trackVisualViewport(panel) {
         raf = requestAnimationFrame(() => {
             raf = 0;
             panel.style.setProperty("--agent-vv-height", `${vv.height}px`);
+            // Spec 72: too short for the face and a usable composer (the
+            // keyboard is up, or a landscape phone). The face steps aside
+            // until there's room again; the chat and its captions carry on.
+            panel.classList.toggle("is-short", vv.height < SHORT_VIEWPORT_PX);
         });
     };
     vv.addEventListener("resize", sync, { passive: true });
