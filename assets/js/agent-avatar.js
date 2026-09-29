@@ -474,10 +474,8 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         idle() { if (mode === "live") endLive(); else if (mode === "greeting") showIdle(); },
         replay() { playGreeting(); },
         // Spec 73: the hex effects the widget drives.
-        arrive() { if (fx) fx.arrive(); },
         depart() { return fx ? fx.depart() : Promise.resolve(); },
         hangUp() { if (fx) fx.hangUp(); },
-        tool(target) { return fx ? fx.tool(target) : Promise.resolve(); },
         setMicLevel(fn) { if (fx) fx.setMicLevel(fn); },
         dispose() {
             if (fx) fx.dispose();
