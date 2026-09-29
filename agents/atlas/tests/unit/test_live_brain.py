@@ -354,3 +354,26 @@ class TestTurnEndsAfterTheAnswer:
                 break
         turn._reader.cancel()
         assert [v for k, v in events if k == "words"] == ["Let me check.", "He holds an AWS AI cert."]
+
+
+
+class TestCertCounts:
+    """Spec 76: "how many certifications?" is answered from a stated total,
+    not from the model counting a list, or the three tagged `cloud`."""
+
+    @pytest.mark.asyncio
+    async def test_the_result_states_the_total_and_the_split(self, monkeypatch) -> None:
+        async def get_certifications():
+            return [
+                {"name": "A", "issuer": "Anthropic", "category": "ai"},
+                {"name": "B", "issuer": "AWS", "category": "ai"},
+                {"name": "C", "issuer": "Google Cloud", "category": "cloud"},
+                {"name": "D", "issuer": "Google Cloud", "category": "security"},
+            ]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_certifications])
+        resp = await live_brain.ToolDispatcher("s-76").run(_call("get_certifications"))
+        msg = resp.response["message"]
+        assert "4 certifications in total" in msg
+        assert "1 from Anthropic, 1 from AWS, 2 from Google Cloud" in msg
+        assert "not the vendor" in msg
+        assert len(resp.response["data"]) == 4
