@@ -519,6 +519,8 @@ async def _live_avatar_stream(
             async for kind, value in turn.events():
                 if kind == "video":
                     yield _sse({"avatarVideo": base64.b64encode(value).decode("ascii")})
+                elif kind == "tool":
+                    yield _sse({"avatarTool": value})  # spec 73: names only
                 else:
                     spoke = True
                     yield _sse({"avatarWords": _words_event(value, turn)})
@@ -1495,7 +1497,7 @@ def register_routes(app: FastAPI) -> None:
         frames of 16 kHz PCM16 mic audio (100 ms at most each) and text
         frames {"text"}, {"mute"}, {"end"}. Out: binary frames are the
         face's fMP4 video; text frames are JSON events: state, userWords,
-        words {text, at}, interrupted, turnEnd, end {reason, capped, kind}.
+        words {text, at}, interrupted, tool [names], turnEnd, end {reason, capped, kind}.
         Gated by ATLAS_LIVE_CONVO=1.
         """
         if os.environ.get("ATLAS_LIVE_CONVO", "") != "1" or not _ws_origin_allowed(ws):
@@ -1595,6 +1597,8 @@ def register_routes(app: FastAPI) -> None:
                     await ws.send_json({"state": value})
                 elif kind == "interrupted":
                     await ws.send_json({"interrupted": True})
+                elif kind == "tool":
+                    await ws.send_json({"tool": value})  # spec 73: names only
                 elif kind == "turn_end":
                     turn = value
                     turns += 1

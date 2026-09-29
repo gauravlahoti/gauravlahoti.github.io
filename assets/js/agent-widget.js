@@ -262,6 +262,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         try { return localStorage.getItem(AVATAR_REST_KEY) === todayUtc(); } catch (_) { return false; }
     })();
     let avatarRestReason = avatarResting ? "That's all the avatar time for today." : "";
+    let leavingAvatar = null; // spec 73: finishes a face still dissolving
     let convo = null;         // spec 71: the active hands-free conversation
     let convoControls = null; // { root, start, mute, end, hint }
     function readAvatarPref() {
@@ -325,7 +326,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         slot.appendChild(root);
         start.addEventListener("click", startConversation);
         mute.addEventListener("click", toggleConvoMute);
-        end.addEventListener("click", () => endConversation());
+        end.addEventListener("click", () => { endConversation(); hangUpFace(); });
         convoControls = { root, start, mute, end, hint };
         const supported = canSpeak && typeof WebSocket === "function" && typeof window.AudioWorkletNode === "function"
             && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -382,7 +383,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                 sessionId,
                 onVideo: (bytes) => face.pushBytes(bytes),
                 onEvent: onConvoEvent,
-                onEnd: (end) => endConversation(end),
+                onEnd: (end) => { endConversation(end); if (!(end && end.capped)) hangUpFace(); },
             });
         } catch (err) {
             if (convo === s) convo = null;
@@ -396,6 +397,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (convo !== s) { s.live.end(); return; } // ended while connecting
         c.start.hidden = true;
         c.mute.hidden = c.end.hidden = false;
+        // Spec 73: the call connects on screen, and the ring hears the visitor.
+        avatar.arrive();
+        avatar.setMicLevel(() => (s.live ? s.live.level() : 0));
         liveRegion.textContent = "Conversation started. Atlas is listening.";
     }
 
@@ -451,11 +455,51 @@ export function initAgentWidget(root, profile, pageSessionId) {
             if (!s.spoke) { s.spoke = true; s.face.speaking(heardFrom); }
             const turn = s.turn;
             runKaraoke(s.wordsEl, () => s.face.time(), () => turn.done || s.face.closed);
+        } else if (Array.isArray(evt.tool)) {
+            showToolHexes(evt.tool, s.assistantLi);
         } else if (evt.interrupted) {
             s.face.interrupt();
             if (s.assistantLi) appendStoppedNote(s.assistantLi);
         } else if (evt.turnEnd) {
             closeConvoTurn(s, evt.turnEnd);
+        }
+    }
+
+    // Spec 73: a tool call shows as a chip in the chat, and in Avatar mode a
+    // hex flies to it from the ring around the face. The name stays as the
+    // model called it (it's the agent's own vocabulary); the words after it
+    // say what that means.
+    const TOOL_WORDS = {
+        get_profile: "reading his profile",
+        get_work_history: "checking his work history",
+        get_projects: "looking up his projects",
+        get_recent_posts: "reading his recent posts",
+        get_certifications: "checking his certifications",
+        get_live_agents: "looking at his live agents",
+        get_build_story: "reading how this site was built",
+        get_ai_labs: "looking at the AI labs",
+        get_site_stats: "checking the site stats",
+        send_resume: "emailing the resume",
+        send_note_to_gaurav: "passing your note to Gaurav",
+    };
+    function showToolHexes(names, beforeLi) {
+        for (const name of names) {
+            if (typeof name !== "string" || !TOOL_WORDS[name]) continue;
+            const li = document.createElement("li");
+            li.className = "agent-tool-chip is-pending";
+            const mark = document.createElement("span");
+            mark.className = "agent-tool-hex";
+            mark.setAttribute("aria-hidden", "true");
+            const code = document.createElement("code");
+            code.textContent = name;
+            const words = document.createElement("span");
+            words.textContent = TOOL_WORDS[name];
+            li.append(mark, code, words);
+            if (beforeLi && beforeLi.parentNode === transcript) transcript.insertBefore(li, beforeLi);
+            else transcript.appendChild(li);
+            maybeScrollToEnd();
+            const land = () => li.classList.remove("is-pending");
+            if (avatar && avatarOn) avatar.tool(mark).then(land); else land();
         }
     }
 
@@ -486,6 +530,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const s = convo;
         if (!s) return;
         convo = null;
+        if (avatar) avatar.setMicLevel(null);
         try { if (s.live) s.live.end(); } catch (_) { /* already closed */ }
         if (s.turn) s.turn.done = true;
         s.face.abort();
@@ -495,6 +540,14 @@ export function initAgentWidget(root, profile, pageSessionId) {
         refreshSendMode();
         if (end && end.capped) handOffToVoice(end.reason);
         else if (end && end.reason) showConvoHint(end.reason);
+    }
+
+    // Spec 73: a call that ends (End, or the server closing it) breaks the
+    // face into hexes and re-forms it idle. Not on a mode switch or a closed
+    // panel: leaving Avatar has its own dissolve, and a capped call hands off
+    // to Voice, which runs that one.
+    function hangUpFace() {
+        if (avatar && avatarOn) avatar.hangUp();
     }
 
     // Spec 72: the avatar is out for today (this visitor's share, or the
@@ -654,6 +707,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
         if (avatar) { if (autoplay) avatar.replay(); return; }
         if (avatarLoading) return;
+        if (leavingAvatar) leavingAvatar(); // back before the last face finished dissolving
         avatarLoading = import(_vq("./agent-avatar.js"))
             .then(({ mountAvatarStage }) => {
                 // Inside the header, as its last row: one surface with one
@@ -672,12 +726,24 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     onState: (state) => { avatarBusy = state !== "idle"; refreshSendMode(); },
                 })
                     .then((stage) => {
+                        // Spec 73: leaving Avatar, the face breaks back into
+                        // hex tiles before the stage goes, like hanging up.
                         const unmount = () => {
                             endConversation();
                             convoControls = null;
-                            stage.dispose();
-                            slot.remove();
-                            panel.classList.remove("has-avatar");
+                            stage.pause();
+                            let gone = false;
+                            const finish = () => {
+                                if (gone) return;
+                                gone = true;
+                                if (leavingAvatar === finish) leavingAvatar = null;
+                                stage.dispose();
+                                slot.remove();
+                                panel.classList.remove("has-avatar");
+                            };
+                            leavingAvatar = finish;
+                            slot.classList.add("is-leaving");
+                            stage.depart().then(finish);
                         };
                         // Switched away again while it was still loading.
                         if (!avatarOn) { unmount(); return; }
@@ -688,6 +754,10 @@ export function initAgentWidget(root, profile, pageSessionId) {
                             replay: stage.replay,
                             idle: stage.idle,
                             startLive: stage.startLive,
+                            arrive: stage.arrive,
+                            hangUp: stage.hangUp,
+                            tool: stage.tool,
+                            setMicLevel: stage.setMicLevel,
                             dispose: unmount,
                         };
                     })
@@ -1745,6 +1815,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },
+                    tool(names) { if (avatarVoice) showToolHexes(names, assistant); },
                     unavailable(reason, capped) {
                         if (capped) {
                             cappedReason = reason || "The avatar has reached its limit for today.";
@@ -3449,6 +3520,8 @@ function chatEventSink({ onThinking, onDelta, onCitations, onSuggestions, onCta,
             const w = evt.avatarWords;
             if (typeof w === "string") onAvatar.words(w, NaN);
             else if (typeof w.text === "string") onAvatar.words(w.text, Number(w.at));
+        } else if (onAvatar && Array.isArray(evt.avatarTool)) {
+            onAvatar.tool(evt.avatarTool); // spec 73: tool names, for the hexes
         } else if (onAvatar && evt.avatarEnd) {
             onAvatar.end();
         } else if (onAvatar && evt.avatarUnavailable) {
