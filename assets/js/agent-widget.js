@@ -63,6 +63,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
     const transcribeApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-transcribe") : apiUrl;
     // Spec 49: same again for spoken replies.
     const speakApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-speak") : apiUrl;
+    // Avatar answers come from a live session that is ~1.5s faster once it
+    // has been open a moment, so one is opened as the visitor starts typing.
+    const liveWarmUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-live/warm") : apiUrl;
     if (!apiUrl) {
         console.warn("[agent-widget] profile.links.agentApi missing");
         return null;
@@ -314,6 +317,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const start = k.end !== null && end - k.end < dur * 2 ? k.end : end - dur;
         addWords(p, text, start, end);
         k.end = end;
+        return start;
     }
     function paintCaptions(p, now) {
         let current = null;
@@ -528,6 +532,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
     });
     input.addEventListener("input", autoGrowInput);
+    input.addEventListener("input", warmLiveAvatar);
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && isOpen) {
             e.preventDefault();
@@ -906,7 +911,25 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Lazy-imports agent-voice.js on first use so MediaRecorder code never
     // ships in the initial page payload (matches how main.js defers this
     // whole module until idle).
+    // Ask the server to open this visitor's avatar session while they type or
+    // talk, so it's warm when they send. At most once per 90s (the server
+    // keeps a warm session 120s); a server with live answers off says no.
+    let liveWarmedAt = 0;
+    function warmLiveAvatar() {
+        if (!FEATURES.avatarMode || !avatarOn || !avatar || !avatar.canSpeak || avatarResting || !liveWarmUrl) return;
+        const now = Date.now();
+        if (now - liveWarmedAt < 90_000) return;
+        liveWarmedAt = now;
+        fetch(liveWarmUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+            keepalive: true,
+        }).catch(() => { liveWarmedAt = 0; });
+    }
+
     async function startVoiceInput() {
+        warmLiveAvatar();
         if (micLoading) return;
         if (!voiceEngine) {
             micLoading = true;
@@ -1388,8 +1411,11 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     video(b64) { if (avatarVoice) liveTurn.push(b64); },
                     words(text, at) {
                         if (!avatarVoice) return;
-                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(); logTurnTiming("avatarFirstWordsMs"); }
-                        addCaptionChunk(avatarWordsEl, text, at);
+                        const heardFrom = addCaptionChunk(avatarWordsEl, text, at);
+                        // The first caption's start is where speech begins on
+                        // the video clock; the player may skip idle frames up
+                        // to just before it, never past it.
+                        if (!avatarSpoke) { avatarSpoke = true; liveTurn.speaking(heardFrom); logTurnTiming("avatarFirstWordsMs"); }
                         runKaraoke(avatarWordsEl, () => liveTurn.time(), () => liveTurn.closed);
                     },
                     end() { if (avatarVoice) liveTurn.end(); },

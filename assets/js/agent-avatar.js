@@ -27,14 +27,25 @@ const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const STREAM_MIME = 'video/mp4; codecs="avc1.42C01F, mp4a.40.2"';
 // Safari on iOS only exposes ManagedMediaSource.
 const MS = window.ManagedMediaSource || window.MediaSource;
-// Live turns never skip ahead. They used to jump to the newest frame
+// Live turns never skip speech. They used to jump to the newest frame
 // whenever playback fell 1.2s behind, so "the face never lags the words".
-// But the captions run on this same video clock, so lag never desyncs
-// anything; it only adds latency. And on a machine slow to start or decode
-// the stream (reported on Windows) playback was behind the whole time, so
-// every new chunk triggered another jump: the reply flashed through its
-// captions in a second and only the last word was heard. Lag is only
-// measured now, for the per-turn timing line (see logTurn).
+// On a machine slow to start or decode the stream (reported on Windows)
+// playback was behind the whole time, so every new chunk triggered another
+// jump: the reply flashed through its captions in a second and only the last
+// word was heard.
+//
+// The idle face before the first word is a different matter. The stream
+// starts the moment the visitor sends, and idles on camera while the reply
+// is written (3-6s). If playback starts late, or stutters, during that idle
+// stretch, every word after it inherits the delay: a Windows laptop heard
+// the avatar 6-10s after the server started speaking. So until the first
+// word, playback is held near the newest frame, and when the first words
+// arrive (the server sends captions ~1.5s ahead of the audio) it jumps to
+// just before where they'll be heard. That drops only idle frames nobody
+// has seen yet; nothing after the first word is ever skipped.
+const IDLE_MAX_LAG_S = 0.8;     // how far behind the idle face may fall
+const IDLE_SEEK_COOLDOWN_MS = 1500; // a seek needs a moment to settle before the next
+const SPEECH_MARGIN_S = 0.35;   // land this far before the first spoken word
 //
 // Safety net for a live turn that stops making progress: no new chunk and
 // no playback movement for this long. Re-armed on every chunk and every
@@ -115,7 +126,11 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     // Timing for the per-turn console line, and the progress that keeps the
     // watchdog from firing on a slow but healthy turn.
     liveVideo.addEventListener("playing", () => {
-        if (mode === "live" && live && live.stats.playing === null) live.stats.playing = Math.round(performance.now() - live.stats.t0);
+        if (mode === "live" && live && live.stats.playing === null) {
+            live.stats.playing = Math.round(performance.now() - live.stats.t0);
+            // A late start is exactly when the idle stretch has piled up.
+            catchUp(live, true);
+        }
     });
     liveVideo.addEventListener("waiting", () => { if (mode === "live" && live && live.started) live.stats.waits += 1; });
     liveVideo.addEventListener("timeupdate", () => {
@@ -221,7 +236,8 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         mode = "live";
         const l = {
             queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null,
-            stats: { t0: performance.now(), firstChunk: null, playing: null, waits: 0, maxLag: 0, bytes: 0, chunks: 0 },
+            speechStarted: false, speechAt: null, lastSeekAt: 0,
+            stats: { t0: performance.now(), firstChunk: null, playing: null, waits: 0, maxLag: 0, bytes: 0, chunks: 0, idleSkips: 0, idleSkippedS: 0 },
         };
         live = l;
         setState("listening");
@@ -250,8 +266,13 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
                 armWatchdog(l);
                 pump(l);
             },
-            speaking() {
+            // `speechAt`: the media time the first spoken word will be heard
+            // (from its caption). Everything before it is idle face.
+            speaking(speechAt) {
                 if (l.closed) return;
+                l.speechAt = Number.isFinite(speechAt) ? speechAt : null;
+                catchUp(l, true);
+                l.speechStarted = true;
                 video.setAttribute("aria-label", "Atlas, speaking");
                 setState("speaking");
                 onPlay && onPlay();
@@ -306,15 +327,38 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         }
     }
 
-    // Never discards unheard speech. The one seek left is forward over a gap
-    // *before* the first frame (a stream whose first fragment doesn't start
-    // at 0 would otherwise wait there forever), which skips nothing audible.
+    // Never discards unheard speech. It crosses a gap *before* the first
+    // frame (a stream whose first fragment doesn't start at 0 would otherwise
+    // wait there forever), and keeps the idle face live (see catchUp).
     function keepLive(l) {
         const b = liveVideo.buffered;
         if (!b.length) return;
         if (liveVideo.currentTime < b.start(0) - 0.05) liveVideo.currentTime = b.start(0);
         const lag = b.end(b.length - 1) - liveVideo.currentTime;
         if (lag > l.stats.maxLag) l.stats.maxLag = lag;
+        if (lag > IDLE_MAX_LAG_S) catchUp(l, false);
+    }
+
+    // Skip idle frames only: never past the first spoken word. `force`
+    // ignores the cooldown, for the two moments that matter most (playback
+    // finally starting, and the first words arriving). Once playback has
+    // reached the first word, or speech began without a known start, it
+    // never seeks again.
+    function catchUp(l, force) {
+        if (l.speechStarted && l.speechAt === null) return;
+        if (l.speechAt !== null && liveVideo.currentTime >= l.speechAt - SPEECH_MARGIN_S) return;
+        const b = liveVideo.buffered;
+        if (!b.length) return;
+        const now = performance.now();
+        if (!force && now - l.lastSeekAt < IDLE_SEEK_COOLDOWN_MS) return;
+        let target = b.end(b.length - 1) - 0.15;
+        if (l.speechAt !== null) target = Math.min(target, l.speechAt - SPEECH_MARGIN_S);
+        const from = liveVideo.currentTime;
+        if (target - from < 0.3) return;
+        liveVideo.currentTime = target;
+        l.lastSeekAt = now;
+        l.stats.idleSkips += 1;
+        l.stats.idleSkippedS += target - from;
     }
 
     function armWatchdog(l) {
@@ -337,6 +381,8 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
             firstVideoMs: s.firstChunk,
             playingMs: s.playing,
             startDelayMs: s.playing === null ? null : s.playing - s.firstChunk,
+            idleSkips: s.idleSkips,
+            idleSkippedS: Math.round(s.idleSkippedS * 100) / 100,
             stalls: s.waits,
             maxLagS: Math.round(s.maxLag * 100) / 100,
             chunks: s.chunks,

@@ -66,6 +66,11 @@ BUCKETS: dict[str, dict[str, int]] = {
     "voice": {"session": 12, "ip": 12, "window_s": 24 * 60 * 60},
     "speak": {"session": 60, "ip": 60, "window_s": 24 * 60 * 60},
     "avatar": {"session": 8, "ip": 8, "window_s": 24 * 60 * 60},
+    # Pre-opening a live avatar session for a visitor who has started typing
+    # (live_brain.WarmPool). Each opens a real Live session, so it is capped
+    # like any other avatar spend: a few more than the avatar questions
+    # themselves, since not every warm-up ends in a question.
+    "live_warm": {"session": 16, "ip": 24, "window_s": 24 * 60 * 60},
 }
 
 

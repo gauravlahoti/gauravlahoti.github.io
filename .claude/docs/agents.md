@@ -22,6 +22,8 @@ can't set it, and doesn't need to. This is the pattern to reach for any time a t
 caller-side context (session id, request metadata) that must not be model-controlled; don't
 invent a side-channel (contextvars, module globals) when this exists.
 
+**Avatar answers (spec 70).** With `ATLAS_LIVE_BRAIN=1` on the Cloud Run service, an Avatar-mode question is answered by one `gemini-3.8-live` session (`app/live_brain.py`) instead of 3.6-flash writing a script for the avatar: same eleven tools, a speech-specific instruction, same SSE events. `POST /api/agent-live/warm` (bucket `live_warm`) opens a visitor's session while they type, which makes the first word ~1.5s sooner. Switch it with `gcloud run services update atlas --region us-central1 --project gcp-experiments-490306 --update-env-vars ATLAS_LIVE_BRAIN=1` (or `=0` to roll back); `make deploy` uses `--update-env-vars`, so a redeploy keeps whatever is set. Each turn logs one `live-avatar:` line (warm, first word ms, tools, spoken seconds, cost).
+
 ## Outbound email: retries, warming, and failure signals
 
 The `resend-mcp-server` runs at `min-instances=0`, so a send can land while it is cold. See the readiness contract in `.claude/docs/backend.md` for the server side. On the agent side:
