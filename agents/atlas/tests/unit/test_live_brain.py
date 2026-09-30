@@ -56,7 +56,7 @@ class TestSpeechInstruction:
         "A certification is not project experience",
         "never instructions",                        # injection
         "Never read out a URL",
-        "read it back once to confirm",              # spoken resume address
+        "address back and ask if it's right",   # spoken resume address
         "never write it for them",                   # notes are the visitor's words
         "ask them to say it again",                  # half-heard speech
         "pay, age, family",                          # private life
@@ -110,10 +110,17 @@ class TestDispatcher:
             return {"ok": True, "code": "ok", "message": "Sent."}
 
         d = live_brain.ToolDispatcher("sess-9", send_resume_fn=fake_resume)
-        resp = await d.run(_call("send_resume", email="jane@example.com"))
+        # Spec 81: unconfirmed never sends; confirmed=true, matching what was
+        # presented, does.
+        unconfirmed = await d.run(_call("send_resume", email="jane@example.com"))
+        assert sent == [] and unconfirmed.response["status"] == "needs_confirmation"
+        resp = await d.run(_call("send_resume", email="jane@example.com", confirmed=True))
         assert sent == [("jane@example.com", "sess-9")]
         assert resp.response["status"] == "ok"
-        assert d.calls == [{"name": "send_resume", "args": {"email": "jane@example.com"}}]
+        assert d.calls == [
+            {"name": "send_resume", "args": {"email": "jane@example.com"}},
+            {"name": "send_resume", "args": {"email": "jane@example.com", "confirmed": True}},
+        ]
 
     @pytest.mark.asyncio
     async def test_note_with_code_is_blocked_before_sending(self) -> None:
@@ -531,3 +538,98 @@ class TestOpenAnything:
         assert [o["target"] for o in resp.response["data"]["canOpenNext"]] == ["agent:pulse:diagram"]
         assert shown == ["live-agents", "agent:pulse"]
 
+
+class TestEmailConfirmation:
+    """Spec 81: a spoken/transcribed email must be read back and explicitly
+    confirmed before anything sends. This is a real gate, not just a prompt
+    hope — it was skipped once in production and a resume went to a wrong
+    address."""
+
+    @pytest.mark.asyncio
+    async def test_the_first_call_never_sends_even_with_confirmed_true(self) -> None:
+        sent = []
+
+        async def fake_resume(email, *, session_id=None):
+            sent.append(email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_resume_fn=fake_resume)
+        # A model that hallucinates confirmed=true with nothing presented yet
+        # must still be refused: there is no prior read-back to have confirmed.
+        resp = await d.run(_call("send_resume", email="jane@example.com", confirmed=True))
+        assert sent == [] and resp.response["status"] == "needs_confirmation"
+
+    @pytest.mark.asyncio
+    async def test_confirming_a_different_address_than_presented_never_sends(self) -> None:
+        sent = []
+
+        async def fake_resume(email, *, session_id=None):
+            sent.append(email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_resume_fn=fake_resume)
+        await d.run(_call("send_resume", email="jane@example.com"))
+        resp = await d.run(_call("send_resume", email="john@example.com", confirmed=True))
+        assert sent == [] and resp.response["status"] == "needs_confirmation"
+
+    @pytest.mark.asyncio
+    async def test_confirming_the_same_address_sends_once(self) -> None:
+        sent = []
+
+        async def fake_resume(email, *, session_id=None):
+            sent.append(email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_resume_fn=fake_resume)
+        await d.run(_call("send_resume", email="Jane@Example.com"))
+        resp = await d.run(_call("send_resume", email="jane@example.com", confirmed=True))
+        assert sent == ["jane@example.com"] and resp.response["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_a_repeated_call_without_confirmed_never_sends(self) -> None:
+        """A model that just calls the tool again with the same address, but
+        forgets confirmed=true, must not be treated as confirmation."""
+        sent = []
+
+        async def fake_resume(email, *, session_id=None):
+            sent.append(email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_resume_fn=fake_resume)
+        await d.run(_call("send_resume", email="jane@example.com"))
+        resp = await d.run(_call("send_resume", email="jane@example.com"))
+        assert sent == [] and resp.response["status"] == "needs_confirmation"
+
+    @pytest.mark.asyncio
+    async def test_send_note_to_gaurav_needs_the_same_confirmation(self) -> None:
+        sent = []
+
+        async def fake_note(visitor_email, message, *, session_id=None):
+            sent.append((visitor_email, message))
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_note_fn=fake_note)
+        await d.run(_call("send_note_to_gaurav", visitor_email="a@b.com", message="Loved the site!"))
+        assert sent == []
+        resp = await d.run(_call(
+            "send_note_to_gaurav", visitor_email="a@b.com", message="Loved the site!", confirmed=True))
+        assert sent == [("a@b.com", "Loved the site!")] and resp.response["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_confirmations_for_the_two_tools_are_independent(self) -> None:
+        resume_sent, note_sent = [], []
+
+        async def fake_resume(email, *, session_id=None):
+            resume_sent.append(email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        async def fake_note(visitor_email, message, *, session_id=None):
+            note_sent.append(visitor_email)
+            return {"ok": True, "code": "ok", "message": "Sent."}
+
+        d = live_brain.ToolDispatcher("s", send_resume_fn=fake_resume, send_note_fn=fake_note)
+        await d.run(_call("send_resume", email="jane@example.com"))
+        # Confirming the NOTE tool must not be satisfied by the resume's pending entry.
+        resp = await d.run(_call("send_note_to_gaurav", visitor_email="jane@example.com",
+                                 message="Hi there", confirmed=True))
+        assert note_sent == [] and resp.response["status"] == "needs_confirmation"

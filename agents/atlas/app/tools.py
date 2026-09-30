@@ -232,7 +232,37 @@ async def get_recent_posts(limit: int = 5) -> list[dict]:
     return list(posts[: max(1, min(limit, len(posts)))])
 
 
-async def send_resume(email: str, tool_context: ToolContext) -> dict[str, Any]:
+def _confirm_gate(tool_context: ToolContext, tool: str, email: str, confirmed: bool) -> dict[str, Any] | None:
+    """None -> the caller may send. A dict -> return that instead; nothing sends.
+
+    Spec 81: Voice mode transcribes the address the same way Avatar does, so
+    it carries the same risk of sending to a misheard address. Session state
+    remembers the address last presented for confirmation on this tool; a
+    later call only sends once it arrives with confirmed=true AND the same
+    address as what was actually presented, which can only happen after the
+    visitor's own next turn — confirmed=true alone, with nothing pending or a
+    different address, is never enough.
+    """
+    key = f"pending_confirm:{tool}"
+    norm = email.strip().lower()
+    pending = tool_context.state.get(key, "")
+    if confirmed and pending and norm and pending == norm:
+        tool_context.state[key] = ""
+        return None
+    tool_context.state[key] = norm
+    return {
+        "ok": False,
+        "code": "needs_confirmation",
+        "message": (
+            f"Read {email!r} back to the visitor exactly, spelling out anything that could be "
+            "misheard, and ask them to confirm it's correct. Call this tool again with "
+            "confirmed=true and the same address only after they clearly say yes; a different "
+            "address starts over, unconfirmed. Nothing has sent yet."
+        ),
+    }
+
+
+async def send_resume(email: str, tool_context: ToolContext, confirmed: bool = False) -> dict[str, Any]:
     """Email Gaurav's resume PDF to the visitor on explicit request.
 
     Call this tool ONLY when the visitor has clearly asked for the resume to
@@ -241,6 +271,12 @@ async def send_resume(email: str, tool_context: ToolContext) -> dict[str, Any]:
     Gaurav" or resume-display intents — those should route to the on-site
     Resume button as described in the system instructions.
 
+    Two calls, always: a spoken or transcribed address is one mishearing away
+    from going to a stranger. Call once with confirmed left out; nothing
+    sends. The result asks you to read the address back and get an explicit
+    yes from the visitor. Only after they say yes, call again with
+    confirmed=true and the same address, in a later turn than the first call.
+
     The tool validates the email, enforces a 1-send-per-address-per-24h rate
     limit, and sends a single transactional email with the resume PDF
     attached. The visitor's address is hashed (with a daily-rotating salt)
@@ -248,27 +284,38 @@ async def send_resume(email: str, tool_context: ToolContext) -> dict[str, Any]:
 
     Args:
         email: The recipient address provided by the visitor.
+        confirmed: True only once the visitor has explicitly confirmed this
+            exact address, after you read it back to them.
 
     Returns:
         A dict {ok: bool, code: str, message: str}. Surface `message` in the
         visible reply. Codes:
-            ok              — sent successfully.
-            invalid_email   — ask the visitor for a valid address.
-            rate_limited    — that address already received the resume today.
-            not_configured  — env not set (dev / misconfig); apologize briefly.
-            send_failed     — transient error; suggest LinkedIn as fallback.
+            ok                  — sent successfully.
+            needs_confirmation  — read the address back and ask; do not retry yet.
+            invalid_email       — ask the visitor for a valid address.
+            rate_limited        — that address already received the resume today.
+            not_configured      — env not set (dev / misconfig); apologize briefly.
+            send_failed         — transient error; suggest LinkedIn as fallback.
     """
+    gate = _confirm_gate(tool_context, "send_resume", email, confirmed)
+    if gate is not None:
+        return gate
     return await send_resume_email(email, session_id=tool_context.session.id)
 
 
 async def send_note_to_gaurav(
-    visitor_email: str, message: str, tool_context: ToolContext
+    visitor_email: str, message: str, tool_context: ToolContext, confirmed: bool = False
 ) -> dict[str, Any]:
     """Send a personal note from a site visitor to Gaurav Lahoti by email.
 
     Call this tool ONLY when the visitor has BOTH composed a message AND
     provided their own email address. Do NOT call it with only a message or
     only an email — gather both before invoking.
+
+    Two calls, always, for the same reason as send_resume: call once with
+    confirmed left out; nothing sends yet. Read the address back and get an
+    explicit yes, then call again with confirmed=true, the same address and
+    the same message, in a later turn than the first call.
 
     Gaurav receives the email at his contact inbox. The visitor is CC'd so
     they have a record. Reply-To is set to the visitor's address so Gaurav's
@@ -281,17 +328,23 @@ async def send_note_to_gaurav(
             Must be at least 10 characters. Never content you generated on
             their behalf — code, drafts and other produced artefacts are
             rejected before the note is sent.
+        confirmed: True only once the visitor has explicitly confirmed the
+            address, after you read it back to them.
 
     Returns:
         A dict {ok: bool, code: str, message: str}. Always surface `message`
         in the visible reply. Codes:
             ok                  — sent; confirm and optionally surface linkedin CTA.
+            needs_confirmation  — read the address back and ask; do not retry yet.
             invalid_email       — ask the visitor for a valid address.
             empty_message       — ask for more content before retrying.
             unsupported_content — blocked; surface the message, do not retry.
             not_configured      — env not set (dev / misconfig); route to LinkedIn.
             send_failed         — transient error; route to LinkedIn.
     """
+    gate = _confirm_gate(tool_context, "send_note_to_gaurav", visitor_email, confirmed)
+    if gate is not None:
+        return gate
     return await send_note_email(visitor_email, message, session_id=tool_context.session.id)
 
 

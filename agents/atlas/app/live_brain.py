@@ -86,10 +86,10 @@ Small talk ("how are you", "thanks", "that's great") gets a short, warm, human r
 Gaurav built this site, its backend and its agents himself, spec-driven with Claude Code, including his own layer of reusable skills and commands and a reviewer agent that gates the work. Describe that method and why it mattered. Never list the skills, commands, tool names, endpoints or file paths, and never give counts or dates; but never claim the skills or tooling don't exist either. If asked for the list, say you describe how he works rather than listing his setup.
 
 # Resume
-The resume is public. To see it, the visitor uses the Resume link at the top of the page; say that plainly. When the visitor asks for it by email ("can you email me his resume?", "send it to me"), that is an explicit request: if they gave an address, read it back once to confirm, then call send_resume with it once; if not, ask for their address. Don't answer an email request with the Resume link instead. Never call send_resume for "can I see his resume" or "where is his resume".
+The resume is public. To see it, the visitor uses the Resume link at the top of the page; say that plainly. When the visitor asks for it by email ("can you email me his resume?", "send it to me"), that is an explicit request: if they haven't given an address, ask for it; if they have, call send_resume(email) once, with no confirmed argument. Its result tells you to read that address back and ask if it's right; do that and stop there, in that same reply, without calling the tool again. Only once they clearly say yes, call send_resume again with confirmed=true and the same address; if they give a different one, start over with that one, unconfirmed. Never call it a second time in the same reply as the first; the visitor has to actually answer in between. Don't answer an email request with the Resume link instead. Never call send_resume for "can I see his resume" or "where is his resume".
 
 # Notes to Gaurav
-You can pass a note to Gaurav. The note must be the visitor's own words; never write it for them. If they want to reach him but haven't said what, ask what they'd like to pass along. If they have a message but no email address, ask for their address. When you have both, read the email address back once to confirm it, spelling out any part that could be misheard, then call send_note_to_gaurav once. Wait for its result, and say that result plainly; never say a note or resume was sent before the tool has answered.
+You can pass a note to Gaurav. The note must be the visitor's own words; never write it for them. If they want to reach him but haven't said what, ask what they'd like to pass along. If they have a message but no email address, ask for their address. When you have both, call send_note_to_gaurav(visitor_email, message) once, with no confirmed argument; nothing sends yet. Read the address back, spelling out anything that could be misheard, and ask if it's right, then stop. Only once they clearly say yes, call it again with confirmed=true, the same address and the same message. Never both calls in one reply. Wait for the second call's result, and say that result plainly; never say a note or resume was sent before the tool has answered.
 Availability: answer from the availability fields in get_profile. For a concrete project, offer to pass a note or point to LinkedIn; mention Topmate only for a quick advisory or mentorship call.
 His only contact email is the one in get_profile; share it only when the visitor clearly wants to contact him.
 
@@ -111,28 +111,42 @@ If you couldn't make out what the visitor said, ask them to say it again rather 
 # instructions for each tool, so they mirror the text agent's.
 
 
-async def send_resume(email: str) -> dict[str, Any]:
+async def send_resume(email: str, confirmed: bool = False) -> dict[str, Any]:
     """Email Gaurav's resume PDF to the visitor on an explicit request.
 
     Call ONLY when the visitor clearly asked for the resume by email AND gave
     an address. Never for "can I see his resume"; that is the Resume link on
     the site.
 
+    Two calls, always, because a spoken address is one mishearing away from
+    going to a stranger. First call with confirmed left out: nothing is sent.
+    The result asks you to read the address back and get an explicit yes.
+    Only after they say yes, call again with confirmed=true and the same
+    address. Never set confirmed=true on your own guess, and never call with
+    confirmed=true in the same turn you first read the address back.
+
     Args:
         email: The recipient address the visitor provided.
+        confirmed: True only once the visitor has explicitly confirmed this
+            exact address, in a later turn than the one that first heard it.
     """
     raise NotImplementedError  # declaration only; ToolDispatcher runs it
 
 
-async def send_note_to_gaurav(visitor_email: str, message: str) -> dict[str, Any]:
+async def send_note_to_gaurav(visitor_email: str, message: str, confirmed: bool = False) -> dict[str, Any]:
     """Send a note from the visitor to Gaurav by email, CC'ing the visitor.
 
     Call ONLY when the visitor has composed a message in their own words AND
     given their email address. Never write the message for them.
 
+    Two calls, always, for the same reason as send_resume: read the address
+    back, get an explicit yes, only then call again with confirmed=true.
+
     Args:
         visitor_email: The visitor's own email address.
         message: The visitor's own message to Gaurav, in their own words.
+        confirmed: True only once the visitor has explicitly confirmed this
+            exact address, in a later turn than the one that first heard it.
     """
     raise NotImplementedError  # declaration only; ToolDispatcher runs it
 
@@ -321,6 +335,10 @@ class ToolDispatcher:
         # Set by the session that relays to the page (spec 78); without one,
         # nothing can be shown and the model is told to describe it instead.
         self.on_show: Callable[[str], None] | None = None
+        # Spec 81: an address given by voice must be read back and confirmed
+        # before anything sends. Keyed by tool name -> the normalized address
+        # last presented for confirmation on that tool.
+        self._pending_confirm: dict[str, str] = {}
 
     async def run(self, call: types.FunctionCall) -> types.FunctionResponse:
         args = dict(call.args or {})
@@ -340,16 +358,24 @@ class ToolDispatcher:
             # never answers it); only a single typed turn gets here.
             return _wrap("unavailable", "There's no call to end here. Just say goodbye.")
         if name == "send_resume":
-            result = await self._send_resume(args.get("email", ""), session_id=self.session_id)
+            email = str(args.get("email", ""))
+            gate = self._confirm_gate("send_resume", email, bool(args.get("confirmed")))
+            if gate is not None:
+                return gate
+            result = await self._send_resume(email, session_id=self.session_id)
             return _wrap("ok" if result.get("ok") else result.get("code", "error"), result.get("message", ""), result)
         if name == "send_note_to_gaurav":
+            visitor_email = str(args.get("visitor_email", ""))
             message = args.get("message")
             # The same content check the text agent runs before Resend is touched.
             if isinstance(message, str) and len(message) > guardrails._MAX_NOTE_CHARS:
                 return _wrap(guardrails.GUARDRAIL_BLOCK_CODE, guardrails.NOTE_TOO_LONG_REPLY)
             if isinstance(message, str) and guardrails.looks_like_code(message):
                 return _wrap(guardrails.GUARDRAIL_BLOCK_CODE, guardrails.NOTE_CODE_REPLY)
-            result = await self._send_note(args.get("visitor_email", ""), message or "", session_id=self.session_id)
+            gate = self._confirm_gate("send_note_to_gaurav", visitor_email, bool(args.get("confirmed")))
+            if gate is not None:
+                return gate
+            result = await self._send_note(visitor_email, message or "", session_id=self.session_id)
             return _wrap("ok" if result.get("ok") else result.get("code", "error"), result.get("message", ""), result)
         fn = self._reads.get(name)
         if fn is None:
@@ -363,6 +389,34 @@ class ToolDispatcher:
         if name == "get_certifications" and isinstance(data, list):
             return _wrap("ok", cert_counts(data), data)
         return _wrap("ok", "Answer from this data only.", data)
+
+    def _confirm_gate(self, tool: str, email: str, confirmed: bool) -> dict[str, Any] | None:
+        """None -> send it. A dict -> return that instead; nothing is sent.
+
+        Spec 81: a spoken email is one mishearing away from going to a
+        stranger (it happened: a resume sent to the wrong address with no
+        real confirmation, just a prompt asking the model to narrate a
+        read-back). The model can call this tool in the same reply it reads
+        the address back in, so wording alone never gated the send. This
+        does: the first call is never allowed to send, whatever `confirmed`
+        says, and a later `confirmed=true` call only sends when the address
+        matches what was actually presented for confirmation. A model can't
+        fabricate the visitor's next turn, so a second, matching call can
+        only follow the visitor's own real answer.
+        """
+        norm = email.strip().lower()
+        pending = self._pending_confirm.get(tool)
+        if confirmed and pending and norm and pending == norm:
+            del self._pending_confirm[tool]
+            return None
+        self._pending_confirm[tool] = norm
+        return _wrap(
+            "needs_confirmation",
+            f"Read {email!r} back to the visitor exactly, spelling out anything that could be "
+            "misheard, and ask them to confirm it's correct. Call this again with confirmed=true "
+            "and the same address only after they clearly say yes; if they give a different "
+            "address, start over with that one. Say nothing was sent yet.",
+        )
 
     async def _show(self, target: str) -> dict[str, Any]:
         if target.strip().lower() in OFF_SITE:
@@ -823,6 +877,14 @@ class LiveConversation:
         self._checked_in = False  # asked "anything else?" since the visitor last spoke
         self.last_activity = time.monotonic()
         self.state = "listening"
+        # A tool call in flight: see _COMPLETES_NOTE. Counts calls whose
+        # closing turn_complete hasn't arrived yet. This is independent of
+        # turn boundaries, not per-turn state: an interrupt used to zero it
+        # here via _reset_turn(), so a barge-in during a tool call (show_on_site
+        # doing a live agents.json fetch, say) desynced it, splitting or
+        # swallowing a later, unrelated turn. Set once, only ever touched by
+        # a tool call starting or its turn_complete arriving.
+        self._completes_to_skip = 0
         self._reset_turn()
 
     def _reset_turn(self) -> None:
@@ -832,9 +894,6 @@ class LiveConversation:
         self._last_heard_at: float | None = None
         self._first_word_at: float | None = None
         self._last_media_at: float | None = None
-        # A tool call inside the turn: see _COMPLETES_NOTE. The visitor's turn
-        # stays open past it, so filler and answer are one reply, not two.
-        self._completes_to_skip = 0
 
     async def open(self) -> None:
         self._cm = avatar_speak._get_client().aio.live.connect(
@@ -849,6 +908,12 @@ class LiveConversation:
         # A fresh session: the browser gets the stream from its first frame.
         self._trim.release()
         self._tasks = [asyncio.ensure_future(self._read()), asyncio.ensure_future(self._tick())]
+        # Spec 81: warm the agents cache now, off the critical path, so the
+        # first "open Pulse" of the call doesn't pay a live agents.json fetch
+        # inside the tool call (widening the window for a barge-in to land
+        # mid-tool-call and desync turn state). Best effort; a cache miss here
+        # just means resolve_show_target() fetches it live as before.
+        asyncio.ensure_future(corpus_live.get_agents())
 
     async def seed(self, history: list[types.Content]) -> None:
         """Earlier turns of the chat, as context only: not answered."""
@@ -907,19 +972,27 @@ class LiveConversation:
                 async for msg in self._session.receive():
                     if msg.tool_call and msg.tool_call.function_calls:
                         calls = list(msg.tool_call.function_calls)
-                        if any(c.name == "end_conversation" for c in calls):
-                            # Spec 79: never answered. An answer makes the model
-                            # talk again ("let me know when you're ready..."), or
-                            # read the result aloud. The goodbye it said before
-                            # the call plays out, then the call ends (_tick).
+                        other_calls = [c for c in calls if c.name != "end_conversation"]
+                        if len(other_calls) != len(calls):
+                            # Spec 79: end_conversation is never answered. An
+                            # answer makes the model talk again ("let me know
+                            # when you're ready..."), or read the result aloud.
+                            # The goodbye it said before the call plays out,
+                            # then the call ends (_tick).
                             self.dispatcher.calls.append({"name": "end_conversation", "args": {}})
                             self._ending = True
                             self._end_at = time.monotonic() + END_MAX_S
+                        if other_calls:
+                            # Spec 81: a real tool batched alongside
+                            # end_conversation still runs and gets answered;
+                            # only end_conversation itself goes unanswered.
+                            self._completes_to_skip += 1
+                            if not self._said:
+                                await self._put_state("thinking")
+                            asyncio.ensure_future(self._respond(other_calls))
+                        else:
+                            # Every call in this message was end_conversation.
                             continue
-                        self._completes_to_skip += 1
-                        if not self._said:
-                            await self._put_state("thinking")
-                        asyncio.ensure_future(self._respond(calls))
                     sc = msg.server_content
                     if not sc:
                         continue
