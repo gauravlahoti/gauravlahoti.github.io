@@ -990,7 +990,18 @@ async function initGrid() {
     const deepId = new URLSearchParams(location.search).get("agent");
     if (deepId) {
         const target = agents.find(a => a.id === deepId);
-        if (target) buildPanel(target).then(panel => { panel._agentId = target.id; openPanel(panel); });
+        // Spec 80: ?view=diagram (Atlas opening "its diagram") goes straight to
+        // the fullscreen diagram, the same way the expand button does. Read it
+        // now: openPanel() rewrites the URL to ?agent=<id>.
+        const wantDiagram = new URLSearchParams(location.search).get("view") === "diagram";
+        if (target) buildPanel(target).then(panel => {
+            panel._agentId = target.id;
+            openPanel(panel);
+            if (wantDiagram) {
+                const expand = panel.querySelector(".agent-diag-expand");
+                if (expand) setTimeout(() => expand.click(), 450); // after the panel's slide-in
+            }
+        });
     }
 
     const { bar, emptyState } = buildSearchBar(agents, cards);

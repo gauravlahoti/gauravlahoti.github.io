@@ -44,6 +44,7 @@ CASES: list[list[tuple[str, str, str]]] = [
         ("compound", "Where does he work now, and can you email me his resume?", "answers, then asks for the address"),
         ("garbled", "uh the the cert thing with the um", "asks to repeat or clarifies"),
         ("lang", "¿Dónde trabaja Gaurav?", "answers in Spanish, grounded"),
+        ("smalltalk", "Yes, how are you?", "a warm human reply, no self-description"),
     ],
 ]
 

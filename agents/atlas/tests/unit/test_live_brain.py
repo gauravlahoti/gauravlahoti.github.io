@@ -60,6 +60,8 @@ class TestSpeechInstruction:
         "never write it for them",                   # notes are the visitor's words
         "ask them to say it again",                  # half-heard speech
         "pay, age, family",                          # private life
+        "Small talk",                                # spec 80: "how are you" isn't "what are you"
+        "Never say something can't be shown without trying show_on_site first",
     ])
     def test_keeps_the_rule(self, rule: str) -> None:
         assert rule in self.P
@@ -476,4 +478,56 @@ class TestShowOnSite:
         for c in concepts:
             slug = c["href"].strip("/").split("/")[-1]
             assert slug in live_brain.SHOW_TARGETS or slug in live_brain.OFF_SITE, slug
+
+
+class TestOpenAnything:
+    """Spec 80: agents, their diagrams and the Loops layers open by name, from
+    a catalog built from agents.json, and each opening says what's next."""
+
+    AGENTS: ClassVar[list[dict]] = [
+        {"id": "pulse", "name": "Pulse", "headline": "Ambient digest", "diagramSvg": "d/pulse.svg"},
+        {"id": "error-lens", "name": "ErrorLens", "headline": "Triage", "diagramSvg": "d/el.svg"},
+        {"id": "nodiag", "name": "No Diagram", "headline": "x"},
+    ]
+
+    @pytest.fixture(autouse=True)
+    def _agents(self, monkeypatch) -> None:
+        async def get_agents():
+            return self.AGENTS
+        monkeypatch.setattr(live_brain.corpus_live, "get_agents", get_agents)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("raw", "key"), [
+        ("agent:pulse", "agent:pulse"),
+        ("agent:Pulse", "agent:pulse"),
+        ("agent:ErrorLens", "agent:error-lens"),
+        ("agent:error lens:diagram", "agent:error-lens:diagram"),
+        ("agent:pulse:diagram", "agent:pulse:diagram"),
+        ("loops:harness", "loops:harness"),
+        ("live-agents", "live-agents"),
+    ])
+    async def test_resolves(self, raw: str, key: str) -> None:
+        found = await live_brain.resolve_show_target(raw)
+        assert found is not None and found[0] == key
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("raw", [
+        "agent:nope", "agent:../x", "agent:", "agent:pulse:source", "agent:nodiag:diagram",
+        "loops:everything", "agent:https://evil.example",
+    ])
+    async def test_never_resolves(self, raw: str) -> None:
+        assert await live_brain.resolve_show_target(raw) is None
+
+    @pytest.mark.asyncio
+    async def test_opening_the_agents_page_says_what_can_open_next(self) -> None:
+        d = live_brain.ToolDispatcher("s-80")
+        shown: list[str] = []
+        d.on_show = shown.append
+        resp = await d.run(_call("show_on_site", target="live-agents"))
+        nxt = [o["target"] for o in resp.response["data"]["canOpenNext"]]
+        assert "agent:pulse" in nxt and "agent:pulse:diagram" in nxt and "agent:nodiag:diagram" not in nxt
+        assert "agent:" not in resp.response["message"]  # keys stay out of what's read aloud
+        resp = await d.run(_call("show_on_site", target="agent:pulse"))
+        assert [o["target"] for o in resp.response["data"]["canOpenNext"]] == ["agent:pulse:diagram"]
+        assert shown == ["live-agents", "agent:pulse"]
 

@@ -51,3 +51,19 @@ test("unknown keys resolve to nothing", () => {
     }
     assert.equal(resolveTarget("mcp-lab").path, "/ai-labs/mcp-lab/");
 });
+
+// Spec 80: things inside pages, by pattern.
+test("agents, their diagrams and Loops layers resolve to paths on this site", () => {
+    assert.equal(resolveTarget("agent:pulse").path, "/live-agents/?agent=pulse");
+    assert.equal(resolveTarget("agent:error-lens:diagram").path, "/live-agents/?agent=error-lens&view=diagram");
+    assert.equal(resolveTarget("loops:harness").path, "/ai-labs/engineering-loops/#harness");
+});
+
+test("pattern keys never reach outside the site", () => {
+    for (const key of [
+        "agent:../x", "agent:a/b", "agent:x.y", "agent:https://evil.example", "agent:", "agent:Pulse",
+        "agent:pulse:source", "agent:pulse:diagram:x", "loops:everything", "loops:__proto__", "loops:",
+    ]) {
+        assert.equal(resolveTarget(key), null, key);
+    }
+});

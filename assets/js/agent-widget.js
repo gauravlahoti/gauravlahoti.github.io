@@ -353,7 +353,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
     }
 
     async function startConversation() {
-        if (avatarResting) { handOffToVoice(avatarRestReason); return; }
+        if (avatarResting) { renderRestCard(); return; }
         if (convo || !avatar || isPending) return;
         const c = convoControls;
         c.start.disabled = true;
@@ -533,10 +533,16 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (s.turn) s.turn.done = true;
         s.face.abort();
         panel.classList.remove("is-conversing");
+        // Spec 80: a page open beside the call floats the panel down to just
+        // the face. Ending the call always brings the full panel back, so
+        // "Start conversation" (or the rest card) is on screen right away —
+        // otherwise the call had already ended, invisibly, behind the small
+        // floating face, and looked like saying goodbye did nothing.
+        setFloating(false);
         resetConvoControls();
         liveRegion.textContent = "Conversation ended.";
         refreshSendMode();
-        if (end && end.capped) handOffToVoice(end.reason);
+        if (end && end.capped) restAvatar(end.reason);
         else if (end && end.reason) showConvoHint(end.reason);
     }
 
@@ -566,14 +572,56 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // which draws on the separate chat budget, says so in one line, and
     // asks the pending question there if there is one. Voice's audio
     // unlocks on the visitor's next tap, the same gesture a send uses.
-    function handOffToVoice(reason, question) {
+    // Spec 80: out of avatar time for today. The visitor stays in Avatar and
+    // sees why, on the face itself, with one button to carry on in Voice (or
+    // Text). The chat gets one line the first time the cap is hit on this
+    // page, never again. It used to switch modes on its own and add the same
+    // line on every tap. A question that couldn't be asked goes back in the
+    // composer, and the button asks it.
+    let restNoted = false;
+    let restQuestion = null;
+    function restAvatar(reason, question) {
         avatarResting = true;
         avatarRestReason = reason || "That's all the avatar time for today.";
         try { localStorage.setItem(AVATAR_REST_KEY, todayUtc()); } catch (_) { /* private mode */ }
-        const to = FEATURES.speakReplies ? "voice" : "text";
-        appendSystem(`${avatarRestReason} Switching you to ${to === "voice" ? "Voice" : "Text"}.`);
-        liveRegion.textContent = `${avatarRestReason} Switched to ${to}.`;
-        Promise.resolve(selectMode(to)).then(() => {
+        if (!restNoted) {
+            restNoted = true;
+            appendSystem(`${avatarRestReason} Atlas is back on video tomorrow.`);
+        }
+        liveRegion.textContent = avatarRestReason;
+        if (question) {
+            restQuestion = question;
+            input.value = question;
+            autoGrowInput();
+        }
+        renderRestCard();
+    }
+    function renderRestCard() {
+        const slot = panel.querySelector(".agent-avatar-slot");
+        if (!slot || !avatarResting) return;
+        let card = slot.querySelector(".agent-avatar-rest");
+        if (!card) {
+            card = document.createElement("div");
+            card.className = "agent-avatar-rest";
+            card.setAttribute("role", "status");
+            const text = document.createElement("p");
+            text.className = "agent-avatar-rest-text";
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "agent-convo-btn agent-avatar-rest-btn";
+            btn.addEventListener("click", continueWithoutAvatar);
+            card.append(text, btn);
+            slot.appendChild(card);
+        }
+        const to = FEATURES.speakReplies ? "Voice" : "Text";
+        card.querySelector("p").textContent = `${avatarRestReason} Atlas is back on video tomorrow.`;
+        card.querySelector("button").textContent = restQuestion ? `Ask this in ${to}` : `Continue in ${to}`;
+        slot.classList.add("is-resting");
+    }
+    function continueWithoutAvatar() {
+        const question = restQuestion || input.value.trim();
+        restQuestion = null;
+        Promise.resolve(selectMode(FEATURES.speakReplies ? "voice" : "text")).then(() => {
             if (!question || isPending) return;
             input.value = question;
             sendCurrent();
@@ -759,6 +807,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         // Switched away again while it was still loading.
                         if (!avatarOn) { unmount(); return; }
                         mountConvoControls(slot, stage.canSpeak);
+                        renderRestCard(); // spec 80: out of avatar time today
                         avatar = {
                             canSpeak: stage.canSpeak,
                             pause: stage.pause,
@@ -812,11 +861,12 @@ export function initAgentWidget(root, profile, pageSessionId) {
             if (avatarOn) { writeAvatarPref(false); setAvatarMode(false); }
             if (!speakerOn) ready = enableSpeaker();
         } else if (mode === "avatar") {
-            // Spec 72: already out for today; don't show a face that can't talk.
-            if (avatarResting) { handOffToVoice(avatarRestReason); return ready; }
+            // Spec 80: out for today still opens Avatar; the face shows why
+            // and offers Voice (renderRestCard, once the stage mounts). No
+            // greeting: it can't talk today.
             silenceSpeakerForAvatar();
             writeAvatarPref(true);
-            const greet = takeAvatarGreeting();
+            const greet = !avatarResting && takeAvatarGreeting();
             if (greet) greetingWordsEl = null;
             setAvatarMode(true, { autoplay: greet });
         }
@@ -1684,9 +1734,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         // Spec 67: out of avatar answers for today. Don't spend a request
         // finding that out again; offer the other modes for this question.
         if (FEATURES.avatarMode && avatarOn && avatarResting) {
-            input.value = "";
-            autoGrowInput();
-            handOffToVoice(avatarRestReason, text);
+            restAvatar(avatarRestReason, text);
             return;
         }
         // Spec 67: in Avatar mode the face speaks this answer instead of the
@@ -1994,8 +2042,8 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (clearPending) { clearConversation(); return; }
         syncClearBtn();
         if (cappedReason && !wasStopped) {
-            userLi.remove(); // sendCurrent() shows the question again in Voice
-            handOffToVoice(cappedReason, text);
+            userLi.remove(); // the rest card's button asks it again in Voice
+            restAvatar(cappedReason, text);
         }
     }
 

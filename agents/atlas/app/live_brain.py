@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 import struct
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -29,7 +30,7 @@ from typing import Any
 
 from google.genai import types
 
-from app import guardrails
+from app import corpus_live, guardrails
 from app import tools as portfolio_tools
 from app.app_utils import avatar_speak
 from app.app_utils.note_send import send_note_email
@@ -72,14 +73,14 @@ If a tool returns no results, say so instead of searching again with variations.
 - A question with a request in it: answer what you can first, then ask for the one missing thing as your last sentence.
 
 # Showing the site
-When the visitor asks to see, open or go to something on the site ("show me the labs", "take me to his career", "open the MCP lab"), call show_on_site with the closest target, then say in one short line what's now on screen. If they ask about something you could show, you may offer to open it; open it only once they say yes. Never open a page on your own, and at most one per turn. The Agentic RAG lab can't open here; say it's linked from the AI Labs page.
+You can open anything a visitor could click to themselves: a section, a page, a lab or one of its layers, one of his agents, or an agent's architecture diagram. When they ask to see, open or go to something ("show me the labs", "open Pulse", "show me its diagram", "the harness layer"), call show_on_site with the closest target; "it" means what you were just talking about. Then say in one short line what's now on screen. The result lists what can be opened next from there; use it for follow-ups, and never read it out. If they ask about something you could show, you may offer to open it; open it only once they say yes. Never open something on your own, and at most one per turn. Never say something can't be shown without trying show_on_site first. The Agentic RAG lab can't open here; say it's linked from the AI Labs page.
 
 # Ending the call
 When the visitor says goodbye, says they're done or that's all, or asks to end or close the conversation: say one short, warm goodbye first, then call end_conversation, and say nothing after it. Don't end the call for any other reason, and never read out what the tool returns.
 A bracketed note from the site means the visitor has gone quiet: ask once, in one short sentence, whether there's anything else or whether to wrap up. If they then say no or that's all, say goodbye and call end_conversation.
 
 # About you
-If asked whether you are Gaurav, a person, or what you are: you are Atlas, an AI agent that represents him on this site, you can get things wrong, and for anything important the visitor should reach Gaurav directly. For how you work or what you run on, call get_live_agents and answer from your own entry.
+Small talk ("how are you", "thanks", "that's great") gets a short, warm, human reply in your own words, then one light offer to help; don't describe yourself. Only when asked whether you are Gaurav, a person, or what you are: you are Atlas, an AI agent that represents him on this site, you can get things wrong, and for anything important the visitor should reach Gaurav directly. For how you work or what you run on, call get_live_agents and answer from your own entry.
 
 # How the site was built
 Gaurav built this site, its backend and its agents himself, spec-driven with Claude Code, including his own layer of reusable skills and commands and a reviewer agent that gates the work. Describe that method and why it mattered. Never list the skills, commands, tool names, endpoints or file paths, and never give counts or dates; but never claim the skills or tooling don't exist either. If asked for the list, say you describe how he works rather than listing his setup.
@@ -165,6 +166,11 @@ SHOW_TARGETS: dict[str, str] = {
     "agent-ready": "The Agent-Ready Web lab",
     "live-agents": "The Live Agents page",
 }
+# Spec 80: the Engineering Loops lab deep-links to its layers by hash.
+LOOPS_LAYERS: dict[str, str] = {
+    "prompt": "prompt engineering", "context": "context engineering",
+    "harness": "harness engineering", "loop": "loop engineering",
+}
 # Real places that can't open inside the site.
 OFF_SITE: dict[str, str] = {
     "rag-lab": "The Agentic RAG lab runs on its own site, so it can't open here. "
@@ -179,11 +185,17 @@ async def show_on_site(target: str) -> dict[str, Any]:
     Call it only when the visitor asks to see, open or go to something, or
     says yes to your offer to show it. At most once per turn.
 
+    "Open Pulse", "show me its diagram", "the harness layer" are all asks to
+    open something; resolve "it" from the conversation.
+
     Args:
         target: One of top, career, about, insights (sections of the home
             page); labs (the AI Labs page); mcp-lab, engineering-loops,
-            agent-ready, rag-lab (one lab); live-agents (the page of agents
-            he built).
+            agent-ready, rag-lab (one lab); loops:prompt, loops:context,
+            loops:harness, loops:loop (one layer of the Engineering Loops
+            lab); live-agents (the page of agents he built); agent:<name>
+            (one agent he built, e.g. agent:pulse) or agent:<name>:diagram
+            (that agent's architecture diagram).
     """
     raise NotImplementedError("run by ToolDispatcher, which owns the screen")
 
@@ -228,6 +240,59 @@ def live_config() -> types.LiveConnectConfig:
     )
 
 
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+async def resolve_show_target(raw: str) -> tuple[str, str] | None:
+    """(key, title) for a target the site can show, or None. Agent targets
+    are checked against agents.json (live, so a new agent can be opened with
+    no code change) and accept its id or its name ("agent:ErrorLens")."""
+    t = raw.strip().lower()
+    if t in SHOW_TARGETS:
+        return t, SHOW_TARGETS[t]
+    if t.startswith("loops:") and t[6:] in LOOPS_LAYERS:
+        return t, f"The {LOOPS_LAYERS[t[6:]]} layer of the Engineering Loops lab"
+    if t.startswith("agent:"):
+        rest = t[6:]
+        diagram = rest.endswith(":diagram")
+        want = _slug(rest[: -len(":diagram")] if diagram else rest)
+        if not want:
+            return None
+        for a in await corpus_live.get_agents():
+            aid, name = str(a.get("id") or ""), str(a.get("name") or "")
+            if want not in (aid, _slug(name)) or not re.fullmatch(r"[a-z0-9-]+", aid):
+                continue
+            if diagram:
+                return (f"agent:{aid}:diagram", f"{name}'s architecture diagram") if a.get("diagramSvg") else None
+            return f"agent:{aid}", f"{name}, on the Live Agents page"
+    return None
+
+
+async def openable_from(key: str) -> list[dict[str, str]]:
+    """What the visitor can open next from what's now on screen (spec 80), so
+    "open Pulse" or "now its diagram" needs no keyword. Goes in the result's
+    data, never its message: the model reads a message aloud."""
+    if key == "live-agents" or key.startswith("agent:"):
+        agents = await corpus_live.get_agents()
+        if key.startswith("agent:"):
+            aid = key.split(":")[1]
+            agents = [a for a in agents if a.get("id") == aid and a.get("diagramSvg")]
+            return [{"target": f"agent:{a['id']}:diagram", "what": f"{a.get('name')}'s architecture diagram"} for a in agents]
+        out = []
+        for a in agents:
+            out.append({"target": f"agent:{a.get('id')}", "what": f"{a.get('name')}: {a.get('headline') or a.get('role') or ''}".strip(": ")})
+            if a.get("diagramSvg"):
+                out.append({"target": f"agent:{a.get('id')}:diagram", "what": f"{a.get('name')}'s architecture diagram"})
+        return out
+    if key == "engineering-loops" or key.startswith("loops:"):
+        return [{"target": f"loops:{k}", "what": f"the {v} layer"} for k, v in LOOPS_LAYERS.items()]
+    if key == "labs":
+        return [{"target": k, "what": SHOW_TARGETS[k]} for k in ("mcp-lab", "engineering-loops", "agent-ready")] + [
+            {"target": "rag-lab", "what": "The Agentic RAG lab (linked only, runs on its own site)"}]
+    return []
+
+
 def _wrap(status: str, message: str, data: Any = None) -> dict[str, Any]:
     body: dict[str, Any] = {"status": status, "retryable": False, "message": message}
     if data is not None:
@@ -269,7 +334,7 @@ class ToolDispatcher:
 
     async def _run(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         if name == "show_on_site":
-            return self._show(str(args.get("target", "")).strip().lower())
+            return await self._show(str(args.get("target", "")))
         if name == "end_conversation":
             # A hands-free conversation handles this itself (LiveConversation
             # never answers it); only a single typed turn gets here.
@@ -299,16 +364,21 @@ class ToolDispatcher:
             return _wrap("ok", cert_counts(data), data)
         return _wrap("ok", "Answer from this data only.", data)
 
-    def _show(self, target: str) -> dict[str, Any]:
-        if target in OFF_SITE:
-            return _wrap("off_site", OFF_SITE[target])
-        if target not in SHOW_TARGETS:
-            return _wrap("invalid_argument", f"Nothing called {target!r} can be shown. Pick one of: {', '.join(SHOW_TARGETS)}.")
+    async def _show(self, target: str) -> dict[str, Any]:
+        if target.strip().lower() in OFF_SITE:
+            return _wrap("off_site", OFF_SITE[target.strip().lower()])
+        found = await resolve_show_target(target)
+        if found is None:
+            return _wrap("invalid_argument", f"Nothing called {target!r} can be shown. See the tool's target list.")
         if self.on_show is None:
             return _wrap("unavailable", "Pages can't be opened from here. Say it's linked on the site instead.")
-        self.on_show(target)
-        return _wrap("ok", f"{SHOW_TARGETS[target]} is now on the visitor's screen, beside you. "
-                           "Say in one short line what they're looking at, then offer to walk them through it.")
+        key, title = found
+        self.on_show(key)
+        return _wrap(
+            "ok",
+            f"{title} is now on the visitor's screen, beside you. Say in one short line what they're looking at.",
+            {"canOpenNext": await openable_from(key)},
+        )
 
 
 def cert_counts(certs: list[dict[str, Any]]) -> str:
