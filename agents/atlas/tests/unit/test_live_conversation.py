@@ -178,6 +178,30 @@ class TestEndingTheCall:
             SimpleNamespace(id="t1", name="end_conversation", args={}))
         assert resp.response["status"] == "unavailable"
 
+    @pytest.mark.asyncio
+    async def test_a_real_tool_batched_with_end_conversation_is_still_answered(self, monkeypatch) -> None:
+        """Spec 81: end_conversation used to make the whole message a no-op,
+        dropping any other tool call batched alongside it. Only
+        end_conversation itself should go unanswered."""
+        monkeypatch.setattr(live_brain, "END_TAIL_S", 0.2)
+
+        async def get_certifications():
+            return [{"name": "AWS Certified AI Practitioner"}]
+        monkeypatch.setattr(live_brain, "READ_TOOLS", [get_certifications])
+        batch = SimpleNamespace(function_calls=[
+            SimpleNamespace(id="t1", name="get_certifications", args={}),
+            SimpleNamespace(id="t2", name="end_conversation", args={}),
+        ])
+        convo, out = await _run_convo_keep([
+            _msg(heard="Thanks, bye!"),
+            _msg(tool=batch), "pause",
+            _msg(complete=True),   # closes the (silent) tool-call generation
+            _msg(said="Goodbye!"), _msg(complete=True),  # the spoken goodbye
+        ], seconds=1.0)
+        assert out[-1] == ("end", "goodbye")
+        assert convo._session.tool_responses is not None  # get_certifications WAS answered
+        assert {c["name"] for c in convo.dispatcher.calls} == {"get_certifications", "end_conversation"}
+
 
 # --- the route ------------------------------------------------------------------
 
@@ -444,6 +468,57 @@ class TestFillerBeforeTools:
         ], seconds=1.5)
         assert [v for k, v in out if k == "show"] == ["mcp-lab"]
         assert [v["answer"] for k, v in out if k == "turn_end"] == ["That's his MCP lab, open beside me."]
+
+
+class TestInterruptDuringATool:
+    """Spec 81: a tool call in flight when the visitor barges in used to have
+    its "still owed" count wiped by the interrupt (_reset_turn cleared it).
+    When that tool's own turn_complete arrived late, it either split the next
+    real reply in two or was silently swallowed and ate a later, unrelated
+    turn_complete instead — read as the avatar going quiet or replying late."""
+
+    @pytest.mark.asyncio
+    async def test_a_late_tool_completion_after_a_barge_in_does_not_split_the_next_reply(self) -> None:
+        call = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="show_on_site", args={"target": "labs"})])
+        out = await _run_convo([
+            _msg(heard="Show me the labs."),
+            _msg(tool=call), "pause",             # a tool call starts; its turn_complete is still owed
+            _msg(interrupted=True),               # barge-in before the tool answers
+            _msg(heard="Actually, where does he work?"),
+            _msg(said="He works at Deloitte."),
+            "pause",
+            _msg(complete=True),                  # the stale tool call's own turn_complete, arriving late
+            _msg(said=" Full time."),
+            _msg(complete=True),                  # the real end of THIS reply
+        ], seconds=1.5)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert [t["status"] for t in turns] == ["interrupted", "ok"]
+        assert turns[1]["question"] == "Actually, where does he work?"
+        assert turns[1]["answer"] == "He works at Deloitte. Full time."
+
+    @pytest.mark.asyncio
+    async def test_two_tools_interrupted_between_them_both_get_skipped(self) -> None:
+        """Two tool calls can end up "still owed" at once: one from before the
+        barge-in (never closed), one from the new question after it. Both
+        turn_completes must be swallowed before the real reply ends."""
+        first = SimpleNamespace(function_calls=[SimpleNamespace(id="t1", name="get_projects", args={})])
+        second = SimpleNamespace(function_calls=[SimpleNamespace(id="t2", name="get_live_agents", args={})])
+        out = await _run_convo([
+            _msg(heard="What has he shipped?"),
+            _msg(tool=first), "pause",
+            _msg(interrupted=True),
+            _msg(heard="Never mind, his certifications?"),
+            _msg(tool=second), "pause",
+            _msg(said="He holds several."), "pause",
+            _msg(complete=True),   # first (stale) tool's completion
+            _msg(complete=True),   # second tool's completion
+            _msg(said=" certifications."),
+            _msg(complete=True),   # the real end of this reply
+        ], seconds=2.5)
+        turns = [v for k, v in out if k == "turn_end"]
+        assert [t["status"] for t in turns] == ["interrupted", "ok"]
+        assert turns[1]["question"] == "Never mind, his certifications?"
+        assert turns[1]["answer"] == "He holds several. certifications."
 
 
 class TestToolCallsStayServerSide:

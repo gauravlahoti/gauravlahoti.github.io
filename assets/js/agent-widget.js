@@ -808,6 +808,17 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         if (!avatarOn) { unmount(); return; }
                         mountConvoControls(slot, stage.canSpeak);
                         renderRestCard(); // spec 80: out of avatar time today
+                        // Spec 81: an explicit, always-there way back to the
+                        // full panel while floating, distinct from tapping the
+                        // face itself (easy to miss on its own).
+                        const restoreBtn = document.createElement("button");
+                        restoreBtn.type = "button";
+                        restoreBtn.className = "agent-avatar-restore";
+                        restoreBtn.setAttribute("aria-label", "Restore the full panel");
+                        restoreBtn.title = "Restore panel";
+                        restoreBtn.innerHTML = "\u2921";
+                        restoreBtn.addEventListener("click", (e) => { e.stopPropagation(); setFloating(false); });
+                        slot.appendChild(restoreBtn);
                         avatar = {
                             canSpeak: stage.canSpeak,
                             pause: stage.pause,

@@ -5341,10 +5341,18 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     .site-stage { transition: none; }
 }
 
-/* Spec 78: with a page on screen the panel floats as a small face, with Mute
-   and End, so the whole page is visible and the call carries on. A click on
-   the face brings the full panel back over the page. On desktop it keeps the
-   panel's own corner, above the launcher. */
+/* Spec 78/81: with a page on screen the panel floats as a small face, with
+   Mute and End, so the whole page is visible and the call carries on. A
+   click on the face brings the full panel back over the page (except on the
+   controls themselves, or the explicit restore button). On desktop it keeps
+   the panel's own corner, above the launcher.
+
+   Spec 81 fix: the status tag ("Atlas · listening") was force-hidden here,
+   the one readout that the call was still alive — reported as "seems unable
+   to listen at all" while floating. It's kept, and the control row is given
+   guaranteed sizing (not just whatever ambient flex wrapping produced),
+   plus an explicit restore button, since floating this small previously
+   read as having no End, Mute or close control at all. */
 .agent-panel.is-floating {
     width: calc(var(--space-24) * 2);
     min-height: 0;
@@ -5353,13 +5361,59 @@ body[data-site-stage-open="true"] { overflow: hidden; }
 }
 .agent-panel.is-floating > :not(.agent-panel-head),
 .agent-panel.is-floating .agent-panel-head > :not(.agent-avatar-slot),
-.agent-panel.is-floating .agent-convo-hint,
-.agent-panel.is-floating .agent-avatar-tag { display: none; }
-.agent-panel.is-floating .agent-panel-head { padding: var(--space-2); cursor: pointer; }
-.agent-panel.is-floating .agent-avatar { padding-block: var(--space-1); }
+.agent-panel.is-floating .agent-convo-hint { display: none; }
+.agent-panel.is-floating .agent-panel-head {
+    padding: var(--space-2);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+.agent-panel.is-floating .agent-avatar-slot { width: 100%; }
+.agent-panel.is-floating .agent-avatar { padding-block: var(--space-1); width: 100%; }
 .agent-panel.is-floating .agent-avatar-frame { width: 100%; }
-.agent-panel.is-floating .agent-convo { padding-block: var(--space-2) 0; gap: var(--space-1); }
-.agent-panel.is-floating .agent-convo-btn { padding: var(--space-2) var(--space-3); font-size: var(--text-xs); }
+.agent-panel.is-floating .agent-avatar-tag {
+    font-size: 10px;
+    padding: 1px var(--space-1);
+    max-width: calc(100% - var(--space-4));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* An explicit, unmissable way back to the full panel, distinct from "tap
+   anywhere on the face" — that affordance alone was easy to miss. */
+.agent-panel.is-floating .agent-avatar-restore {
+    display: flex;
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    z-index: 1;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--ink);
+    cursor: pointer;
+}
+.agent-panel.is-floating .agent-avatar-restore:hover,
+.agent-panel.is-floating .agent-avatar-restore:focus-visible { border-color: var(--accent); color: var(--accent); }
+.agent-avatar-restore { display: none; }
+.agent-panel.is-floating .agent-convo {
+    width: 100%;
+    flex-wrap: nowrap;
+    padding-block: var(--space-2) 0;
+    gap: var(--space-1);
+}
+.agent-panel.is-floating .agent-convo-btn {
+    flex: 1 1 0;
+    min-height: 36px;
+    padding: var(--space-2) var(--space-1);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+}
 @media (max-width: 767px) {
     .agent-panel.is-floating {
         inset: auto var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)) auto;
