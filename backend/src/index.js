@@ -251,6 +251,11 @@ async function rollupDailyStats(env) {
     return ok === days.length;
 }
 
+// Statuses that are not failures, as a SQL list for the error counts below
+// (spec 82). A visitor talking over the avatar ends the turn on purpose; it
+// must not show up in the digest as an error. A constant, never user input.
+const NOT_AN_ERROR = "('ok', 'interrupted', 'cancelled')";
+
 async function rollupOneDay(env, day) {
     const { results } = await env.DB.prepare(
         `SELECT
@@ -261,7 +266,7 @@ async function rollupOneDay(env, day) {
            (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS turns,
            (SELECT COALESCE(SUM(tokens_input),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_in,
            (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_out,
-           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND status != 'ok') AS errors,
+           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND status NOT IN ${NOT_AN_ERROR}) AS errors,
            (SELECT COUNT(*) FROM send_failures WHERE date(failed_at,'unixepoch') = ?1) AS send_failures,
            (SELECT COUNT(DISTINCT session_id) FROM page_views
               WHERE date(viewed_at,'unixepoch') = ?1 AND session_id IS NOT NULL) AS pageview_sessions,
@@ -398,7 +403,13 @@ async function handleAgentLog(request, env) {
     const turnIndex = body?.turnIndex;
     const question  = body?.question;
     const status    = body?.status;
-    const VALID_STATUSES = new Set(["ok", "error", "injection_blocked", "too_long", "rate_limited"]);
+    // Every status Atlas writes (spec 82). Until then the last four were
+    // rejected with a 400, so off-topic and injection attempts and every
+    // barged-in avatar turn silently never reached D1.
+    const VALID_STATUSES = new Set([
+        "ok", "error", "injection_blocked", "too_long", "rate_limited",
+        "scope_blocked", "injection", "interrupted", "cancelled",
+    ]);
 
     if (typeof sessionId !== "string" || sessionId.length < 1 || sessionId.length > 64) {
         return json({ ok: false, error: "Invalid sessionId" }, 400, {});
@@ -1152,7 +1163,7 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1)                AS downloads,
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1) AS conversations,
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1)                  AS agent_turns,
-               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status != 'ok') AS agent_errors,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status NOT IN ${NOT_AN_ERROR}) AS agent_errors,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations,
                (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1) AS tokens_in,
@@ -1196,7 +1207,7 @@ async function handleAmbientStats(request, env) {
         const errs = await env.DB.prepare(
             `SELECT question, status, error_message, logged_at
              FROM agent_interactions
-             WHERE logged_at > ? AND status != 'ok'
+             WHERE logged_at > ? AND status NOT IN ${NOT_AN_ERROR}
              ORDER BY logged_at DESC
              LIMIT 8`
         ).bind(winStart).all();

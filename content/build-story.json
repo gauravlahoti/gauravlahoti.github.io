@@ -1,6 +1,7 @@
 {
   "summary": [
-    "This site is the portfolio piece, not the frame around it. Gaurav built the whole thing, the static site, the Cloudflare backend, and the agents running on it, spec-driven with Claude Code.",
+    "This site is the portfolio piece, not the frame around it. Gaurav built the whole thing, the static site, its backend and its agents, spec-driven with Claude Code.",
+    "It runs across two clouds. The site is static on GitHub Pages, a small Cloudflare Worker with a D1 database keeps the logs and analytics, and the agents run on Google Cloud: built with Google's Agent Development Kit, hosted on Cloud Run, and answering with Gemini models on Vertex AI. Claude Code is the tool he built it with.",
     "Nothing here is a template. Every feature started as a written spec, got implemented against it, and got reviewed before it shipped.",
     "That is also the honest answer to what he did with the Anthropic certifications. He built this."
   ],

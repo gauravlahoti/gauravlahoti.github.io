@@ -530,6 +530,13 @@ async def _live_avatar_stream(
     except asyncio.CancelledError:
         status = "cancelled"
         raise
+    except GeneratorExit:
+        # The visitor talked over the avatar (`{"abort": true}` on the chat
+        # socket): agent-chat-ws stops reading and closes this generator.
+        # Logged as `ok` until spec 82, which made cut-off answers look like
+        # the avatar truncating itself.
+        status = "interrupted"
+        raise
     except Exception as err:  # noqa: BLE001 - the visitor still gets an answer
         logger.exception("live avatar turn failed")
         status, error_message = "error", type(err).__name__
@@ -1520,6 +1527,10 @@ def register_routes(app: FastAPI) -> None:
             "ua": (ws.headers.get("user-agent") or "")[:500],
             "ref": (ws.headers.get("referer") or "")[:500],
         }
+        # One lookup per conversation, awaited by each turn's audit row (an
+        # awaited-again Task just returns its result). Bounded and
+        # exception-swallowing like the chat route's.
+        geo_task = asyncio.create_task(lookup_geo(raw_ip))
 
         async def refuse(reason: str, kind: str) -> None:
             await ws.send_json({"end": {"reason": reason, "capped": True, "kind": kind}})
@@ -1616,7 +1627,7 @@ def register_routes(app: FastAPI) -> None:
                         turns, turn["first_word_ms"], turn["tools"], turn["spoken_seconds"],
                         turn["spoken_seconds"] * avatar_speak.USD_PER_SPEAKING_SECOND, turn["status"],
                     )
-                    asyncio.create_task(_log_turn(None, {
+                    asyncio.create_task(_log_turn(geo_task, {
                         "sessionId": session_id, "turnIndex": turns,
                         "question": turn["question"][:4000], "response": turn["answer"][:16000],
                         "toolCalls": turn["calls"][:20], "model": avatar_speak.AVATAR_MODEL,

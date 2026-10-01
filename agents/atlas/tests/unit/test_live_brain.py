@@ -62,6 +62,10 @@ class TestSpeechInstruction:
         "pay, age, family",                          # private life
         "Small talk",                                # spec 80: "how are you" isn't "what are you"
         "Never say something can't be shown without trying show_on_site first",
+        "name the choices in that same sentence",     # spec 82: a bare "which one?"
+        "call the tools for both parts together",     # spec 82: denied certs it hadn't fetched
+        "never guess a platform",                     # spec 82: "Cloudflare, rather than GCP"
+        "I want to explore RAG",                      # spec 82: "explore" is an ask to open
     ])
     def test_keeps_the_rule(self, rule: str) -> None:
         assert rule in self.P
@@ -244,6 +248,29 @@ class TestLiveAvatarStream:
         assert fake_turn.logged[0]["response"] == "He holds three AWS certifications."
 
     @pytest.mark.asyncio
+    async def test_a_barge_in_is_logged_as_interrupted(self, fake_turn) -> None:
+        # Spec 82: the visitor talks over the avatar, agent-chat-ws closes the
+        # stream mid-answer. That turn was logged `ok`, so on launch night two
+        # cut-off answers looked like the avatar truncating itself.
+        await api._ensure_session("live-int")
+        stream = api._live_avatar_stream(
+            "live-int", "Tell me about his projects", turn_index=0, identity=None,
+            client_meta={}, geo_task=None, fallback=_fallback(),
+        )
+        async for chunk in stream:
+            if "avatarWords" in chunk:
+                break
+        await stream.aclose()
+        await asyncio.sleep(0)
+        assert fake_turn.logged[0]["status"] == "interrupted"
+        assert FakeTurn.instances[0].closed
+
+    @pytest.mark.asyncio
+    async def test_a_finished_turn_is_still_ok(self, fake_turn) -> None:
+        await _run("live-ok", "Hi")
+        assert fake_turn.logged[0]["status"] == "ok"
+
+    @pytest.mark.asyncio
     async def test_open_failure_answers_in_text_instead(self, fake_turn) -> None:
         FakeTurn.fail_open = True
         events = await _run("live-d", "Hi")
@@ -390,6 +417,9 @@ class TestTurnEndsAfterTheAnswer:
                 break
         turn._reader.cancel()
         assert [v for k, v in events if k == "words"] == ["Let me check.", "He holds an AWS AI cert."]
+        # Spec 82: the logged answer keeps the space between them (it read
+        # "explore further?You can choose" in the launch-night audit log).
+        assert turn.text == "Let me check. He holds an AWS AI cert."
 
 
 
@@ -443,10 +473,17 @@ class TestShowOnSite:
         assert shown == []
 
     @pytest.mark.asyncio
-    async def test_the_off_site_lab_is_a_link_not_a_page(self) -> None:
+    async def test_the_off_site_lab_opens_its_agent_card(self, monkeypatch) -> None:
+        # Spec 82: "explore RAG" used to end in "it's linked from the AI Labs
+        # page". The lab itself is off-site, so its on-site card opens instead.
+        async def get_agents():
+            return [{"id": "agentic-rag", "name": "Agentic RAG", "diagramSvg": "d/rag.svg"}]
+        monkeypatch.setattr(live_brain.corpus_live, "get_agents", get_agents)
         d, shown = self._dispatcher()
         resp = await d.run(_call("show_on_site", target="rag-lab"))
-        assert resp.response["status"] == "off_site" and shown == []
+        assert shown == ["agent:agentic-rag"]
+        assert resp.response["status"] == "ok"
+        assert "linked from this card" in resp.response["message"]
 
     @pytest.mark.asyncio
     async def test_without_a_page_to_show_on_it_says_so(self) -> None:

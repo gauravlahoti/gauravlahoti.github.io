@@ -150,7 +150,11 @@ async function handleAgentLog(req, res) {
     const turnIndex = body?.turnIndex;
     const question  = body?.question;
     const status    = body?.status;
-    const VALID_STATUSES = new Set(["ok", "error", "injection_blocked", "too_long", "rate_limited"]);
+    // Keep in sync with src/index.js (spec 82).
+    const VALID_STATUSES = new Set([
+        "ok", "error", "injection_blocked", "too_long", "rate_limited",
+        "scope_blocked", "injection", "interrupted", "cancelled",
+    ]);
 
     if (typeof sessionId !== "string" || sessionId.length < 1 || sessionId.length > 64) {
         return sendJson(res, 400, { ok: false, error: "Invalid sessionId" }, {});
