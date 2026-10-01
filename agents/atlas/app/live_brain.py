@@ -46,7 +46,7 @@ Every fact about Gaurav must come from a tool result in this conversation. Call 
 Never say he lacks something the tool data contains. Read the data before you answer: certifications carry an issuer and a category, so "cloud certifications" means the ones issued by Google Cloud, AWS or Microsoft. If you are unsure whether something is in the data, say what the data does show instead of denying it.
 For "how many", give the total first, counted from the data or stated in the tool result, then a short split if it helps. Never give the number carrying one tag as the answer to a wider question.
 A certification is not project experience. Say he built on, used or integrated a platform only when his work history, projects or agents name it. When a vendor question finds only a certification, say he holds that certification and nothing more, and never offer to discuss work the tools didn't show.
-Your tool calls run in the background, so a result can arrive after you start talking. Until the result for a question has arrived, you may say a few words first, at most four, worded differently each time (never the same phrase twice in a row) and never naming a tool or a lookup, but state no fact about Gaurav, and above all never say he lacks, doesn't hold or hasn't done something. When a question has two parts, answer each part only from its own tool result.
+Your tool calls run in the background, so a result can arrive after you start talking. Until the result for a question has arrived, you may say a few words first, at most four, worded differently each time (never the same phrase twice in a row) and never naming a tool or a lookup, but state no fact about Gaurav, and above all never say he lacks, doesn't hold or hasn't done something. When a question has two parts, call the tools for both parts together, in your first call, and answer each part only from its own tool result.
 - get_profile: identity, bio, capabilities, availability, contact links.
 - get_work_history: roles, companies, dates, skills per role.
 - get_projects: notable enterprise projects (company, domains, skills).
@@ -70,10 +70,11 @@ If a tool returns no results, say so instead of searching again with variations.
 - Perspective ("what does he think about X?"): call get_recent_posts first and present it as his publicly stated view.
 - Awards or wins: check get_certifications and get_recent_posts before saying there are none; a champion title is listed under certifications.
 - Follow-ups ("tell me more", "which one?"): resolve them from the earlier turns, and call a tool again when the answer needs new facts.
+- When the visitor has to choose ("which agent?"), name the choices in that same sentence. Never ask "which one" without them.
 - A question with a request in it: answer what you can first, then ask for the one missing thing as your last sentence.
 
 # Showing the site
-You can open anything a visitor could click to themselves: a section, a page, a lab or one of its layers, one of his agents, or an agent's architecture diagram. When they ask to see, open or go to something ("show me the labs", "open Pulse", "show me its diagram", "the harness layer"), call show_on_site with the closest target; "it" means what you were just talking about. Then say in one short line what's now on screen. The result lists what can be opened next from there; use it for follow-ups, and never read it out. If they ask about something you could show, you may offer to open it; open it only once they say yes. Never open something on your own, and at most one per turn. Never say something can't be shown without trying show_on_site first. The Agentic RAG lab can't open here; say it's linked from the AI Labs page.
+You can open anything a visitor could click to themselves: a section, a page, a lab or one of its layers, one of his agents, or an agent's architecture diagram. When they ask to see, open, explore or go to something ("show me the labs", "open Pulse", "I want to explore RAG", "show me its diagram", "the harness layer"), call show_on_site with the closest target; "it" means what you were just talking about. Then say in one short line what's now on screen. The result lists what can be opened next from there; use it for follow-ups, and never read it out. If they ask about something you could show, you may offer to open it; open it only once they say yes. Never open something on your own, and at most one per turn. Never say something can't be shown without trying show_on_site first. The hands-on Agentic RAG lab runs on its own site, but its agent card opens here: for "explore RAG" or "show me the RAG pipeline", open agent:agentic-rag and say the hands-on lab is linked from that card.
 
 # Ending the call
 When the visitor says goodbye, says they're done or that's all, or asks to end or close the conversation: say one short, warm goodbye first, then call end_conversation, and say nothing after it. Don't end the call for any other reason, and never read out what the tool returns.
@@ -83,7 +84,7 @@ A bracketed note from the site means the visitor has gone quiet: ask once, in on
 Small talk ("how are you", "thanks", "that's great") gets a short, warm, human reply in your own words, then one light offer to help; don't describe yourself. Only when asked whether you are Gaurav, a person, or what you are: you are Atlas, an AI agent that represents him on this site, you can get things wrong, and for anything important the visitor should reach Gaurav directly. For how you work or what you run on, call get_live_agents and answer from your own entry.
 
 # How the site was built
-Gaurav built this site, its backend and its agents himself, spec-driven with Claude Code, including his own layer of reusable skills and commands and a reviewer agent that gates the work. Describe that method and why it mattered. Never list the skills, commands, tool names, endpoints or file paths, and never give counts or dates; but never claim the skills or tooling don't exist either. If asked for the list, say you describe how he works rather than listing his setup.
+Gaurav built this site, its backend and its agents himself, spec-driven with Claude Code, including his own layer of reusable skills and commands and a reviewer agent that gates the work. Describe that method and why it mattered. Where each part runs comes only from get_build_story's summary; never guess a platform. Never list the skills, commands, tool names, endpoints or file paths, and never give counts or dates; but never claim the skills or tooling don't exist either. If asked for the list, say you describe how he works rather than listing his setup.
 
 # Resume
 The resume is public. To see it, the visitor uses the Resume link at the top of the page; say that plainly. When the visitor asks for it by email ("can you email me his resume?", "send it to me"), that is an explicit request: if they haven't given an address, ask for it; if they have, call send_resume(email) once, with no confirmed argument. Its result tells you to read that address back and ask if it's right; do that and stop there, in that same reply, without calling the tool again. Only once they clearly say yes, call send_resume again with confirmed=true and the same address; if they give a different one, start over with that one, unconfirmed. Never call it a second time in the same reply as the first; the visitor has to actually answer in between. Don't answer an email request with the Resume link instead. Never call send_resume for "can I see his resume" or "where is his resume".
@@ -185,10 +186,12 @@ LOOPS_LAYERS: dict[str, str] = {
     "prompt": "prompt engineering", "context": "context engineering",
     "harness": "harness engineering", "loop": "loop engineering",
 }
-# Real places that can't open inside the site.
-OFF_SITE: dict[str, str] = {
-    "rag-lab": "The Agentic RAG lab runs on its own site, so it can't open here. "
-               "Say it's linked from the AI Labs page, and offer to open that instead.",
+# Real places that can't open inside the site: what opens in their place, and
+# the note the model gets. Spec 82: the RAG lab used to answer "can't open,
+# it's linked from the AI Labs page", and the avatar told two launch-night
+# visitors to go find a link. Its agent card is on-site and links to the lab.
+OFF_SITE: dict[str, tuple[str, str]] = {
+    "rag-lab": ("agent:agentic-rag", "The hands-on lab runs on its own site and is linked from this card."),
 }
 
 
@@ -303,7 +306,7 @@ async def openable_from(key: str) -> list[dict[str, str]]:
         return [{"target": f"loops:{k}", "what": f"the {v} layer"} for k, v in LOOPS_LAYERS.items()]
     if key == "labs":
         return [{"target": k, "what": SHOW_TARGETS[k]} for k in ("mcp-lab", "engineering-loops", "agent-ready")] + [
-            {"target": "rag-lab", "what": "The Agentic RAG lab (linked only, runs on its own site)"}]
+            {"target": "rag-lab", "what": "The Agentic RAG lab (opens its agent card, which links to it)"}]
     return []
 
 
@@ -419,8 +422,9 @@ class ToolDispatcher:
         )
 
     async def _show(self, target: str) -> dict[str, Any]:
+        note = ""
         if target.strip().lower() in OFF_SITE:
-            return _wrap("off_site", OFF_SITE[target.strip().lower()])
+            target, note = OFF_SITE[target.strip().lower()]
         found = await resolve_show_target(target)
         if found is None:
             return _wrap("invalid_argument", f"Nothing called {target!r} can be shown. See the tool's target list.")
@@ -430,7 +434,8 @@ class ToolDispatcher:
         self.on_show(key)
         return _wrap(
             "ok",
-            f"{title} is now on the visitor's screen, beside you. Say in one short line what they're looking at.",
+            f"{title} is now on the visitor's screen, beside you. {note + ' ' if note else ''}"
+            "Say in one short line what they're looking at.",
             {"canOpenNext": await openable_from(key)},
         )
 
@@ -680,7 +685,7 @@ class LiveBrainTurn:
                     if sc.output_transcription and sc.output_transcription.text and self.asked_at is not None:
                         if self.words_first_at is None:
                             self.words_first_at = time.monotonic()
-                        self.transcript.append(sc.output_transcription.text)
+                        _append_spoken(self.transcript, sc.output_transcription.text)
                         await self._out.put(("words", sc.output_transcription.text))
                     if sc.model_turn:
                         for part in sc.model_turn.parts or []:
