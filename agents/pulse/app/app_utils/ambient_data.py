@@ -454,8 +454,10 @@ async def get_site_performance() -> dict[str, Any]:
         # The PageSpeed API rejects Cloud Run's identity token (its scope is
         # cloud-platform), so it uses a key restricted to this one API
         # (Secret Manager `pagespeed-api-key`). The token path is a fallback.
+        # The key goes in a header, never the URL: httpx logs request URLs at
+        # INFO, which put the first key into Cloud Run logs (rotated).
         if os.environ.get("PAGESPEED_API_KEY", "").strip():
-            params["key"] = os.environ["PAGESPEED_API_KEY"].strip()
+            headers = {"X-Goog-Api-Key": os.environ["PAGESPEED_API_KEY"].strip()}
         else:
             headers = {"Authorization": f"Bearer {await asyncio.to_thread(token)}",
                        "X-Goog-User-Project": _PROJECT}
