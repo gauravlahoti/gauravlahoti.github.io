@@ -55,7 +55,7 @@ async function main() {
 
     let entry;
     if (fetched) {
-        const desc = (fetched.description || "").trim();
+        const desc = stripLinkedInSuffix((fetched.description || "").trim());
         const tags = deriveTagsFromUrl(url);
         const textTags = extractTagsFromText(desc);
         entry = {
@@ -179,6 +179,13 @@ function pickMeta(html, prop) {
         if (m) return collapseWhitespace(decodeEntities(m[1]));
     }
     return "";
+}
+
+// LinkedIn appends its own counter to og:description, e.g.
+//   "...#GeminiLive | 15 comments on LinkedIn"
+// That's preview chrome, not post text, so it never belongs in the excerpt.
+function stripLinkedInSuffix(s) {
+    return s.replace(/\s*\|\s*[\d,.]+[kKmM]?\s+(comments?|reactions?|reposts?)( on LinkedIn)?\s*$/i, "").trim();
 }
 
 // LinkedIn's og:description occasionally arrives with long runs of U+00A0
