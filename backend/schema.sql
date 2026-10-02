@@ -70,6 +70,12 @@ ALTER TABLE agent_interactions ADD COLUMN model_fallback_depth INTEGER;
 ALTER TABLE agent_interactions ADD COLUMN thinking_tokens INTEGER;
 ALTER TABLE agent_interactions ADD COLUMN had_thinking     INTEGER;
 
+-- Spec 84: reply mode, avatar spoken seconds, time to first word/token.
+-- Shipped as migration 013-pulse-v2.sql for prod D1.
+ALTER TABLE agent_interactions ADD COLUMN reply_mode     TEXT;
+ALTER TABLE agent_interactions ADD COLUMN avatar_seconds REAL;
+ALTER TABLE agent_interactions ADD COLUMN first_ms       INTEGER;
+
 -- Per-recipient rate-limit ledger for the agent's send_resume action.
 -- Email hashed (sha256 of email + UTC date, first 16 chars) before storage, raw
 -- addresses never persisted. Cleaned by the same retention cron as agent_interactions.
@@ -116,6 +122,10 @@ CREATE INDEX IF NOT EXISTS idx_pv_hash ON page_views(visitor_hash);
 -- into daily_stats' pageview_sessions* columns, never joined to email/name at
 -- the row level in any shipped query. Shipped as migration 011 for prod D1.
 ALTER TABLE page_views ADD COLUMN session_id TEXT;
+
+-- Spec 84: city-level coordinates for Pulse's visitor map (013-pulse-v2.sql).
+ALTER TABLE page_views ADD COLUMN latitude  REAL;
+ALTER TABLE page_views ADD COLUMN longitude REAL;
 
 -- Spec #34 — LinkedIn engagement metrics (reactions, comments, reposts).
 -- post_id is the stable numeric LinkedIn activity id from the post URL.

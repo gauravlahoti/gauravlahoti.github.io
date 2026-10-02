@@ -1,0 +1,51 @@
+{
+  "displayName": "Cost: unexpected always-on Cloud Run",
+  "documentation": {
+    "content": "A Cloud Run service other than atlas has averaged close to one instance for 6 hours, or atlas itself ran more than 2 instances for an hour. The first is how the 2026-09 intake test leak looked (min-instances=1 left on after a test). Check `gcloud run services list` and min-instances; run /cost-optimizer. Spec 83.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Non-atlas service averaging ~1 instance for 6h",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/container/billable_instance_time\" AND resource.labels.service_name != \"atlas\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "3600s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM",
+            "groupByFields": ["resource.label.service_name"]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.8,
+        "duration": "21600s",
+        "trigger": { "count": 1 }
+      }
+    },
+    {
+      "displayName": "atlas above 2 instances for 1h",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/container/instance_count\" AND resource.labels.service_name = \"atlas\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX",
+            "crossSeriesReducer": "REDUCE_SUM",
+            "groupByFields": ["resource.label.service_name"]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "3600s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "notificationChannels": [
+    "projects/gcp-experiments-490306/notificationChannels/16636717936510693287"
+  ],
+  "alertStrategy": { "autoClose": "86400s" },
+  "enabled": true
+}

@@ -26,6 +26,7 @@ from google.genai import types
 
 from app.agent import root_agent
 from app.app_utils.post_metrics import refresh_post_metrics
+from app.app_utils.ambient_send import send_numbers_only
 from app.app_utils.resume_send import warm_mcp_server
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,19 @@ async def _run_ambient_cycle() -> dict[str, Any]:
                     logger.error(
                         "EMAIL_SEND_FAILED [ambient] send_review_email returned not-ok: %s", value
                     )
+
+    # Spec 84 safety net: the model can end a run without sending (it once ran
+    # out of output tokens writing its reasoning as text). Send the
+    # numbers-only digest instead, so the twice-weekly email never silently
+    # goes missing, and report the run as failed so the scheduler goes red.
+    if emails_sent == 0 and email_failure is None:
+        logger.error("EMAIL_SEND_FAILED [ambient] agent ended without sending: calls=%s finish=%s",
+                     call_trace or "<none>", finish_reasons or "<none>")
+        fallback = await send_numbers_only("Pulse's AI write-up didn't finish this run, so this is "
+                                           "the numbers-only version.")
+        if fallback.get("ok"):
+            emails_sent = 1
+        email_failure = "agent_did_not_send"
 
     truncated = any("MAX_TOKENS" in r for r in finish_reasons)
     if truncated:

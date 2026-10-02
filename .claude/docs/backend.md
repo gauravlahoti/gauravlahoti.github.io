@@ -28,8 +28,8 @@ below). Two runtimes share `schema.sql`:
 | `GET/POST /api/post-metrics` | LinkedIn post engagement metrics |
 | `GET/POST /api/agent-log` | Agent audit log (write: `AGENT_LOG_TOKEN`; read: `ADMIN_TOKEN`) |
 | `GET /api/agent-stats` | Public cumulative conversation count (rollup-aware, see Retention below) |
-| `GET /api/ambient/interactions` / `GET /api/ambient/stats` | Pulse's digest data reads (`AGENT_LOG_TOKEN`) |
-| `GET /api/gcp-cost` + `POST /api/gcp-cost-send` | BigQuery billing read + Resend cost alert |
+| `GET /api/ambient/interactions` / `GET /api/ambient/stats` | Pulse's digest data reads (`AGENT_LOG_TOKEN`). Spec 84: take `from`/`to`/`prev_from`/`prev_to` (unix s; the report period and the same span a week earlier; `reportWindow()` in `src/digest.js`), `days` still works. Stats add modes, statuses, pages, referrers, emails, fallback share, posts, map points, countries, 14-day daily, IST hours, funnel and `usage_mtd`, from the shared `src/digest.js` |
+| `GET /api/gcp-cost` + `POST /api/gcp-cost-send` | BigQuery billing read + Resend cost alert. `?view=digest` (spec 84) returns month-to-date net cost by service, the month's daily totals, week-over-week by service and the export's latest timestamp, for Pulse's Cost watch. Table pinned to the live account's export, `gcp_billing_export_v1_014177_2DE01D_E2374B` (spec 83) |
 
 `local-server.js` mirrors these and adds `/health`.
 
@@ -72,7 +72,7 @@ ambient stats response), a failed send now leaves four independent traces.
 
 ### Migrations (`backend/migrations/`)
 
-11 files: Google sign-in fields (001, its write path retired 2026-06-10), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient — duplicate `004` prefix; both run), resume sends (005), page views (006), post metrics (007), note sends (008), send failures (009), `daily_stats` rollup table (010), `model`/`model_fallback_depth`/`send_failures.session_id`+`attempts`+`latency_ms`/`page_views.session_id` (011). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start (`schema.sql` bakes the same columns in directly for fresh installs — keep both in sync, see the `ALTER TABLE` blocks after each base `CREATE TABLE`).
+14 files: Google sign-in fields (001, its write path retired 2026-06-10), agent audit log (002), agent meta columns (003), agent geo fields (004), ambient agent table (004-ambient — duplicate `004` prefix; both run), resume sends (005), page views (006), post metrics (007), note sends (008), send failures (009), `daily_stats` rollup table (010), `model`/`model_fallback_depth`/`send_failures.session_id`+`attempts`+`latency_ms`/`page_views.session_id` (011), `thinking_tokens`/`had_thinking` (012), `reply_mode`/`avatar_seconds`/`first_ms` for Pulse v2 (013). Run via Wrangler D1 migrations in prod; local SQLite auto-applies on start (`schema.sql` bakes the same columns in directly for fresh installs — keep both in sync, see the `ALTER TABLE` blocks after each base `CREATE TABLE`).
 
 ⚠️ **Migration comments must never contain a literal `;` mid-sentence.** `local-server.js`'s
 bootstrap naively splits `schema.sql` on `;` before executing each statement (no real SQL
