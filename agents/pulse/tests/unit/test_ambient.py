@@ -488,3 +488,29 @@ def test_numbers_only_email_keeps_every_number_and_drops_the_ai_parts():
     assert "Gemini 3.8 Flash" not in html and "About this report" not in html
     assert "150 visitors (120 the same days last week)" in html   # TL;DR from the numbers
     assert "Cost watch" in html and "Where visitors are" in html
+
+
+
+@pytest.mark.asyncio
+async def test_a_send_that_fails_with_charts_retries_without_them():
+    # Spec 84: the MCP server once rejected the charts (413, body limit). The
+    # email must still go out, image-free, with every section as HTML.
+    calls = []
+
+    async def send(arguments):
+        calls.append(arguments)
+        return (len(calls) > 1, None, 1)   # first (with charts) fails, retry succeeds
+
+    with patch.dict("os.environ", _SEND_ENV, clear=False):
+        with patch("app.app_utils.ambient_send.get_visitor_stats", new=AsyncMock(return_value=_STATS)), \
+             patch("app.app_utils.ambient_send.get_cost_summary", new=AsyncMock(return_value=_COST)), \
+             patch("app.app_utils.ambient_send.get_post_titles", new=AsyncMock(return_value=_TITLES)), \
+             patch("app.app_utils.ambient_send.get_site_performance", new=AsyncMock(return_value=_PERF)), \
+             patch("app.app_utils.ambient_send.record_send_failure", new=AsyncMock()), \
+             patch("app.app_utils.ambient_send._send_via_mcp", new=send):
+            out = await ambient_send.send_review_email(_TLDR, "<strong>Themes</strong>", _RECS, _run_context())
+    assert out["ok"] is True and "without charts" in out["message"]
+    assert len(calls) == 2
+    assert calls[0].get("attachments") and not calls[1].get("attachments")
+    assert "cid:" not in calls[1]["html"]
+    assert "How people talk to Atlas" in calls[1]["html"] and "Where visitors are" in calls[1]["html"]
