@@ -554,3 +554,40 @@ async def test_pagespeed_uses_the_api_key_when_set():
     # In a header, never the URL (httpx logs URLs, which leaked the first key).
     assert instance.get.call_args.kwargs["headers"] == {"X-Goog-Api-Key": "k-123"}
     assert "key" not in instance.get.call_args.kwargs["params"]
+
+
+
+def test_avatar_card_counts_chats_and_agrees_with_the_modes():
+    # Avatar minutes read 0 while avatar was 60% of chats (minutes were only
+    # recorded from 2 Oct). The card counts avatar chats now.
+    html = _email()
+    assert "Avatar chats" in html and "Avatar minutes" not in html
+    assert ">5</div>" in html and "3.5 min spoken" in html          # 3 avatar + 2 live-call chats
+    untracked = {**_STATS, "modes": [{**m, "avatar_seconds": 0} for m in _STATS["modes"]]}
+    html = _email(stats=untracked)
+    assert "minutes tracked from 2 Oct" in html
+
+
+@pytest.mark.asyncio
+async def test_an_empty_export_is_pending_not_zero_spend():
+    resp = MagicMock(status_code=200, text="{}")
+    resp.json.return_value = {"ok": True, "currency": "INR", "by_service": [], "daily": [], "weeks": []}
+    client, _ = _mock_client(resp)
+    ambient_data._CACHE.clear()
+    with patch.dict("os.environ", {**_ENV, "COST_MONITOR_TOKEN": "tok"}, clear=False), \
+         patch("httpx.AsyncClient", client), \
+         patch.object(ambient_data, "_always_on_services", new=AsyncMock(return_value=None)):
+        out = await ambient_data.get_cost_summary()
+    ambient_data._CACHE.clear()
+    assert out["ok"] is False and out["reason"] == "export_pending"
+    assert "billing data due within a day" in _email(cost=out)
+
+
+def test_a_mid_month_export_says_where_it_starts():
+    from datetime import datetime, timezone
+    raw = {"currency": "INR", "by_service": [{"service": "Cloud Run", "mtd": 60.0}],
+           "daily": [{"day": "2026-10-02", "total": 30.0}, {"day": "2026-10-03", "total": 30.0}], "weeks": []}
+    out = ambient_data.summarize_costs(raw, 1200.0, datetime(2026, 10, 3, 12, tzinfo=timezone.utc))
+    assert out["partial_from"] == "2 Oct"
+    html = _email(cost={**_COST, **out})
+    assert "billed from 2 Oct" in html and "starts 2 Oct, so spend before that isn" in html
