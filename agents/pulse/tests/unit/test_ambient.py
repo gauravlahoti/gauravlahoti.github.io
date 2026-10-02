@@ -551,5 +551,6 @@ async def test_pagespeed_uses_the_api_key_when_set():
         out = await ambient_data.get_site_performance()
     ambient_data._CACHE.clear()
     assert out["score"] == 62
-    assert instance.get.call_args.kwargs["params"]["key"] == "k-123"
-    assert "Authorization" not in instance.get.call_args.kwargs["headers"]
+    # In a header, never the URL (httpx logs URLs, which leaked the first key).
+    assert instance.get.call_args.kwargs["headers"] == {"X-Goog-Api-Key": "k-123"}
+    assert "key" not in instance.get.call_args.kwargs["params"]
