@@ -376,7 +376,7 @@ async function handleSendFail(req, res) {
     try { body = await readJson(req, 4 * 1024); }
     catch (_) { return sendJson(res, 400, { ok: false, error: "Invalid JSON" }, {}); }
     const kind = body?.kind;
-    if (kind !== "resume" && kind !== "note") {
+    if (kind !== "resume" && kind !== "note" && kind !== "digest") {
         return sendJson(res, 400, { ok: false, error: "Invalid kind" }, {});
     }
     const code = body?.code;

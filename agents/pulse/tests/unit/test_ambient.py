@@ -506,11 +506,50 @@ async def test_a_send_that_fails_with_charts_retries_without_them():
              patch("app.app_utils.ambient_send.get_cost_summary", new=AsyncMock(return_value=_COST)), \
              patch("app.app_utils.ambient_send.get_post_titles", new=AsyncMock(return_value=_TITLES)), \
              patch("app.app_utils.ambient_send.get_site_performance", new=AsyncMock(return_value=_PERF)), \
-             patch("app.app_utils.ambient_send.record_send_failure", new=AsyncMock()), \
+             patch("app.app_utils.ambient_send.record_send_failure", new=AsyncMock()) as failed, \
              patch("app.app_utils.ambient_send._send_via_mcp", new=send):
             out = await ambient_send.send_review_email(_TLDR, "<strong>Themes</strong>", _RECS, _run_context())
     assert out["ok"] is True and "without charts" in out["message"]
+    # Pulse's own failure is labelled "digest", not a visitor "note".
+    assert failed.call_args.args[0] == "digest"
     assert len(calls) == 2
     assert calls[0].get("attachments") and not calls[1].get("attachments")
     assert "cid:" not in calls[1]["html"]
     assert "How people talk to Atlas" in calls[1]["html"] and "Where visitors are" in calls[1]["html"]
+
+
+@pytest.mark.asyncio
+async def test_a_missing_export_table_reads_as_pending_not_broken():
+    # The export's table appears only once Google delivers data. The email
+    # and the model must not read that as a permissions problem.
+    resp = MagicMock(status_code=500, text='{"ok":false,"error":"BQ query failed: BQ HTTP 404: Not found: Table x"}')
+    client, _ = _mock_client(resp)
+    env = {**_ENV, "COST_MONITOR_TOKEN": "tok"}
+    ambient_data._CACHE.clear()
+    with patch.dict("os.environ", env, clear=False), patch("httpx.AsyncClient", client), \
+         patch.object(ambient_data, "_always_on_services", new=AsyncMock(return_value=None)):
+        out = await ambient_data.get_cost_summary()
+    ambient_data._CACHE.clear()
+    assert out["reason"] == "export_pending" and "Nothing to fix" in out["detail"]
+    html = _email(cost=out)
+    assert "Google delivers the first data within about a day" in html
+
+
+def test_country_codes_read_as_names():
+    assert ambient_send.country_name("UG") == "Uganda"
+    assert ambient_send.country_name("US") == "US" and ambient_send.country_name("IN") == "India"
+    assert ambient_send.country_name("ZZ") == "ZZ"
+
+
+@pytest.mark.asyncio
+async def test_pagespeed_uses_the_api_key_when_set():
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"lighthouseResult": {"categories": {"performance": {"score": 0.62}}, "audits": {}}}
+    client, instance = _mock_client(resp)
+    ambient_data._CACHE.clear()
+    with patch.dict("os.environ", {"PAGESPEED_API_KEY": "k-123"}, clear=False), patch("httpx.AsyncClient", client):
+        out = await ambient_data.get_site_performance()
+    ambient_data._CACHE.clear()
+    assert out["score"] == 62
+    assert instance.get.call_args.kwargs["params"]["key"] == "k-123"
+    assert "Authorization" not in instance.get.call_args.kwargs["headers"]
