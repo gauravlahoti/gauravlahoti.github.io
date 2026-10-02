@@ -187,9 +187,10 @@ def _rows(rows: list[tuple[str, str]], first_width: str = "70%") -> str:
 Images = list[tuple[str, bytes, str]]
 
 
-def _img(images: Images, cid: str, png: bytes | None, alt: str) -> str:
-    """Register an inline PNG and return its <img>, or "" when there's none."""
-    if not png:
+def _img(images: Images | None, cid: str, png: bytes | None, alt: str) -> str:
+    """Register an inline PNG and return its <img>, or "" when there's none
+    (or when charts are off, images=None: every section falls back to HTML)."""
+    if not png or images is None:
         return ""
     images.append((cid, png, alt))
     return (f'<img src="cid:{cid}" width="560" alt="{_esc(alt)}" '
@@ -928,11 +929,13 @@ def build_email(stats: dict[str, Any], cost: dict[str, Any], titles: dict[str, s
                 recommendations: list[dict[str, Any]] | None,
                 perf: dict[str, Any] | None = None,
                 now: datetime | None = None,
-                usage: dict[str, Any] | None = None) -> tuple[str, Images]:
-    """The email's HTML and the inline images it references (cid, png, alt)."""
+                usage: dict[str, Any] | None = None,
+                charts_on: bool = True) -> tuple[str, Images]:
+    """The email's HTML and the inline images it references (cid, png, alt).
+    charts_on=False builds the image-free version (HTML bars and tables)."""
     stats, cost = stats or {}, cost or {}
     now = now or datetime.now(IST)
-    images: Images = []
+    images: Images | None = [] if charts_on else None
     recs = clean_recommendations(recommendations)
     usage = usage or {}
     # The label for AI-written parts: the model that actually answered.
@@ -962,7 +965,23 @@ def build_email(stats: dict[str, Any], cost: dict[str, Any], titles: dict[str, s
         f'<div style="font-family:{_FONT};max-width:600px;margin:0 auto;padding:0 12px;color:{_INK}">'
         f"{body}</div></div>"
     )
-    return html, images
+    return html, images or []
+
+
+async def _send_with_fallback(subject: str, build) -> dict[str, Any]:
+    """Send with charts; if that fails, send the image-free version, so a
+    problem carrying attachments (the MCP server's body limit, spec 84) never
+    costs the whole email."""
+    html, images = build(True)
+    result = await _send_to_gaurav(subject=subject, html=html, images=images)
+    if result.get("ok") or not images:
+        return result
+    logger.warning("digest send with charts failed (%s), retrying without them", result.get("code"))
+    html, _ = build(False)
+    retry = await _send_to_gaurav(subject=subject, html=html)
+    if retry.get("ok"):
+        retry = {**retry, "message": "Sent to Gaurav without charts."}
+    return retry
 
 
 def build_subject(stats: dict[str, Any], cost: dict[str, Any]) -> str:
@@ -1017,11 +1036,14 @@ async def send_numbers_only(note: str) -> dict[str, Any]:
     cost = await get_cost_summary()
     perf = await get_site_performance()
     titles = await get_post_titles() if stats.get("top_posts") else {}
-    html, images = build_email(stats, cost, titles, [], "", [], perf)
     banner = (f'<div style="font-size:12px;color:{_WARN};text-align:center;margin:0 0 10px">'
               f"{_esc(note)}</div>")
-    html = html.replace(f'<div style="font-family:{_FONT};', banner + f'<div style="font-family:{_FONT};', 1)
-    return await _send_to_gaurav(subject=build_subject(stats, cost) + " · numbers only", html=html, images=images)
+
+    def build(charts_on: bool):
+        html, images = build_email(stats, cost, titles, [], "", [], perf, charts_on=charts_on)
+        return html.replace(f'<div style="font-family:{_FONT};', banner + f'<div style="font-family:{_FONT};', 1), images
+
+    return await _send_with_fallback(build_subject(stats, cost) + " · numbers only", build)
 
 
 async def send_review_email(tldr: list[str], themes_html: str,
@@ -1063,6 +1085,9 @@ async def send_review_email(tldr: list[str], themes_html: str,
     cost = await get_cost_summary()
     perf = await get_site_performance()
     titles = await get_post_titles() if stats.get("top_posts") else {}
-    html, images = build_email(stats, cost, titles, tldr, themes_html, recommendations, perf,
-                               usage=run_usage(tool_context))
-    return await _send_to_gaurav(subject=build_subject(stats, cost), html=html, images=images)
+    usage = run_usage(tool_context)
+    return await _send_with_fallback(
+        build_subject(stats, cost),
+        lambda charts_on: build_email(stats, cost, titles, tldr, themes_html, recommendations, perf,
+                                      usage=usage, charts_on=charts_on),
+    )

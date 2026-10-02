@@ -184,6 +184,24 @@ week.
     (`send_numbers_only`, with a note saying why) and reports
     `email_failure: agent_did_not_send`, so the scheduler goes red.
 
+## Delivery fix (first production run)
+
+The first real run failed with `413 Request Entity Too Large` from
+resend-mcp-server:
+- the five charts, base64-encoded, made the send request about 430 KB;
+- `resend-mcp` builds its HTTP app with `@modelcontextprotocol/express`, which
+  calls `express.json()` with no limit, so Express's 100 KB default applied;
+- the library's `jsonLimit` option isn't passed through by `resend-mcp`.
+
+Two fixes:
+- `resend_mcp_server/mcp-body-limit.cjs`, preloaded with `node --require` into
+  the MCP child process by `server.js`, wraps `express.json()` with a 5 MB
+  default (`MCP_JSON_LIMIT`). It is our code, not a patch to `node_modules`.
+  Verified locally: a 500 KB request went from 413 to reaching the auth check.
+- Pulse's `_send_with_fallback()`: if a send with charts fails, it rebuilds the
+  email image-free (`build_email(charts_on=False)`, every section as HTML) and
+  sends that. The email isn't lost if the limit ever comes back.
+
 ## TL;DR
 
 Three plain-text bullets right under the header, so the email can be read in

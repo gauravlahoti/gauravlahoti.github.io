@@ -45,7 +45,12 @@ const mcpEntry = resolveMcpEntry();
 console.log(`MCP entrypoint: ${mcpEntry}`);
 
 // Start the resend-mcp server internally
-const mcpProcess = spawn(process.execPath, [mcpEntry, '--http', '--port', MCP_PORT.toString()], {
+// --require the body-limit shim: resend-mcp's own JSON limit is 100 KB, too
+// small for the Pulse digest's inline charts (see mcp-body-limit.cjs).
+const mcpProcess = spawn(process.execPath, [
+  '--require', path.join(__dirname, 'mcp-body-limit.cjs'),
+  mcpEntry, '--http', '--port', MCP_PORT.toString(),
+], {
   stdio: 'inherit',
   env: process.env
 });
