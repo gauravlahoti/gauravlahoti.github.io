@@ -56,6 +56,10 @@ Tags are extracted automatically — no prompt needed. The script derives `tags`
 LinkedIn post hashtags in the OG description text (preferred) or the URL slug (fallback).
 Do not ask the user for a tag; do not pass `--tag` to the script.
 
+The script strips LinkedIn's own preview counter (`| 15 comments on
+LinkedIn`) from the excerpt. If one still shows at the end of the excerpt,
+remove it before writing: it is LinkedIn chrome, not post text.
+
 Print a brief preview to chat (markdown, not a tool call):
 
 > **Parsed from LinkedIn**
@@ -66,20 +70,52 @@ Print a brief preview to chat (markdown, not a tool call):
 > - **Excerpt:** `{excerpt}` *(truncate to ~200 chars in the preview if longer)*
 > - **URL:** `{url}`
 
+## Step 4 — Suggest alternative titles (always)
+
+The title becomes the post's headline in Perspectives and the nav flyout,
+so always offer alternatives alongside the post's own first line. Read the
+whole excerpt, then write **three** alternatives:
+
+- Each says *what* the post is about, concretely. The post's first line is
+  often a teaser ("The badges came after the building, not before.") that
+  doesn't say what the badges are.
+- Each takes a different angle: the big idea, the specific tech or result,
+  the hook that pulls a reader in.
+- Gaurav's voice: plain, first person, at most about 90 characters, no em
+  dashes, no hype words ("revolutionary", "game-changer", "delve").
+- Only facts in the post. Never invent a number, product or claim.
+- Look at the other titles in `content/posts.json` for tone.
+
+Also decide whether the original is already the best. If it's concrete and
+punchy, recommend keeping it; if it's a teaser, recommend the strongest
+alternative. Say why in one line.
+
+Print them under the preview:
+
+> **Title options**
+>
+> - **Original:** `{firstLine}`
+> - **A:** `{alt1}`: *{one-line angle}*
+> - **B:** `{alt2}`: *{angle}*
+> - **C:** `{alt3}`: *{angle}*
+> - **Recommendation:** {which one, and why in one line}
+
 ## Step 5 — Get explicit approval
 
-Use **AskUserQuestion** with these options:
+Use **one AskUserQuestion call with two questions**:
 
-1. **Add as-is** — write the entry to `posts.json` unchanged.
-2. **Edit the title** — let the user override the firstLine before writing.
-3. **Edit the date** — let the user override the date.
-4. **Cancel** — abort, don't touch anything.
+1. **Title** (header "Title"): four options: the recommended one first,
+   with "(Recommended)" in its label, then the others among the original
+   and A/B/C. Put the full title text in each option's description. The
+   user can pick "Other" to type their own.
+2. **Action** (header "Add post"): **Add** (write with the chosen title),
+   **Edit the date** (currently `{date}`), **Cancel**.
 
-If the user picks "Edit the title" or "Edit the date", ask in chat for
-the new value, update the `entry` object, then go back to Step 4 with
-the updated entry. Loop until the user picks "Add as-is" or "Cancel".
+Set `entry.firstLine` to the chosen title. On "Edit the date", ask in chat
+for the new `YYYY-MM-DD`, update `entry.date`, and ask again. Loop until
+the user picks "Add" or "Cancel".
 
-## Step 6 — Write to posts.json (only on "Add as-is")
+## Step 6 — Write to posts.json (only on "Add")
 
 1. Read `content/posts.json`.
 2. Parse JSON. If it's not an array, stop with an error.
@@ -107,7 +143,7 @@ it up.
 
 ## Step 7b — Refresh post metrics (always, only after a successful write)
 
-After a successful "Add as-is" write (never on Cancel or any error path),
+After a successful "Add" write (never on Cancel or any error path),
 **always invoke the `/refresh-post-metrics` skill** via the Skill tool so the
 Perspectives engagement chips re-scrape. Do not ask — just run it.
 
