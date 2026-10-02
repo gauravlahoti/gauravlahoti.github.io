@@ -208,8 +208,8 @@ def avatar_minutes(stats: dict[str, Any], key: str = "modes") -> float:
     return round(secs / 60, 1)
 
 
-def avatar_chats(stats: dict[str, Any]) -> int:
-    m = _modes_by_key(stats.get("modes"))
+def avatar_chats(stats: dict[str, Any], key: str = "modes") -> int:
+    m = _modes_by_key(stats.get(key))
     return sum(_int(m.get(k, {}).get("sessions")) for k in ("avatar", "convo"))
 
 
@@ -371,21 +371,35 @@ def _kpi(value: str, label: str, sub: str) -> str:
 
 def _kpis(stats: dict[str, Any], cost: dict[str, Any], images: Images) -> str:
     win, prev = stats.get("window") or {}, stats.get("prev_window") or {}
-    mins, prev_mins = avatar_minutes(stats), avatar_minutes(stats, "prev_modes")
+    mins = avatar_minutes(stats)
+    chats_now, chats_before = avatar_chats(stats), avatar_chats(stats, "prev_modes")
+    # Spoken minutes are recorded from 2 Oct (Atlas atlas-00072); avatar chats
+    # are counted from every log. The card counts chats, so it always agrees
+    # with "How people talk to Atlas", and shows minutes only once tracked.
+    if mins:
+        avatar_sub = f'<span style="color:{_MUTED}">{mins:g} min spoken</span> ' + _delta(chats_now, chats_before)
+    elif chats_now:
+        avatar_sub = f'<span style="color:{_MUTED}">minutes tracked from 2 Oct</span>'
+    else:
+        avatar_sub = _delta(chats_now, chats_before)
     if cost.get("ok"):
         colour = _BAD if cost.get("over_budget") else _MUTED
+        partial = (f'<br><span style="color:{_MUTED}">billed from {cost["partial_from"]}</span>'
+                   if cost.get("partial_from") else "")
         spend = _kpi(
             _money(cost["mtd"], cost["currency"]), "Cloud spend",
-            f'<span style="color:{colour}">{_money(cost["forecast"], cost["currency"])} by month end</span>',
+            f'<span style="color:{colour}">{_money(cost["forecast"], cost["currency"])} by month end</span>{partial}',
         )
     else:
-        spend = _kpi("n/a", "Cloud spend", f'<span style="color:{_MUTED}">no billing data</span>')
+        pending = cost.get("reason") == "export_pending"
+        spend = _kpi("n/a", "Cloud spend",
+                     f'<span style="color:{_MUTED}">{"billing data due within a day" if pending else "no billing data"}</span>')
     cells = (
         _kpi(_num(win.get("unique_visitors")), "Visitors",
              _delta(_int(win.get("unique_visitors")), _int(prev.get("unique_visitors"))))
         + _kpi(_num(win.get("conversations")), "Chats with Atlas",
                _delta(_int(win.get("conversations")), _int(prev.get("conversations"))))
-        + _kpi(f"{mins:g}", "Avatar minutes", _delta(mins, prev_mins))
+        + _kpi(_num(chats_now), "Avatar chats", avatar_sub)
         + spend
     )
     row = (
@@ -815,6 +829,9 @@ def _cost_watch(cost: dict[str, Any], images: Images, stats: dict[str, Any] | No
         body += '<div style="height:8px"></div>' + _rows(
             [(_esc(s["service"]), _money(s["mtd"], cur)) for s in cost["top_services"]]
         )
+    if cost.get("partial_from"):
+        body += (f'<div style="font-size:12px;color:{_MUTED};margin-top:8px">The billing export starts '
+                 f"{cost['partial_from']}, so spend before that isn't included this month.</div>")
     body += _sources_table(cost_sources(cost, stats or {}))
     for mv in cost.get("movers") or []:
         what = "new this week" if mv.get("new") else f"up from {_money(mv['last_week'], cur)} the week before"

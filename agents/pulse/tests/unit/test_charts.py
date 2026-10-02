@@ -44,3 +44,21 @@ def test_donut_trend_and_pace_render_and_skip_empty():
 
 def test_a_chart_error_returns_none_instead_of_raising():
     assert charts.donut("not a list", "x", "y") is None
+
+
+def test_visits_without_coordinates_group_by_country_not_city():
+    # Spec 84 follow-up: four US cities with no coordinates used to stack on
+    # the US centre labelled "Boardman". They are one country bubble now.
+    pts = [
+        {"lat": None, "lon": None, "city": "Boardman", "country": "US", "visitors": 3, "chatted": 0},
+        {"lat": None, "lon": None, "city": "Council Bluffs", "country": "US", "visitors": 1, "chatted": 0},
+        {"lat": None, "lon": None, "city": "Clifton", "country": "US", "visitors": 1, "chatted": 1},
+        {"lat": 28.5, "lon": 77.0, "city": "Gurugram", "country": "IN", "visitors": 4, "chatted": 2},
+    ]
+    placed = charts.place(pts)
+    us = [p for p in placed if p["country"] == "US"]
+    assert len(us) == 1 and us[0]["approx"] and us[0]["city"] == "United States"
+    assert us[0]["visitors"] == 5 and us[0]["chatted"] == 1
+    gurugram = next(p for p in placed if p.get("city") == "Gurugram")
+    assert not gurugram["approx"] and gurugram["lat"] == 28.5
+    assert charts.visitor_map(pts)[:8] == PNG

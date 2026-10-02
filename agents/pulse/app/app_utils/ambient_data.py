@@ -322,8 +322,15 @@ def summarize_costs(raw: dict[str, Any], budget: float, today: datetime) -> dict
     rest = round(sum(r["mtd"] for r in services[4:]), 2)
     if rest > 0:
         by_share.append({"service": "Other", "mtd": rest})
+    # Started mid-month (the export was enabled 2 Oct 2026): say so.
+    first = (raw.get("daily") or [{}])[0].get("day")
+    partial_from = None
+    if first and first > today.strftime("%Y-%m-01"):
+        d = datetime.strptime(first, "%Y-%m-%d")
+        partial_from = f"{d.day} {d:%b}"
     return {
         "ok": True,
+        "partial_from": partial_from,
         "currency": raw.get("currency") or "INR",
         "usd_rate": float(raw["usd_rate"]) if raw.get("usd_rate") else None,
         "daily": [round(v, 2) for v in daily],
@@ -380,7 +387,14 @@ async def get_cost_summary() -> dict[str, Any]:
                                "yet; it usually arrives within a day. Nothing to fix.") if pending
                     else "The billing data couldn't be read this run.",
                     "always_on": always_on}
-        summary = summarize_costs(r.json(), _budget(), datetime.now(timezone.utc))
+        raw = r.json()
+        # An export that exists but has no rows yet is pending, not ₹0 spent.
+        if not (raw.get("by_service") or raw.get("daily")):
+            return {"ok": False, "reason": "export_pending",
+                    "detail": ("The billing export is enabled, but Google hasn't delivered the first data "
+                               "yet; it usually arrives within a day. Nothing to fix."),
+                    "always_on": always_on}
+        summary = summarize_costs(raw, _budget(), datetime.now(timezone.utc))
         summary["always_on"] = always_on
         run_mtd = next((float(x["mtd"]) for x in r.json().get("by_service") or [] if x.get("service") == "Cloud Run"), 0.0)
         summary["cloud_run_services"] = split_cloud_run(run_mtd, await _cloud_run_hours_mtd())

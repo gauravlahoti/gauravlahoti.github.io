@@ -127,20 +127,36 @@ def _draw(ax, features, face: str, edge: str, lw: float, outline_only: bool = Fa
                                  edgecolor=edge, linewidth=lw, zorder=1))
 
 
+_SHORT_NAMES = {"US": "United States", "GB": "United Kingdom", "AE": "UAE"}
+
+
+@lru_cache(maxsize=1)
+def country_names() -> dict[str, str]:
+    names = {f["properties"]["iso"]: f["properties"]["name"]
+             for f in _world()["features"] if f["properties"].get("iso")}
+    return {**names, **_SHORT_NAMES}
+
+
 def place(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Give every point coordinates: its own, else its country's centroid.
-    Points that are still unplaceable are dropped."""
-    cents = centroids()
-    out = []
+    """Points to draw. Visits with coordinates plot where they are. Visits
+    without (logged before coordinates were recorded) can't be put on a city,
+    so they merge into one bubble per country at its centre, labelled with
+    the country, never with a city it isn't at. Unplaceable ones drop."""
+    cents, names = centroids(), country_names()
+    exact, approx = [], {}
     for p in points or []:
         lat, lon = p.get("lat"), p.get("lon")
-        if lat is None or lon is None:
-            c = cents.get(str(p.get("country") or "").upper())
-            if not c:
-                continue
-            lon, lat = c
-        out.append({**p, "lat": float(lat), "lon": float(lon)})
-    return out
+        if lat is not None and lon is not None:
+            exact.append({**p, "lat": float(lat), "lon": float(lon), "approx": False})
+            continue
+        iso = str(p.get("country") or "").upper()
+        if iso not in cents:
+            continue
+        a = approx.setdefault(iso, {"country": iso, "city": names.get(iso, iso), "visitors": 0,
+                                    "chatted": 0, "lon": cents[iso][0], "lat": cents[iso][1], "approx": True})
+        a["visitors"] += int(p.get("visitors") or 0)
+        a["chatted"] += int(p.get("chatted") or 0)
+    return exact + list(approx.values())
 
 
 INDIA_BOX = (67.0, 98.0, 6.0, 37.0)   # lon min, lon max, lat min, lat max
@@ -216,7 +232,10 @@ def visitor_map(points: list[dict[str, Any]]) -> bytes | None:
     key.set_ylim(0, 1)
     key.text(0.04, 0.95, "Top cities this period", fontsize=8, color=MUTED, va="top")
     key.text(0.96, 0.95, "visitors", fontsize=7, color=FAINT, va="top", ha="right")
-    named = _top_labels(pts, 7)
+    # The list names real cities, including ones the map could only place by
+    # country; the note below says so.
+    named = _top_labels([{**p, "approx": False} for p in points or []
+                         if p.get("visitors") and p.get("city")], 7)
     for i, p in enumerate(named):
         y = 0.85 - i * 0.085
         key.scatter(0.07, y, s=28, color=CHAT if p.get("chatted") else VISIT)
@@ -229,6 +248,9 @@ def visitor_map(points: list[dict[str, Any]]) -> bytes | None:
     key.scatter(0.07, ky - 0.11, s=28, color=VISIT)
     key.text(0.13, ky - 0.11, "browsed only", fontsize=7.5, color=MUTED, va="center")
     key.text(0.04, ky - 0.2, "Bubble size: visitors", fontsize=7.5, color=FAINT, va="center")
+    if any(p.get("approx") for p in pts):
+        key.text(0.04, ky - 0.3, "Earlier visits have no exact location\n(recorded from 2 Oct midday), so the map\n"
+                 "groups them at their country's centre.", fontsize=7, color=FAINT, va="top", linespacing=1.4)
     return _png(fig)
 
 
