@@ -580,7 +580,9 @@ async def test_an_empty_export_is_pending_not_zero_spend():
         out = await ambient_data.get_cost_summary()
     ambient_data._CACHE.clear()
     assert out["ok"] is False and out["reason"] == "export_pending"
-    assert "billing data due within a day" in _email(cost=out)
+    html = _email(cost=out)
+    assert "billing data due within a day" in html
+    assert "first data due within a day" in html and "not connected" not in html
 
 
 def test_a_mid_month_export_says_where_it_starts():
