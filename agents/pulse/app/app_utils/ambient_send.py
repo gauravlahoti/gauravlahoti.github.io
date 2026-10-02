@@ -463,6 +463,19 @@ COUNTRY_NAMES = {"US": "US", "IN": "India", "GB": "UK", "DE": "Germany", "SG": "
                  "CA": "Canada", "AE": "UAE", "AU": "Australia", "NL": "Netherlands", "FR": "France"}
 
 
+def country_name(iso: Any) -> str:
+    """Short name for an ISO code: our own short forms first, then the
+    bundled Natural Earth names (so UG reads Uganda, not UG)."""
+    iso = str(iso or "").upper()
+    if iso in COUNTRY_NAMES:
+        return COUNTRY_NAMES[iso]
+    try:
+        names = {f["properties"]["iso"]: f["properties"]["name"] for f in charts._world()["features"]}
+        return names.get(iso) or iso
+    except Exception:  # noqa: BLE001
+        return iso
+
+
 def _where(stats: dict[str, Any], images: Images) -> str:
     points = stats.get("geo_points") or []
     countries = stats.get("countries") or []
@@ -481,7 +494,7 @@ def _where(stats: dict[str, Any], images: Images) -> str:
         if rest > 0:
             parts.append((rest / total, _LINE))
         legend = " &nbsp; ".join(
-            f'{_flag(c.get("country"))} {_esc(COUNTRY_NAMES.get(c.get("country"), c.get("country")))} '
+            f'{_flag(c.get("country"))} {_esc(country_name(c.get("country")))} '
             f'<strong>{round(_int(c.get("visitors")) / total * 100)}%</strong>' for c in shown
         ) + (f' &nbsp; <span style="color:{_MUTED}">rest {round(rest / total * 100)}%</span>' if rest > 0 else "")
         body += (f'<div style="font-size:12px;color:{_MUTED};margin:12px 0 6px">Visitors by country</div>'
@@ -757,8 +770,11 @@ def _cost_watch(cost: dict[str, Any], images: Images, stats: dict[str, Any] | No
         for s in flagged
     )
     if not cost.get("ok"):
-        why = ("The billing export isn't connected yet." if cost.get("reason") == "not_configured"
-               else "Billing data couldn't be read this run.")
+        why = {
+            "not_configured": "The billing export isn't connected yet.",
+            "export_pending": ("The billing export is on. Google delivers the first data within about a "
+                               "day, and real costs appear here from then."),
+        }.get(cost.get("reason"), "Billing data couldn't be read this run.")
         return _section("Cost watch", f'<div style="font-size:13px;color:{_MUTED}">{why}</div>'
                         + _sources_table(cost_sources(cost, stats or {})) + flag_html)
     cur = cost["currency"]
@@ -1022,8 +1038,8 @@ async def _send_to_gaurav(subject: str, html: str, images: Images | None = None)
     ok, _, attempts = await _send_via_mcp(arguments)
     if not ok:
         latency_ms = int((time.monotonic() - mcp_start) * 1000)
-        # kind="note": Gaurav-directed mail, not a visitor's resume request.
-        await record_send_failure("note", "send_failed", attempts=attempts, latency_ms=latency_ms)
+        # kind="digest": Pulse's own email, kept out of the site's Health count.
+        await record_send_failure("digest", "send_failed", attempts=attempts, latency_ms=latency_ms)
         return {"ok": False, "code": "send_failed", "message": "The email couldn't be sent right now."}
     return {"ok": True, "code": "ok", "message": "Sent to Gaurav."}
 

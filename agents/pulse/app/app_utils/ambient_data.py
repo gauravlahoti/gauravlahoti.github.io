@@ -352,8 +352,10 @@ async def get_cost_summary() -> dict[str, Any]:
 
     Returns:
         {ok, currency, mtd, forecast, budget, over_budget, top_services,
-        movers, always_on, stale} or {ok: False, reason} when billing data
-        isn't reachable. Never raises.
+        movers, always_on, stale} or {ok: False, reason, detail} when billing
+        data isn't reachable. reason "export_pending" means the export is on
+        but has no data yet: that resolves itself, so don't recommend fixing
+        permissions or settings. Never raises.
     """
     base = _base_url()
     token = os.environ.get("COST_MONITOR_TOKEN", "").strip()
@@ -369,7 +371,15 @@ async def get_cost_summary() -> dict[str, Any]:
             )
         if r.status_code != 200:
             logger.warning("cost summary failed: %s %s", r.status_code, r.text[:200])
-            return {"ok": False, "reason": "unavailable", "always_on": always_on}
+            # The export's table only appears once Google delivers the first
+            # data, up to a day after it's enabled. Say that, so neither the
+            # email nor the model guesses at permissions.
+            pending = "Not found: Table" in r.text
+            return {"ok": False, "reason": "export_pending" if pending else "unavailable",
+                    "detail": ("The billing export is enabled, but Google hasn't delivered the first data "
+                               "yet; it usually arrives within a day. Nothing to fix.") if pending
+                    else "The billing data couldn't be read this run.",
+                    "always_on": always_on}
         summary = summarize_costs(r.json(), _budget(), datetime.now(timezone.utc))
         summary["always_on"] = always_on
         run_mtd = next((float(x["mtd"]) for x in r.json().get("by_service") or [] if x.get("service") == "Cloud Run"), 0.0)
@@ -439,11 +449,18 @@ async def get_site_performance() -> dict[str, Any]:
             creds.refresh(google.auth.transport.requests.Request())
             return creds.token
 
-        headers = {"Authorization": f"Bearer {await asyncio.to_thread(token)}",
-                   "X-Goog-User-Project": _PROJECT}
+        params = {"url": _SITE, "strategy": "mobile", "category": "performance"}
+        headers: dict[str, str] = {}
+        # The PageSpeed API rejects Cloud Run's identity token (its scope is
+        # cloud-platform), so it uses a key restricted to this one API
+        # (Secret Manager `pagespeed-api-key`). The token path is a fallback.
+        if os.environ.get("PAGESPEED_API_KEY", "").strip():
+            params["key"] = os.environ["PAGESPEED_API_KEY"].strip()
+        else:
+            headers = {"Authorization": f"Bearer {await asyncio.to_thread(token)}",
+                       "X-Goog-User-Project": _PROJECT}
         async with httpx.AsyncClient(timeout=90.0) as client:
-            r = await client.get(_PSI, params={"url": _SITE, "strategy": "mobile", "category": "performance"},
-                                 headers=headers)
+            r = await client.get(_PSI, params=params, headers=headers)
         if r.status_code != 200:
             logger.warning("pagespeed failed: %s %s", r.status_code, r.text[:200])
             return {"ok": False, "reason": f"pagespeed returned {r.status_code}"}

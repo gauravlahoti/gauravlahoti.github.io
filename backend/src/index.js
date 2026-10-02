@@ -594,7 +594,8 @@ async function handleResumeSendRecord(request, env) {
 // Deliberately separate from the agent_interactions audit log, which is written
 // fire-and-forget only after a chat turn finishes streaming: a turn that dies
 // mid-stream leaves no audit row, but the failure still happened.
-// Body: { kind: "resume"|"note", code: "<short-code>", emailHash?: "<hash>" }
+// Body: { kind: "resume"|"note"|"digest", code: "<short-code>", emailHash?: "<hash>" }
+// "digest" is Pulse's own email to Gaurav (spec 84), kept apart from visitor sends.
 async function handleSendFail(request, env) {
     const token = env.AGENT_LOG_TOKEN;
     if (!token) {
@@ -610,7 +611,7 @@ async function handleSendFail(request, env) {
         return json({ ok: false, error: "Invalid JSON" }, 400, {});
     }
     const kind = body?.kind;
-    if (kind !== "resume" && kind !== "note") {
+    if (kind !== "resume" && kind !== "note" && kind !== "digest") {
         return json({ ok: false, error: "Invalid kind" }, 400, {});
     }
     const code = body?.code;

@@ -113,7 +113,9 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
     const emails = {
         resumes: await count(`SELECT COUNT(*) AS n FROM resume_sends WHERE sent_at > ? AND sent_at <= ?`, [winStart, now]),
         notes: await count(`SELECT COUNT(*) AS n FROM note_sends WHERE sent_at > ? AND sent_at <= ?`, [winStart, now]),
-        failures: await count(`SELECT COUNT(*) AS n FROM send_failures WHERE failed_at > ? AND failed_at <= ?`, [winStart, now]),
+        // Visitor-facing sends only: Pulse's own digest failures are kind
+        // 'digest' and are reported by the scheduler, not as a site problem.
+        failures: await count(`SELECT COUNT(*) AS n FROM send_failures WHERE failed_at > ? AND failed_at <= ? AND kind != 'digest'`, [winStart, now]),
     };
 
     const fallback = (await r(
