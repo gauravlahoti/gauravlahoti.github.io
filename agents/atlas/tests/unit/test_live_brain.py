@@ -271,6 +271,15 @@ class TestLiveAvatarStream:
         assert fake_turn.logged[0]["status"] == "ok"
 
     @pytest.mark.asyncio
+    async def test_the_audit_row_carries_mode_and_avatar_time(self, fake_turn) -> None:
+        # Spec 84: Pulse v2 splits conversations by mode and prices avatar time.
+        await _run("live-84", "Hi")
+        row = fake_turn.logged[0]
+        assert row["replyMode"] == "avatar"
+        assert row["avatarSeconds"] == 3.0
+        assert row["firstMs"] == 1200
+
+    @pytest.mark.asyncio
     async def test_open_failure_answers_in_text_instead(self, fake_turn) -> None:
         FakeTurn.fail_open = True
         events = await _run("live-d", "Hi")

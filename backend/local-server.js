@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
+import { NOT_AN_ERROR, digestExtras, digestFields, reportWindow } from "./src/digest.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;
@@ -49,8 +50,8 @@ const insertAgentInteraction = db.prepare(
         google_sub, email, ip, user_agent, referrer, agent_version,
         citations_count, suggestions_count, cta,
         country, region, city, model, model_fallback_depth,
-        thinking_tokens, had_thinking)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        thinking_tokens, had_thinking, reply_mode, avatar_seconds, first_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const recentAgentInteractions = db.prepare(
     `SELECT id, session_id, turn_index, logged_at, question, response, tool_calls,
@@ -203,6 +204,7 @@ async function handleAgentLog(req, res) {
             : null;
     const thinkingTokens = Number.isInteger(body?.thinkingTokens) ? body.thinkingTokens : null;
     const hadThinking = body?.hadThinking === true ? 1 : 0;
+    const { replyMode, avatarSeconds, firstMs } = digestFields(body);  // spec 84
 
     try {
         const result = insertAgentInteraction.run(
@@ -213,7 +215,7 @@ async function handleAgentLog(req, res) {
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
             country, region, city, model, modelFallbackDepth,
-            thinkingTokens, hadThinking
+            thinkingTokens, hadThinking, replyMode, avatarSeconds, firstMs
         );
         console.log(`[agent-log] session=${sessionId} turn=${turnIndex} status=${status}`);
         sendJson(res, 200, { ok: true, id: result.lastInsertRowid }, {});
@@ -406,7 +408,7 @@ async function handleSendFail(req, res) {
 // handlers in src/index.js so the flow can be exercised locally.
 const ambientInteractions = db.prepare(
     `SELECT question, response, status, country, city, logged_at
-     FROM agent_interactions WHERE logged_at > ?
+     FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?
      ORDER BY logged_at DESC LIMIT 100`
 );
 
@@ -417,11 +419,8 @@ function handleAmbientInteractions(req, res, url) {
     if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
         return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
     }
-    let days = parseInt(url.searchParams.get("days") || "3", 10);
-    if (!Number.isFinite(days)) days = 3;
-    days = Math.max(1, Math.min(30, days));
-    const cutoff = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
-    sendJson(res, 200, { ok: true, interactions: ambientInteractions.all(cutoff) }, {});
+    const { from, to } = reportWindow(url, 3);  // spec 84
+    sendJson(res, 200, { ok: true, interactions: ambientInteractions.all(from, to) }, {});
 }
 
 // ---------- pageview beacon + stats (Spec #33) ----------
@@ -440,13 +439,11 @@ const pvUniqSince    = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM
 const pvUniqBetween  = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views WHERE viewed_at > ? AND viewed_at <= ?`);
 const pvCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM page_views`);
 const pvUniqAll      = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views`);
-const dlCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads`);
-const dlCountSince   = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads WHERE downloaded_at > ?`);
-const dlCountBetween = db.prepare(`SELECT COUNT(*) AS n FROM resume_downloads WHERE downloaded_at > ? AND downloaded_at <= ?`);
 const convAll        = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions`);
 const convSince      = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ?`);
+const convBetween    = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?`);
 const turnsSince     = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ?`);
-const errSince       = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ? AND status != 'ok'`);
+const errSince       = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ? AND status NOT IN ${NOT_AN_ERROR}`);
 const topQStmt = db.prepare(
     `SELECT question, COUNT(*) AS count FROM agent_interactions
      WHERE logged_at > ? AND question != '' GROUP BY question
@@ -459,7 +456,7 @@ const geoStmt = db.prepare(
 );
 const errStmt = db.prepare(
     `SELECT question, status, error_message, logged_at FROM agent_interactions
-     WHERE logged_at > ? AND status != 'ok' ORDER BY logged_at DESC LIMIT 8`
+     WHERE logged_at > ? AND status NOT IN ${NOT_AN_ERROR} ORDER BY logged_at DESC LIMIT 8`
 );
 const sfCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM send_failures`);
 const sfCountSince   = db.prepare(`SELECT COUNT(*) AS n FROM send_failures WHERE failed_at > ?`);
@@ -517,43 +514,41 @@ async function handlePageview(req, res, origin, cors) {
     res.writeHead(204, cors); res.end();
 }
 
-function handleAmbientStats(req, res, url) {
+async function handleAmbientStats(req, res, url) {
     if (!AGENT_LOG_TOKEN) return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
     if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
         return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
     }
-    let days = parseInt(url.searchParams.get("days") || "4", 10);
-    if (!Number.isFinite(days)) days = 4;
-    days = Math.max(1, Math.min(30, days));
-    const now = Math.floor(Date.now() / 1000);
-    const winSecs = days * 24 * 60 * 60;
-    const winStart = now - winSecs;
-    const prevStart = now - 2 * winSecs;
+    // Spec 84: the same window rules as the Worker (src/digest.js).
+    const { from: winStart, to: now, prevFrom: prevStart, prevTo: prevEnd } = reportWindow(url, 4);
+    const days = Math.round((now - winStart) / 86400 * 10) / 10;
+
+    // Spec 84 additions, the same queries the Worker runs (src/digest.js).
+    const extras = await digestExtras((sql, binds) => db.prepare(sql).all(...binds), winStart, now, prevStart, prevEnd);
 
     sendJson(res, 200, {
         ok: true,
         window_days: days,
+        ...extras,
         all_time: {
             pageviews: pvCountAll.get().n,
             unique_visitors: pvUniqAll.get().n,
-            downloads: dlCountAll.get().n,
             conversations: convAll.get().n,
             send_failures: sfCountAll.get().n
         },
         window: {
             pageviews: pvCountSince.get(winStart).n,
             unique_visitors: pvUniqSince.get(winStart).n,
-            downloads: dlCountSince.get(winStart).n,
             conversations: convSince.get(winStart).n,
             agent_turns: turnsSince.get(winStart).n,
             agent_errors: errSince.get(winStart).n,
             send_failures: sfCountSince.get(winStart).n
         },
         prev_window: {
-            pageviews: pvCountBetween.get(prevStart, winStart).n,
-            unique_visitors: pvUniqBetween.get(prevStart, winStart).n,
-            downloads: dlCountBetween.get(prevStart, winStart).n,
-            send_failures: sfCountBetween.get(prevStart, winStart).n
+            pageviews: pvCountBetween.get(prevStart, prevEnd).n,
+            unique_visitors: pvUniqBetween.get(prevStart, prevEnd).n,
+            conversations: convBetween.get(prevStart, prevEnd).n,
+            send_failures: sfCountBetween.get(prevStart, prevEnd).n
         },
         chat_models: chatModelsStmt.all(winStart),
         top_questions: topQStmt.all(winStart),

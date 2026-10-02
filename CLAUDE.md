@@ -39,6 +39,7 @@ no-build-step rule. Excluded from the Pages deploy.
 | `/add-post <linkedin-url>` | Fetch post title, confirm, prepend to `posts.json` |
 | `/refresh-post-metrics` | Trigger Pulse ad-hoc to scrape LinkedIn engagement → D1 (updates Perspectives chips; no email) |
 | `/run-ambient-digest` | Run the full Pulse cycle ad-hoc (visitor stats + insights + one dashboard email) |
+| `/cost-optimizer` | Scan the GCP billing account for cost leaks and free-tier overruns, recommend reversible fixes; `--setup` installs the forecast budget and always-on alert (spec 83). Monthly, and after any new or test deployment |
 | `/ship` | Commit branch → PR → squash-merge to main |
 | `/publish` | Commit + push → trigger Pages deploy |
 

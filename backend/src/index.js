@@ -4,6 +4,8 @@
 // GET  /api/leads : admin dump (Authorization: Bearer ADMIN_TOKEN).
 // SCHEDULED : monthly retention cleanup.
 
+import { NOT_AN_ERROR, digestExtras, digestFields, reportWindow, roundCoord } from "./digest.js";
+
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
 const RETENTION_REDACT_SECONDS = 30 * 24 * 60 * 60;  // agent_interactions text -> NULL; resume_sends/note_sends delete
 const RETENTION_PAGEVIEWS_SECONDS = 180 * 24 * 60 * 60; // page_views raw row delete (rolled up first)
@@ -251,11 +253,6 @@ async function rollupDailyStats(env) {
     return ok === days.length;
 }
 
-// Statuses that are not failures, as a SQL list for the error counts below
-// (spec 82). A visitor talking over the avatar ends the turn on purpose; it
-// must not show up in the digest as an error. A constant, never user input.
-const NOT_AN_ERROR = "('ok', 'interrupted', 'cancelled')";
-
 async function rollupOneDay(env, day) {
     const { results } = await env.DB.prepare(
         `SELECT
@@ -465,6 +462,8 @@ async function handleAgentLog(request, env) {
     // only the token count and whether the turn produced any.
     const thinkingTokens = Number.isInteger(body?.thinkingTokens) ? body.thinkingTokens : null;
     const hadThinking = body?.hadThinking === true ? 1 : 0;
+    // Spec 84: how the visitor talked to Atlas, and what the avatar cost.
+    const { replyMode, avatarSeconds, firstMs } = digestFields(body);
 
     try {
         const { meta } = await env.DB.prepare(
@@ -474,8 +473,8 @@ async function handleAgentLog(request, env) {
                 google_sub, email, ip, user_agent, referrer, agent_version,
                 citations_count, suggestions_count, cta,
                 country, region, city, model, model_fallback_depth,
-                thinking_tokens, had_thinking)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                thinking_tokens, had_thinking, reply_mode, avatar_seconds, first_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             sessionId, turnIndex, loggedAt,
             question.slice(0, 4000), response, toolCalls,
@@ -484,7 +483,7 @@ async function handleAgentLog(request, env) {
             googleSub, email, ip, userAgent, referrer, agentVersion,
             citationsCount, suggestionsCount, cta,
             country, region, city, model, modelFallbackDepth,
-            thinkingTokens, hadThinking
+            thinkingTokens, hadThinking, replyMode, avatarSeconds, firstMs
         ).run();
         return json({ ok: true, id: meta?.last_row_id ?? null }, 200, {});
     } catch (err) {
@@ -758,6 +757,50 @@ async function handleGcpCost(request, env, corsHeaders) {
         ? `AND project.id IN (${projectFilter.map(p => `'${p.replace(/'/g, "")}'`).join(",")})`
         : "";
     const table = (env.GCP_BQ_TABLE || "").replace(/`/g, "");
+
+    // Spec 84: ?view=digest is what Pulse's "Cost watch" reads. Net cost
+    // (after credits), month-to-date in Google's billing day (Pacific),
+    // by service, plus the month's daily totals for a run-rate.
+    if (new URL(request.url).searchParams.get("view") === "digest") {
+        const net = "cost + IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)";
+        const day = "DATE(usage_start_time, 'America/Los_Angeles')";
+        const monthStart = "DATE_TRUNC(CURRENT_DATE('America/Los_Angeles'), MONTH)";
+        try {
+            const [byService, daily, weeks, latest] = await Promise.all([
+                bqQuery(accessToken, env.GCP_BQ_PROJECT, `
+                    SELECT service.description AS service, ROUND(SUM(${net}), 2) AS mtd, ANY_VALUE(currency) AS currency,
+                           AVG(currency_conversion_rate) AS usd_rate
+                    FROM \`${table}\` WHERE ${day} >= ${monthStart} ${projectClause}
+                    GROUP BY 1 HAVING mtd > 0.009 ORDER BY mtd DESC LIMIT 12`),
+                bqQuery(accessToken, env.GCP_BQ_PROJECT, `
+                    SELECT CAST(${day} AS STRING) AS day, ROUND(SUM(${net}), 2) AS total
+                    FROM \`${table}\` WHERE ${day} >= ${monthStart} ${projectClause}
+                    GROUP BY 1 ORDER BY 1`),
+                bqQuery(accessToken, env.GCP_BQ_PROJECT, `
+                    SELECT service.description AS service,
+                      ROUND(SUM(IF(${day} >= DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 7 DAY), ${net}, 0)), 2) AS this_week,
+                      ROUND(SUM(IF(${day} < DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 7 DAY), ${net}, 0)), 2) AS last_week
+                    FROM \`${table}\` WHERE ${day} >= DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 14 DAY) ${projectClause}
+                    GROUP BY 1 HAVING this_week > 0.009 OR last_week > 0.009 ORDER BY this_week DESC LIMIT 12`),
+                bqQuery(accessToken, env.GCP_BQ_PROJECT, `
+                    SELECT CAST(MAX(export_time) AS STRING) AS latest FROM \`${table}\`
+                    WHERE ${day} >= DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 7 DAY)`),
+            ]);
+            return json({
+                ok: true, generated_at: new Date().toISOString(),
+                currency: byService[0]?.currency || "INR",
+                // Google's own USD -> billing-currency rate, for pricing usage
+                // estimates (Gemini, avatar) in the same currency.
+                usd_rate: byService[0]?.usd_rate || null,
+                by_service: byService, daily, weeks,
+                export_latest: latest[0]?.latest || null,
+            }, 200, corsHeaders);
+        } catch (err) {
+            console.error("[gcp-cost] digest query failed", err.message);
+            return json({ ok: false, error: "BQ query failed: " + err.message }, 500, corsHeaders);
+        }
+    }
+
     const sql = `
         SELECT
           project.id AS project_id,
@@ -1070,17 +1113,13 @@ async function handleAmbientInteractions(request, env) {
     if (request.headers.get("X-Internal-Token") !== token) {
         return json({ ok: false, error: "Unauthorized" }, 401, {});
     }
-    const url = new URL(request.url);
-    let days = parseInt(url.searchParams.get("days") || "3", 10);
-    if (!Number.isFinite(days)) days = 3;
-    days = Math.max(1, Math.min(30, days));
-    const cutoff = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
+    const { from, to } = reportWindow(new URL(request.url), 3);
     try {
         const { results } = await env.DB.prepare(
             `SELECT question, response, status, country, city, logged_at
-             FROM agent_interactions WHERE logged_at > ?
+             FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?
              ORDER BY logged_at DESC LIMIT 100`
-        ).bind(cutoff).all();
+        ).bind(from, to).all();
         return json({ ok: true, interactions: results || [] }, 200, {});
     } catch (err) {
         console.error("[ambient] interactions query failed", err);
@@ -1100,14 +1139,9 @@ async function handleAmbientStats(request, env) {
     if (request.headers.get("X-Internal-Token") !== token) {
         return json({ ok: false, error: "Unauthorized" }, 401, {});
     }
-    const url = new URL(request.url);
-    let days = parseInt(url.searchParams.get("days") || "4", 10);
-    if (!Number.isFinite(days)) days = 4;
-    days = Math.max(1, Math.min(30, days));
-    const now = Math.floor(Date.now() / 1000);
-    const winSecs = days * 24 * 60 * 60;
-    const winStart = now - winSecs;          // window: [winStart, now]
-    const prevStart = now - 2 * winSecs;     // prev window: [prevStart, winStart]
+    const { from: winStart, to: winEnd, prevFrom: prevStart, prevTo: prevEnd } =
+        reportWindow(new URL(request.url), 4);
+    const days = Math.round((winEnd - winStart) / 86400 * 10) / 10;
 
     // Helper: run a query, return the first row (or {}).
     const one = async (sql, ...binds) => {
@@ -1119,10 +1153,8 @@ async function handleAmbientStats(request, env) {
         // Rolled-up days (daily_stats) + a live tail of whatever hasn't been
         // rolled up yet, so these "all_time" figures survive the retention
         // cron instead of silently shrinking as page_views/agent_interactions
-        // age out. downloads is the one field that's genuinely unwindowed on
-        // purpose: resume_downloads is exempt from the cron (its write path
-        // was retired 2026-06-10), so a live COUNT is already exact forever.
-        // unique_locations has no rollup column yet (Tier 2, deferred) — it
+        // age out. (Resume downloads were dropped in spec 84: the gate that
+        // produced them was retired 2026-06-10.) unique_locations has no rollup column yet (Tier 2, deferred) — it
         // will still shrink post-purge; see .claude/docs/backend.md.
         const allTime = await one(
             `SELECT
@@ -1133,8 +1165,6 @@ async function handleAmbientStats(request, env) {
                (SELECT COALESCE(SUM(unique_visitors),0) FROM daily_stats) +
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views
                 WHERE date(viewed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS unique_visitors,
-
-               (SELECT COUNT(*) FROM resume_downloads) AS downloads,
 
                (SELECT COALESCE(SUM(conversations),0) FROM daily_stats) +
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions
@@ -1158,59 +1188,57 @@ async function handleAmbientStats(request, env) {
 
         const win = await one(
             `SELECT
-               (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1)                         AS pageviews,
-               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1)      AS unique_visitors,
-               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1)                AS downloads,
-               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1) AS conversations,
-               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1)                  AS agent_turns,
-               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND status NOT IN ${NOT_AN_ERROR}) AS agent_errors,
+               (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                         AS pageviews,
+               (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)      AS unique_visitors,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2)                  AS agent_turns,
+               (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2 AND status NOT IN ${NOT_AN_ERROR}) AS agent_errors,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
-                FROM page_views WHERE viewed_at > ?1 AND country IS NOT NULL AND country != '') AS unique_locations,
-               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1) AS tokens_in,
-               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1) AS tokens_out,
-               (SELECT COUNT(*) FROM send_failures WHERE failed_at > ?1) AS send_failures`,
-            winStart
+                FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations,
+               (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_in,
+               (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_out,
+               (SELECT COUNT(*) FROM send_failures WHERE failed_at > ?1 AND failed_at <= ?2) AS send_failures`,
+            winStart, winEnd
         );
 
         const prev = await one(
             `SELECT
                (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                    AS pageviews,
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2) AS unique_visitors,
-               (SELECT COUNT(*) FROM resume_downloads WHERE downloaded_at > ?1 AND downloaded_at <= ?2)       AS downloads,
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations,
                (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_in,
                (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_out,
                (SELECT COUNT(*) FROM send_failures WHERE failed_at > ?1 AND failed_at <= ?2) AS send_failures`,
-            prevStart, winStart
+            prevStart, prevEnd
         );
 
         const topQ = await env.DB.prepare(
             `SELECT question, COUNT(*) AS count
              FROM agent_interactions
-             WHERE logged_at > ? AND question != ''
+             WHERE logged_at > ? AND logged_at <= ? AND question != ''
              GROUP BY question
              ORDER BY count DESC, MAX(logged_at) DESC
              LIMIT 10`
-        ).bind(winStart).all();
+        ).bind(winStart, winEnd).all();
 
         const geo = await env.DB.prepare(
             `SELECT country, city, COUNT(*) AS count
              FROM page_views
-             WHERE viewed_at > ? AND country IS NOT NULL AND country != ''
+             WHERE viewed_at > ? AND viewed_at <= ? AND country IS NOT NULL AND country != ''
              GROUP BY country, city
              ORDER BY count DESC
              LIMIT 8`
-        ).bind(winStart).all();
+        ).bind(winStart, winEnd).all();
 
         const errs = await env.DB.prepare(
             `SELECT question, status, error_message, logged_at
              FROM agent_interactions
-             WHERE logged_at > ? AND status NOT IN ${NOT_AN_ERROR}
+             WHERE logged_at > ? AND logged_at <= ? AND status NOT IN ${NOT_AN_ERROR}
              ORDER BY logged_at DESC
              LIMIT 8`
-        ).bind(winStart).all();
+        ).bind(winStart, winEnd).all();
 
         // Which model(s) actually answered this window — Atlas cascades on
         // 429/503, so this can be more than one. Replaces a hardcoded model
@@ -1219,14 +1247,22 @@ async function handleAmbientStats(request, env) {
         const chatModels = await env.DB.prepare(
             `SELECT model, COUNT(*) AS count
              FROM agent_interactions
-             WHERE logged_at > ? AND model IS NOT NULL
+             WHERE logged_at > ? AND logged_at <= ? AND model IS NOT NULL
              GROUP BY model
              ORDER BY count DESC`
-        ).bind(winStart).all();
+        ).bind(winStart, winEnd).all();
+
+        // Spec 84: modes, avatar time, statuses, pages, referrers, emails,
+        // fallback share and LinkedIn posts. Shared with local-server.js.
+        const extras = await digestExtras(
+            async (sql, binds) => (await env.DB.prepare(sql).bind(...binds).all()).results || [],
+            winStart, winEnd, prevStart, prevEnd
+        );
 
         return json({
             ok: true,
             window_days: days,
+            ...extras,
             all_time: allTime,
             window: win,
             prev_window: prev,
@@ -1279,6 +1315,9 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     const country = (cf.country || "").slice(0, 8) || null;
     const region = (cf.region || "").slice(0, 64) || null;
     const city = (cf.city || "").slice(0, 64) || null;
+    // Spec 84: city-level point for Pulse's visitor map.
+    const latitude = roundCoord(cf.latitude, 90);
+    const longitude = roundCoord(cf.longitude, 180);
 
     const ip = request.headers.get("CF-Connecting-IP") || "";
     const utcDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
@@ -1290,9 +1329,11 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     const at = Math.floor(Date.now() / 1000);
     try {
         await env.DB.prepare(
-            `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash, session_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(at, path, referrer || null, country, region, city, visitorHash, sessionId).run();
+            `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash, session_id,
+                                     latitude, longitude)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(at, path, referrer || null, country, region, city, visitorHash, sessionId,
+               latitude, longitude).run();
     } catch (err) {
         console.error("[pageview] insert failed", err);
     }

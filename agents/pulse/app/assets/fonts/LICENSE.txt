@@ -1,0 +1,3 @@
+Inter (Regular, SemiBold, Bold), by Rasmus Andersson.
+SIL Open Font License 1.1: https://openfontlicense.org
+Source: https://github.com/rsms/inter (latin subset via fontsource).

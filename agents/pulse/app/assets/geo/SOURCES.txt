@@ -1,0 +1,4 @@
+Natural Earth (public domain): https://www.naturalearthdata.com
+world.geojson: 1:10m admin-0 countries, India point-of-view variant, simplified.
+india_states.geojson: 1:10m admin-1 states, clipped to the India-POV outline.
+Rebuild with build_geo.py (needs shapely).
