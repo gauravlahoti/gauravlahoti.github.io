@@ -743,7 +743,9 @@ def cost_sources(cost: dict[str, Any], stats: dict[str, Any]) -> list[tuple[str,
     cur = cost.get("currency") or "INR"
     infra = cost.get("mtd") if cost.get("ok") else None
     rows.append(("Google Cloud infrastructure (Cloud Run, secrets, registry, scheduler)",
-                 _money(infra, cur) if infra is not None else "not connected", "actual, from the bill"))
+                 _money(infra, cur) if infra is not None
+                 else ("first data due within a day" if cost.get("reason") == "export_pending" else "not connected"),
+                 "actual, from the bill"))
     usd = (stats.get("model_spend_usd") or {}).get("total")
     if usd is not None:
         rate = cost.get("usd_rate")
