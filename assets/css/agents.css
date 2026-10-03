@@ -587,10 +587,11 @@
 }
 
 /* Model column: an instrument readout, set off by a dashed rule */
-.am-model-head { border-left: 1px dashed var(--border-strong); }
+.am-model-head { border-left: 1px dashed var(--border-strong); justify-content: center; }
 .am-cell.am-model {
     display: flex;
     align-items: center;
+    justify-content: center; /* the logo + name block sits centred under MODEL */
     gap: var(--space-2);
     padding: 0 var(--space-4);
     border-left: 1px dashed var(--border-strong);
@@ -605,13 +606,9 @@
     height: 16px;
     filter: drop-shadow(0 0 6px var(--accent-soft));
 }
-.am-model-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.am-model-date {
-    margin-top: 1px;
-    font-size: 0.6rem;
-    letter-spacing: 0.04em;
-    color: var(--ink-muted);
-}
+/* Every row's name block is the same width (the longest name, in a
+   monospace font), so the centred blocks stack with their logos aligned. */
+.am-model-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 17ch; max-width: 100%; }
 .am-model-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Power-on sequence ── */
