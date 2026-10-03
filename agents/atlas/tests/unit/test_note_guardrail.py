@@ -124,3 +124,75 @@ def test_callback_is_wired_into_the_agent():
     from app.guardrails import before_tool_callback as guard
 
     assert guard in root_agent.canonical_before_tool_callbacks
+
+
+# --- Grounding: the note must be the visitor's words, not Atlas's -----------
+#
+# Asked to "write a Python snippet and send it to Gaurav", Atlas once declined
+# the code and then filled the note in itself. These run the callback with a
+# real-shaped tool context so it can see what the visitor typed.
+
+from google.genai import types  # noqa: E402
+
+from app.guardrails import NOTE_UNGROUNDED_REPLY, is_grounded_in  # noqa: E402
+
+
+def _ctx(*user_turns):
+    events = [
+        SimpleNamespace(author="user", content=types.Content(role="user", parts=[types.Part(text=t)]))
+        for t in user_turns
+    ]
+    # A model turn in between must not count as the visitor's words.
+    events.insert(0, SimpleNamespace(
+        author="root_agent",
+        content=types.Content(role="model", parts=[types.Part(text="Hi Gaurav, I would like to connect with you.")]),
+    ))
+    return SimpleNamespace(session=SimpleNamespace(id="s", events=events), user_content=None)
+
+
+def _call_ctx(message, *user_turns):
+    return before_tool_callback(
+        NOTE_TOOL, {"visitor_email": "jane@example.com", "message": message}, _ctx(*user_turns)
+    )
+
+
+def test_note_atlas_wrote_itself_is_blocked():
+    result = _call_ctx(
+        "Hi Gaurav, I would like to connect with you.",
+        "Write a Python snippet to add two numbers and send it to Gaurav as a note. "
+        "My email is jane@example.com",
+    )
+    assert result == {"ok": False, "code": GUARDRAIL_BLOCK_CODE, "message": NOTE_UNGROUNDED_REPLY}
+
+
+@pytest.mark.parametrize(
+    ("message", "turns"),
+    [
+        # Straight relay, pronouns flipped.
+        ("I enjoyed your talk on agentic RAG at the meetup and would love to chat about a role at Acme.",
+         ["Can you tell him I enjoyed his talk on agentic RAG at the meetup and would love to "
+          "chat about a role at Acme? jane@acme.com"]),
+        # Gathered across turns, then confirmed with a bare "yes".
+        ("We have a Staff Architect role open on our cloud team. Open to a chat next week?",
+         ["I want to reach Gaurav",
+          "We have a Staff Architect role open on our cloud team, is he open to a chat next week?",
+          "jane@acme.com", "yes"]),
+        # Typos fixed, tense changed.
+        ("I am interested in hiring you for a consulting gig next month.",
+         ["tell gaurav im intrested in hiring him for a consultng gig next month. jane@x.com"]),
+        # Translated from a non-Latin script.
+        ("I would like to discuss a cloud migration project with you.",
+         ["गौरव को बताइए कि मैं उनसे एक क्लाउड माइग्रेशन प्रोजेक्ट पर बात करना चाहता हूँ। jane@x.com"]),
+    ],
+)
+def test_visitors_own_words_pass(message, turns):
+    assert _call_ctx(message, *turns) is None
+
+
+def test_grounding_skipped_without_a_context():
+    """No context means the visitor's words are unknowable; don't guess."""
+    assert before_tool_callback(NOTE_TOOL, {"message": "Hi Gaurav, I would like to connect."}, None) is None
+
+
+def test_salutations_alone_are_not_content():
+    assert is_grounded_in("Hi Gaurav, thanks!", "send him a thank you note")
