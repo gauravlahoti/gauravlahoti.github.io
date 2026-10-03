@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "341";
+const ASSET_VERSION = "342";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -292,7 +292,9 @@ function initAgentWidgetWhenIdle(profile, sessionId) {
 }
 
 async function initCursorAsync() {
-    if (matchMedia("(any-pointer: coarse)").matches) return;
+    // A trackpad or mouse gets the cursor, even on a touchscreen laptop
+    // (see cursor.js); a touch-only phone or tablet doesn't.
+    if (!matchMedia("(any-pointer: fine) and (any-hover: hover)").matches) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     try {
         const { initCursor } = await import(v("./cursor.js"));

@@ -236,6 +236,11 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
         if (l.watchdog) clearTimeout(l.watchdog);
         l.closed = true;
         logTurn(l);
+        // Spec 86: tell the owner the face is gone, whatever closed it (a
+        // pause, the watchdog, a hang-up). A call left running behind a closed
+        // face kept answering in text with no voice, since this video is
+        // the only thing that carries Atlas's audio.
+        if (l.onClose) { try { l.onClose(); } catch (_) { /* owner's problem */ } }
         liveVideo.classList.remove("is-on");
         liveVideo.pause();
         liveVideo.removeAttribute("src");
@@ -245,15 +250,16 @@ export async function mountAvatarStage(host, { autoplay = false, onPlay, onWords
     }
 
     // Start a live turn: the face goes live and waits for frames. Returns a
-    // handle the widget feeds from the chat stream.
-    function startLive() {
+    // handle the widget feeds from the chat stream. `onClose` runs once,
+    // when the face closes for any reason.
+    function startLive({ onClose } = {}) {
         endLive();
         // The idle loop keeps breathing underneath until the live frames land.
         if (mode === "greeting") showIdle();
         mode = "live";
         const l = {
             queue: [], appending: false, started: false, ended: false, closed: false, objectUrl: null, sb: null, ms: null, watchdog: null,
-            speechStarted: false, speechAt: null, lastSeekAt: 0, lastTrim: 0,
+            speechStarted: false, speechAt: null, lastSeekAt: 0, lastTrim: 0, onClose: onClose || null,
             stats: { t0: performance.now(), firstChunk: null, playing: null, waits: 0, maxLag: 0, bytes: 0, chunks: 0, idleSkips: 0, idleSkippedS: 0 },
         };
         live = l;
