@@ -1419,7 +1419,8 @@
     height: 14px;
     filter: drop-shadow(0 0 6px var(--accent-glow));
 }
-.cursor.is-hidden { opacity: 0; }
+.cursor.is-hidden,
+.cursor.is-touch { opacity: 0; }
 
 /* Hide the magnetic cursor while the agent panel is open. Otherwise the
    brackets stay snapped to whichever magnet was last under the mouse
@@ -1427,8 +1428,10 @@
    panel closes. The native OS pointer is unaffected. */
 body[data-agent-panel-open="true"] .cursor { display: none; }
 
-/* Hide custom cursor on touch / coarse pointers */
-@media (any-pointer: coarse), (prefers-reduced-motion: reduce) {
+/* Hide the custom cursor only where nothing can hover: a touch-only phone
+   or tablet. A touchscreen laptop also has a trackpad, so it keeps the
+   cursor (cursor.js hides it just while a finger is in use). */
+@media not all and (any-pointer: fine), (any-hover: none), (prefers-reduced-motion: reduce) {
     .cursor { display: none !important; }
 }
 
@@ -5088,6 +5091,10 @@ a.agent-badge-tile:focus-visible {
    it the Stop control: talking over Atlas already interrupts it (spec 72).
    End brings the composer back. */
 .agent-panel.is-conversing .agent-input-row { display: none; }
+/* Spec 86: Avatar is hands-free from the start. Where a spoken call works,
+   there's no composer at all; the face's own row holds every control, with
+   Stop only while the recorded greeting plays. */
+.agent-panel.is-avatar-mode.is-handsfree .agent-input-row { display: none; }
 /* Switching to Avatar flips the call in, like a card turning over. */
 .agent-avatar-slot { perspective: 900px; }
 .agent-avatar-slot .agent-avatar { animation: agent-avatar-flip 700ms var(--ease-spring); transform-origin: 50% 0; }

@@ -319,19 +319,34 @@ export function initAgentWidget(root, profile, pageSessionId) {
         const mute = make("agent-convo-mute", "Mute");
         mute.setAttribute("aria-pressed", "false");
         const end = make("agent-convo-end", "End");
+        // Spec 86: with no composer, Stop lives here, and only while the
+        // recorded greeting plays. A call has End, and talking over Atlas.
+        const stop = make("agent-convo-stop", "Stop");
+        stop.setAttribute("aria-label", "Stop the greeting");
         const hint = document.createElement("p");
         hint.className = "agent-convo-hint";
         hint.setAttribute("role", "status");
-        mute.hidden = end.hidden = hint.hidden = true;
-        root.append(start, mute, end, hint);
+        mute.hidden = end.hidden = stop.hidden = hint.hidden = true;
+        root.append(start, stop, mute, end, hint);
         slot.appendChild(root);
         start.addEventListener("click", startConversation);
+        stop.addEventListener("click", pauseAvatar);
         mute.addEventListener("click", toggleConvoMute);
         end.addEventListener("click", () => { endConversation(); hangUpFace(); });
-        convoControls = { root, start, mute, end, hint };
+        convoControls = { root, start, stop, mute, end, hint };
         const supported = canSpeak && typeof WebSocket === "function" && typeof window.AudioWorkletNode === "function"
             && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
         if (!supported) root.hidden = true;
+        // Spec 86: Avatar is hands-free. Where a spoken call works, the
+        // composer goes; a browser that can't hold one keeps it, so Avatar
+        // is never a dead end.
+        panel.classList.toggle("is-handsfree", supported);
+    }
+
+    // Spec 86: outside a call, the face only speaks the recorded greeting.
+    function syncGreetingStop(state) {
+        const c = convoControls;
+        if (c) c.stop.hidden = !(state === "speaking" && !convo);
     }
 
     function showConvoHint(text) {
@@ -373,7 +388,16 @@ export function initAgentWidget(root, profile, pageSessionId) {
             showConvoHint("This browser can't hold a spoken conversation. Type, or use the mic button instead.");
             return;
         }
-        const face = avatar.startLive();
+        // Spec 86: if the face closes under a live call (a pause, the
+        // watchdog), end the call with it. Left running, it kept hearing and
+        // answering in text with no voice, and spent the day's avatar time.
+        const face = avatar.startLive({
+            onClose: () => {
+                if (convo !== s) return; // already ending from here
+                endConversation({ reason: "The call dropped. Start a new one whenever you like." });
+                hangUpFace();
+            },
+        });
         const s = { face, live: null, userLi: null, assistantLi: null, wordsEl: null, turn: null, spoke: false, heard: "" };
         convo = s;
         panel.classList.add("is-conversing");
@@ -405,6 +429,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (convo !== s) { s.live.end(); return; } // ended while connecting
         c.start.hidden = true;
         c.mute.hidden = c.end.hidden = false;
+        syncMinimizeLabel();
         // The ring hears the visitor. No arrival here: the face already built
         // itself when Avatar mode opened, and playing it again read as a glitch.
         avatar.setMicLevel(() => (s.live ? s.live.level() : 0));
@@ -492,9 +517,15 @@ export function initAgentWidget(root, profile, pageSessionId) {
     }
     function onStageChange(open) {
         stageOpen = open;
-        setFloating(open && isOpen);
+        // Spec 86: a float the visitor chose outlasts the page Atlas opened.
+        setFloating((open || userFloat) && isOpen);
     }
+    // Spec 86: in Avatar mode the header's minimize button floats the face
+    // instead, so the call and its voice carry on. Any way back to the full
+    // panel clears the visitor's choice.
+    let userFloat = false;
     function setFloating(on) {
+        if (!on) userFloat = false;
         panel.classList.toggle("is-floating", on);
         // Floating, the panel no longer covers the page, so it isn't modal.
         panel.setAttribute("aria-modal", on ? "false" : "true");
@@ -540,6 +571,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         // floating face, and looked like saying goodbye did nothing.
         setFloating(false);
         resetConvoControls();
+        syncMinimizeLabel();
         liveRegion.textContent = "Conversation ended.";
         refreshSendMode();
         if (end && end.capped) restAvatar(end.reason);
@@ -749,16 +781,26 @@ export function initAgentWidget(root, profile, pageSessionId) {
         modeSwitch.dataset.active = mode;
         panel.dataset.mode = mode;
         panel.classList.toggle("is-avatar-mode", mode === "avatar");
+        syncMinimizeLabel();
         modeSwitch.classList.toggle("is-speaking", isSpeaking);
         modeSwitch.classList.toggle("is-avatar-new", FEATURES.avatarMode && !avatarTried());
         modeSwitch.querySelectorAll(".agent-mode-opt").forEach((b) =>
             b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
     }
 
+    // Spec 86: during a call the minimize button floats the face instead.
+    function syncMinimizeLabel() {
+        if (isMinimized) return; // reads "Restore" until restored
+        const floats = !!convo;
+        dom.minimizeBtn.setAttribute("aria-label", floats ? "Float the avatar" : "Minimize panel");
+        dom.minimizeBtn.title = floats ? "Float" : "Minimize";
+    }
+
     function setAvatarMode(on, { autoplay = false } = {}) {
         avatarOn = on;
         syncModeSwitch();
         if (!on) {
+            setFloating(false); // spec 86: floating shows only the face
             if (avatar) { avatar.dispose(); avatar = null; }
             avatarBusy = false;
             refreshSendMode();
@@ -782,7 +824,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                     autoplay,
                     onPlay: () => { if (speaker) speaker.cancel(); },
                     onWords: addGreetingWords,
-                    onState: (state) => { avatarBusy = state !== "idle"; refreshSendMode(); },
+                    onState: (state) => { avatarBusy = state !== "idle"; syncGreetingStop(state); refreshSendMode(); },
                 })
                     .then((stage) => {
                         // Spec 73: leaving Avatar, the face breaks back into
@@ -790,6 +832,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         const unmount = () => {
                             endConversation();
                             convoControls = null;
+                            panel.classList.remove("is-handsfree");
                             stage.pause();
                             let gone = false;
                             const finish = () => {
@@ -807,6 +850,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         // Switched away again while it was still loading.
                         if (!avatarOn) { unmount(); return; }
                         mountConvoControls(slot, stage.canSpeak);
+                        syncGreetingStop(stage.el.dataset.state); // the greeting may already be playing
                         renderRestCard(); // spec 80: out of avatar time today
                         // Spec 81: an explicit, always-there way back to the
                         // full panel while floating, distinct from tapping the
@@ -1373,6 +1417,9 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // autoGrowInput() itself rather than relying on the input listener below.
     function prefillComposer(text) {
         if (isPending) return false;
+        // Spec 86: hands-free Avatar has no composer to fill. Move to Text,
+        // so a drafted note is on screen rather than in a hidden box.
+        if (avatarOn && panel.classList.contains("is-handsfree")) selectMode("text");
         const s = String(text || "");
         input.value = s + (s.endsWith(" ") ? "" : " ");
         autoGrowInput();
@@ -1390,7 +1437,15 @@ export function initAgentWidget(root, profile, pageSessionId) {
         }
     }
     function toggleMinimize() {
-        if (stageOpen) { setFloating(!panel.classList.contains("is-floating")); return; }
+        // Spec 86: minimizing used to pause the face, which tore down a live
+        // call's only audio while the call ran on. A call floats instead.
+        // With no call there's nothing to keep alive, so minimize as usual.
+        if (convo || stageOpen) {
+            const on = !panel.classList.contains("is-floating");
+            setFloating(on);
+            userFloat = on;
+            return;
+        }
         if (isMinimized) restore(); else minimize();
     }
     function minimize() {

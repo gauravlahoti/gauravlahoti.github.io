@@ -5,7 +5,11 @@
 // to their center on hover.
 
 export function initCursor(opts = {}) {
-    const fine = matchMedia("(any-pointer: fine) and (hover: hover)").matches;
+    // Any trackpad or mouse gets the cursor, touchscreen or not. `any-pointer:
+    // coarse` is true on every touchscreen laptop, and Chrome on Windows can
+    // report a touch laptop's *primary* pointer as touch, so gating on
+    // either hid it on laptops that do have a trackpad.
+    const fine = matchMedia("(any-pointer: fine) and (any-hover: hover)").matches;
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!fine || reduceMotion) return { destroy() {} };
 
@@ -153,6 +157,13 @@ export function initCursor(opts = {}) {
         else ensureRunning();
     }
 
+    // On a touchscreen laptop a finger tap also fires mouse events, which
+    // would park the brackets wherever the finger landed. Hide them for
+    // touch and bring them back on the next trackpad or mouse move.
+    function onPointer(e) {
+        cursor.classList.toggle("is-touch", e.pointerType === "touch");
+    }
+
     function onLeave() {
         cursor.classList.add("is-hidden");
     }
@@ -162,6 +173,8 @@ export function initCursor(opts = {}) {
     }
 
     window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onPointer, { passive: true });
+    window.addEventListener("pointermove", onPointer, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("mouseenter", onEnter);
@@ -172,6 +185,8 @@ export function initCursor(opts = {}) {
         destroy() {
             stop();
             window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("pointerdown", onPointer);
+            window.removeEventListener("pointermove", onPointer);
             window.removeEventListener("scroll", onScroll);
             document.removeEventListener("mouseleave", onLeave);
             document.removeEventListener("mouseenter", onEnter);
