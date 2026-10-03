@@ -82,9 +82,11 @@ See each `.env.example`. Common to both: `AGENT_LOG_URL`, `AGENT_LOG_TOKEN`, `RE
 
 **Both agents call Vertex AI on `adk-deploy-trail` via ADC, not an AI Studio key.** Atlas forces it in `FallbackGemini.api_client` (`ATLAS_VERTEX_PROJECT`); Pulse sets it at import in `app/agent.py` (`PULSE_VERTEX_PROJECT`). Pulse used to prefer `GEMINI_API_KEY` when present and was cut over 2026-09-21, because the shared AI Studio spend cap throttled the digest. The Cloud Run runtime service account (`593919045544-compute@developer.gserviceaccount.com`, in the hosting project `gcp-experiments-490306`) holds `roles/aiplatform.user` **on `adk-deploy-trail`** — that cross-project grant is what makes the calls work, and revoking it takes every agent down with a `403 CONSUMER_INVALID`.
 
-## Atlas ingress: route allowlist (spec 85)
+## Ingress: route allowlists (Atlas spec 85, Pulse spec 86)
 
 `get_fast_api_app()` registers ADK's whole developer surface (`/run_sse`, `/builder/save`, session CRUD, evals, `/docs`, dev UI, the `/run_live` websocket), and Atlas is `--allow-unauthenticated`. So `app/route_allowlist.py` is outermost ASGI middleware that 404s every `(method, path)` not in `ALLOWED_ROUTES` (the `/api/*` routes, their `OPTIONS` preflight, and `GET /healthz`) and refuses every websocket not in `ALLOWED_WEBSOCKETS`. **A new route in `api.py` must be added there, or it 404s in prod.** `tests/unit/test_route_allowlist.py` fails if you forget. `ATLAS_DEV_ROUTES=1` opens everything for local dev, evals and the integration suite only; `make deploy` removes it from the service.
+
+Pulse has the same middleware (`agents/pulse/app/route_allowlist.py`) with a shorter list: `POST /api/ambient/run`, `POST /api/ambient/metrics` (the two Cloud Scheduler jobs) and `GET /healthz`. No browser calls Pulse, so there's no preflight entry, and every websocket is refused. The flag is `PULSE_DEV_ROUTES=1`.
 
 Atlas live-corpus (`app/corpus_live.py`): `CORPUS_LIVE_BASE` (default `https://gauravlahoti.dev`), `CORPUS_LIVE_TTL` (default `60`s), `CORPUS_LIVE_OFF` (`"1"` = bundled corpus only, no live fetch).
 
