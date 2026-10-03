@@ -147,7 +147,7 @@
     "role": "Ambient Agent",
     "status": "LIVE",
     "headline": "The autonomous agent running silently behind this portfolio.",
-    "description": "Beacon is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
+    "description": "Pulse is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
     "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
     "stack": ["Google ADK", "Gemini 3.8 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
     "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
@@ -189,11 +189,11 @@
       },
       {
         "tech": "Shared Resend MCP Server",
-        "why": "Same MCP server used by Corpus handles email here. One credential to rotate, one audit log; sharing was trivial because both agents just call the same endpoint."
+        "why": "Same MCP server used by Atlas handles email here. One credential to rotate, one audit log; sharing was trivial because both agents just call the same endpoint."
       },
       {
-        "tech": "Single Cloud Run service (shared with Corpus)",
-        "why": "Beacon runs on the same service as Corpus to avoid a second cold-start cost. Request-based concurrency means both can run without competing."
+        "tech": "Its own Cloud Run service",
+        "why": "Pulse runs as a separate service from Atlas, so a digest run never competes with a visitor's chat, and each one deploys and scales on its own."
       }
     ],
     "traits": [
