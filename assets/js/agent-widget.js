@@ -2450,7 +2450,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
             wrapper.rel = "noopener noreferrer";
             wrapper.setAttribute(
                 "aria-label",
-                `${c.name} — verify credential (opens in new tab)`
+                `${c.name}: verify credential (opens in new tab)`
             );
         }
         // Full name on hover, since the caption is the abbreviated form.

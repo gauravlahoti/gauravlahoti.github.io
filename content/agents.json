@@ -123,10 +123,18 @@
       { "label": "Grounding",      "value": "Live retrieval tools · content JSON" },
       { "label": "Pattern",        "value": "Tool Use · MCP · Streaming · Voice · Avatar" }
     ],
-    "searchMeta": {
-      "type": "Chat",
-      "model": "Gemini 3.6 Flash → 3.5 Flash-Lite (tiered)",
-      "patterns": ["RAG", "Tool Use", "MCP", "Streaming", "Voice", "STT", "TTS", "Avatar"]
+    "index": {
+      "capabilities": ["text", "voice", "avatar", "ondemand", "cites", "acts"],
+      "model": "Gemini 3.6 Flash · Gemini 3.8 Live",
+      "shipped": "2026-05", "updated": "2026-10",
+      "evidence": {
+        "text": "Streams answers in the chat widget and cites the page each one came from.",
+        "voice": "Hears you through Gemini 3.5 Transcribe and answers out loud with Gemini 3.1 Flash TTS.",
+        "avatar": "Talks back on camera through Gemini 3.8 Live Avatar, lip-synced, with word-timed captions.",
+        "ondemand": "Wakes the moment a visitor opens the chat or starts a call, and answers in real time.",
+        "cites": "Live tools fetch Gaurav's profile, projects and posts, so every answer comes from the site itself.",
+        "acts": "Emails the resume or a note to Gaurav through the Resend MCP server, once you confirm the address."
+      }
     },
     "links": [
       { "label": "Try it live",         "href": "/#top" }
@@ -141,7 +149,7 @@
     "headline": "The autonomous agent running silently behind this portfolio.",
     "description": "Beacon is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
     "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
-    "stack": ["Google ADK", "Gemini 3.5 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
+    "stack": ["Google ADK", "Gemini 3.8 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
     "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
     "diagramAlt": "Cloud Scheduler → Ambient Agent (ADK/Gemini) → Cloudflare D1 (stats) + Resend MCP (email)",
     "steps": [
@@ -158,7 +166,7 @@
       {
         "n": 3,
         "label": "Insights generated, leads qualified",
-        "detail": "Gemini 3.5 Flash reasons over the interaction data: top questions, resume downloads, hiring-intent signals. Leads above the threshold get a draft outreach note."
+        "detail": "Gemini 3.8 Flash reasons over the interaction data: top questions, resume downloads, hiring-intent signals. Leads above the threshold get a draft outreach note."
       },
       {
         "n": 4,
@@ -189,7 +197,7 @@
       }
     ],
     "traits": [
-      { "label": "Model",           "value": "Gemini 3.5 Flash" },
+      { "label": "Model",           "value": "Gemini 3.8 Flash" },
       { "label": "Framework",       "value": "Google ADK 1.15+" },
       { "label": "Runtime",         "value": "Cloud Run (gen2)" },
       { "label": "Trigger",         "value": "Cloud Scheduler (Mon + Thu)" },
@@ -198,10 +206,14 @@
       { "label": "Run cost",        "value": "~$0.001 / run" },
       { "label": "Human in loop",   "value": "None" }
     ],
-    "searchMeta": {
-      "type": "Ambient",
-      "model": "Gemini 3.5 Flash",
-      "patterns": ["Scheduled", "Background", "MCP"]
+    "index": {
+      "capabilities": ["autonomous", "acts"],
+      "model": "Gemini 3.8 Flash",
+      "shipped": "2026-05", "updated": "2026-10",
+      "evidence": {
+        "autonomous": "Cloud Scheduler wakes it every Monday and Thursday. Nobody has to be watching.",
+        "acts": "Pulls visitor stats from Cloudflare D1 and emails Gaurav a digest through MCP."
+      }
     },
     "links": []
   },
@@ -222,7 +234,7 @@
       { "n": 2, "label": "Quick scan", "detail": "Sequential signal extraction + KB vector search (≥0.85 similarity). Returns immediately if a match is found." },
       { "n": 3, "label": "Sage pipeline", "detail": "For novel errors: deep_search runs GCP docs and community agents in parallel, then aggregates with composite confidence scoring." },
       { "n": 4, "label": "Parallel research", "detail": "GCP Knowledge Agent and Community Search Agent run concurrently, searching official docs and Stack Overflow / GitHub Issues." },
-      { "n": 5, "label": "External research", "detail": "GCP Knowledge Agent calls a managed MCP server for official GCP docs; Community Search Agent uses Google Search for SO, Reddit and GitHub issues — both run in parallel. On KB HIT, quick_scan bypasses sage_pipeline via a direct hot-path into the KB Toolbox." },
+      { "n": 5, "label": "External research", "detail": "GCP Knowledge Agent calls a managed MCP server for official GCP docs; Community Search Agent uses Google Search for SO, Reddit and GitHub issues, and both run in parallel. On KB HIT, quick_scan bypasses sage_pipeline via a direct hot-path into the KB Toolbox." },
       { "n": 6, "label": "A2A KB record", "detail": "Confirmed fixes are dispatched to error-kb-agent via A2A Protocol, triggering embedding regeneration to include the resolution." },
       { "n": 7, "label": "MCP tool execution", "detail": "error-kb-agent calls error-kb-toolbox (MCP Toolbox for Databases) to read/write cases, perform vector searches, and deposit fixes." },
       { "n": 8, "label": "AlloyDB pgvector", "detail": "768-dimensional embeddings from Vertex AI text-embedding-005 power semantic similarity search across the growing case library." },
@@ -230,7 +242,7 @@
     ],
     "techDecisions": [
       { "tech": "A2A Protocol", "why": "Enables error-kb-agent to be independently deployed and versioned on Cloud Run while remaining callable from the main orchestrator over HTTP." },
-      { "tech": "AlloyDB + pgvector", "why": "PostgreSQL-compatible vector store with native pgvector extension and Vertex AI integration for high-quality 768-dim embeddings — no separate vector DB needed." },
+      { "tech": "AlloyDB + pgvector", "why": "PostgreSQL-compatible vector store with native pgvector extension and Vertex AI integration for high-quality 768-dim embeddings, so no separate vector DB is needed." },
       { "tech": "MCP Toolbox for Databases", "why": "Decouples SQL/vector logic from agent code; exposes database operations as typed MCP tools consumable by any ADK agent." },
       { "tech": "Parallel research agents", "why": "GCP docs and community sources are searched concurrently via ParallelAgent, cutting research latency roughly in half." }
     ],
@@ -244,10 +256,17 @@
       { "label": "KB similarity",  "value": "Cosine ≥ 0.85 (hot path)" },
       { "label": "Inter-agent",    "value": "A2A Protocol" }
     ],
-    "searchMeta": {
-      "type": "Multi-Agent",
+    "index": {
+      "capabilities": ["ondemand", "team", "cites", "acts", "learns"],
       "model": "Gemini 2.5",
-      "patterns": ["A2A", "Parallel", "RAG", "MCP", "Vector Search"]
+      "shipped": "2026-05",
+      "evidence": {
+        "ondemand": "Runs when a developer submits a GCP error, then works it through to a fix.",
+        "team": "An orchestrator sends each error to a quick scan or a parallel research pipeline, with a knowledge agent over A2A.",
+        "cites": "Searches GCP docs and community sources, plus its own vector knowledge bank in AlloyDB.",
+        "acts": "Writes confirmed fixes to AlloyDB and queries it through the MCP Toolbox for Databases.",
+        "learns": "Every confirmed fix is remembered, so the next time that error shows up it skips the research."
+      }
     },
     "links": [
       { "label": "View source", "href": "https://github.com/gauravlahoti/error-lens" }
@@ -260,7 +279,7 @@
     "role": "RAG Pipeline",
     "status": "LIVE",
     "headline": "An 8-stage agentic RAG pipeline, rendered as a 3D vector space you can step through.",
-    "description": "Agentic RAG runs the full 8-stage RAG pipeline as a FastAPI service on Cloud Run and renders every stage as an interactive 3D vector space. Ingest any document via text paste, PDF/file upload, URL fetch, or image (Gemini Vision extracts text first). Choose your embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and watch each chunk fly into the vector space. On query, dual retrieval runs cosine search over ChromaDB and BM25 keyword scan in parallel, Reciprocal Rank Fusion merges the rankings, and the answer is grounded strictly in the retrieved chunks — no training knowledge. Supports Claude Sonnet 4.6, Gemini 2.5 Flash, and Gemini 3.5 Flash as generation models.",
+    "description": "Agentic RAG runs the full 8-stage RAG pipeline as a FastAPI service on Cloud Run and renders every stage as an interactive 3D vector space. Ingest any document via text paste, PDF/file upload, URL fetch, or image (Gemini Vision extracts text first). Choose your embedding model, Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D), and watch each chunk fly into the vector space. On query, dual retrieval runs cosine search over ChromaDB and BM25 keyword scan in parallel, Reciprocal Rank Fusion merges the rankings, and the answer is grounded strictly in the retrieved chunks, with no training knowledge. Supports Claude Sonnet 4.6, Gemini 2.5 Flash, and Gemini 3.5 Flash as generation models.",
     "value": "Makes the invisible parts of RAG legible: you watch chunks become vectors, see why nearest neighbours win on cosine distance, and how lexical and semantic retrieval disagree before RRF reconciles them. A relevance gate blocks off-topic queries (cosine < 0.45) so the model never hallucinates from training knowledge. The Agentic/Linear toggle shows the difference between a one-shot pipeline and a reasoning loop where the LLM calls hybrid_search on demand.",
     "stack": ["Cloud Run", "FastAPI", "Voyage voyage-3", "Gemini Embedding 2", "ChromaDB", "BM25 + RRF", "Claude Sonnet 4.6", "Gemini 2.5 Flash", "PCA", "SSE"],
     "diagramSvg": "agent-portfolio/diagrams/agentic-rag-v1.svg?v=2",
@@ -269,12 +288,12 @@
       {
         "n": 1,
         "label": "Chunk the document",
-        "detail": "Accepts text paste, PDF/file upload, URL (server-side HTML extraction strips nav and boilerplate), or image (Gemini Vision converts the image to text first). The document is then split by a recursive character splitter (800 chars / 120 overlap) across four strategies — recursive, sentence, paragraph, or fixed-window. The 3D view shows chunk boundaries laid over the source text."
+        "detail": "Accepts text paste, PDF/file upload, URL (server-side HTML extraction strips nav and boilerplate), or image (Gemini Vision converts the image to text first). The document is then split by a recursive character splitter (800 chars / 120 overlap) across four strategies: recursive, sentence, paragraph, or fixed-window. The 3D view shows chunk boundaries laid over the source text."
       },
       {
         "n": 2,
         "label": "Generate embeddings",
-        "detail": "Each chunk is sent to the chosen embedding model — Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D) — and returned as a high-dimensional vector. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
+        "detail": "Each chunk is sent to the chosen embedding model, Voyage AI voyage-3 (1024-D) or Gemini Embedding 2 (3072-D), and returned as a high-dimensional vector. PCA then reduces those vectors to three principal components so the corpus can fly into the 3D scene with explained-variance labels on each axis."
       },
       {
         "n": 3,
@@ -288,13 +307,13 @@
       },
       {
         "n": 5,
-        "label": "Retrieve — dense + lexical",
+        "label": "Retrieve: dense + lexical",
         "detail": "The query runs through both a dense cosine search over ChromaDB and a BM25 keyword scan, side by side. Cosine similarity to every chunk is surfaced as a live distance table over the 3D canvas, with connection lines to the nearest neighbours."
       },
       {
         "n": 6,
         "label": "Fuse with RRF",
-        "detail": "Reciprocal Rank Fusion (k=60) blends the semantic and lexical rankings into one final top-k set. Because RRF only cares about rank position, it merges the two scorers without needing them to share a scale — reconciling cases where keyword overlap and vector proximity disagree."
+        "detail": "Reciprocal Rank Fusion (k=60) blends the semantic and lexical rankings into one final top-k set. Because RRF only cares about rank position, it merges the two scorers without needing them to share a scale, reconciling cases where keyword overlap and vector proximity disagree."
       },
       {
         "n": 7,
@@ -304,7 +323,7 @@
       {
         "n": 8,
         "label": "Grounded answer (agentic loop)",
-        "detail": "Claude Sonnet 4.6, Gemini 2.5 Flash, or Gemini 3.5 Flash streams an answer grounded strictly in the retrieved chunks — a strict system prompt blocks training-knowledge fallback. Off-topic queries (cosine similarity below 0.45) are blocked before generation. In agentic mode the LLM holds a hybrid_search tool and re-queries on demand, turning a linear pipeline into a reasoning loop."
+        "detail": "Claude Sonnet 4.6, Gemini 2.5 Flash, or Gemini 3.5 Flash streams an answer grounded strictly in the retrieved chunks. A strict system prompt blocks training-knowledge fallback. Off-topic queries (cosine similarity below 0.45) are blocked before generation. In agentic mode the LLM holds a hybrid_search tool and re-queries on demand, turning a linear pipeline into a reasoning loop."
       }
     ],
     "techDecisions": [
@@ -314,7 +333,7 @@
       },
       {
         "tech": "Voyage voyage-3 + Gemini Embedding 2",
-        "why": "Two embedding models are supported: Voyage voyage-3 (1024-D, best for text) and Gemini Embedding 2 (3072-D, required for image inputs since Voyage is text-only). Images are first converted to text via Gemini Vision, then embedded. Keys are resolved per-model — Voyage/Anthropic key for Voyage, Google key for Gemini — and never stored server-side."
+        "why": "Two embedding models are supported: Voyage voyage-3 (1024-D, best for text) and Gemini Embedding 2 (3072-D, required for image inputs since Voyage is text-only). Images are first converted to text via Gemini Vision, then embedded. Keys are resolved per model (Voyage/Anthropic key for Voyage, Google key for Gemini) and never stored server-side."
       },
       {
         "tech": "ChromaDB + BM25 (hybrid)",
@@ -322,7 +341,7 @@
       },
       {
         "tech": "Reciprocal Rank Fusion (k=60)",
-        "why": "RRF blends rankings without needing the two scorers to share a scale — it only cares about rank position. Simple, robust, and the standard way to merge dense and sparse retrieval."
+        "why": "RRF blends rankings without needing the two scorers to share a scale. It only cares about rank position. Simple, robust, and the standard way to merge dense and sparse retrieval."
       },
       {
         "tech": "PCA → 3D projection",
@@ -341,10 +360,14 @@
       { "label": "Retrieval",  "value": "Dense + BM25 · RRF" },
       { "label": "Pattern",    "value": "Agentic Hybrid RAG · Tool-use" }
     ],
-    "searchMeta": {
-      "type": "RAG",
+    "index": {
+      "capabilities": ["ondemand", "cites"],
       "model": "Claude Sonnet 4.6",
-      "patterns": ["RAG", "Hybrid Retrieval", "RRF", "Tool-use", "Streaming"]
+      "shipped": "2026-06",
+      "evidence": {
+        "ondemand": "Runs each time you ingest a document or ask a question, and streams every stage live.",
+        "cites": "Runs dense and BM25 search side by side, fuses them with RRF, and answers only from what it found."
+      }
     },
     "demoVideo": "https://storage.googleapis.com/portfolio-assets-gaurav/videos/agentic-rag-demo.mp4",
     "links": [

@@ -203,6 +203,7 @@
     flex-shrink: 0;
 }
 .agent-search-clear:hover { color: var(--accent); }
+.agent-search-clear[hidden] { display: none; } /* display: flex above beat the attribute */
 
 .agent-search-readout {
     display: flex;
@@ -233,100 +234,494 @@
     text-transform: uppercase;
 }
 
-/* Filter row */
-.agent-filter-row {
+/* ─── Agent index: capability matrix (spec 89) ───────────────────────
+   One row per agent, one column per capability, then the model. A single
+   CSS grid (row wrappers are display: contents), so a capability's light
+   trace can run down its column across rows. Everything animates on
+   transform/opacity only, once, when the matrix first scrolls into view
+   (.is-on); .is-settled then drops the per-cell delays. */
+.agent-matrix {
+    --row-h: 2.9rem;
     position: relative;
     z-index: 1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--space-4) var(--space-6);
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.2fr) repeat(var(--caps), minmax(0, 1fr)) minmax(11.5rem, 1.6fr);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background:
+        radial-gradient(ellipse 70% 140% at 50% -30%, var(--accent-soft), transparent 60%),
+        rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    isolation: isolate;
+}
+.am-row { display: contents; }
+/* Column placement comes from --gc (set per cell in agents-page.js), so
+   phones can swap in --gcm. */
+.am-group, .am-corner, .am-colhead, .am-rowhead, .am-cell, .am-trace { grid-column: var(--gc); }
+/* The phone group switch; hidden until phones need it. */
+.am-tabs { display: none; }
+.agent-matrix .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 
-.agent-filter-group {
+/* One-shot boot scanline: a full-height band whose bright lower edge
+   sweeps top to bottom (translateY of its own height = the matrix's). */
+.am-scan {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(to bottom,
+        transparent 0%,
+        transparent 80%,
+        color-mix(in srgb, var(--accent) 10%, transparent) 97%,
+        var(--accent) 100%);
+    transform: translateY(-100%);
+}
+.agent-matrix.is-on .am-scan { animation: am-scan 1.1s var(--ease-out) 0.05s both; }
+@keyframes am-scan {
+    0%   { opacity: 0; transform: translateY(-100%); }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(0%); }
+}
+
+/* Header row */
+.am-corner,
+.am-model-head {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
+    padding: 0 var(--space-4);
+    min-height: var(--row-h);
 }
-
-.agent-filter-label {
+.am-corner-label {
     font-family: var(--font-mono);
     font-size: 0.62rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--accent);
-    white-space: nowrap;
-    flex-shrink: 0;
     opacity: 0.7;
 }
-.agent-filter-label::before {
-    content: "▚ ";
+.am-corner .am-corner-label::before { content: "▚ "; opacity: 0.6; }
+.am-colhead { position: relative; display: flex; }
+.am-cap-btn {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2) var(--space-1);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.am-cap-btn:hover,
+.am-cap-btn:focus-visible,
+.am-colhead.is-hot .am-cap-btn { color: var(--ink); outline: none; }
+.am-cap-btn:focus-visible .am-cap-label { text-shadow: 0 0 10px var(--accent-glow); }
+/* Under each label: a rail that grows on hover and locks full when the
+   column filters. Atlas's three modes keep their own colours (spec 67). */
+.am-rail {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    width: 22px;
+    height: 2px;
+    margin-left: -11px;
+    border-radius: 1px;
+    background: var(--tone, var(--accent));
+    box-shadow: 0 0 10px var(--tone-glow, var(--accent-glow));
+    transform: scaleX(0);
+    transition: transform var(--dur-base) var(--ease-out);
+}
+.am-colhead[data-tone="text"]   { --tone: var(--mode-text);   --tone-glow: var(--mode-text-glow); }
+.am-colhead[data-tone="voice"]  { --tone: var(--mode-voice);  --tone-glow: var(--mode-voice-glow); }
+.am-colhead[data-tone="avatar"] { --tone: var(--mode-avatar); --tone-glow: var(--mode-avatar-glow); }
+.am-colhead[data-tone] .am-rail { transform: scaleX(0.35); }
+.am-cap-btn:hover .am-rail,
+.am-colhead.is-hot .am-rail { transform: scaleX(0.6); }
+.am-colhead.is-locked .am-rail { transform: scaleX(1); }
+.am-colhead.is-locked .am-cap-btn { color: var(--tone, var(--accent)); }
+
+/* Group headings over the columns: Talk to it / How it runs / Built
+   with. A hairline under each label spans its columns, and a divider
+   runs down the matrix where one group meets the next. */
+.am-group {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--space-3) var(--space-2) 0;
+}
+.am-group::after {
+    content: "";
+    position: absolute;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 35%, transparent), transparent);
+}
+.am-group-label {
+    padding-bottom: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.75;
+    white-space: nowrap;
+}
+.am-group.is-split,
+.am-colhead.is-split,
+.am-cell.is-split { border-left: 1px solid color-mix(in srgb, var(--accent) 14%, transparent); }
+.am-colhead { min-height: calc(var(--row-h) - var(--space-2)); }
+
+/* Agent rows */
+.am-rowhead,
+.am-cell { border-top: 1px solid var(--border); min-height: var(--row-h); }
+.am-rowhead { display: flex; }
+.am-agent {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0 var(--space-4);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink);
+}
+.am-agent-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.am-agent-name {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.2;
+    transition: color var(--dur-fast) var(--ease-out), text-shadow var(--dur-fast) var(--ease-out);
+}
+.am-agent-role {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+    color: var(--ink-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.am-agent:hover .am-agent-name,
+.am-agent:focus-visible .am-agent-name { color: var(--accent); text-shadow: 0 0 10px var(--accent-glow); }
+.am-agent:focus-visible { outline: none; }
+.am-led {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-subtle);
+}
+.am-led.is-live {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: status-pulse 2s var(--ease-out) infinite;
+}
+
+/* Cells and nodes */
+.am-cell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    transition: opacity var(--dur-base) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+/* Column rails: a faint line down the centre of every capability column,
+   so the nodes read as sitting on a circuit. */
+.am-cell:not(.am-model)::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    pointer-events: none;
+    z-index: -1;
+}
+.am-rowhead.is-row-hot,
+.am-cell.is-row-hot { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.am-cell.is-hot,
+.am-colhead.is-hot { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.am-cell.is-hot.is-row-hot { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.am-cell.is-hot::before { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.am-cell.is-locked { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.am-rowhead.is-dim,
+.am-cell.is-dim { opacity: 0.22; }
+
+.am-off {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--ink-subtle);
     opacity: 0.6;
 }
-
-.agent-filter-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+.am-node {
+    --node: var(--accent);
+    --node-glow: var(--accent-glow);
+    position: relative;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--node);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--node) 18%, transparent), 0 0 14px var(--node-glow);
+    transition: box-shadow var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.am-cell[data-tone="voice"]  .am-node { --node: var(--mode-voice);  --node-glow: var(--mode-voice-glow); }
+.am-cell[data-tone="avatar"] .am-node {
+    --node: var(--mode-avatar);
+    --node-glow: var(--mode-avatar-glow);
+    background: linear-gradient(135deg, var(--mode-avatar), var(--mode-avatar-2));
+}
+/* The boot ring: flashes out once as the node powers on. */
+.am-node i {
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 1px solid var(--node);
+    opacity: 0;
+}
+/* Idle breathing: a soft halo on every lit node, staggered so the grid
+   never pulses in unison. Opacity only. */
+.am-node::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--node-glow), transparent 70%);
+    opacity: 0.35;
+    animation: am-breathe 3.2s ease-in-out calc(var(--r, 0) * 0.53s + var(--c, 0) * 0.37s) infinite;
+    pointer-events: none;
+}
+@keyframes am-breathe {
+    0%, 100% { opacity: 0.25; }
+    50%      { opacity: 0.85; }
+}
+.am-cell.is-hot .am-node,
+.am-cell.is-row-hot .am-node,
+.am-cell.is-locked .am-node {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--node) 24%, transparent), 0 0 22px var(--node-glow);
 }
 
-.agent-filter-pill {
-    display: inline-flex;
+/* Light trace down a capability's column, joining the agents that share
+   it, centre to centre: --span rows, so half a row in from each end is
+   50% / --span. Sits above the rails, below the nodes. */
+.am-trace {
+    position: relative;
+    z-index: 0;
+    pointer-events: none;
+    --inset: calc(50% / var(--span));
+}
+.am-trace::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: var(--inset);
+    bottom: var(--inset);
+    width: 1px;
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--accent) 60%, transparent),
+        color-mix(in srgb, var(--accent) 25%, transparent),
+        color-mix(in srgb, var(--accent) 60%, transparent));
+    transform-origin: center top;
+}
+.am-trace.is-locked::before { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+.am-pulse {
+    position: absolute;
+    left: calc(50% - 1.5px);
+    width: 3px;
+    top: var(--inset);
+    bottom: var(--inset);
+    overflow: hidden;
+}
+.am-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    height: 34%;
+    border-radius: 2px;
+    background: linear-gradient(180deg, transparent, var(--accent), transparent);
+    box-shadow: 0 0 10px var(--accent-glow);
+    transform: translateY(-100%);
+    opacity: 0;
+}
+.agent-matrix.is-settled .am-pulse::after {
+    animation: am-pulse 3.6s linear calc(var(--c, 0) * 0.8s) infinite;
+    --pulse-peak: 0.5;
+}
+.agent-matrix .am-trace.is-hot .am-pulse::after,
+.agent-matrix .am-trace.is-locked .am-pulse::after {
+    animation: am-pulse 1s var(--ease-out) infinite;
+    --pulse-peak: 1;
+}
+@keyframes am-pulse {
+    0%   { transform: translateY(-100%); opacity: 0; }
+    15%  { opacity: var(--pulse-peak, 1); }
+    85%  { opacity: var(--pulse-peak, 1); }
+    100% { transform: translateY(300%); opacity: 0; }
+}
+
+/* Model column: an instrument readout, set off by a dashed rule */
+.am-model-head { border-left: 1px dashed var(--border-strong); }
+.am-cell.am-model {
+    display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
+    padding: 0 var(--space-4);
+    border-left: 1px dashed var(--border-strong);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: var(--ink);
+}
+.am-model-logo {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 0 6px var(--accent-soft));
+}
+.am-model-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.am-model-date {
+    margin-top: 1px;
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+}
+.am-model-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Power-on sequence ── */
+.agent-matrix:not(.is-on) .am-rowhead,
+.agent-matrix:not(.is-on) .am-cell,
+.agent-matrix:not(.is-on) .am-node,
+.agent-matrix:not(.is-on) .am-trace::before { opacity: 0; }
+
+.agent-matrix.is-on .am-cap-label {
+    animation: am-type 0.5s steps(8, end) calc(var(--c) * 0.06s + 0.1s) both;
+}
+.agent-matrix.is-on .am-rowhead,
+.agent-matrix.is-on .am-cell {
+    animation: am-row-in 0.45s var(--ease-out) calc(var(--r) * 0.09s + 0.2s) both;
+}
+.agent-matrix.is-on .am-node {
+    animation: am-node-boot 0.5s var(--ease-spring) calc(var(--r) * 0.09s + var(--c) * 0.05s + 0.35s) both;
+}
+.agent-matrix.is-on .am-node i {
+    animation: am-ring 0.7s var(--ease-out) calc(var(--r) * 0.09s + var(--c) * 0.05s + 0.4s) both;
+}
+.agent-matrix.is-on .am-trace::before {
+    animation: am-trace-draw 0.6s var(--ease-out) calc(var(--c) * 0.05s + 0.8s) both;
+}
+.agent-matrix.is-settled .am-rowhead,
+.agent-matrix.is-settled .am-cell,
+.agent-matrix.is-settled .am-node,
+.agent-matrix.is-settled .am-node i,
+.agent-matrix.is-settled .am-trace::before,
+.agent-matrix.is-settled .am-cap-label { animation: none; }
+
+@keyframes am-type {
+    from { clip-path: inset(0 100% 0 0); }
+    to   { clip-path: inset(0 0 0 0); }
+}
+@keyframes am-row-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: none; }
+}
+@keyframes am-node-boot {
+    0%   { opacity: 0; transform: scale(0); }
+    60%  { opacity: 1; transform: scale(1.35); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@keyframes am-ring {
+    0%   { opacity: 0.9; transform: scale(0.4); }
+    100% { opacity: 0;   transform: scale(1.8); }
+}
+@keyframes am-trace-draw {
+    from { opacity: 1; transform: scaleY(0); }
+    to   { opacity: 1; transform: scaleY(1); }
+}
+
+/* Readout strip: one line saying what the thing under the pointer
+   means, typed in like a console. At rest it shows a quiet prompt. */
+.am-readout {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    min-height: 1.6em;
+    padding: 0 var(--space-2);
     font-family: var(--font-mono);
     font-size: 0.72rem;
-    color: var(--ink-muted);
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 5px 11px;
-    cursor: pointer;
-    white-space: nowrap;
-    position: relative;
-    overflow: hidden;
-    transition: color var(--dur-fast) var(--ease-out),
-                background var(--dur-fast) var(--ease-out),
-                border-color var(--dur-fast) var(--ease-out),
-                box-shadow var(--dur-fast) var(--ease-out),
-                transform var(--dur-fast) var(--ease-out);
+    line-height: 1.6;
+    color: var(--ink);
 }
-
-.pill-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.35;
+.am-readout-caret { color: var(--accent); text-shadow: 0 0 8px var(--accent-glow); }
+.am-readout-tag {
     flex-shrink: 0;
-    transition: opacity var(--dur-fast), box-shadow var(--dur-fast);
+    color: var(--readout-tone, var(--accent));
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.am-readout[data-tone="voice"]  { --readout-tone: var(--mode-voice); }
+.am-readout[data-tone="avatar"] { --readout-tone: var(--mode-avatar); }
+.am-readout-tag:empty { display: none; }
+.am-readout-text { min-width: 0; }
+.am-readout.is-idle .am-readout-text { color: var(--ink-subtle); }
+.am-readout-text.is-typing { animation: am-readout-type 0.45s steps(var(--chars, 40), end) both; }
+@keyframes am-readout-type {
+    from { clip-path: inset(0 100% 0 0); }
+    to   { clip-path: inset(0 0 0 0); }
+}
+.am-cell.is-on { cursor: help; }
+.am-cell.is-on:focus-visible { outline: 1px solid var(--accent); outline-offset: -4px; }
+
+/* An agent's name was clicked: its card answers with a ping. */
+.agent-card.is-pinged { animation: am-card-ping 1.4s var(--ease-out); }
+@keyframes am-card-ping {
+    0%   { box-shadow: 0 0 0 1px var(--accent), 0 0 36px var(--accent-glow); }
+    100% { box-shadow: 0 0 0 1px transparent, 0 0 0 transparent; }
 }
 
-.agent-filter-pill:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: rgba(0, 255, 209, 0.10);
-    box-shadow: 0 0 12px var(--accent-glow);
-    transform: translateY(-1px);
-}
-.agent-filter-pill:hover .pill-label { text-shadow: 0 0 8px var(--accent-glow); }
-.agent-filter-pill:hover .pill-dot {
-    opacity: 1;
-    background: var(--accent);
-    box-shadow: 0 0 7px var(--accent);
-}
-
-.agent-filter-pill.is-active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    box-shadow: 0 0 14px var(--accent-glow), inset 0 0 12px rgba(0, 255, 209, 0.06);
-}
-.agent-filter-pill.is-active .pill-dot {
-    opacity: 1;
-    background: var(--accent);
-    box-shadow: 0 0 7px var(--accent);
+@media (prefers-reduced-motion: reduce) {
+    .agent-matrix .am-rowhead,
+    .agent-matrix .am-cell,
+    .agent-matrix .am-node,
+    .agent-matrix .am-node i,
+    .agent-matrix .am-node::after,
+    .agent-matrix .am-trace::before,
+    .agent-matrix .am-cap-label,
+    .agent-matrix .am-scan,
+    .agent-matrix .am-pulse::after,
+    .am-readout-text.is-typing,
+    .am-led.is-live,
+    .agent-card.is-pinged { animation: none !important; }
+    .agent-matrix .am-rowhead,
+    .agent-matrix .am-cell,
+    .agent-matrix .am-node,
+    .agent-matrix .am-trace::before { opacity: 1; }
 }
 
 /* Card filter animation */
@@ -352,7 +747,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .console-scan, .agent-search-prompt, .agent-search-status { animation: none; }
+    .agent-search-prompt, .agent-search-status { animation: none; }
 }
 
 @media (max-width: 767px) {
@@ -361,17 +756,69 @@
         padding: var(--space-4) var(--space-4) var(--space-5);
         gap: var(--space-4);
     }
-    .agent-filter-row {
-        gap: var(--space-3) var(--space-4);
-    }
-    .agent-filter-group {
-        gap: var(--space-2);
-        width: 100%;
-    }
-    .agent-filter-label {
-        width: 100%;
-    }
 }
+@media (max-width: 600px) {
+    /* Phones: nine columns don't fit, so one group shows at a time (each
+       group has three), chosen by a segmented switch above the grid. The
+       model gets its own tab. Labels stay horizontal and tap targets big. */
+    .am-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: rgba(0, 0, 0, 0.35);
+    }
+    .am-tab {
+        min-height: 2.25rem;
+        padding: 0 var(--space-1);
+        border: 1px solid transparent;
+        border-radius: 3px;
+        background: none;
+        color: var(--ink-muted);
+        font-family: var(--font-mono);
+        font-size: 0.6rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        line-height: 1.2;
+        cursor: pointer;
+        transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    }
+    .am-tab[aria-selected="true"] {
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+        background: var(--accent-soft);
+        box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .am-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+    .agent-matrix {
+        --row-h: 3rem;
+        grid-template-columns: minmax(7.5rem, 1.3fr) repeat(3, minmax(0, 1fr));
+    }
+    .am-group, .am-corner, .am-colhead, .am-rowhead, .am-cell, .am-trace { grid-column: var(--gcm, var(--gc)); }
+    /* Only the active group's columns (or the model) are on the grid. */
+    .am-group { display: none; }
+    .agent-matrix:not([data-group="model"]) .am-model-head,
+    .agent-matrix:not([data-group="model"]) .am-cell.am-model { display: none; }
+    .agent-matrix[data-group="model"] .am-colhead:not(.am-model-head),
+    .agent-matrix[data-group="model"] .am-cell:not(.am-model),
+    .agent-matrix[data-group="model"] .am-trace { display: none; }
+    .agent-matrix[data-group="talk"]  [data-group]:not([data-group="talk"]),
+    .agent-matrix[data-group="runs"]  [data-group]:not([data-group="runs"]),
+    .agent-matrix[data-group="built"] [data-group]:not([data-group="built"]) { display: none; }
+    .am-colhead.is-split, .am-cell.is-split { border-left: 0; }
+    .am-model-head, .am-cell.am-model { border-left: 0; }
+    .am-colhead { min-height: 2.5rem; }
+    .am-corner { padding: 0 var(--space-2) 0 var(--space-3); }
+    .am-agent { padding: 0 var(--space-2) 0 var(--space-3); gap: var(--space-2); }
+    .am-cap-btn { font-size: 0.6rem; letter-spacing: 0.06em; }
+    .am-cell.am-model { font-size: 0.72rem; }
+    .agent-search-hint { display: none; } /* no "/" shortcut on a phone */
+    .am-readout { font-size: 0.66rem; flex-wrap: wrap; gap: 0 var(--space-2); }
+}
+
 
 /* ─── Card grid ────────────────────────────────────────────────────── */
 
@@ -452,6 +899,15 @@
     white-space: nowrap;
 }
 
+/* Spec 89: when the agent shipped, or was last meaningfully updated. */
+.agent-card-date {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted); /* --ink-subtle was ~2.3:1 on the card, too faint to read */
+    white-space: nowrap;
+}
 .agent-card-role {
     font-family: var(--font-mono);
     font-size: 0.75rem;

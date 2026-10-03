@@ -2269,7 +2269,7 @@ function mountBuildIt({ stage, extra, act, ctl = {} }) {
     // ── gate open / close ──
     function openGate(model, diffsByKey, totalDiff) {
         pending = { model, diffsByKey, totalDiff };
-        gateWarnEl.textContent = `Switching to ${model.name} (${model.schema}) — all 3 stages need a rewrite. You have to do this by hand.`;
+        gateWarnEl.textContent = `Switching to ${model.name} (${model.schema}). All 3 stages need a rewrite. You have to do this by hand.`;
         apiGate.removeAttribute("aria-hidden");
         apiGate.classList.add("is-open");
         mcpLockedEl.classList.add("is-visible");

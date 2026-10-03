@@ -77,7 +77,7 @@
       "title": "The Standard",
       "body": "One open standard that every app and service speaks, so the M×N tangle of bespoke glue collapses to a clean M+N.",
       "voiceLines": [
-        {"text": "So here's the old world. An AI model wiring up to Calendar, Notion, and Gmail — but through OAuth juggling, rate limits, edge cases, and fragile prompts. Every service speaks a different language.", "delay": 0},
+        {"text": "So here's the old world. An AI model wiring up to Calendar, Notion, and Gmail, but through OAuth juggling, rate limits, edge cases, and fragile prompts. Every service speaks a different language.", "delay": 0},
         {"text": "Now watch this. MCP drops a standard layer in the middle. The model talks to one protocol. Every service runs an MCP server that speaks it. No glue code. No rewiring.", "delay": 3100},
         {"text": "Think of USB-C. One port replaced an entire drawer full of chargers. That is exactly what MCP did for AI. One plug, any service.", "delay": 5900}
       ],
@@ -263,13 +263,13 @@
         "method": "GET",
         "endpoint": "/v1/current?city={city}",
         "returns": "{ \"temp_c\": 22, \"conditions\": \"partly cloudy\" }",
-        "desc": "A normal REST endpoint. To call it from an AI model you must describe it in that provider's tool-calling format — or expose it once through MCP."
+        "desc": "A normal REST endpoint. To call it from an AI model you must describe it in that provider's tool-calling format, or expose it once through MCP."
       },
       "steps": [
         "Pick a model and Run",
         "Swap the provider",
         "Approve the rewrite",
-        "Now just swap — MCP never asks"
+        "Now just swap. MCP never asks"
       ],
       "task": "get_weather(city: string) → temperature",
       "runLabel": "Run",
@@ -277,8 +277,8 @@
       "approveLabel": "Approve rewrite",
       "mcpNoChange": "Written once · nothing to approve",
       "frictionMeterLabel": "Bespoke rewrites accumulated",
-      "apiColLabel": "Without MCP — wire each provider yourself",
-      "mcpColLabel": "With MCP — wire once",
+      "apiColLabel": "Without MCP: wire each provider yourself",
+      "mcpColLabel": "With MCP: wire once",
       "stages": [
         { "n": "①", "key": "define", "label": "Define the tool" },
         { "n": "②", "key": "call",   "label": "Make the call"   },
@@ -322,7 +322,7 @@
             ")",
             "city = args[\"city\"]"
           ],
-          "parseNote": "arguments arrives as a JSON string — you must json.loads() it"
+          "parseNote": "arguments arrives as a JSON string, so you must json.loads() it"
         },
         "anthropic": {
           "define": [
@@ -350,7 +350,7 @@
             "city = block.input[\"city\"]",
             "# already a Python dict"
           ],
-          "parseNote": "input is already a Python dict on the tool_use block — no json.loads() needed"
+          "parseNote": "input is already a Python dict on the tool_use block, so no json.loads() needed"
         },
         "google": {
           "define": [
@@ -403,7 +403,7 @@
             "    \"required\": [\"city\"]",
             "  }",
             "}",
-            "# you write nothing — server owns this"
+            "# you write nothing; the server owns this"
           ],
           "badge": "once"
         },
@@ -419,7 +419,7 @@
         "parse": {
           "lines": [
             "city = result.content[0].text",
-            "# uniform result shape —",
+            "# uniform result shape:",
             "# identical regardless of",
             "# which model is behind it"
           ],
@@ -459,15 +459,15 @@
         "→  London: 22°C, partly cloudy"
       ],
       "narration": {
-        "initial": "① Pick a model and click **Run** — see the live call land. Then swap providers and feel what changes.",
+        "initial": "① Pick a model and click **Run** and see the live call land. Then swap providers and feel what changes.",
         "run": "The call landed on both sides. Now **swap the model** and watch what the left side has to do next.",
         "pendingRewrite": "**{model}** speaks a different schema ({schema}). The Direct-API integration breaks until you hand-rewrite it. **Approve the rewrite** to apply it yourself.",
         "approved": "You just hand-rewrote **{count} lines** across all three stages. Imagine doing that for every model and every tool. MCP needed zero changes.",
-        "swapAuto": "Swapped to **{model}**. Left rewrote {count} lines again — you've felt the pain, now just watch it pile up. MCP: still zero.",
+        "swapAuto": "Swapped to **{model}**. Left rewrote {count} lines again. You've felt the pain, now just watch it pile up. MCP: still zero.",
         "swapSame": "**{model}** uses the same format as before. Nothing changed on either side.",
         "done": "Keep swapping. The friction climbs every time. The MCP counter never moves."
       },
-      "reducedMotionNote": "Both windows show the same three stages: define the tool, make the call, parse the result. On the left (without MCP) all three stages change every time you switch provider — different schema, different SDK call, different parse path. On the right (with MCP) all three are frozen: the server advertises the tool, one call goes out, one result shape comes back. Swap providers on the left and the friction counter climbs; the MCP counter stays at zero.",
+      "reducedMotionNote": "Both windows show the same three stages: define the tool, make the call, parse the result. On the left (without MCP) all three stages change every time you switch provider: different schema, different SDK call, different parse path. On the right (with MCP) all three are frozen: the server advertises the tool, one call goes out, one result shape comes back. Swap providers on the left and the friction counter climbs; the MCP counter stays at zero.",
       "analogy": {
         "glyph": "≈",
         "lead": "Like a bag of country-specific plug adapters vs one universal adapter.",

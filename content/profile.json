@@ -71,7 +71,7 @@
   },
   "certifications": [
     {
-      "name": "Claude Certified Associate — Foundations",
+      "name": "Claude Certified Associate · Foundations",
       "issuer": "Anthropic",
       "category": "ai",
       "slug": "claude-certified-associate",
@@ -80,7 +80,7 @@
       "credlyUrl": "https://www.credly.com/badges/876dce5a-06b4-4ad4-a7b7-e3a08495e580/public_url"
     },
     {
-      "name": "Claude Certified Developer — Foundations",
+      "name": "Claude Certified Developer · Foundations",
       "issuer": "Anthropic",
       "category": "ai",
       "slug": "claude-certified-developer",
@@ -89,7 +89,7 @@
       "credlyUrl": "https://www.credly.com/badges/2a9c013c-5829-4135-ba0e-aa1055a1e48b/public_url"
     },
     {
-      "name": "Claude Certified Architect — Foundations",
+      "name": "Claude Certified Architect · Foundations",
       "issuer": "Anthropic",
       "category": "ai",
       "slug": "claude-certified-architect",
@@ -98,7 +98,7 @@
       "credlyUrl": "https://www.credly.com/badges/7b67699d-af26-4b77-8451-a6619f13a499/public_url"
     },
     {
-      "name": "Claude Certified Architect — Professional",
+      "name": "Claude Certified Architect · Professional",
       "issuer": "Anthropic",
       "category": "ai",
       "slug": "claude-certified-architect-professional",
@@ -107,7 +107,7 @@
       "credlyUrl": "https://www.credly.com/badges/8e1ea0ea-5fda-40e8-ace2-a12dc9be6de1/public_url"
     },
     {
-      "name": "AWS Certified Machine Learning — Specialty",
+      "name": "AWS Certified Machine Learning · Specialty",
       "issuer": "AWS",
       "category": "ai",
       "slug": "aws-ml-specialty",
@@ -116,7 +116,7 @@
       "credlyUrl": "https://www.credly.com/org/amazon-web-services/badge/aws-certified-machine-learning-specialty"
     },
     {
-      "name": "AWS Certified Machine Learning Engineer — Associate",
+      "name": "AWS Certified Machine Learning Engineer · Associate",
       "issuer": "AWS",
       "category": "ai",
       "slug": "aws-ml-engineer-associate",
@@ -134,7 +134,7 @@
       "credlyUrl": "https://cp.certmetrics.com/amazon/en/public/verify/credential/01d5b7ce2a984d93bc8963e1a0dbcb3f"
     },
     {
-      "name": "Google Cloud Certified — Generative AI Leader",
+      "name": "Google Cloud Certified · Generative AI Leader",
       "issuer": "Google Cloud",
       "category": "ai",
       "slug": "gcp-generative-ai-leader",
@@ -188,7 +188,7 @@
       "credlyUrl": "https://www.credly.com/badges/6f2d203e-3a76-4872-893f-1ddad8631fa4/public_url"
     },
     {
-      "name": "Google Cloud Agentic Premier League — Champion",
+      "name": "Google Cloud Agentic Premier League · Champion",
       "issuer": "Google Cloud",
       "category": "ai",
       "slug": "gcp-agentic-premier-league-champion",

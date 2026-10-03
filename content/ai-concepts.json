@@ -2,7 +2,7 @@
   "intro": {
     "tag": "// interactive explainers",
     "title": "AI Lab",
-    "sub": "Hard AI ideas, demystified. Each concept is a hands-on visual you can step through — built to make the abstract click in a couple of minutes."
+    "sub": "Hard AI ideas, demystified. Each concept is a hands-on visual you can step through, built to make the abstract click in a couple of minutes."
   },
   "concepts": [
     {
@@ -11,7 +11,7 @@
       "status": "LIVE",
       "title": "Model Context Protocol",
       "tagline": "The USB-C port for AI",
-      "description": "Why agents needed a standard, how the handshake works, and whether MCP rewrites your backend — a guided six-act walkthrough.",
+      "description": "Why agents needed a standard, how the handshake works, and whether MCP rewrites your backend, in a guided six-act walkthrough.",
       "tags": ["Protocol", "Agents", "Tooling"],
       "href": "/ai-labs/mcp-lab/",
       "internal": true,
@@ -23,7 +23,7 @@
       "status": "LIVE",
       "title": "Agentic RAG",
       "tagline": "Watch retrieval happen in 3D",
-      "description": "Documents become vectors in space, a query lights up its nearest neighbours, hybrid search fuses results, and the model streams a grounded answer — every RAG stage, visualized.",
+      "description": "Documents become vectors in space, a query lights up its nearest neighbours, hybrid search fuses results, and the model streams a grounded answer. Every RAG stage, visualized.",
       "tags": ["Retrieval", "Embeddings", "Vector space"],
       "href": "/ai-labs/rag-lab/",
       "internal": false,
@@ -54,5 +54,5 @@
       "cta": "Open Agent-Ready Lab"
     }
   ],
-  "teaser": "// more concepts in flight — added as I find better ways to explain them"
+  "teaser": "// more concepts in flight, added as I find better ways to explain them"
 }

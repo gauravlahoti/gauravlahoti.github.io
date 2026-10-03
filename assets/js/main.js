@@ -618,7 +618,7 @@ function renderCertTile(c, isDuplicate = false) {
         // first half of the rail for the seamless marquee loop.
         if (c.credlyUrl) wrapper.setAttribute("tabindex", "-1");
     } else if (c.credlyUrl) {
-        wrapper.setAttribute("aria-label", `${c.name} — verify on Credly (opens in new tab)`);
+        wrapper.setAttribute("aria-label", `${c.name}: verify on Credly (opens in new tab)`);
     }
 
     return li;
