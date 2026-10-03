@@ -374,9 +374,9 @@ function renderRole(r) {
 }
 
 function getStartYear(co) {
-    if (!co.roles || co.roles.length === 0) return "—";
+    if (!co.roles || co.roles.length === 0) return "";
     const oldest = co.roles[0].start || "";
-    return oldest.slice(0, 4) || "—";
+    return oldest.slice(0, 4) || "";
 }
 
 function formatPeriod(yyyymm) {

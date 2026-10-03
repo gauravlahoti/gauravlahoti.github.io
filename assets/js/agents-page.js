@@ -69,13 +69,14 @@ function buildCard(agent, onOpen) {
     const card = el("article", {
         class: "agent-card",
         tabindex: "0",
-        "aria-label": `${agent.name} — ${agent.role}`,
+        "aria-label": `${agent.name}, ${agent.role}`,
     });
 
     const meta = el("div", { class: "agent-card-meta" });
     meta.append(
         el("span", { class: "agent-card-status" }, agent.status || "LIVE"),
         el("span", { class: "agent-card-role" }, agent.role),
+        ...(agentStamp(agent) ? [el("span", { class: "agent-card-date" }, agentStamp(agent))] : []),
     );
 
     const name = el("h2", { class: "agent-card-name" }, agent.name);
@@ -122,7 +123,7 @@ function openDiagramFullscreen(svgEl) {
         class: "agent-diag-fs",
         role: "dialog",
         "aria-modal": "true",
-        "aria-label": "Architecture diagram — fullscreen",
+        "aria-label": "Architecture diagram, fullscreen",
     });
 
     const closeBtn = el("button", { class: "agent-diag-fs-close", type: "button", "aria-label": "Exit fullscreen" });
@@ -424,6 +425,7 @@ async function buildPanel(agent) {
     hdrLeft.append(
         el("span", { class: "agent-card-status" }, agent.status || "LIVE"),
         el("span", { class: "agent-card-role" }, agent.role),
+        ...(agentStamp(agent) ? [el("span", { class: "agent-card-date" }, agentStamp(agent))] : []),
     );
     const closeBtn = el("button", { class: "agent-panel-close", type: "button", "aria-label": "Close" });
     closeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
@@ -675,21 +677,62 @@ function closePanel(overlay, onComplete) {
     }
 }
 
-// ─── Search bar ───────────────────────────────────────────────────────────────
+// ─── Agent index: capability matrix (spec 89) ─────────────────────────────────
+//
+// One row per agent, one column per capability, grouped under three plain
+// headings so a visitor knows what kind of thing each column is: how you
+// talk to it, how it runs, and what it's built with (Anthropic's
+// "augmented LLM" building blocks: retrieval, tools, memory). It replaced
+// 25 filter chips for four agents, most of which matched exactly one.
+// A capability's header filters the cards; an agent's name jumps to its
+// card; a lit dot explains itself in the readout strip, from that agent's
+// agents.json → index.evidence. Keys are stable; labels live here.
 
-function buildSearchBar(agents, cards) {
-    const types    = [...new Set(agents.map(a => a.searchMeta?.type).filter(Boolean))];
-    const models   = [...new Set(agents.map(a => a.searchMeta?.model).filter(Boolean))];
-    const patterns = [...new Set(agents.flatMap(a => a.searchMeta?.patterns || []))];
+const CAPABILITY_GROUPS = [
+    { key: "talk",  label: "Talk to it",  short: "Talk" },
+    { key: "runs",  label: "How it runs", short: "Runs" },
+    { key: "built", label: "Built with",  short: "Built" },
+];
+
+const CAPABILITIES = [
+    { key: "text",       group: "talk",  label: "Chat",        hint: "Type a question and get a written answer.", tone: "text" },
+    { key: "voice",      group: "talk",  label: "Voice",       hint: "Speak to it and it speaks back.", tone: "voice" },
+    { key: "avatar",     group: "talk",  label: "Avatar",      hint: "A face on camera that talks back in real time.", tone: "avatar" },
+    { key: "ondemand",   group: "runs",  label: "On demand",   hint: "Runs when a person asks, and answers right then." },
+    { key: "autonomous", group: "runs",  label: "Ambient",     hint: "Works in the background on its own schedule, with nobody in the loop." },
+    { key: "team",       group: "runs",  label: "Multi-agent", hint: "A team of agents with their own jobs, run by an orchestrator." },
+    { key: "cites",      group: "built", label: "Retrieval",   hint: "Looks things up in real sources before it answers." },
+    { key: "acts",       group: "built", label: "Tools",       hint: "Does things, like writing data, sending email or calling APIs." },
+    { key: "learns",     group: "built", label: "Memory",      hint: "Keeps what it learned and uses it next time." },
+];
+
+// One date per agent: "updated Oct 2026" after a meaningful update,
+// otherwise "shipped May 2026". It dates the model choice, so a model that
+// was the newest when the agent shipped reads as of its time, not stale.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function agentStamp(agent) {
+    const ym = agent.index?.updated || agent.index?.shipped;
+    const m = /^(\d{4})-(\d{2})$/.exec(ym || "");
+    if (!m) return "";
+    return `${agent.index?.updated ? "updated" : "shipped"} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+// The model family's official mark, the same files the chat widget and the
+// labs use. Unknown families get no logo rather than a wrong one.
+function modelLogo(name) {
+    if (/^claude/i.test(name)) return "/assets/img/logo-claude.svg";
+    if (/^gemini/i.test(name)) return "/assets/img/logo-gemini.svg";
+    return "";
+}
+
+function buildAgentIndex(agents, cards) {
+    const caps = CAPABILITIES.filter(c => agents.some(a => a.index?.capabilities?.includes(c.key)));
+    const has = (agent, key) => !!agent.index?.capabilities?.includes(key);
 
     const bar = el("div", { class: "agent-search-bar agent-console", role: "search" });
-
-    // HUD corner brackets (decorative, sci-fi console frame)
     ["tl", "tr", "bl", "br"].forEach(pos =>
         bar.appendChild(el("span", { class: `console-corner console-corner--${pos}`, "aria-hidden": "true" })),
     );
-    // Animated scan sweep across the console
-    bar.appendChild(el("span", { class: "console-scan", "aria-hidden": "true" }));
 
     // Input row
     const inputWrap = el("div", { class: "agent-search-input-wrap" });
@@ -700,15 +743,11 @@ function buildSearchBar(agents, cards) {
         type: "search",
         placeholder: "query the agent index…",
         autocomplete: "off",
-        spellcheck: "false",
-        "aria-label": "Search agents by name, model, or pattern",
+        spellcheck: false,
+        "aria-label": "Search agents by name, model, or what they can do",
     });
     const hint = el("kbd", { class: "agent-search-hint", "aria-hidden": "true" }, "/");
-    const clearBtn = el("button", {
-        class: "agent-search-clear",
-        type: "button",
-        "aria-label": "Clear search and filters",
-    });
+    const clearBtn = el("button", { class: "agent-search-clear", type: "button", "aria-label": "Clear search and filters" });
     clearBtn.hidden = true;
     clearBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
     const readout = el("span", { class: "agent-search-readout" });
@@ -718,56 +757,248 @@ function buildSearchBar(agents, cards) {
     readout.append(statusDot, countBadge);
     inputWrap.append(prompt, input, hint, clearBtn, readout);
 
-    // Filter groups
-    const filterRow = el("div", { class: "agent-filter-row" });
-    function makeGroup(cat, label, values) {
-        const group = el("div", { class: "agent-filter-group", "data-cat": cat });
-        const lbl   = el("span", { class: "agent-filter-label" }, label);
-        const pills = el("div", { class: "agent-filter-pills" });
-        values.forEach(val => {
-            const pill = el("button", {
-                class: "agent-filter-pill",
-                type: "button",
-                "data-cat": cat,
-                "data-val": val,
-                "aria-pressed": "false",
-            });
-            pill.innerHTML = `<span class="pill-dot" aria-hidden="true"></span><span class="pill-label"></span>`;
-            pill.querySelector(".pill-label").textContent = val;
-            pills.appendChild(pill);
+    // ── The matrix ──
+    // Table semantics over one CSS grid. Rows are agents, columns are
+    // capabilities, then the model. Row wrappers use display: contents, so
+    // every cell sits on the same grid and a column's light trace can run
+    // down across rows.
+    const matrix = el("div", { class: "agent-matrix", role: "table", "aria-label": "What each agent can do" });
+    matrix.style.setProperty("--caps", caps.length);
+    matrix.appendChild(el("span", { class: "am-scan", "aria-hidden": "true" }));
+    // Columns are CSS variables, not inline grid-column, so the phone layout
+    // can re-place cells: --gc is the desktop column, --gcm the column
+    // within its group when phones show one group at a time.
+    const place = (node, row, column, phoneColumn, group) => {
+        node.style.gridRow = String(row);
+        node.style.setProperty("--gc", String(column));
+        if (phoneColumn != null) node.style.setProperty("--gcm", String(phoneColumn));
+        if (group) node.dataset.group = group;
+    };
+    // Where each capability sits within its own group (0, 1, 2).
+    const inGroup = caps.map((k, c) => caps.slice(0, c).filter(x => x.group === k.group).length);
+
+    // Group row: three headings over their columns. Decorative for the
+    // table semantics; each column's accessible name already says it all.
+    const firstOfGroup = new Set();
+    CAPABILITY_GROUPS.forEach(g => {
+        const cols = caps.map((k, c) => (k.group === g.key ? c : -1)).filter(c => c >= 0);
+        if (!cols.length) return;
+        firstOfGroup.add(cols[0]);
+        const gh = el("div", { class: "am-group", "aria-hidden": "true" });
+        place(gh, 1, `${cols[0] + 2} / ${cols[cols.length - 1] + 3}`, null, g.key);
+        gh.innerHTML = `<span class="am-group-label" data-short=""></span>`;
+        const lbl = gh.querySelector(".am-group-label");
+        lbl.textContent = g.label;
+        lbl.dataset.short = g.short;
+        if (cols[0] > 0) gh.classList.add("is-split");
+        matrix.appendChild(gh);
+    });
+
+    // Header row: capabilities (each one a filter) and the model column
+    const headRow = el("div", { class: "am-row am-head", role: "row" });
+    const corner = el("span", { class: "am-corner", role: "columnheader" }, `<span class="am-corner-label">agent</span>`);
+    place(corner, "1 / 3", 1);
+    headRow.appendChild(corner);
+    const capHeads = caps.map((cap, c) => {
+        const th = el("div", { class: "am-colhead", role: "columnheader" });
+        place(th, 2, c + 2, inGroup[c] + 2, cap.group);
+        if (firstOfGroup.has(c) && c > 0) th.classList.add("is-split");
+        th.dataset.col = String(c);
+        th.style.setProperty("--c", c);
+        if (cap.tone) th.dataset.tone = cap.tone;
+        const btn = el("button", { class: "am-cap-btn", type: "button", "aria-pressed": "false", title: cap.hint });
+        btn.innerHTML = `<span class="am-cap-label"></span><span class="am-rail" aria-hidden="true"></span>`;
+        btn.querySelector(".am-cap-label").textContent = cap.label;
+        btn.setAttribute("aria-label", `${cap.label}: ${cap.hint} Show only agents that have it.`);
+        btn.addEventListener("pointerenter", () => showReadout(null, cap));
+        btn.addEventListener("focus", () => showReadout(null, cap));
+        btn.addEventListener("click", () => toggleCap(cap.key));
+        th.appendChild(btn);
+        headRow.appendChild(th);
+        return { th, btn, key: cap.key };
+    });
+    const modelHead = el("span", { class: "am-colhead am-model-head", role: "columnheader" }, `<span class="am-corner-label">model</span>`);
+    place(modelHead, "1 / 3", caps.length + 2, "2 / -1", "model");
+    headRow.appendChild(modelHead);
+    matrix.appendChild(headRow);
+
+    // Agent rows
+    const rows = agents.map((agent, r) => {
+        const gridRow = r + 3;
+        const row = el("div", { class: "am-row am-agent-row", role: "row" });
+        const rh = el("div", { class: "am-rowhead", role: "rowheader" });
+        place(rh, gridRow, 1);
+        rh.style.setProperty("--r", r);
+        rh.dataset.row = String(r);
+        const live = String(agent.status || "LIVE").toUpperCase() === "LIVE";
+        const btn = el("button", { class: "am-agent", type: "button", "aria-label": `${agent.name}, ${agent.role}: jump to its card` });
+        btn.innerHTML =
+            `<span class="am-led${live ? " is-live" : ""}" aria-hidden="true"></span>` +
+            `<span class="am-agent-text"><span class="am-agent-name"></span><span class="am-agent-role"></span></span>`;
+        btn.querySelector(".am-agent-name").textContent = agent.name;
+        btn.querySelector(".am-agent-role").textContent = agent.role || "";
+        btn.addEventListener("click", () => jumpTo(r));
+        rh.appendChild(btn);
+        row.appendChild(rh);
+
+        caps.forEach((cap, c) => {
+            const on = has(agent, cap.key);
+            const cell = el("div", { class: `am-cell${on ? " is-on" : ""}`, role: "cell" });
+            place(cell, gridRow, c + 2, inGroup[c] + 2, cap.group);
+            cell.dataset.col = String(c);
+            cell.dataset.row = String(r);
+            cell.style.setProperty("--r", r);
+            cell.style.setProperty("--c", c);
+            if (cap.tone) cell.dataset.tone = cap.tone;
+            if (firstOfGroup.has(c) && c > 0) cell.classList.add("is-split");
+            const why = agent.index?.evidence?.[cap.key] || "";
+            cell.innerHTML = on
+                ? `<span class="am-node" aria-hidden="true"><i></i></span><span class="sr-only"></span>`
+                : `<span class="am-off" aria-hidden="true"></span><span class="sr-only">no</span>`;
+            if (on) {
+                // A lit dot explains itself: hover, focus or tap shows how.
+                cell.querySelector(".sr-only").textContent = why ? `Yes. ${why}` : "yes";
+                cell.tabIndex = 0;
+                const show = () => showReadout(agent, cap, why);
+                cell.addEventListener("pointerenter", show);
+                cell.addEventListener("focus", show);
+                cell.addEventListener("click", show);
+            }
+            row.appendChild(cell);
         });
-        group.append(lbl, pills);
-        return group;
+
+        const model = el("div", { class: "am-cell am-model", role: "cell" }, "");
+        const modelName = agent.index?.model || "";
+        const logo = modelLogo(modelName);
+        model.innerHTML = (logo ? `<img class="am-model-logo" src="${logo}" alt="" width="16" height="16" loading="lazy">` : "") +
+            `<span class="am-model-name"></span>`;
+        // "Gemini 3.6 Flash · Gemini 3.8 Live" reads as two models, one per
+        // line, given equal weight: the second one powers Atlas's avatar.
+        const nameEl = model.querySelector(".am-model-name");
+        modelName.split(" · ").forEach((part, i) => {
+            const line = el("span", { class: "am-model-line" });
+            line.textContent = part;
+            nameEl.appendChild(line);
+        });
+        const stamp = agentStamp(agent);
+        if (stamp) nameEl.appendChild(el("span", { class: "am-model-date" }, stamp));
+        place(model, gridRow, caps.length + 2, "2 / -1", "model");
+        model.dataset.row = String(r);
+        model.style.setProperty("--r", r);
+        row.appendChild(model);
+
+        matrix.appendChild(row);
+        return row;
+    });
+
+    // A light trace runs down each capability's column, from its first agent
+    // to its last, centre to centre, joining the agents that share it.
+    caps.forEach((cap, c) => {
+        const lit = agents.map((a, r) => (has(a, cap.key) ? r : -1)).filter(r => r >= 0);
+        if (lit.length < 2) return;
+        const from = lit[0], to = lit[lit.length - 1];
+        const trace = el("span", { class: "am-trace", "aria-hidden": "true" });
+        place(trace, `${from + 3} / ${to + 4}`, c + 2, inGroup[c] + 2, cap.group);
+        trace.style.setProperty("--span", to - from + 1);
+        trace.style.setProperty("--c", c);
+        trace.dataset.col = String(c);
+        trace.appendChild(el("i", { class: "am-pulse" }));
+        matrix.appendChild(trace);
+    });
+
+    // Column hover: the capability's cells light up as one vertical beam;
+    // row hover is plain CSS (each agent's row tints).
+    let hot = null;
+    const setHot = (c) => {
+        if (c === hot) return;
+        hot = c;
+        matrix.querySelectorAll("[data-col]").forEach(n => n.classList.toggle("is-hot", n.dataset.col === c));
+    };
+    let hotRow = null;
+    const setHotRow = (r) => {
+        if (r === hotRow) return;
+        hotRow = r;
+        matrix.querySelectorAll("[data-row]").forEach(n => n.classList.toggle("is-row-hot", n.dataset.row === r));
+    };
+    matrix.addEventListener("pointerover", e => {
+        setHot(e.target.closest(".am-cell[data-col], .am-colhead[data-col]")?.dataset.col ?? null);
+        setHotRow(e.target.closest("[data-row]")?.dataset.row ?? null);
+    });
+    matrix.addEventListener("pointerleave", () => { setHot(null); setHotRow(null); resetReadout(); });
+    matrix.addEventListener("focusout", e => { if (!matrix.contains(e.relatedTarget)) resetReadout(); });
+
+    // ── Phones: one group at a time, behind a segmented switch ──
+    // Nine columns don't fit a phone. Each group has three, so a phone
+    // shows one group (plus a Model tab) as a tidy 4 x 3 grid. Hidden on
+    // wider screens by CSS; the matrix carries the active group.
+    const tabs = el("div", { class: "am-tabs", role: "tablist", "aria-label": "Capability group" });
+    const tabDefs = [...CAPABILITY_GROUPS.filter(g => caps.some(k => k.group === g.key)), { key: "model", label: "Model" }];
+    const tabBtns = tabDefs.map(g => {
+        const t = el("button", { class: "am-tab", type: "button", role: "tab", "aria-selected": "false" });
+        t.textContent = g.label;
+        t.dataset.group = g.key;
+        t.addEventListener("click", () => selectGroup(g.key));
+        tabs.appendChild(t);
+        return t;
+    });
+    function selectGroup(key) {
+        matrix.dataset.group = key;
+        tabBtns.forEach(t => t.setAttribute("aria-selected", String(t.dataset.group === key)));
+        resetReadout();
     }
-    if (types.length)    filterRow.appendChild(makeGroup("type",    "type",    types));
-    if (models.length)   filterRow.appendChild(makeGroup("model",   "model",   models));
-    if (patterns.length) filterRow.appendChild(makeGroup("pattern", "pattern", patterns));
+
+    // ── Readout strip: what the thing under the pointer actually means ──
+    const strip = el("div", { class: "am-readout", "aria-hidden": "true" });
+    strip.innerHTML =
+        `<span class="am-readout-caret">&gt;</span>` +
+        `<span class="am-readout-tag"></span>` +
+        `<span class="am-readout-text"></span>`;
+    const roTag = strip.querySelector(".am-readout-tag");
+    const roText = strip.querySelector(".am-readout-text");
+    const READOUT_IDLE = matchMedia("(hover: none)").matches
+        ? "tap a dot to see how each agent does it"
+        : "point at a dot to see how each agent does it";
+    function setReadout(tag, text, tone) {
+        roTag.textContent = tag;
+        roText.textContent = text;
+        strip.dataset.tone = tone || "";
+        strip.classList.toggle("is-idle", !tag);
+        // Retype: restart the reveal on every change.
+        roText.classList.remove("is-typing");
+        void roText.offsetWidth;
+        roText.classList.add("is-typing");
+        roText.style.setProperty("--chars", Math.max(8, text.length));
+    }
+    function showReadout(agent, cap, why) {
+        if (agent) setReadout(`${agent.name} · ${cap.label}`, why || cap.hint, cap.tone);
+        else setReadout(cap.label, cap.hint, cap.tone);
+    }
+    function resetReadout() { setReadout("", READOUT_IDLE, ""); }
+    resetReadout();
+    selectGroup(tabDefs[0].key);
 
     // Empty state (rendered inside grid via caller)
     const emptyState = el("div", { class: "agents-empty" });
     emptyState.hidden = true;
-    emptyState.innerHTML = `<span class="agents-empty-prompt" aria-hidden="true">&gt;_ </span>no agents match — try a different filter`;
+    emptyState.innerHTML = `<span class="agents-empty-prompt" aria-hidden="true">&gt;_ </span>no agents match, try a different search`;
 
-    bar.append(inputWrap, filterRow);
+    bar.append(inputWrap, tabs, matrix, strip);
 
     // ── State & filter logic ──────────────────────────────────────
-    const active = { type: new Set(), model: new Set(), pattern: new Set() };
     let query = "";
+    let activeCap = null;
 
     function matches(agent) {
-        const meta = agent.searchMeta || {};
+        if (activeCap && !has(agent, activeCap)) return false;
         if (query) {
             const q = query.toLowerCase();
             const hay = [
                 agent.name, agent.subtitle, agent.role, agent.headline,
-                agent.description, ...(agent.stack || []),
-                meta.type, meta.model, ...(meta.patterns || []),
+                agent.description, ...(agent.stack || []), agent.index?.model,
+                ...caps.filter(k => has(agent, k.key)).map(k => k.label),
             ].join(" ").toLowerCase();
             if (!hay.includes(q)) return false;
         }
-        if (active.type.size    && !active.type.has(meta.type))                                     return false;
-        if (active.model.size   && !active.model.has(meta.model))                                   return false;
-        if (active.pattern.size && !(meta.patterns || []).some(p => active.pattern.has(p)))          return false;
         return true;
     }
 
@@ -783,48 +1014,51 @@ function buildSearchBar(agents, cards) {
 
     function applyFilters() {
         let count = 0;
-        agents.forEach((agent, i) => {
+        agents.forEach((agent, r) => {
             const ok = matches(agent);
-            setVisible(cards[i], ok);
+            setVisible(cards[r], ok);
+            matrix.querySelectorAll(`[data-row="${r}"]`).forEach(n => n.classList.toggle("is-dim", !ok));
             if (ok) count++;
         });
-        const hasFilter = query || Object.values(active).some(s => s.size);
+        capHeads.forEach(({ th, btn, key }, c) => {
+            const on = key === activeCap;
+            th.classList.toggle("is-locked", on);
+            btn.setAttribute("aria-pressed", String(on));
+            matrix.querySelectorAll(`.am-cell[data-col="${c}"], .am-trace[data-col="${c}"]`).forEach(n => n.classList.toggle("is-locked", on));
+        });
+        matrix.classList.toggle("has-lock", !!activeCap);
+        const hasFilter = !!(query || activeCap);
         clearBtn.hidden = !hasFilter;
         countBadge.textContent = hasFilter ? `${count} of ${agents.length}` : `${agents.length} agents`;
         emptyState.hidden = count > 0;
     }
 
-    input.addEventListener("input", () => { query = input.value.trim(); applyFilters(); });
-
-    filterRow.addEventListener("click", e => {
-        const pill = e.target.closest(".agent-filter-pill");
-        if (!pill) return;
-        const cat = pill.dataset.cat;
-        const val = pill.dataset.val;
-        const set = active[cat];
-        if (set.has(val)) {
-            set.delete(val);
-            pill.setAttribute("aria-pressed", "false");
-            pill.classList.remove("is-active");
-        } else {
-            set.add(val);
-            pill.setAttribute("aria-pressed", "true");
-            pill.classList.add("is-active");
-        }
+    function toggleCap(key) {
+        activeCap = activeCap === key ? null : key;
         applyFilters();
-    });
+    }
 
-    clearBtn.addEventListener("click", () => {
+    function clearAll() {
         input.value = "";
         query = "";
-        Object.values(active).forEach(s => s.clear());
-        filterRow.querySelectorAll(".agent-filter-pill.is-active").forEach(p => {
-            p.classList.remove("is-active");
-            p.setAttribute("aria-pressed", "false");
-        });
+        activeCap = null;
         applyFilters();
-        input.focus();
-    });
+    }
+
+    // An agent's header: bring its card into view and ping it. A filter
+    // that hides that card is cleared first, so the jump always lands.
+    function jumpTo(r) {
+        if (!matches(agents[r])) clearAll();
+        const card = cards[r];
+        card.scrollIntoView({ behavior: REDUCE_MOTION ? "auto" : "smooth", block: "center" });
+        card.classList.remove("is-pinged");
+        void card.offsetWidth; // restart the ping on a quick re-click
+        card.classList.add("is-pinged");
+        setTimeout(() => card.classList.remove("is-pinged"), 1600);
+    }
+
+    input.addEventListener("input", () => { query = input.value.trim(); applyFilters(); });
+    clearBtn.addEventListener("click", () => { clearAll(); input.focus(); });
 
     // "/" shortcut to focus search when not already in an input
     document.addEventListener("keydown", e => {
@@ -834,6 +1068,21 @@ function buildSearchBar(agents, cards) {
             input.select();
         }
     });
+
+    // Power on once, the first time the matrix scrolls into view.
+    if (REDUCE_MOTION || typeof IntersectionObserver !== "function") {
+        matrix.classList.add("is-on", "is-settled");
+    } else {
+        const io = new IntersectionObserver(entries => {
+            if (!entries.some(en => en.isIntersecting)) return;
+            io.disconnect();
+            matrix.classList.add("is-on");
+            // After the boot sequence, drop the per-cell delays so hover and
+            // filter transitions respond immediately.
+            setTimeout(() => matrix.classList.add("is-settled"), 1800);
+        }, { threshold: 0.25 });
+        io.observe(matrix);
+    }
 
     return { bar, emptyState };
 }
@@ -966,7 +1215,7 @@ async function initGrid() {
     let agents;
     try {
         const base = document.querySelector("base")?.href || window.location.origin + "/";
-        agents = await fetch(new URL("content/agents.json?v=192", base)).then(r => r.json());
+        agents = await fetch(new URL("content/agents.json?v=198", base)).then(r => r.json());
     } catch (err) {
         console.warn("[agents-page] agents.json load failed", err);
         root.innerHTML = `<p style="font-family:var(--font-mono);color:var(--ink-muted);font-size:0.875rem">// agent data unavailable</p>`;
@@ -1004,7 +1253,7 @@ async function initGrid() {
         });
     }
 
-    const { bar, emptyState } = buildSearchBar(agents, cards);
+    const { bar, emptyState } = buildAgentIndex(agents, cards);
     root.appendChild(bar);
 
     const teaser = el("div", { class: "agents-teaser" });
@@ -1012,7 +1261,7 @@ async function initGrid() {
         <div class="agents-teaser-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </div>
-        <span class="agents-teaser-text">// more agents in flight — different stacks, added as Gaurav ships them</span>`;
+        <span class="agents-teaser-text">// more agents in flight, on different stacks, added as Gaurav ships them</span>`;
     grid.appendChild(teaser);
     grid.appendChild(emptyState);
 

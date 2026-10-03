@@ -9,7 +9,7 @@
     { "id": "quote-to-cash", "type": "project", "label": "Quote-to-Cash", "description": "Salesforce CPQ ↔ NetSuite ZAB integration for a US analytics firm. 30% reduction in order-processing time; 500 TPS at sub-200ms.", "year": 2019 },
     { "id": "food-processing", "type": "project", "label": "Global Supply Fabric", "description": "Enterprise SOA patterns for a multi-region food-processing giant. Oracle SOA, OSB, BPM, ODI.", "year": 2015 },
 
-    { "id": "agentic-ai", "type": "domain", "label": "Agentic AI", "description": "LangGraph, ADK, MCP, A2A — autonomous workflows with deterministic LLM execution." },
+    { "id": "agentic-ai", "type": "domain", "label": "Agentic AI", "description": "LangGraph, ADK, MCP, A2A: autonomous workflows with deterministic LLM execution." },
     { "id": "cloud-architecture", "type": "domain", "label": "Cloud-Native Architecture", "description": "GCP and AWS cloud-native systems, Kubernetes, Terraform." },
     { "id": "enterprise-integration", "type": "domain", "label": "Enterprise Integration", "description": "Apigee, Boomi, Oracle SOA/OSB, event-driven architecture." },
     { "id": "distributed-systems", "type": "domain", "label": "Distributed Systems", "description": "High-throughput, low-latency, resilient by design." },

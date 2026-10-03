@@ -141,8 +141,8 @@
   },
   {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-anthropic-developercommunity-ugcPost-7459463340470489089-RvoX?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
-    "firstLine": "I spent a weekend inside Google's PromptWars and the Claude community — here's what I saw.",
-    "excerpt": "I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office — I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.",
+    "firstLine": "I spent a weekend inside Google's PromptWars and the Claude community. Here's what I saw.",
+    "excerpt": "I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office, where I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.",
     "date": "2026-05-11",
     "tags": [
       "googlecloud",
@@ -193,7 +193,7 @@
   {
     "url": "https://www.linkedin.com/posts/glahoti_aiagents-googleadk-multiagent-ugcPost-7452201865829724160-Fum8",
     "firstLine": "The biggest blind spot in AI for incident response is simple: it does not know what your team already learned.",
-    "excerpt": "On-call engineers keep getting sent down paths their teammates already ruled out last month. I built a multi-agent system that fixes that — starting with your team's own runbooks and past incidents.",
+    "excerpt": "On-call engineers keep getting sent down paths their teammates already ruled out last month. I built a multi-agent system that fixes that, starting with your team's own runbooks and past incidents.",
     "date": "2026-04-21",
     "tags": [
       "aiagents",
@@ -205,7 +205,7 @@
   {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-gcp-adk-ugcPost-7441549845116583936-8CG0",
     "firstLine": "I vibe coded a GCP Advisor agent that never guesses.",
-    "excerpt": "Vibe coding gets you a prototype fast, but it cuts corners — hallucinated APIs, invented patterns. ADK agent skills fix that by giving Gemini CLI the right context to build correctly from architecture through evals.",
+    "excerpt": "Vibe coding gets you a prototype fast, but it cuts corners: hallucinated APIs, invented patterns. ADK agent skills fix that by giving Gemini CLI the right context to build correctly from architecture through evals.",
     "date": "2026-03-22",
     "tags": [
       "googlecloud",

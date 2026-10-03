@@ -89,7 +89,7 @@ function buildCard(c) {
     // whole card is clickable (keyboard + pointer), launch link still works
     card.setAttribute("tabindex", "0");
     card.setAttribute("role", "link");
-    card.setAttribute("aria-label", `${c.title} — ${c.tagline}`);
+    card.setAttribute("aria-label", `${c.title}: ${c.tagline}`);
     const go = () => {
         if (c.internal) runPageTransition(c.href);
         else window.location.href = c.href;

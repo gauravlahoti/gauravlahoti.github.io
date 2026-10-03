@@ -514,7 +514,7 @@ function renderConsole(pane, content, mc, defs) {
     );
 
     const select = el("select", { class: "webmcp-tool-select" });
-    select.append(el("option", { value: "", text: "— pick a tool —" }));
+    select.append(el("option", { value: "", text: "Pick a tool" }));
     defs.forEach((d) => select.append(el("option", { value: d.name, text: d.name })));
 
     const formHost = el("div", { class: "webmcp-run-form" });
