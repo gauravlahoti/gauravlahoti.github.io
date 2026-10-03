@@ -113,7 +113,12 @@ body.is-scrolling .nav {
     gap: var(--space-1);
     padding: 0;
 }
+/* Grey at rest; on hover each icon lights up in its own brand colour.
+   Email has no brand, so it keeps the site accent. */
 .nav-channel {
+    --channel-color: var(--accent);
+    --channel-soft:  var(--accent-soft);
+    --channel-glow:  var(--accent-glow);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -126,20 +131,30 @@ body.is-scrolling .nav {
         background var(--dur-fast) var(--ease-out),
         transform var(--dur-fast) var(--ease-out);
 }
+.nav-channel[aria-label="LinkedIn"] {
+    --channel-color: var(--brand-linkedin);
+    --channel-soft:  var(--brand-linkedin-soft);
+    --channel-glow:  var(--brand-linkedin-glow);
+}
+.nav-channel[aria-label="GitHub"] {
+    --channel-color: var(--brand-github);
+    --channel-soft:  var(--brand-github-soft);
+    --channel-glow:  var(--brand-github-glow);
+}
 .nav-channel svg {
     transition:
         transform var(--dur-fast) var(--ease-out),
         filter var(--dur-fast) var(--ease-out);
 }
 .nav-channel:hover, .nav-channel:focus-visible {
-    color: var(--accent);
-    background: var(--accent-soft);
+    color: var(--channel-color);
+    background: var(--channel-soft);
     transform: translateY(-2px);
     outline: none;
 }
 .nav-channel:hover svg, .nav-channel:focus-visible svg {
     transform: scale(1.12);
-    filter: drop-shadow(0 0 6px var(--accent-glow));
+    filter: drop-shadow(0 0 6px var(--channel-glow));
 }
 .nav-channel:active { transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
