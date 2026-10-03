@@ -35,6 +35,15 @@
     --era-ey:        #FFE600;
     --era-deloitte:  #86BC25;
 
+    /* third-party brand marks — nav channel icons light up in their own
+       colour on hover (email has no brand, so it keeps the accent) */
+    --brand-linkedin:      #0A66C2;
+    --brand-linkedin-soft: rgba(10, 102, 194, 0.16);
+    --brand-linkedin-glow: rgba(10, 102, 194, 0.55);
+    --brand-github:        #FFFFFF;
+    --brand-github-soft:   rgba(255, 255, 255, 0.10);
+    --brand-github-glow:   rgba(255, 255, 255, 0.40);
+
     /* capabilities — per-axis accent tokens (mint stays the lead) */
     --axis-ai:         var(--accent);
     --axis-ai-soft:    var(--accent-soft);
