@@ -57,6 +57,9 @@ def start_server() -> subprocess.Popen[str]:
     ]
     env = os.environ.copy()
     env["INTEGRATION_TEST"] = "TRUE"
+    # This suite drives ADK's own /run_sse, /docs and /feedback, which the
+    # prod route allowlist 404s (spec 85). Open them for the test server only.
+    env["ATLAS_DEV_ROUTES"] = "1"
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,

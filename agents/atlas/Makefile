@@ -18,7 +18,7 @@ corpus: ## Refresh the bundled corpus snapshot (offline fallback only — Atlas 
 install: ## Install Python deps (uv sync).
 	uv sync
 
-dev: ## Run the FastAPI app locally on :8000 with reload.
+dev: ## Run the FastAPI app locally on :8000 with reload. Prod route allowlist on; `ATLAS_DEV_ROUTES=1 make dev` for ADK's dev UI.
 	uv run uvicorn app.fast_api_app:app --host 0.0.0.0 --port 8000 --reload
 
 playground: ## Open the ADK web playground.
@@ -43,6 +43,9 @@ smoke: ## One-shot smoke test against the local agent.
 # eval_config.yaml). adk-deploy-trail runs on its own free-tier credit, so grading
 # is not billed today, but it IS Vertex, not "no Vertex". Low volume (~32
 # calls/run).
+# ATLAS_DEV_ROUTES=1 on both eval recipes: agents-cli eval boots app.fast_api_app
+# and drives ADK's own session and /run routes, which the prod route allowlist
+# 404s (spec 85). Only the local eval server gets it.
 _FREE_KEY = KEY="$${GEMINI_API_KEY:-$$(gcloud secrets versions access latest --secret=gemini-api-key --project gcp-experiments-490306 2>/dev/null)}"; \
 	test -n "$$KEY" || { echo "ERROR: no free-tier key — set GEMINI_API_KEY or grant access to secret 'gemini-api-key'"; exit 1; }; \
 	echo ">> Agent on AI Studio free tier; judge on adk-deploy-trail Vertex (~32 calls/run)";
@@ -52,7 +55,7 @@ eval: ## Run the FULL 16-case eval gate. Agent on AI Studio free tier; judge on 
 	@uv run python tests/eval/prepare_evalset.py tests/eval/evalsets/portfolio.evalset.json artifacts/eval_datasets/portfolio.generated.evalset.json
 	@$(_FREE_KEY) \
 	uv sync --frozen --extra eval && \
-	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
+	ATLAS_DEV_ROUTES=1 GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
 		agents-cli eval run --dataset artifacts/eval_datasets/portfolio.generated.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/portfolio.evalset.json
 
@@ -61,7 +64,7 @@ eval-quick: ## Cheap 2-case smoke eval on the free-tier key (routine checks; ~4 
 	@uv run python tests/eval/prepare_evalset.py tests/eval/evalsets/basic.evalset.json artifacts/eval_datasets/basic.generated.evalset.json
 	@$(_FREE_KEY) \
 	uv sync --frozen --extra eval && \
-	GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
+	ATLAS_DEV_ROUTES=1 GEMINI_API_KEY="$$KEY" GOOGLE_API_KEY="$$KEY" GOOGLE_GENAI_USE_VERTEXAI=False \
 		agents-cli eval run --dataset artifacts/eval_datasets/basic.generated.evalset.json --config tests/eval/eval_config.yaml
 	uv run python tests/eval/check_results.py "" tests/eval/evalsets/basic.evalset.json
 
@@ -79,11 +82,16 @@ audit: ## Send a fixture log entry to AGENT_LOG_URL (local smoke test for audit 
 # now bakes in that fallback. Do not revert to 0 without re-reading spec 51
 # first — a bare `make deploy` used to silently undo a manual gcloud fix
 # here, which is the whole reason this is spelled out.
+#
+# --remove-env-vars keeps ADK's dev routes closed even if someone once set
+# ATLAS_DEV_ROUTES on the service by hand (--update-env-vars would otherwise
+# preserve it). See app/route_allowlist.py (spec 85).
 deploy: ## Deploy Atlas (chat widget) to Cloud Run (service: atlas, us-central1).
 	gcloud beta run deploy atlas \
 		--project gcp-experiments-490306 \
 		--region us-central1 \
 		--source . \
+		--remove-env-vars ATLAS_DEV_ROUTES \
 		--memory 512Mi \
 		--allow-unauthenticated \
 		--cpu-throttling \
