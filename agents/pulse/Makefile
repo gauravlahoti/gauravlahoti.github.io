@@ -9,7 +9,7 @@ help:
 install: ## Install Python deps (uv sync).
 	uv sync
 
-dev: ## Run the FastAPI app locally on :8001 with reload.
+dev: ## Run the FastAPI app locally on :8001 with reload. Prod route allowlist on; `PULSE_DEV_ROUTES=1 make dev` for ADK's dev UI.
 	uv run uvicorn app.fast_api_app:app --host 0.0.0.0 --port 8001 --reload
 
 playground: ## Open the ADK web playground.
@@ -21,11 +21,15 @@ smoke: ## Drive one ambient cycle locally (NOTE: sends a real digest email).
 lint: ## Lint with ruff (auto-fix).
 	agents-cli lint --fix
 
+# --remove-env-vars keeps ADK's dev routes closed even if someone once set
+# PULSE_DEV_ROUTES on the service by hand (--update-env-vars would otherwise
+# preserve it). See app/route_allowlist.py (spec 86).
 deploy: ## Deploy Pulse (ambient digest) to Cloud Run (service: pulse, us-central1).
 	gcloud beta run deploy pulse \
 		--project gcp-experiments-490306 \
 		--region us-central1 \
 		--source . \
+		--remove-env-vars PULSE_DEV_ROUTES \
 		--memory 2Gi \
 		--allow-unauthenticated \
 		--cpu-throttling \

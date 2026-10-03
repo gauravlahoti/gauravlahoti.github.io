@@ -16,7 +16,7 @@ hitting `POST /api/ambient/run` (Mon/Thu) and `POST /api/ambient/metrics`
 
 | Command | Purpose |
 |---------|---------|
-| `make dev` | FastAPI dev server on `:8001` |
+| `make dev` | FastAPI dev server on `:8001`, prod route allowlist on. `PULSE_DEV_ROUTES=1 make dev` opens ADK's dev UI and `/run_sse` |
 | `agents-cli playground` | Interactive ADK web UI |
 | `make smoke` | Drives one real ambient cycle locally — **sends a real digest email** |
 | `make lint` | Ruff, auto-fix |
@@ -55,5 +55,6 @@ needing a human to actually read the next digest, not just green tests.
   D1 query, never from the model.** The model contributes only the
   qualitative insights block. Don't let the instruction start asking it to
   restate or compute a metric.
+- **New HTTP route:** add it to `ALLOWED_ROUTES` in `app/route_allowlist.py`, or it 404s in prod (`tests/unit/test_route_allowlist.py` fails if you forget). Pulse is public so Cloud Scheduler can reach it, and until spec 86 that also exposed ADK's `/run_sse`, session CRUD and dev UI with no auth. Never "fix" a 404 by setting `PULSE_DEV_ROUTES=1` on the deployed service.
 - Only modify code targeted by the request — preserve surrounding code,
   config values, and formatting.
