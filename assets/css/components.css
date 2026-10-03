@@ -5454,3 +5454,30 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     color: var(--accent);
 }
 
+
+/* Short laptop screens (spec 88) ------------------------------------- */
+/* Windows laptops usually run at 125-150% display scaling, so a 1920x1080
+   panel hands the browser ~1280x600 to ~1536x730 of CSS space once the tabs
+   and address bar are taken. Every hero rule above keys on width only, so
+   at those heights the stack ran under the cert rail (the rail needs
+   ~192px; the 901-1439px band reserved 160px) and the hero overflowed the
+   screen, hiding "scroll to explore". Here the rail gets a little shorter
+   and the stack reserves exactly what the rail takes, and the type scales
+   with the height as well as the width. Tall screens are untouched. */
+@media (min-width: 901px) and (max-height: 800px) {
+    .hero { --cert-rail-h: 104px; }
+    .cert-rail { height: var(--cert-rail-h); }
+    .cert-tile { flex: 0 0 80px; width: 80px; height: 80px; }
+    .cert-rail-list { gap: var(--space-4); }
+    .hero .hero-stack {
+        gap: var(--space-3);
+        /* clears the "// open to architecture engagements" line above */
+        padding-top: calc(var(--nav-h) + var(--space-12));
+        /* the rail, its offset from the bottom, and a gap above it */
+        padding-bottom: calc(var(--cert-rail-h) + var(--space-12) + var(--space-4));
+    }
+    .hero-name { font-size: clamp(2rem, min(5.5vw, 6.5vh), 3.5rem); }
+    .hi-anchor, .hi-amp { font-size: clamp(1.125rem, min(2.2vw, 3.4vh), 1.75rem); }
+    .hero-tagline { font-size: clamp(0.875rem, min(1.5vw, 2.5vh), 1.1rem); line-height: 1.55; }
+    .hero-livestat { margin-top: var(--space-1); }
+}
