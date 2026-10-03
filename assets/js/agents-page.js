@@ -717,6 +717,27 @@ function agentStamp(agent) {
     return `${agent.index?.updated ? "updated" : "shipped"} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
+// Runs `cb` once the page is visible: immediately on a normal load, or
+// once page-transition.js lifts its inbound cover. Capped at the guard's
+// own 6s CSS failsafe, so it can never wait forever.
+function whenPageRevealed(cb) {
+    const html = document.documentElement;
+    const covered = () => html.classList.contains("pf-inbound") || html.classList.contains("pf-transitioning");
+    if (!covered()) { cb(); return; }
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        mo.disconnect();
+        clearTimeout(cap);
+        // One frame for the wipe's last paint to clear.
+        requestAnimationFrame(() => cb());
+    };
+    const mo = new MutationObserver(() => { if (!covered()) finish(); });
+    mo.observe(html, { attributes: true, attributeFilter: ["class"] });
+    const cap = setTimeout(finish, 6500);
+}
+
 // The model family's official mark, the same files the chat widget and the
 // labs use. Unknown families get no logo rather than a wrong one.
 function modelLogo(name) {
@@ -880,8 +901,6 @@ function buildAgentIndex(agents, cards) {
             line.textContent = part;
             nameEl.appendChild(line);
         });
-        const stamp = agentStamp(agent);
-        if (stamp) nameEl.appendChild(el("span", { class: "am-model-date" }, stamp));
         place(model, gridRow, caps.length + 2, "2 / -1", "model");
         model.dataset.row = String(r);
         model.style.setProperty("--r", r);
@@ -1069,19 +1088,38 @@ function buildAgentIndex(agents, cards) {
         }
     });
 
-    // Power on once, the first time the matrix scrolls into view.
+    // Power on the first time the matrix scrolls into view, and only once
+    // the page is actually visible. Arriving through the Neural Slash page
+    // transition, the page sits hidden (html.pf-inbound / pf-transitioning)
+    // until the entrance wipe ends, and an IntersectionObserver fires
+    // regardless, so the whole boot used to play out unseen.
+    let settleTimer = 0;
+    const powerOn = () => {
+        whenPageRevealed(() => {
+            matrix.classList.add("is-on");
+            // After the boot sequence, drop the per-cell delays so hover and
+            // filter transitions respond immediately.
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => matrix.classList.add("is-settled"), 1800);
+        });
+    };
     if (REDUCE_MOTION || typeof IntersectionObserver !== "function") {
         matrix.classList.add("is-on", "is-settled");
     } else {
         const io = new IntersectionObserver(entries => {
             if (!entries.some(en => en.isIntersecting)) return;
             io.disconnect();
-            matrix.classList.add("is-on");
-            // After the boot sequence, drop the per-cell delays so hover and
-            // filter transitions respond immediately.
-            setTimeout(() => matrix.classList.add("is-settled"), 1800);
+            powerOn();
         }, { threshold: 0.25 });
         io.observe(matrix);
+        // Back/forward cache: the page comes back exactly as it was left,
+        // settled. Replay the boot so every arrival gets it.
+        window.addEventListener("pageshow", e => {
+            if (!e.persisted || !matrix.classList.contains("is-on")) return;
+            matrix.classList.remove("is-on", "is-settled");
+            void matrix.offsetWidth; // restart the CSS animations
+            powerOn();
+        });
     }
 
     return { bar, emptyState };
