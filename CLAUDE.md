@@ -131,6 +131,10 @@ Axis colours (`--axis-ai` = cyan, `--axis-cloud` = blue, `--axis-biz` = purple) 
 
 `--space-1` (0.25rem) through `--space-24` (6rem) — always use these, never raw px/em.
 
+### Layout: page intros span the content
+
+A page or section intro (the one or two sentences under a page title, e.g. `.agents-sub` on `/live-agents/`, `.concepts-sub` on `/ai-labs/`) spans the **same width as the grid, cards or console below it**. Its left and right edges line up with that content. Don't cap it with a narrow `max-width` (`640px`, `60ch`): a short intro squeezed into three lines beside an empty right half reads cramped. Two balanced lines across the content beat three narrow ones. The readable-measure cap (~65–75ch) is for long-form prose only, like insight post bodies and agent panel descriptions, never for a short intro over a full-width layout.
+
 ### Voice & copy
 
 All user-facing text (headings, body, captions, button labels, JSON content in `content/`) must read in a **natural, human tone** — the way a knowledgeable person actually talks, not how an LLM writes.
