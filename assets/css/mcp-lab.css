@@ -1434,7 +1434,9 @@
     padding: calc(var(--nav-h) + var(--space-12)) var(--space-6) var(--space-16);
 }
 
-.concepts-header { margin-bottom: var(--space-12); max-width: 60ch; }
+/* The intro spans the card grid below it, rather than a narrow 60ch
+   column beside an empty right half. */
+.concepts-header { margin-bottom: var(--space-12); }
 .concepts-tag {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
