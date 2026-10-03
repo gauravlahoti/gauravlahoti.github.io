@@ -23,6 +23,7 @@ from google.cloud import logging as google_cloud_logging
 from app.api import register_routes
 from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
+from app.route_allowlist import RouteAllowlist, dev_routes_enabled
 
 setup_telemetry()
 _, project_id = google.auth.default()
@@ -48,9 +49,13 @@ session_service_uri = None
 
 artifact_service_uri = f"gs://{logs_bucket_name}" if logs_bucket_name else None
 
+# ADK's developer surface (dev UI, /run_sse, session CRUD, /builder/save, ...)
+# is opt-in for local dev only. Unset means closed. See app/route_allowlist.py.
+_DEV_ROUTES = dev_routes_enabled()
+
 app: FastAPI = get_fast_api_app(
     agents_dir=AGENT_DIR,
-    web=True,
+    web=_DEV_ROUTES,
     artifact_service_uri=artifact_service_uri,
     allow_origins=allow_origins,
     session_service_uri=session_service_uri,
@@ -60,8 +65,9 @@ app.title = "atlas"
 app.description = "Atlas — portfolio chat-widget agent"
 
 # Custom portfolio-chat routes (POST /api/agent-chat, GET /api/agent-chat/warm,
-# GET /healthz) wired alongside ADK's native /run_sse so the static site has
-# a stable contract independent of ADK's internal event format.
+# GET /healthz, ...) so the static site has a stable contract independent of
+# ADK's internal event format. ADK's native routes (/run_sse etc.) are still
+# registered, but the allowlist at the bottom of this file 404s them in prod.
 register_routes(app)
 
 
@@ -77,6 +83,12 @@ def collect_feedback(feedback: Feedback) -> dict[str, str]:
     """
     logger.log_struct(feedback.model_dump(), severity="INFO")
     return {"status": "success"}
+
+
+# Outermost middleware, so it runs before CORS and before routing. Every route
+# above that isn't in ALLOWED_ROUTES (including /feedback) 404s in prod.
+if not _DEV_ROUTES:
+    app.add_middleware(RouteAllowlist)
 
 
 # Main execution

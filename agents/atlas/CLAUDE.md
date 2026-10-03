@@ -6,7 +6,7 @@ Google ADK Python agent powering the portfolio chat widget. Answers questions ab
 
 | Command | Purpose |
 |---------|---------|
-| `make dev` | FastAPI dev server on `:8000` |
+| `make dev` | FastAPI dev server on `:8000`, prod route allowlist on. `ATLAS_DEV_ROUTES=1 make dev` opens ADK's dev UI and `/run_sse` |
 | `agents-cli playground` | Interactive ADK web UI |
 | `agents-cli run "prompt"` | One-shot smoke test |
 | `make eval` | Full 21-case eval gate. Both the agent under test and the **grading judge run on Vertex** (adk-deploy-trail project) — the agent's own `FallbackGemini.api_client` forces Vertex/adk-deploy-trail unconditionally, regardless of this command's `GEMINI_API_KEY`/`GOOGLE_GENAI_USE_VERTEXAI=False` env vars |
@@ -35,4 +35,5 @@ Eval must pass before every deploy.
 - **Repeated errors (3+):** fix the root cause, don't retry.
 - **Terraform 409:** use `terraform import` instead of recreating.
 - **New `app_utils` module calling Vertex directly** (own cached ADC creds / httpx client, following `speak.py`'s pattern): give it a `warm()` function and wire it into `GET /api/agent-chat/warm` in `api.py`, alongside `warm_mcp_server`/`warm_speak`/`warm_transcribe`. Skipping this was a real bug — `transcribe.py` shipped without one, so it was never pre-warmed by the keep-warm scheduler ping the way `speak.py` is, and most real transcribe requests paid a ~5s cold ADC/TLS tax every time.
+- **New HTTP route or websocket:** add it to `ALLOWED_ROUTES` / `ALLOWED_WEBSOCKETS` in `app/route_allowlist.py`, or it 404s in prod (`tests/unit/test_route_allowlist.py` fails if you forget). The allowlist is fail-closed on purpose: `get_fast_api_app()` also registers ADK's `/run_sse`, `/builder/save`, session CRUD and the dev UI, and on this public service those bypassed every rate limit and the audit log until spec 85. Never "fix" a 404 by setting `ATLAS_DEV_ROUTES=1` on the deployed service.
 - Only modify code targeted by the request — preserve surrounding code, config values, and formatting.
