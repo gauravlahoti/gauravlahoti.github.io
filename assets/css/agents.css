@@ -311,6 +311,7 @@
     opacity: 0.7;
 }
 .am-corner .am-corner-label::before { content: "▚ "; opacity: 0.6; }
+.am-corner { justify-content: center; }
 .am-colhead { position: relative; display: flex; }
 .am-cap-btn {
     position: relative;
@@ -400,15 +401,18 @@
     flex: 1;
     display: flex;
     align-items: center;
+    justify-content: center; /* the light + name block sits centred under AGENT */
     gap: var(--space-3);
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-2);
     background: none;
     border: 0;
     cursor: pointer;
     text-align: left;
     color: var(--ink);
 }
-.am-agent-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Every row's text block is the same width (the widest, "Multi-Agent
+   System"), so the centred blocks stack with their status lights aligned. */
+.am-agent-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 7rem; max-width: 100%; }
 .am-agent-name {
     font-family: var(--font-sans);
     font-size: var(--text-sm);
@@ -811,7 +815,9 @@
     .am-model-head, .am-cell.am-model { border-left: 0; }
     .am-colhead { min-height: 2.5rem; }
     .am-corner { padding: 0 var(--space-2) 0 var(--space-3); }
-    .am-agent { padding: 0 var(--space-2) 0 var(--space-3); gap: var(--space-2); }
+    .am-agent { padding: 0 var(--space-2) 0 var(--space-3); gap: var(--space-2); justify-content: flex-start; }
+    .am-agent-text { width: auto; }
+    .am-corner { justify-content: flex-start; }
     .am-cap-btn { font-size: 0.6rem; letter-spacing: 0.06em; }
     .am-cell.am-model { font-size: 0.72rem; }
     .agent-search-hint { display: none; } /* no "/" shortcut on a phone */
