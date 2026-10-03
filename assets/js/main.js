@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "344";
+const ASSET_VERSION = "345";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
