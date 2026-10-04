@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "348";
+const ASSET_VERSION = "349";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -1114,7 +1114,24 @@ function scrambleName(nameEl) {
     const chars = [...nameEl.querySelectorAll(".char")];
     const finals = chars.map(c => c.textContent);
     const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#@*+_-/";
-    const tl = gsap.timeline();
+    // Each random glyph has its own width, so swapping them into the
+    // inline-block .char spans reflowed the whole name every ~28ms, a
+    // dozen-plus layout shifts per load (spec 91). Pin each char's width while it
+    // scrambles: measure all of them in one read when the scramble starts
+    // (so the measurement uses whatever font is live by then), and unpin
+    // each one as it locks to its final letter, which fits that box exactly.
+    const pin = () => {
+        const widths = chars.map(c => c.getBoundingClientRect().width);
+        chars.forEach((c, i) => {
+            c.style.width = `${widths[i]}px`;
+            c.style.textAlign = "center";
+        });
+    };
+    const unpin = (c) => {
+        c.style.width = "";
+        c.style.textAlign = "";
+    };
+    const tl = gsap.timeline({ onStart: pin });
     chars.forEach((char, i) => {
         const start = i * 0.018;
         // randomize text for ~250-400ms then lock
@@ -1127,6 +1144,7 @@ function scrambleName(nameEl) {
                 const id = setInterval(() => {
                     if (ticks >= max) {
                         char.textContent = finals[i];
+                        unpin(char);
                         clearInterval(id);
                         return;
                     }

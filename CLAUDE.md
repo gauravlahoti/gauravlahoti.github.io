@@ -54,7 +54,7 @@ no-build-step rule. Excluded from the Pages deploy.
 | Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/live-agents/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
 | Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`, `build-story.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. `build-story.json` is corpus-only (no page renders it) and answers "how was this site built?" via Atlas's `get_build_story` tool. It deliberately carries **no counts, dates or cost figures** — spec 61 stripped them as repo telemetry, and a unit test enforces it. |
-| Static media | `assets/img/`, `diagram-icons/`, `agent-portfolio/diagrams/` | Resume PDF, OG image, favicon, badges (`assets/img/`); vendor/cloud logos for architecture art (`diagram-icons/`); per-agent architecture SVGs referenced by `agents.json` → `diagramSvg` (`agent-portfolio/diagrams/`) |
+| Static media | `assets/img/`, `assets/fonts/`, `diagram-icons/`, `agent-portfolio/diagrams/` | Resume PDF, OG image, favicon, badges (`assets/img/`; pages use the 256px `.webp` copies, the original PNGs are kept); self-hosted Inter + JetBrains Mono (`assets/fonts/`, declared in `base.css`, spec 91); vendor/cloud logos for architecture art (`diagram-icons/`); per-agent architecture SVGs referenced by `agents.json` → `diagramSvg` (`agent-portfolio/diagrams/`) |
 | Backend | `backend/` | Resume-gate + agent audit log + analytics + GCP cost alerts |
 | MCP server | `resend_mcp_server/` | Standalone Node.js MCP server wrapping Resend API |
 | AI Lab hub | `ai-labs/index.html` | `/ai-labs/` — lists all labs as cards, sourced from `content/ai-concepts.json` |
@@ -149,7 +149,7 @@ All user-facing text (headings, body, captions, button labels, JSON content in `
 - **Content in JSON, not HTML.** `content/` is the source of truth for all identity and project data.
 - **CSS variables only — never hardcode hex.** All tokens defined in `:root` in `base.css`.
 - **One JS module per visualization.** Each lazy-loads on IntersectionObserver entry.
-- **No npm, no bundler, no build step.** CDN deps only (`defer`). If a feature needs a build step, find a simpler approach.
+- **No npm, no bundler, no build step.** CDN deps only (`defer`). If a feature needs a build step, find a simpler approach. Exception: fonts are self-hosted (spec 91). Don't add CDN font stylesheets back; a cross-origin render-blocking stylesheet costs ~1 s of first paint on phones.
 
 ## Spec workflow
 
@@ -168,6 +168,7 @@ Specs are append-only. Never rewrite an old spec — write a new one. Zero-padde
 - **Spec 37** — Atlas corpus served via ADK Skills (progressive disclosure, replaces bulk corpus injection)
 - **Spec 38** — Agentic RAG Lab — standalone FastAPI agent + 3D vector-space viz (`agents/rag-lab/`, served off-repo)
 - **Spec 45** — WebMCP: this site registers its own agent-callable tools (`assets/js/webmcp.js`), plus the Agent-Ready Web lab that demos them (`ai-labs/agent-ready/`)
+- **Spec 91** — Faster first paint on phones: self-hosted, subset Inter (48 KB, was 458 KB) + JetBrains Mono, stale widget modulepreload removed, badge/skill/portrait images served as right-sized `.webp`, name-scramble no longer shifts layout
 - **Spec 62** — Spoken replies stop stuttering on long answers: `runwaySec()` now counts in-flight synthesis (it was blind to up to 3 chunks of queued audio), the chunk ramp was retuned against a simulation, clip edge silence is normalized server-side, and `get_build_story(section=)` stops handing the model an outline it copies into headings
 
 > The "Learn AI" game (`/learn/`, specs 35–36) was removed from the site. Specs 35–36 retained as history.

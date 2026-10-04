@@ -56,9 +56,7 @@ if (dirty) {
     console.log("Updated content/posts.json with slugs.");
 }
 
-const ASSET_V = "200";
-const FONT_INTER_SRI = "sha384-STiTZ2kjdnc/em4jSELZZ6VypRToc92cA0m6Nppx3J8C4mt0fjMNUm1xnm1yoP96";
-const FONT_JB_SRI = "sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx";
+const ASSET_V = "349";
 
 for (const post of posts) {
     const { slug, firstLine, excerpt, date, tags = [], url } = post;
@@ -123,11 +121,7 @@ for (const post of posts) {
     <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
     <base href="/">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
-    <link rel="preconnect" href="https://rsms.me">
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css"
-          integrity="${FONT_INTER_SRI}" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
-          integrity="${FONT_JB_SRI}" crossorigin="anonymous">
+    <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="assets/css/base.css?v=${ASSET_V}">
     <link rel="stylesheet" href="assets/css/layout.css?v=${ASSET_V}">
     <link rel="stylesheet" href="assets/css/components.css?v=${ASSET_V}">
