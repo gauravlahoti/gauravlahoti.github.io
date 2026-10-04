@@ -76,7 +76,7 @@
       "category": "ai",
       "slug": "claude-certified-associate",
       "shortName": "Associate",
-      "badge": "assets/img/badges/claude-certified-associate.png",
+      "badge": "assets/img/badges/claude-certified-associate.webp",
       "credlyUrl": "https://www.credly.com/badges/876dce5a-06b4-4ad4-a7b7-e3a08495e580/public_url"
     },
     {
@@ -85,7 +85,7 @@
       "category": "ai",
       "slug": "claude-certified-developer",
       "shortName": "Developer",
-      "badge": "assets/img/badges/claude-certified-developer.png",
+      "badge": "assets/img/badges/claude-certified-developer.webp",
       "credlyUrl": "https://www.credly.com/badges/2a9c013c-5829-4135-ba0e-aa1055a1e48b/public_url"
     },
     {
@@ -94,7 +94,7 @@
       "category": "ai",
       "slug": "claude-certified-architect",
       "shortName": "Architect",
-      "badge": "assets/img/badges/claude-certified-architect.png",
+      "badge": "assets/img/badges/claude-certified-architect.webp",
       "credlyUrl": "https://www.credly.com/badges/7b67699d-af26-4b77-8451-a6619f13a499/public_url"
     },
     {
@@ -103,7 +103,7 @@
       "category": "ai",
       "slug": "claude-certified-architect-professional",
       "shortName": "Architect Pro",
-      "badge": "assets/img/badges/claude-certified-architect-professional.png",
+      "badge": "assets/img/badges/claude-certified-architect-professional.webp",
       "credlyUrl": "https://www.credly.com/badges/8e1ea0ea-5fda-40e8-ace2-a12dc9be6de1/public_url"
     },
     {
@@ -112,7 +112,7 @@
       "category": "ai",
       "slug": "aws-ml-specialty",
       "shortName": "ML Specialty",
-      "badge": "assets/img/badges/aws-ml-specialty.png",
+      "badge": "assets/img/badges/aws-ml-specialty.webp",
       "credlyUrl": "https://www.credly.com/org/amazon-web-services/badge/aws-certified-machine-learning-specialty"
     },
     {
@@ -121,7 +121,7 @@
       "category": "ai",
       "slug": "aws-ml-engineer-associate",
       "shortName": "ML Engineer",
-      "badge": "assets/img/badges/aws-ml-engineer-associate.png",
+      "badge": "assets/img/badges/aws-ml-engineer-associate.webp",
       "credlyUrl": "https://cp.certmetrics.com/amazon/en/public/verify/credential/7bab7a62bf6e450a936337a21d1f21e2"
     },
     {
@@ -130,7 +130,7 @@
       "category": "ai",
       "slug": "aws-ai-practitioner",
       "shortName": "AI Practitioner",
-      "badge": "assets/img/badges/aws-ai-practitioner.png",
+      "badge": "assets/img/badges/aws-ai-practitioner.webp",
       "credlyUrl": "https://cp.certmetrics.com/amazon/en/public/verify/credential/01d5b7ce2a984d93bc8963e1a0dbcb3f"
     },
     {
@@ -139,7 +139,7 @@
       "category": "ai",
       "slug": "gcp-generative-ai-leader",
       "shortName": "Gen AI Leader",
-      "badge": "assets/img/badges/gcp-generative-ai-leader.png",
+      "badge": "assets/img/badges/gcp-generative-ai-leader.webp",
       "credlyUrl": "https://www.credly.com/badges/2fcd2c20-430b-42aa-87eb-bd4a8a7eb112/public_url"
     },
     {
@@ -148,7 +148,7 @@
       "category": "ai",
       "slug": "azure-ai-fundamentals",
       "shortName": "AI Fundamentals",
-      "badge": "assets/img/badges/azure-ai-fundamentals.png",
+      "badge": "assets/img/badges/azure-ai-fundamentals.webp",
       "credlyUrl": "https://learn.microsoft.com/api/credentials/share/en-us/GauravLahoti-9979/BAD68FBC482228E2?sharingId"
     },
     {
@@ -157,7 +157,7 @@
       "category": "cloud",
       "slug": "gcp-digital-leader",
       "shortName": "Digital Leader",
-      "badge": "assets/img/badges/gcp-digital-leader.png",
+      "badge": "assets/img/badges/gcp-digital-leader.webp",
       "credlyUrl": "https://www.credly.com/org/google-cloud/badge/cloud-digital-leader-certification"
     },
     {
@@ -166,7 +166,7 @@
       "category": "cloud",
       "slug": "gcp-associate-cloud-engineer",
       "shortName": "Cloud Engineer",
-      "badge": "assets/img/badges/gcp-associate-cloud-engineer.png",
+      "badge": "assets/img/badges/gcp-associate-cloud-engineer.webp",
       "credlyUrl": "https://www.credly.com/badges/121210db-3a4b-49cf-9fea-9805f39c9fed/public_url"
     },
     {
@@ -175,7 +175,7 @@
       "category": "cloud",
       "slug": "gcp-associate-data-practitioner",
       "shortName": "Data Practitioner",
-      "badge": "assets/img/badges/gcp-associate-data-practitioner.png",
+      "badge": "assets/img/badges/gcp-associate-data-practitioner.webp",
       "credlyUrl": "https://www.credly.com/badges/5d03cd0d-7f5e-4ed0-bff5-057fc4ee32e9/public_url"
     },
     {
@@ -184,7 +184,7 @@
       "category": "security",
       "slug": "gcp-security-engineer",
       "shortName": "Security Engineer",
-      "badge": "assets/img/badges/gcp-security-engineer.png",
+      "badge": "assets/img/badges/gcp-security-engineer.webp",
       "credlyUrl": "https://www.credly.com/badges/6f2d203e-3a76-4872-893f-1ddad8631fa4/public_url"
     },
     {
@@ -193,7 +193,7 @@
       "category": "ai",
       "slug": "gcp-agentic-premier-league-champion",
       "shortName": "League Champion",
-      "badge": "assets/img/badges/gcp-agentic-premier-league-champion.png",
+      "badge": "assets/img/badges/gcp-agentic-premier-league-champion.webp",
       "credlyUrl": ""
     }
   ],

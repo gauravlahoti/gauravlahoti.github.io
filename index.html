@@ -11,7 +11,7 @@
     <!-- Content Security Policy. 'unsafe-inline' on style-src is required for
          GSAP's runtime style mutations and for the Google Sign-In iframe's
          inline styles; everything else is locked down. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://rsms.me https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://rsms.me https://cdn.jsdelivr.net; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://atlas-lw4bt7nrba-uc.a.run.app wss://atlas-lw4bt7nrba-uc.a.run.app; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://atlas-lw4bt7nrba-uc.a.run.app wss://atlas-lw4bt7nrba-uc.a.run.app; object-src 'none'; base-uri 'self'; form-action 'self'">
     <script src="assets/js/scroll-restore.js?v=279"></script>
     <script src="assets/js/transition-guard.js?v=1"></script>
     <title>Gaurav Lahoti</title>
@@ -49,19 +49,12 @@
     }
     </script>
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
-    <link rel="preconnect" href="https://rsms.me">
-    <!-- Chat widget is normally lazy-loaded (idle callback or first tap, see
-         main.js). Preloading it here lets the browser fetch/parse it during
-         idle page-load time instead, so a fast visitor's very first tap
-         doesn't pay a cold module-fetch cost on top of the network request. -->
-    <link rel="modulepreload" href="assets/js/agent-widget.js?v=341">
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css"
-          integrity="sha384-STiTZ2kjdnc/em4jSELZZ6VypRToc92cA0m6Nppx3J8C4mt0fjMNUm1xnm1yoP96"
-          crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/index.css"
-          integrity="sha384-8X0qYYsBdYZ9bk70hw4HTDsWIeMfYCwYmUcsezfamiqI024ZDkBKbaTx68Kwh6wx"
-          crossorigin="anonymous">
-    <link rel="stylesheet" href="assets/css/base.css?v=327">
+    <!-- No modulepreload for agent-widget.js (spec 91). main.js already loads
+         it on idle or first tap with the right ?v=. A preload here pinned to
+         a stale ?v= made phones download the 53 KB widget twice, right in
+         the window where first paint is competing for bandwidth. -->
+    <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/css/base.css?v=349">
     <link rel="stylesheet" href="assets/css/layout.css?v=280">
     <link rel="stylesheet" href="assets/css/components.css?v=348">
 
@@ -269,7 +262,14 @@
 
             <figure class="hero-portrait" aria-hidden="true">
                 <picture>
-                    <source srcset="assets/img/portrait.webp" type="image/webp" />
+                    <!-- Phones show a 170–220px circle, so they get the 240/480 cuts
+                         (5 KB / 16 KB) instead of the 736px file (spec 91). Desktop
+                         keeps the full file: the portrait there is object-fit: cover
+                         in a box taller than it is wide, so it renders ~600px+ and a
+                         smaller cut looks soft. -->
+                    <source type="image/webp"
+                            srcset="assets/img/portrait-240.webp 240w, assets/img/portrait-480.webp 480w, assets/img/portrait.webp 736w"
+                            sizes="(max-width: 768px) 220px, 736px" />
                     <img src="assets/img/portrait.png" alt="" loading="eager" decoding="async" fetchpriority="high" width="736" height="736" />
                 </picture>
             </figure>
@@ -467,6 +467,6 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=348"></script>
+    <script type="module" src="assets/js/main.js?v=349"></script>
 </body>
 </html>

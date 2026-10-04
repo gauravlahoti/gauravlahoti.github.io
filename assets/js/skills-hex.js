@@ -56,21 +56,21 @@ const INLINE_SVGS = {
 //                 secondary = Claude, A2A, AWS — medium, full color, subtle glow
 //                 tertiary  = LangChain, LangGraph — smallest, muted, reveal on hover
 // inlineSvg     = key into INLINE_SVGS — self-contained multi-color SVG, transparent bg
-// imgPath       = local PNG file
+// imgPath       = local image file (webp, sized ~4x the drawn icon)
 // imgFilter     = CSS filter on the <img>
 // blendMode     = mix-blend-mode on the <img>: "screen" dissolves black/dark BGs into the hex
 // removeWhiteBg = canvas pixel pass: strips near-white pixels to alpha=0 (for RGB-only PNGs)
 //
 // Order matches the 2-4-2 honeycomb traversal: row 1 (top) → row 2 (primary) → row 3 (bottom).
 const SKILLS = [
-  { name: 'LangChain', tier: 'tertiary',  imgPath: 'assets/img/skills/langchain.png', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
-  { name: 'LangGraph', tier: 'tertiary',  imgPath: 'assets/img/skills/langgraph.png', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
+  { name: 'LangChain', tier: 'tertiary',  imgPath: 'assets/img/skills/langchain.webp', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
+  { name: 'LangGraph', tier: 'tertiary',  imgPath: 'assets/img/skills/langgraph.webp', color: '#1BD96A', imgFilter: 'brightness(0) invert(1)', blendMode: 'normal' },
   { name: 'AWS',       tier: 'secondary', inlineSvg: 'AWS',                           color: '#FF9900' },
   { name: 'Claude',    tier: 'secondary', inlineSvg: 'Claude',                        color: '#E07B54' },
-  { name: 'GCP',       tier: 'primary',   imgPath: 'assets/img/skills/gcp.png',       color: '#4285F4' },
+  { name: 'GCP',       tier: 'primary',   imgPath: 'assets/img/skills/gcp.webp',       color: '#4285F4' },
   { name: 'ADK',       tier: 'primary',   inlineSvg: 'ADK',                           color: '#34A853' },
-  { name: 'MCP',       tier: 'primary',   imgPath: 'assets/img/skills/mcp.png',       color: '#A78BFA', imgFilter: 'invert(1)', blendMode: 'screen' },
-  { name: 'A2A',       tier: 'secondary', imgPath: 'assets/img/skills/a2a.png',       color: '#4285F4', imgFilter: 'invert(1)', blendMode: 'screen' },
+  { name: 'MCP',       tier: 'primary',   imgPath: 'assets/img/skills/mcp.webp',       color: '#A78BFA', imgFilter: 'invert(1)', blendMode: 'screen' },
+  { name: 'A2A',       tier: 'secondary', imgPath: 'assets/img/skills/a2a.webp',       color: '#4285F4', imgFilter: 'invert(1)', blendMode: 'screen' },
 ];
 
 // 2-4-2 flat-top honeycomb, vertical orientation (2 left / 4 middle / 2 right columns).
