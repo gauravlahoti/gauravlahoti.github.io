@@ -192,6 +192,7 @@ LOOPS_LAYERS: dict[str, str] = {
 # visitors to go find a link. Its agent card is on-site and links to the lab.
 OFF_SITE: dict[str, tuple[str, str]] = {
     "rag-lab": ("agent:agentic-rag", "The hands-on lab runs on its own site and is linked from this card."),
+    "agentic-harness": ("agent:agentic-harness", "The guided tour runs on its own site and is linked from this card."),
 }
 
 
@@ -208,7 +209,7 @@ async def show_on_site(target: str) -> dict[str, Any]:
     Args:
         target: One of top, career, about, insights (sections of the home
             page); labs (the AI Labs page); mcp-lab, engineering-loops,
-            agent-ready, rag-lab (one lab); loops:prompt, loops:context,
+            agent-ready, rag-lab, agentic-harness (one lab); loops:prompt, loops:context,
             loops:harness, loops:loop (one layer of the Engineering Loops
             lab); live-agents (the page of agents he built); agent:<name>
             (one agent he built, e.g. agent:pulse) or agent:<name>:diagram
@@ -306,7 +307,8 @@ async def openable_from(key: str) -> list[dict[str, str]]:
         return [{"target": f"loops:{k}", "what": f"the {v} layer"} for k, v in LOOPS_LAYERS.items()]
     if key == "labs":
         return [{"target": k, "what": SHOW_TARGETS[k]} for k in ("mcp-lab", "engineering-loops", "agent-ready")] + [
-            {"target": "rag-lab", "what": "The Agentic RAG lab (opens its agent card, which links to it)"}]
+            {"target": "rag-lab", "what": "The Agentic RAG lab (opens its agent card, which links to it)"},
+            {"target": "agentic-harness", "what": "The Agentic Harness tour (opens its agent card, which links to it)"}]
     return []
 
 

@@ -52,6 +52,18 @@
       "href": "/ai-labs/agent-ready/",
       "internal": true,
       "cta": "Open Agent-Ready Lab"
+    },
+    {
+      "id": "harness",
+      "num": "05",
+      "status": "LIVE",
+      "title": "Agentic Harness",
+      "tagline": "What turns a model into an agent",
+      "description": "A model can reason, but it can't act on its own. Take a voiced five-minute tour of a harness I built from scratch: the loop, the context, the tools and the guardrails, played over a real recorded run of a contract agent.",
+      "tags": ["Agents", "Harness", "Guardrails"],
+      "href": "/ai-labs/agentic-harness/",
+      "internal": false,
+      "cta": "Take the Guided Tour"
     }
   ],
   "teaser": "// more concepts in flight, added as I find better ways to explain them"
