@@ -385,8 +385,7 @@
     "value": "Shows what actually separates a chatbot from an agent you can trust with real work. Every part is plain code you can read: the loop with hard step, cost and time limits, context that loads skills only when needed, a sub-agent with its own clean history, guardrails that block or route an action to the right approver, and plain-code checks that send a weak draft back. An agent is just a folder of instructions, tools and rules, so pointing the same harness at another folder gives you another agent.",
     "stack": [
       "Python",
-      "Gemini",
-      "Claude (optional)",
+      "Claude",
       "FastAPI",
       "SSE",
       "Cloud Run",
@@ -457,7 +456,7 @@
     "traits": [
       {
         "label": "Model",
-        "value": "Gemini 3.8 Flash · Claude optional"
+        "value": "Claude 5.x Family"
       },
       {
         "label": "Framework",
@@ -482,16 +481,16 @@
     ],
     "index": {
       "capabilities": [
+        "text",
         "ondemand",
-        "team",
         "acts",
         "learns"
       ],
-      "model": "Gemini 3.8 Flash",
+      "model": "Claude 5.x Family",
       "shipped": "2026-11",
       "evidence": {
+        "text": "Type a task in the chat and read the answer, with every step it took shown alongside.",
         "ondemand": "Runs when a person gives it a task, and shows each step live.",
-        "team": "Hands the contract review to a clause-reviewer sub-agent with its own clean history.",
         "acts": "Looks up records, drafts replies and sends them, each one checked and approved first.",
         "learns": "Keeps facts per team in long-term memory and recalls them in later conversations."
       }
