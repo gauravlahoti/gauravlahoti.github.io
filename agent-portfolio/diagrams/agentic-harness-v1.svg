@@ -48,11 +48,15 @@
 
   <!-- Model hub — x=380 y=204 200×88 (center x=480, y=248) -->
   <rect x="380" y="204" width="200" height="88" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
-  <image href="/diagram-icons/gemini.png" x="390" y="236" width="24" height="24"/>
-  <text x="422" y="228" class="node-title">Model</text>
-  <text x="422" y="246" class="node-sub">Gemini 3.8 Flash</text>
-  <text x="422" y="262" class="node-sub">Claude optional</text>
-  <text x="422" y="278" class="node-sub">25 steps · $1 · 2 min</text>
+  <g stroke="#D97757" stroke-width="1.5">
+    <line x1="402" y1="239" x2="402" y2="257"/>
+    <line x1="393" y1="248" x2="411" y2="248"/>
+    <line x1="396" y1="242" x2="408" y2="254"/>
+    <line x1="408" y1="242" x2="396" y2="254"/>
+  </g>
+  <text x="422" y="234" class="node-title">Model</text>
+  <text x="422" y="253" class="node-sub">Claude 5.x Family</text>
+  <text x="422" y="270" class="node-sub">25 steps · $1 · 2 min</text>
 
   <!-- Clause reviewer sub-agent — x=720 y=88 200×60 (center x=820) -->
   <rect x="720" y="88" width="200" height="60" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
