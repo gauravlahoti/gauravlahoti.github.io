@@ -92,7 +92,7 @@ function buildCard(agent, onOpen) {
     const pane = el("div", { class: "agent-diagram-pane" });
     if (agent.diagramSvg) {
         const img = el("img", {
-            src: agent.diagramSvg + "?v=178",
+            src: agent.diagramSvg + "?v=179",
             alt: agent.diagramAlt || agent.name,
             loading: "lazy",
             decoding: "async",
@@ -281,7 +281,7 @@ function enablePinchZoom(wrap, svg) {
 async function fetchInlineSvg(url) {
     try {
         const base = document.querySelector("base")?.href || (window.location.origin + "/");
-        const resp = await fetch(new URL(url + "?v=178", base));
+        const resp = await fetch(new URL(url + "?v=179", base));
         if (!resp.ok) return null;
         const text = await resp.text();
         const parser = new DOMParser();
