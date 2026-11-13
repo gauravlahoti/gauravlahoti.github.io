@@ -482,16 +482,16 @@
     ],
     "index": {
       "capabilities": [
+        "text",
         "ondemand",
-        "team",
         "acts",
         "learns"
       ],
-      "model": "Gemini 3.8 Flash",
+      "model": "Claude 5.x Family",
       "shipped": "2026-11",
       "evidence": {
+        "text": "Type a task in the chat and read the answer, with every step it took shown alongside.",
         "ondemand": "Runs when a person gives it a task, and shows each step live.",
-        "team": "Hands the contract review to a clause-reviewer sub-agent with its own clean history.",
         "acts": "Looks up records, drafts replies and sends them, each one checked and approved first.",
         "learns": "Keeps facts per team in long-term memory and recalls them in later conversations."
       }
