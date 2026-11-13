@@ -16,6 +16,7 @@ It's the nav's "AI Lab" destination (`/ai-labs/`) and the parent folder for ever
 | `ai-labs/engineering-loops/` | Engineering Loops — see its own `CLAUDE.md` |
 | `ai-labs/agent-ready/` | Agent-Ready Web (WebMCP demo) — see its own `CLAUDE.md` |
 | `ai-labs/rag-lab/` | RAG Lab redirect stub — see its own `CLAUDE.md` |
+| `ai-labs/agentic-harness/` | Agentic Harness redirect stub (hosted guided tour) — see its own `CLAUDE.md` |
 
 ## Design choice: cards are pure data, the hub has no lab-specific code
 
@@ -40,7 +41,7 @@ edit plus the lab's own directory:
 
 - `internal: true` routes the click through `runPageTransition()` (the Neural-Slash wipe
   shared with the rest of the site) instead of a plain navigation; **every lab that lives in
-  this repo should be `internal: true`**. RAG Lab is `internal: false` since it redirects
+  this repo should be `internal: true`**. RAG Lab and Agentic Harness are `internal: false` since they redirect
   off-domain and a same-site page transition doesn't make sense for it.
 - `num` is just display text (`"01"`, `"02"`, …), not an array index — keep it in sync with
   card order manually if you reorder `concepts[]`.

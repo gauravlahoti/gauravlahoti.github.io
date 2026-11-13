@@ -373,5 +373,138 @@
     "links": [
       { "label": "Try it yourself", "href": "https://agentic-rag.gauravlahoti.dev/" }
     ]
+  },
+  {
+    "id": "agentic-harness",
+    "name": "Agentic Harness",
+    "subtitle": "An Agent Harness Built from Scratch",
+    "role": "Agent Harness",
+    "status": "LIVE",
+    "headline": "A from-scratch agent harness in plain Python, shown through a voiced tour of a real recorded run.",
+    "description": "Agentic Harness is the layer around a model that turns it into an agent, written in plain Python with no agent framework. The model only picks the next step. The harness builds its context, runs the tools it asks for, checks every action against the rules, asks a person when it matters and verifies the answer before anyone sees it. Its first agent is a contract reviewer for a made-up software company: it finds the five changes that matter in a customer's renewal, checks each against company terms, names who must approve, and drafts the reply. The hosted version is a five-minute guided tour in my own voice that replays a real recorded run, so it needs no API key and costs nothing to watch.",
+    "value": "Shows what actually separates a chatbot from an agent you can trust with real work. Every part is plain code you can read: the loop with hard step, cost and time limits, context that loads skills only when needed, a sub-agent with its own clean history, guardrails that block or route an action to the right approver, and plain-code checks that send a weak draft back. An agent is just a folder of instructions, tools and rules, so pointing the same harness at another folder gives you another agent.",
+    "stack": [
+      "Python",
+      "Gemini",
+      "Claude (optional)",
+      "FastAPI",
+      "SSE",
+      "Cloud Run",
+      "Plain JS",
+      "pytest + DeepEval"
+    ],
+    "diagramSvg": "agent-portfolio/diagrams/agentic-harness-v1.svg",
+    "diagramAlt": "Agentic harness on Cloud Run: a task flows into context building (instructions, skills, memory), then the model; tool requests pass guardrails and human approvals before a tool or the clause-reviewer sub-agent runs; drafts go through plain-code verification with one retry before the answer and its cost are shown",
+    "steps": [
+      {
+        "n": 1,
+        "label": "Build the context",
+        "detail": "Before the model sees a word, the harness decides what goes into its window: the company's standing instructions, the person's team file, the answer style and a few facts from long-term memory. Skills load only when the task needs them, and old tool output is pruned or summarised when the window fills."
+      },
+      {
+        "n": 2,
+        "label": "Run the loop",
+        "detail": "The model plans, asks for a tool, reads the result and repeats. The harness runs the loop, not the model, and stops it at an answer or at 25 model calls, one dollar or two minutes, whichever comes first."
+      },
+      {
+        "n": 3,
+        "label": "Run the tools",
+        "detail": "The model only asks for a tool. The harness checks the request, runs the tool and sends back the result. Each team sees its own tools and fields, so Engineering never sees prices."
+      },
+      {
+        "n": 4,
+        "label": "Hand off to a sub-agent",
+        "detail": "Reading a 40-page contract goes to a clause-reviewer sub-agent with a clean history and its own slice of time and budget. It returns only the changes that matter, and flags any text in the contract that tries to instruct an AI."
+      },
+      {
+        "n": 5,
+        "label": "Verify the draft",
+        "detail": "Plain-code checks read the draft before anyone sees it: is the plan complete, is every change covered, is the right approver named. A failed draft goes back to the model once with the reasons."
+      },
+      {
+        "n": 6,
+        "label": "Apply guardrails and approvals",
+        "detail": "Hard limits the company never crosses come first. Then the outgoing email is checked against the terms, and each sensitive change waits for the right person: Sales, Engineering, Finance or the CFO. The server checks who is answering."
+      },
+      {
+        "n": 7,
+        "label": "Send and report the cost",
+        "detail": "Only after every approval does the reply go out, to a local outbox rather than real email. The run ends with its answer and what it cost: model calls, tokens, dollars and seconds."
+      }
+    ],
+    "techDecisions": [
+      {
+        "tech": "No agent framework",
+        "why": "Every part of the harness is plain Python, so each decision is visible and testable. It was built to learn and to teach what a harness actually does, which a framework would hide."
+      },
+      {
+        "tech": "Workspace as a folder",
+        "why": "Everything domain-specific lives in one folder: instructions, skills, tools, profiles and approval rules in workspace.toml. The harness code knows no company, and a test enforces it, so a new agent is a new folder."
+      },
+      {
+        "tech": "Guardrails in code, not the prompt",
+        "why": "Which tools a team may use, which lines are never crossed and who must approve are all checked in code before a tool runs. A hidden instruction in a document can't talk its way past them."
+      },
+      {
+        "tech": "Verification before the answer",
+        "why": "Plain-code checks catch a draft that skips a change or names the wrong approver, and send it back once. Cheap, fast and deterministic, with no second model call."
+      },
+      {
+        "tech": "Hosted as a read-only tour",
+        "why": "Visitors shouldn't have to paste an API key. The hosted copy runs in a public mode that answers only reads and holds no key, and replays a recorded run. Cloud Run at min-instances 0, so it costs nothing when idle."
+      }
+    ],
+    "traits": [
+      {
+        "label": "Model",
+        "value": "Gemini 3.8 Flash · Claude optional"
+      },
+      {
+        "label": "Framework",
+        "value": "None · plain Python"
+      },
+      {
+        "label": "Runtime",
+        "value": "Cloud Run · read-only tour"
+      },
+      {
+        "label": "Limits",
+        "value": "25 steps · $1 · 2 min per run"
+      },
+      {
+        "label": "Human in loop",
+        "value": "4 approvers · Sales, Engineering, Finance, CFO"
+      },
+      {
+        "label": "Pattern",
+        "value": "Loop · Sub-agent · Verify"
+      }
+    ],
+    "index": {
+      "capabilities": [
+        "ondemand",
+        "team",
+        "acts",
+        "learns"
+      ],
+      "model": "Gemini 3.8 Flash",
+      "shipped": "2026-11",
+      "evidence": {
+        "ondemand": "Runs when a person gives it a task, and shows each step live.",
+        "team": "Hands the contract review to a clause-reviewer sub-agent with its own clean history.",
+        "acts": "Looks up records, drafts replies and sends them, each one checked and approved first.",
+        "learns": "Keeps facts per team in long-term memory and recalls them in later conversations."
+      }
+    },
+    "links": [
+      {
+        "label": "Take the guided tour",
+        "href": "https://agentic-harness.gauravlahoti.dev/"
+      },
+      {
+        "label": "View code",
+        "href": "https://github.com/gauravlahoti/agentic-harness"
+      }
+    ]
   }
 ]

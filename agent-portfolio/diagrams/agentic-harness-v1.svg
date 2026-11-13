@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" style="background:#000000">
+  <defs>
+    <style>
+      text { font-family: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+      .node-title { font-size: 15px; fill: #E5E5E5; }
+      .node-sub   { font-size: 11px; fill: #888888; }
+      .edge-label { font-size: 11px; fill: #888888; }
+      .caption    { font-size: 12px; fill: #555555; }
+      .step-num   { font-size: 11px; font-weight: bold; }
+    </style>
+    <marker id="arr-std" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#2A2A2A"/>
+    </marker>
+    <marker id="arr-acc" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#00FFD1"/>
+    </marker>
+  </defs>
+
+  <!-- Caption -->
+  <text x="40" y="52" class="caption">// agentic-harness · plain Python, no framework · loop · guardrails · verify</text>
+
+  <!-- Cloud Run boundary (whole harness) — x=20 y=66 920×496 (center x=480) -->
+  <rect x="20" y="66" width="920" height="496" rx="12" fill="none" stroke="#666666" stroke-width="1" stroke-dasharray="4 3"/>
+  <rect x="301" y="56" width="358" height="20" rx="2" fill="#000000"/>
+  <image href="/diagram-icons/cloud-run.svg" x="309" y="58" width="14" height="14"/>
+  <text x="327" y="70" class="caption">Cloud Run · guided tour · public mode, no key</text>
+
+  <!-- ═══ NODES ═══ -->
+
+  <!-- Task — x=40 y=100 200×64 (center x=140) -->
+  <rect x="40" y="100" width="200" height="64" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="50" y="118" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <path d="M58 124 h8 l4 4 v12 h-12 z" fill="none" stroke="#888888" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M61 132 h6 M61 136 h6" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="86" y="124" class="node-title">Task</text>
+  <text x="86" y="140" class="node-sub">renewal to review</text>
+  <text x="86" y="154" class="node-sub">from a person</text>
+
+  <!-- Build context — x=40 y=200 200×96 (center x=140, y=248) -->
+  <rect x="40" y="200" width="200" height="96" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="50" y="234" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <path d="M64 240 l8 4 l-8 4 l-8 -4 z" fill="none" stroke="#888888" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M56 248 l8 4 l8 -4 M56 252 l8 4 l8 -4" fill="none" stroke="#888888" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="86" y="226" class="node-title">Build context</text>
+  <text x="86" y="242" class="node-sub">instructions</text>
+  <text x="86" y="257" class="node-sub">team file · memory</text>
+  <text x="86" y="272" class="node-sub">skills on demand</text>
+
+  <!-- Model hub — x=380 y=204 200×88 (center x=480, y=248) -->
+  <rect x="380" y="204" width="200" height="88" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <image href="/diagram-icons/gemini.png" x="390" y="236" width="24" height="24"/>
+  <text x="422" y="228" class="node-title">Model</text>
+  <text x="422" y="246" class="node-sub">Gemini 3.8 Flash</text>
+  <text x="422" y="262" class="node-sub">Claude optional</text>
+  <text x="422" y="278" class="node-sub">25 steps · $1 · 2 min</text>
+
+  <!-- Clause reviewer sub-agent — x=720 y=88 200×60 (center x=820) -->
+  <rect x="720" y="88" width="200" height="60" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="730" y="104" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <circle cx="744" cy="113" r="3.5" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M737 126 a7 6 0 0 1 14 0" fill="none" stroke="#888888" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="766" y="112" class="node-title">Clause reviewer</text>
+  <text x="766" y="128" class="node-sub">sub-agent</text>
+  <text x="766" y="141" class="node-sub">own history + budget</text>
+
+  <!-- Guardrails — x=720 y=188 200×120 (center x=820, y=248) -->
+  <rect x="720" y="188" width="200" height="120" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="730" y="234" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <path d="M744 240 l7 3 v5 c0 4 -3 7 -7 8 c-4 -1 -7 -4 -7 -8 v-5 z" fill="none" stroke="#888888" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="766" y="212" class="node-title">Guardrails</text>
+  <text x="766" y="228" class="node-sub">profile tools</text>
+  <text x="766" y="243" class="node-sub">hard limits</text>
+  <text x="766" y="258" class="node-sub">approvals:</text>
+  <text x="766" y="273" class="node-sub">Sales · Engineering</text>
+  <text x="766" y="288" class="node-sub">Finance · CFO</text>
+
+  <!-- Run tool — x=720 y=440 200×72 (center x=820) -->
+  <rect x="720" y="440" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="730" y="462" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <path d="M740 470 l-4 6 l4 6 M748 470 l4 6 l-4 6" fill="none" stroke="#888888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="766" y="468" class="node-title">Run tool</text>
+  <text x="766" y="484" class="node-sub">harness runs it</text>
+  <text x="766" y="498" class="node-sub">model only asks</text>
+
+  <!-- Verify — x=380 y=440 200×72 (center x=480) -->
+  <rect x="380" y="440" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="390" y="462" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <circle cx="404" cy="476" r="8" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M400 476 l3 3 l5 -6" fill="none" stroke="#888888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="426" y="468" class="node-title">Verify</text>
+  <text x="426" y="484" class="node-sub">plain-code checks</text>
+  <text x="426" y="498" class="node-sub">one retry</text>
+
+  <!-- Answer + cost — x=40 y=440 200×72 (center x=140) -->
+  <rect x="40" y="440" width="200" height="72" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
+  <rect x="50" y="462" width="28" height="28" rx="7" fill="rgba(136,136,136,0.18)"/>
+  <rect x="56" y="470" width="16" height="12" rx="2" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <path d="M56 471 l8 6 l8 -6" fill="none" stroke="#888888" stroke-width="1.5"/>
+  <text x="86" y="468" class="node-title">Answer + cost</text>
+  <text x="86" y="484" class="node-sub">drafted reply</text>
+  <text x="86" y="498" class="node-sub">tokens · $ per run</text>
+
+  <!-- ═══ EDGES ═══ -->
+
+  <!-- ① Task → Build context. Task bottom (140,164) → Build top y=200 (back off 7 → 193) -->
+  <line x1="140" y1="164" x2="140" y2="193" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="156" y="172" width="54" height="14" rx="3" fill="#000"/>
+  <text x="183" y="183" class="edge-label" text-anchor="middle">the ask</text>
+
+  <!-- ② Build context → Model. (240,248) → Model left x=380 (373) -->
+  <line x1="240" y1="248" x2="373" y2="248" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="256" y="218" width="100" height="14" rx="3" fill="#000"/>
+  <text x="306" y="229" class="edge-label" text-anchor="middle">context window</text>
+
+  <!-- ③ Model → Guardrails. (580,248) → Guardrails left x=720 (713) -->
+  <line x1="580" y1="248" x2="713" y2="248" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="602" y="218" width="88" height="14" rx="3" fill="#000"/>
+  <text x="646" y="229" class="edge-label" text-anchor="middle">tool request</text>
+
+  <!-- ④ Guardrails → Run tool. (820,308) → Run tool top y=440 (433) -->
+  <line x1="820" y1="308" x2="820" y2="433" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="838" y="363" width="58" height="14" rx="3" fill="#000"/>
+  <text x="867" y="374" class="edge-label" text-anchor="middle">allowed</text>
+
+  <!-- ⑤ Guardrails → Clause reviewer. (820,188) → sub-agent bottom y=148 (155) -->
+  <line x1="820" y1="188" x2="820" y2="155" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="838" y="163" width="62" height="14" rx="3" fill="#000"/>
+  <text x="869" y="174" class="edge-label" text-anchor="middle">delegate</text>
+
+  <!-- ⑥a Run tool → Model (loop). (720,476) → x=640 → up to y=276 → Model right x=580 (587) -->
+  <line x1="720" y1="476" x2="640" y2="476" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="640" y1="476" x2="640" y2="276" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="640" y1="276" x2="587" y2="276" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="652" y="300" width="50" height="14" rx="3" fill="#000"/>
+  <text x="677" y="311" class="edge-label" text-anchor="middle">result</text>
+
+  <!-- ⑥b Clause reviewer → Model (loop). (720,118) → x=530 → down to Model top y=204 (197) -->
+  <line x1="720" y1="118" x2="530" y2="118" stroke="#00FFD1" stroke-width="1.5"/>
+  <line x1="530" y1="118" x2="530" y2="197" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="648" y="100" width="62" height="14" rx="3" fill="#000"/>
+  <text x="679" y="111" class="edge-label" text-anchor="middle">findings</text>
+
+  <!-- ⑦ Model → Verify (draft). (500,292) → Verify top y=440 (433) -->
+  <line x1="500" y1="292" x2="500" y2="433" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="516" y="356" width="42" height="14" rx="3" fill="#000"/>
+  <text x="537" y="367" class="edge-label" text-anchor="middle">draft</text>
+
+  <!-- Retry (alternate path): Verify top (450,440) → Model bottom y=292 (299) -->
+  <line x1="450" y1="440" x2="450" y2="299" stroke="#2A2A2A" stroke-width="1.5" marker-end="url(#arr-std)"/>
+  <rect x="356" y="356" width="88" height="14" rx="3" fill="#000"/>
+  <text x="400" y="367" class="edge-label" text-anchor="middle">fail: retry</text>
+
+  <!-- ⑧ Verify → Answer + cost. (380,476) → Answer right x=240 (247) -->
+  <line x1="380" y1="476" x2="247" y2="476" stroke="#00FFD1" stroke-width="1.5" marker-end="url(#arr-acc)"/>
+  <rect x="286" y="448" width="54" height="14" rx="3" fill="#000"/>
+  <text x="313" y="459" class="edge-label" text-anchor="middle">passes</text>
+
+  <!-- ═══ STEP CIRCLES ═══ -->
+
+  <circle cx="140" cy="179" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="1"/>
+  <text x="140" y="184" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="1">1</text>
+
+  <circle cx="306" cy="248" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="2"/>
+  <text x="306" y="253" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="2">2</text>
+
+  <circle cx="646" cy="248" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="3"/>
+  <text x="646" y="253" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="3">3</text>
+
+  <circle cx="820" cy="370" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="4"/>
+  <text x="820" y="375" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="4">4</text>
+
+  <circle cx="820" cy="170" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="5"/>
+  <text x="820" y="175" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="5">5</text>
+
+  <circle cx="640" cy="376" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
+  <text x="640" y="381" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="6">6</text>
+
+  <circle cx="625" cy="118" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="6"/>
+  <text x="625" y="123" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="6">6</text>
+
+  <circle cx="500" cy="362" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="7"/>
+  <text x="500" y="367" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="7">7</text>
+
+  <circle cx="313" cy="476" r="11" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5" data-step-circle="8"/>
+  <text x="313" y="481" class="step-num" text-anchor="middle" fill="#00FFD1" data-step-circle="8">8</text>
+
+  <!-- ═══ Animation flow data ═══ -->
+  <g class="anim-data" style="display:none">
+    <g data-traveler-path="140,164 140,193" data-color="#00FFD1" data-step="1" data-delay="0"/>
+    <g data-traveler-path="240,248 373,248" data-color="#00FFD1" data-step="2" data-delay="0.7"/>
+    <g data-traveler-path="580,248 713,248" data-color="#00FFD1" data-step="3" data-delay="1.4"/>
+    <g data-traveler-path="820,308 820,433" data-color="#00FFD1" data-step="4" data-delay="2.1"/>
+    <g data-traveler-path="820,188 820,155" data-color="#00FFD1" data-step="5" data-delay="2.8"/>
+    <g data-traveler-path="720,476 640,476 640,276 587,276" data-color="#00FFD1" data-step="6" data-delay="3.5"/>
+    <g data-traveler-path="720,118 530,118 530,197" data-color="#00FFD1" data-step="6" data-delay="3.5"/>
+    <g data-traveler-path="500,292 500,433" data-color="#00FFD1" data-step="7" data-delay="4.2"/>
+    <g data-traveler-path="450,440 450,299" data-color="#888888" data-delay="4.9"/>
+    <g data-traveler-path="380,476 247,476" data-color="#00FFD1" data-step="8" data-delay="5.6"/>
+  </g>
+</svg>
