@@ -393,7 +393,7 @@
       "pytest + DeepEval"
     ],
     "diagramSvg": "agent-portfolio/diagrams/agentic-harness-v1.svg",
-    "diagramAlt": "Agentic harness on Cloud Run: a task flows into context building (instructions, skills, memory), then the model; tool requests pass guardrails and human approvals before a tool or the clause-reviewer sub-agent runs; drafts go through plain-code verification with one retry before the answer and its cost are shown",
+    "diagramAlt": "The agentic harness as one box around the model, Claude 5.x Family, with limits of 25 steps, one dollar and two minutes. A task enters through an input check for topic and injected instructions. Above the model, context: instructions, the team file and skills. Below it, memory: short-term for this chat and long-term team facts it recalls. On the way out, guardrails with rules and approvals decide what may run, the harness runs the tools, including a sub-agent, and verification runs five checks with one retry before the answer and its cost.",
     "steps": [
       {
         "n": 1,
