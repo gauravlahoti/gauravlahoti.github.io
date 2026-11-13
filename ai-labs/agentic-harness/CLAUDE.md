@@ -18,9 +18,11 @@ it answers only GET/HEAD, holds no API key, and opens on the tour. Visitors neve
 | | |
 |---|---|
 | Service | Cloud Run `agentic-harness`, `gcp-experiments-490306`, us-central1 |
-| Scale | min 0, max 1, 512Mi, no secrets |
+| Scale | min 0, max 1, 512Mi; secrets: `anthropic-api-key`, `harness-owner-key` (owner only) |
 | Domain | `agentic-harness.gauravlahoti.dev` (Cloudflare CNAME → `ghs.googlehosted.com`, DNS-only) |
-| Deploy | from `~/agentic-harness`: `make deploy-tour PROJECT=gcp-experiments-490306 HOSTS=<domain>,<run.app hosts>` |
+| Deploy | from `~/agentic-harness`: `make deploy-tour PROJECT=gcp-experiments-490306 HOSTS=<domain>,<run.app hosts> CLAUDE_SECRET=anthropic-api-key OWNER_SECRET=harness-owner-key MEMORY_BUCKET=gcp-experiments-490306-agentic-harness-memory` |
+| Memory | bucket `gcp-experiments-490306-agentic-harness-memory` mounted at `/app/.agentic-harness` (facts, chats, online-evals switch, eval summaries; harness D-198). Leave out `MEMORY_BUCKET` and the new revision forgets it all |
+| Owner | `?owner` + the `harness-owner-key` passphrase: live Claude runs, Memory, Observability (harness D-190, D-196, D-197) |
 
 - **Deploy from the local clone, never from a fresh git clone.** The tour's voice clips are
   git-ignored on purpose. The harness's allowlist `.gcloudignore` uploads them and never `.env`.
