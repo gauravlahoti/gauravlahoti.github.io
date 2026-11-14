@@ -84,6 +84,7 @@
 
   <!-- Model -->
   <rect x="520" y="305" width="240" height="110" rx="8" fill="#0E1A19" stroke="#00FFD1" stroke-width="1.5"/>
+  <g transform="translate(23.5 24)">
   <text x="572" y="331" class="node-title">Model</text>
   <text x="572" y="348" class="node-sub">Claude 5.x Family</text>
   <g stroke="#D97757" stroke-width="1.5">
@@ -91,6 +92,7 @@
     <line x1="539" y1="333" x2="561" y2="333"/>
     <line x1="542" y1="325" x2="558" y2="341"/>
     <line x1="558" y1="325" x2="542" y2="341"/>
+  </g>
   </g>
 
   <!-- Guardrails -->
