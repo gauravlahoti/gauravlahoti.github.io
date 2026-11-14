@@ -3,9 +3,9 @@
 // Reads content/announcement.json and shows one slim bar above the nav for
 // `durationDays` (default 7) from `startsOn`, then renders nothing. The markup
 // is injected here so it is not copied into every page that duplicates the nav.
-// The fixed nav sits at `top: var(--banner-h)`; this script keeps that variable
-// equal to the part of the bar still on screen, so the nav slides up as the bar
-// scrolls away and never overlaps it.
+// The nav pill is absolutely positioned at `top: var(--banner-full)`, just under the
+// bar, and scrolls away with it. --banner-h (the part of the bar still on screen) is
+// no longer read by the nav; it is kept in step here in case something else wants it.
 
 const DAY = 86400000;
 
