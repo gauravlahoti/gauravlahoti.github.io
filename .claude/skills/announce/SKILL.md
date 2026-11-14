@@ -7,8 +7,8 @@ description: Put a LinkedIn post (new or old) or an AI Lab on the site's top ann
 
 Set the top-of-page announcement bar. The bar reads `content/announcement.json`,
 shows for `durationDays` from `startsOn`, then disappears on its own. The whole
-sentence and the cyan CTA pill both link to `href`. This skill only edits that
-one JSON file. It never deploys.
+sentence and the cyan CTA pill both link to `href`. This skill edits that JSON file
+and keeps `assets/js/announce-hint.js` in step with it (see Step 4). It never deploys.
 
 Input: a LinkedIn post URL, a lab name or id, or words that point at a post already
 in `content/posts.json` (old posts are fine). Optional `N days` sets the duration
@@ -83,6 +83,20 @@ Write `content/announcement.json` with these keys:
 The `id` must be new every time. A visitor who dismissed the last announcement
 stays dismissed for the same `id`, so reusing one hides the new banner from them.
 Validate the file parses (`python3 -c "import json;json.load(open('content/announcement.json'))"`).
+
+Then update the hint. `assets/js/announce-hint.js` is a tiny head script that tells
+the page, before first paint, that a bar is coming, so the page holds the bar's space
+and does not jump when the bar appears. It carries a copy of three fields on one line.
+Replace that line, keeping the rest of the file untouched:
+
+```js
+    var ANN = {"id":"<id>","startsOn":"<startsOn>","durationDays":<durationDays>};
+```
+
+(Exactly those three keys, same values as the JSON, valid JSON on that single line.)
+Then run `node --test 'tests/**/*.test.mjs'`. `tests/announce-hint.test.mjs` fails if the
+hint and the JSON disagree. If a hint is ever stale the page still works, only the
+small layout shift comes back.
 
 ## Step 5: Report
 

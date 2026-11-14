@@ -42,6 +42,10 @@
     <link rel="preload" href="/assets/css/announcement.css?v=8" as="style">
     <script src="assets/js/scroll-restore.js?v=279"></script>
     <script src="assets/js/transition-guard.js?v=1"></script>
+    <!-- Marks <html class="ann-pending"> before first paint when an announcement bar is
+         live, so base.css can hold the bar's space and the page does not jump when
+         announcement.js adds it. Same ?v= as main.js so /publish bumps it with the rest. -->
+    <script src="assets/js/announce-hint.js?v=357"></script>
     <title>Gaurav Lahoti</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.dev/">
