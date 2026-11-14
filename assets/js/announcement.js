@@ -35,7 +35,7 @@ async function boot() {
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/assets/css/announcement.css?v=6";
+    link.href = "/assets/css/announcement.css?v=7";
     document.head.appendChild(link);
     await new Promise((r) => { link.onload = link.onerror = r; });
 
@@ -60,7 +60,16 @@ async function boot() {
     cta.className = "announce-cta";
     cta.href = a.href;
     if (external) { cta.target = "_blank"; cta.rel = "noopener noreferrer"; }
-    cta.textContent = (a.cta || "Learn more") + " ↗";
+    // Label shows on laptops; on phones only the arrow stays, as a round tap target.
+    const label = document.createElement("span");
+    label.className = "announce-cta-label";
+    label.textContent = (a.cta || "Learn more") + " ";
+    const arrow = document.createElement("span");
+    arrow.className = "announce-cta-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "↗";
+    cta.setAttribute("aria-label", a.cta || "Learn more");
+    cta.append(label, arrow);
 
     const close = document.createElement("button");
     close.className = "announce-close";
