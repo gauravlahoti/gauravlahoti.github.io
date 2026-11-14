@@ -54,6 +54,16 @@
          a stale ?v= made phones download the 53 KB widget twice, right in
          the window where first paint is competing for bandwidth. -->
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Start main.js (the root of the whole module chain) while the CSS is still
+         downloading, instead of when the parser reaches the end of <body>. Its
+         ?v= must match the <script type="module"> tag below; /publish bumps every
+         ?v=N in this file together, so they stay in step. -->
+    <link rel="modulepreload" href="assets/js/main.js?v=354">
+    <!-- Warm announcement.css in parallel with announcement.json. announcement.js
+         still injects the stylesheet itself, but now it is already in cache, so
+         the bar no longer waits for a second round trip. Keep ?v= equal to the
+         one in announcement.js. -->
+    <link rel="preload" href="/assets/css/announcement.css?v=8" as="style">
     <link rel="stylesheet" href="assets/css/base.css?v=406">
     <link rel="stylesheet" href="assets/css/layout.css?v=408">
     <link rel="stylesheet" href="assets/css/components.css?v=403">
