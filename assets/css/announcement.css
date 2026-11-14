@@ -63,18 +63,46 @@
 .announce-close:hover,
 .announce-close:focus-visible { opacity: 1; background: var(--accent-soft); outline: none; }
 
+/* Phones: the primary audience. One calm row, left-aligned, 14px copy clamped
+   to two lines, a round 36px arrow as the tap target and a 40px close. */
 @media (max-width: 720px) {
     .announce {
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: var(--space-3);
-        min-height: 0;
-        padding: var(--space-2) var(--space-10) var(--space-2) var(--space-3);
-        font-size: var(--text-xs);
+        min-height: 52px;
+        padding: var(--space-2) 0 var(--space-2) var(--space-4);
+        font-size: var(--text-sm);
+        line-height: 1.35;
         text-align: left;
     }
-    .announce-text { flex: 1; min-width: 0; }
-    .announce-sep { display: none; }
-    .announce-cta { padding: var(--space-1) var(--space-2); }
+    .announce-text {
+        flex: 1;
+        min-width: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .announce-sep,
+    .announce-cta-label { display: none; }
+    .announce-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: var(--text-base);
+    }
+    .announce-close {
+        position: static;
+        transform: none;
+        flex: none;
+        width: 40px;
+        height: 40px;
+        margin-right: var(--space-1);
+    }
 }
 @media (prefers-reduced-motion: no-preference) {
     .announce { animation: announce-in var(--dur-slow) var(--ease-out) both; }
