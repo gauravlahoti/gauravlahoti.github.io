@@ -2,7 +2,7 @@
 
 .skip-link {
     position: absolute;
-    top: -40px;
+    top: -100px;
     left: var(--space-4);
     background: var(--bg-card);
     color: var(--accent);
@@ -16,21 +16,22 @@
 
 .nav {
     position: fixed;
-    top: 0; left: 0; right: 0;
+    top: var(--banner-h); left: 0; right: 0;
     z-index: 50;
     height: var(--nav-h);
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
-    background: linear-gradient(to bottom, rgba(0,0,0,0.65), rgba(0,0,0,0.25));
-    border-bottom: 1px solid var(--border);
+    padding: var(--space-2) var(--space-4) 0;
+    background: none;
+    pointer-events: none;
 }
+/* Floating pill: the bordered, blurred container is .nav-inner, inset from the
+   viewport edges. The outer .nav only positions it. */
+.nav-inner { pointer-events: auto; }
 /* Drop the backdrop-filter while the page is actively scrolling. Re-blurring
-   a 1920×64 strip every frame is the single largest scroll cost on Windows
+   a wide strip every frame is the single largest scroll cost on Windows
    (DXGI/ANGLE pays per-pixel cost for blur+saturate); macOS Metal absorbs
-   it. The gradient background stays, so the bar remains readable; the
-   filter snaps back on idle. While scrolling fast the blur is imperceptible
-   anyway — by the time the user stops, the blur is back. */
-body.is-scrolling .nav {
+   it. The tinted background stays, so the bar remains readable; the
+   filter snaps back on idle. */
+body.is-scrolling .nav-inner {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }
@@ -38,11 +39,16 @@ body.is-scrolling .nav {
 .nav-inner {
     max-width: var(--max-w);
     margin: 0 auto;
-    height: 100%;
+    height: calc(var(--nav-h) - var(--space-2));
     padding: 0 var(--space-6);
     display: flex;
     align-items: center;
     gap: var(--space-6);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 
 .nav-brand {

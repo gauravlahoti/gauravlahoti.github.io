@@ -1,0 +1,10 @@
+{
+  "_readme": "Top-of-page announcement. Shows for 7 days from startsOn, then disappears on its own. Set kind to post or lab. Edit this one file to change it.",
+  "id": "avatar-2026-11-15",
+  "kind": "post",
+  "text": "New post: My website now has a face, a voice, and control of the screen",
+  "cta": "Read it",
+  "href": "https://www.linkedin.com/feed/update/urn:li:activity:7511100036873613314/",
+  "startsOn": "2026-11-15",
+  "durationDays": 7
+}
