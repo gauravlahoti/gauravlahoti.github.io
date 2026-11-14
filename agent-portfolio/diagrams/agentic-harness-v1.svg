@@ -92,8 +92,6 @@
     <line x1="542" y1="325" x2="558" y2="341"/>
     <line x1="558" y1="325" x2="542" y2="341"/>
   </g>
-  <rect x="536" y="371" width="208" height="26" rx="5" fill="#0A0F0E" stroke="#00FFD1" stroke-width="1" stroke-dasharray="4 2"/>
-  <text x="640" y="388" class="chip" fill="#00FFD1" text-anchor="middle">25 steps · $1 · 2 min</text>
 
   <!-- Guardrails -->
   <rect x="830" y="110" width="200" height="120" rx="8" fill="#0F0F0F" stroke="#555555" stroke-width="1.5"/>
