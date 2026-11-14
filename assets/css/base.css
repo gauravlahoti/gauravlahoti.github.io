@@ -43,6 +43,8 @@
     --bg-elev: #0A0A0A;
     --bg-card: #111111;
     --ink: #E5E5E5;
+    --banner-bg: color-mix(in srgb, var(--accent) 24%, var(--bg));
+    --banner-ink: var(--ink);
     --ink-muted: #888888;
     --ink-subtle: #555555;
     --accent: #00FFD1;
@@ -134,6 +136,7 @@
     /* layout */
     --max-w: 1200px;
     --nav-h: 64px;
+    --banner-h: 0px; /* set by announcement.js: visible height of the top bar */
 
     /* iOS safe-area insets — fall back to 0 on platforms without env() */
     --safe-top: env(safe-area-inset-top, 0px);
