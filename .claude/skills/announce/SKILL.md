@@ -34,14 +34,22 @@ If nothing matches, say so and stop. Do not invent a link.
 
 ## Step 2: Draft the banner copy
 
-- `text`: one plain sentence, 90 characters or fewer, so it fits one line on a
-  laptop and two on a phone. Say what it is, not that it is "new". The user may be
+- `text`: one plain sentence, 80 characters or fewer. On phones (the main
+  audience) the bar shows it at 13px (`--text-sm` minus 1px), left-aligned and
+  clamped to two lines, so anything longer gets cut off with no way to read it.
+  On a laptop it fits one line. Say what it is, not that it is "new". The user may be
   promoting an old post, so never add "New post:" or "Just launched" unless the
   user said it is new.
 - `cta`: two or three words. `Read the post` for a post, `Open the lab` for a lab.
 - Voice rules from CLAUDE.md: no em-dashes, short natural sentences, no stock LLM
   phrasing. Read it back out loud.
 - Derive `text` from the post's first line or the lab's tagline. Trim, do not pad.
+
+Design constraints already built into the bar, do not work around them in the copy:
+- Phone text is 13px, two lines max, set in `assets/css/announcement.css`.
+- The cyan "Read it" label only shows on laptops. On phones it is a round arrow,
+  so never rely on the `cta` wording to carry meaning.
+- No emoji, no trailing arrow or "link" words in `text`. The sentence is itself the link.
 
 ## Step 3: Confirm
 

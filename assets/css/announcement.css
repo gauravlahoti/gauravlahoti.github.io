@@ -63,7 +63,7 @@
 .announce-close:hover,
 .announce-close:focus-visible { opacity: 1; background: var(--accent-soft); outline: none; }
 
-/* Phones: the primary audience. One calm row, left-aligned, 14px copy clamped
+/* Phones: the primary audience. One calm row, left-aligned, 13px copy clamped
    to two lines, a round 36px arrow as the tap target and a 40px close. */
 @media (max-width: 720px) {
     .announce {
@@ -71,7 +71,7 @@
         gap: var(--space-3);
         min-height: 52px;
         padding: var(--space-2) 0 var(--space-2) var(--space-4);
-        font-size: var(--text-sm);
+        font-size: calc(var(--text-sm) - 1px);
         line-height: 1.35;
         text-align: left;
     }

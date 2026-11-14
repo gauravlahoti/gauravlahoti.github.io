@@ -35,7 +35,7 @@ async function boot() {
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/assets/css/announcement.css?v=7";
+    link.href = "/assets/css/announcement.css?v=8";
     document.head.appendChild(link);
     await new Promise((r) => { link.onload = link.onerror = r; });
 
