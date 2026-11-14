@@ -12,6 +12,24 @@
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
 const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
 
+// The widget's styles live in their own file so the home page does not pay for
+// them before first paint. Load it here, at module top level, so every path that
+// imports this module (main.js, agents-page.js) gets it, and wait for it: the
+// top-level await keeps initAgentWidget() from running, and so from mounting
+// unstyled UI, until the stylesheet is in. Same ?v= as this module, so a
+// publish's version bump busts both together.
+{
+    const href = new URL(_vq("../css/agent-widget.css"), import.meta.url).href;
+    if (!document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = href;
+        document.head.appendChild(link);
+        // Resolve on error too: a missing stylesheet must not take the widget down.
+        await new Promise((resolve) => { link.onload = link.onerror = resolve; });
+    }
+}
+
 const FEATURES = Object.freeze({
     citations:       true,
     suggestions:     false, // off: post-reply follow-up chips, not the opening starter chips (.agent-prompts, unaffected)
