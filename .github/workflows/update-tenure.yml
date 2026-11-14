@@ -1,0 +1,56 @@
+name: Refresh tenure text
+
+# The page and the WebMCP tools work out "7 yrs 3 mos" from the role dates every time
+# they run, so they are never stale. Atlas is different: it reads the text stored in
+# content/profile.json. This job keeps that stored text in step with the dates.
+# It runs on the 1st of each month, and any time by hand (Actions tab, or
+# `gh workflow run update-tenure.yml`).
+
+on:
+  schedule:
+    - cron: "30 0 1 * *"   # 00:30 UTC on the 1st
+  workflow_dispatch:
+
+# The repo default is read-only, so ask for exactly what this job needs.
+# contents: write to push the refreshed JSON; actions: write to start the deploy.
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-tenure
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Recompute tenure text from the dates
+        run: node scripts/update-tenure.mjs --write
+
+      - name: Commit and deploy, only if something changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- content/profile.json; then
+            echo "Tenure text is already up to date. Nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/profile.json
+          git commit -m "chore: refresh tenure text (monthly)" \
+                     -m "Recomputed from the role dates by scripts/update-tenure.mjs."
+          git pull --rebase origin main
+          git push origin HEAD:main
+          # A push made with the Actions token does not start other workflows,
+          # so start the normal Pages deploy explicitly.
+          gh workflow run deploy.yml --ref main

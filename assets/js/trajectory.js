@@ -3,6 +3,8 @@
 //
 // Contract: initTrajectory(root, profile) → { destroy, highlightSkill }
 
+import { spanLabel, companyLabel } from "./tenure.js";
+
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export function initTrajectory(root, profile) {
@@ -319,7 +321,7 @@ function renderCompany(co) {
         <div class="company-meta">
             <p class="company-year-chip">${getStartYear(co)} →</p>
             <h3 class="company-name">${escapeHtml(co.company)}<span class="company-mode">${escapeHtml(co.workMode || "")}</span></h3>
-            <p class="company-tenure">${escapeHtml(co.tenure || "")}</p>
+            <p class="company-tenure">${escapeHtml(companyLabel(co) || co.tenure || "")}</p>
         </div>
     `;
 
@@ -349,7 +351,7 @@ function renderRole(r) {
         <p class="role-period">
             <span>${escapeHtml(period)}</span>
             <span class="sep">·</span>
-            <span class="role-duration">${escapeHtml(r.duration || "")}</span>
+            <span class="role-duration">${escapeHtml(spanLabel(r.start, r.end) || r.duration || "")}</span>
         </p>
         <p class="role-location">${escapeHtml(r.location || "")}</p>
         ${skills.length ? `
