@@ -2617,6 +2617,10 @@ function _setupDiagramTooltips(svg, dialog) {
     const tip = document.createElement("div");
     tip.className = "ad-node-tooltip";
     tip.setAttribute("role", "tooltip");
+    // An empty tooltip has no accessible name, which fails the ARIA audit and
+    // leaves a dead node in the accessibility tree. Hide it from assistive tech
+    // until it actually has content to show.
+    tip.setAttribute("aria-hidden", "true");
     const ul = document.createElement("ul");
     tip.appendChild(ul);
     document.body.appendChild(tip);
@@ -2637,10 +2641,12 @@ function _setupDiagramTooltips(svg, dialog) {
         tip.style.left = `${x}px`;
         tip.style.top  = `${y}px`;
         tip.classList.add("is-visible");
+        tip.removeAttribute("aria-hidden");
     }
 
     function hideTip() {
         tip.classList.remove("is-visible");
+        tip.setAttribute("aria-hidden", "true");
     }
 
     svg.querySelectorAll(".ad-node[data-ad-tip]").forEach(node => {
