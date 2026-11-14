@@ -137,6 +137,11 @@
     --max-w: 1200px;
     --nav-h: 64px;
     --banner-h: 0px; /* set by announcement.js: visible height of the top bar */
+    /* Height the announcement bar renders at, used to hold its space before it
+       exists (see html.ann-pending below). 40px row on laptops and tablets; on
+       phones the 40px close button plus padding sets it at 57px whatever the text.
+       If announcement.css changes the bar's height, change these two to match. */
+    --banner-reserve: 40px;
 
     /* iOS safe-area insets — fall back to 0 on platforms without env() */
     --safe-top: env(safe-area-inset-top, 0px);
@@ -182,6 +187,25 @@ body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
+}
+
+/* Announcement bar space hold. announce-hint.js adds .ann-pending to <html> in
+   <head> when a bar is live. The bar itself is built after first paint, so without
+   this it would push the page down when it arrives. While pending, the vars the
+   nav and hero already read are set to the bar's height and an empty block of that
+   height stands where the bar will be. announcement.js removes the class in the
+   same task it inserts the bar, so the real bar replaces the block with no shift. */
+@media (max-width: 720px) {
+    :root { --banner-reserve: 57px; }
+}
+html.ann-pending {
+    --banner-full: var(--banner-reserve);
+    --banner-h: var(--banner-reserve);
+}
+html.ann-pending body::before {
+    content: "";
+    display: block;
+    height: var(--banner-reserve);
 }
 
 code, pre, .mono {

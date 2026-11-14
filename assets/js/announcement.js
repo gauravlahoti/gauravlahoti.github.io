@@ -24,14 +24,22 @@ function isLive(a, now) {
     return now >= start && now < end;
 }
 
+// announce-hint.js adds "ann-pending" to <html> before first paint when it expects a
+// bar, and base.css holds the bar's space while it is there. Every path out of boot()
+// has to drop it: either the real bar replaces the held space (below, in the same
+// task as the insert, so nothing shifts) or there is no bar after all.
+function clearPending() {
+    document.documentElement.classList.remove("ann-pending");
+}
+
 async function boot() {
     let a;
     try {
         const res = await fetch("/content/announcement.json", { cache: "no-cache" });
-        if (!res.ok) return;
+        if (!res.ok) { clearPending(); return; }
         a = await res.json();
-    } catch { return; }
-    if (!isLive(a, Date.now()) || dismissed(a.id)) return;
+    } catch { clearPending(); return; }
+    if (!isLive(a, Date.now()) || dismissed(a.id)) { clearPending(); return; }
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -79,6 +87,7 @@ async function boot() {
 
     bar.append(text, sep, cta, close);
     document.body.prepend(bar);
+    clearPending(); // same task as the insert: the bar takes over the held space
 
     const root = document.documentElement;
     let raf = 0;
