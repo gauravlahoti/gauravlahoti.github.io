@@ -36,6 +36,8 @@
 // and why get_profile stays untrustedContentHint:false while list_work,
 // which carries LinkedIn text, doesn't).
 
+import { spanLabel, companyLabel } from "./tenure.js"; // pure: no side effects on import
+
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
 const _vq = (p) => (_selfV ? `${p}?v=${_selfV}` : p);
 const _base = () => document.querySelector("base")?.href || location.origin + "/";
@@ -279,7 +281,7 @@ export function defineTools(ctx) {
                     if (!filterArg) {
                         const lines = exp.map((c) => {
                             const titles = (c.roles || []).map((r) => r.title).reverse().join(", ");
-                            return `${c.company} · ${c.tenure} · ${c.workMode}\n  ${titles}`;
+                            return `${c.company} · ${companyLabel(c) || c.tenure} · ${c.workMode}\n  ${titles}`;
                         });
                         return out(lines.join("\n"));
                     }
@@ -295,9 +297,9 @@ export function defineTools(ctx) {
                     const lines = roles.map((r) => {
                         const range = `${r.start || "?"} – ${r.end || "present"}`;
                         const skills = input.detail === true && r.skills?.length ? `\n    ${r.skills.join(", ")}` : "";
-                        return `${r.title} (${range}, ${r.duration || "?"}) · ${r.location || ""}${skills}`;
+                        return `${r.title} (${range}, ${spanLabel(r.start, r.end) || r.duration || "?"}) · ${r.location || ""}${skills}`;
                     });
-                    return out(`${co.company} · ${co.tenure} · ${co.workMode}\n${lines.join("\n")}`);
+                    return out(`${co.company} · ${companyLabel(co) || co.tenure} · ${co.workMode}\n${lines.join("\n")}`);
                 }
 
                 // section === "certifications"
