@@ -375,7 +375,9 @@ main { padding-top: 0; }
 
 .hero {
     position: relative;
-    min-height: 100svh;
+    /* banner-full is the announcement bar's height while it is on the page, so
+       the hero (and the cert rail pinned to its bottom) still fits one screen. */
+    min-height: calc(100svh - var(--banner-full, 0px));
     width: 100%;
     max-width: none;
     margin: 0;
@@ -488,9 +490,12 @@ main { padding-top: 0; }
         grid-row: 1;
         grid-column: 1;
         justify-self: center;
-        margin: calc(var(--nav-h) + var(--safe-top) + var(--space-2)) auto var(--space-4);
-        width: clamp(170px, 44vw, 220px);
-        height: clamp(170px, 44vw, 220px);
+        /* The announcement bar (--banner-full, 0 when absent) pushes the hero
+           down, so the portrait gives that height back and the cert rail
+           stays clear of the bottom bar. */
+        margin: calc(var(--nav-h) + var(--safe-top) + var(--space-2)) auto calc(var(--space-4) - min(var(--banner-full, 0px), var(--space-2)));
+        width: calc(clamp(170px, 44vw, 220px) - var(--banner-full, 0px) * 0.6);
+        height: calc(clamp(170px, 44vw, 220px) - var(--banner-full, 0px) * 0.6);
         border-radius: 50%;
         overflow: hidden;
         z-index: 2;
