@@ -15,15 +15,20 @@
 /* Nav ----------------------------------------------------------------- */
 
 .nav {
-    position: fixed;
-    top: var(--banner-h); left: 0; right: 0;
+    /* Absolute, not fixed: the pill sits at the top of the page and scrolls away with
+       it instead of floating over the content. It still overlays the top of the hero
+       and takes no layout space, so every page's `padding-top: calc(var(--nav-h) + ...)`
+       stays correct. It sits just under the announcement bar (--banner-full is the
+       bar's full height, 0 when there is none) and scrolls away together with it. */
+    position: absolute;
+    top: var(--banner-full, 0px); left: 0; right: 0;
     z-index: 50;
     height: var(--nav-h);
     padding: var(--space-2) var(--space-4) 0;
     background: none;
     pointer-events: none;
 }
-/* Floating pill: the bordered, blurred container is .nav-inner, inset from the
+/* The pill: the bordered, blurred container is .nav-inner, inset from the
    viewport edges. The outer .nav only positions it. */
 .nav-inner { pointer-events: auto; }
 /* Drop the backdrop-filter while the page is actively scrolling. Re-blurring
