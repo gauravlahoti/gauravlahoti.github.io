@@ -35,7 +35,7 @@ async function boot() {
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/assets/css/announcement.css?v=4";
+    link.href = "/assets/css/announcement.css?v=6";
     document.head.appendChild(link);
     await new Promise((r) => { link.onload = link.onerror = r; });
 
@@ -44,8 +44,12 @@ async function boot() {
     bar.setAttribute("role", "region");
     bar.setAttribute("aria-label", "Announcement");
 
-    const text = document.createElement("span");
+    // The sentence and the CTA both link to the same place, so either click works.
+    const external = /^https?:/.test(a.href);
+    const text = document.createElement("a");
     text.className = "announce-text";
+    text.href = a.href;
+    if (external) { text.target = "_blank"; text.rel = "noopener noreferrer"; }
     text.textContent = a.text;
 
     const sep = document.createElement("span");
@@ -55,7 +59,7 @@ async function boot() {
     const cta = document.createElement("a");
     cta.className = "announce-cta";
     cta.href = a.href;
-    if (/^https?:/.test(a.href)) { cta.target = "_blank"; cta.rel = "noopener noreferrer"; }
+    if (external) { cta.target = "_blank"; cta.rel = "noopener noreferrer"; }
     cta.textContent = (a.cta || "Learn more") + " ↗";
 
     const close = document.createElement("button");
@@ -71,6 +75,7 @@ async function boot() {
     let raf = 0;
     const sync = () => {
         raf = 0;
+        root.style.setProperty("--banner-full", bar.offsetHeight + "px");
         const visible = Math.max(0, bar.offsetHeight - window.scrollY);
         root.style.setProperty("--banner-h", visible + "px");
     };
@@ -85,6 +90,7 @@ async function boot() {
         window.removeEventListener("scroll", onScroll);
         window.removeEventListener("resize", onScroll);
         root.style.removeProperty("--banner-h");
+        root.style.removeProperty("--banner-full");
     });
 }
 
