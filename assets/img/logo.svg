@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Gaurav Lahoti">
+    <title>Gaurav Lahoti</title>
+    <desc>Node-link L mark.</desc>
+    <path d="M18 12 V48 H48" fill="none" stroke="#E5E5E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="18" cy="12" r="5.5" fill="#000" stroke="#E5E5E5" stroke-width="4"/>
+    <circle cx="48" cy="48" r="5.5" fill="#000" stroke="#E5E5E5" stroke-width="4"/>
+    <circle cx="18" cy="48" r="12" fill="#00FFD1" opacity=".22"/>
+    <circle cx="18" cy="48" r="7" fill="#00FFD1"/>
+</svg>

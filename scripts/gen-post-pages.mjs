@@ -121,6 +121,7 @@ for (const post of posts) {
     <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
     <base href="/">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="assets/css/base.css?v=${ASSET_V}">
     <link rel="stylesheet" href="assets/css/layout.css?v=${ASSET_V}">
