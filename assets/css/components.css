@@ -3128,8 +3128,7 @@ body[data-site-stage-open="true"] { overflow: hidden; }
 
 /* Phones: calmer, smaller hero type. The edge vignette only existed to keep
    text readable over the old web, so it goes on phones (it just read as a
-   black wash). The bio steps down a touch in brightness so the name and role
-   lead, and gets a little more side room. */
+   black wash). The bio keeps its full colour and gets a little more side room. */
 @media (max-width: 767px) {
     .hero::after { display: none; }
     .hero-name {
@@ -3140,7 +3139,6 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     .hero-tagline {
         font-size: 0.875rem;
         line-height: 1.6;
-        color: color-mix(in srgb, var(--ink) 80%, transparent);
     }
     .hero-stack { padding-left: var(--space-5); padding-right: var(--space-5); }
 }
