@@ -21,7 +21,7 @@
     "linkedin": "https://www.linkedin.com/in/glahoti/",
     "github": "https://github.com/gauravlahoti",
     "topmate": "https://topmate.io/gaurav_lahoti25",
-    "resume": "/assets/img/resume.pdf",
+    "resume": "/resume.pdf",
     "agentApi": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat",
     "agentWarm": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat/warm",
     "pageviewApi": "https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev/api/pageview",
@@ -242,7 +242,7 @@
     "cta": {
       "topmate":  { "label": "Book a Topmate call →", "url": "https://topmate.io/gaurav_lahoti25" },
       "linkedin": { "label": "Continue on LinkedIn →", "url": "https://www.linkedin.com/in/glahoti/" },
-      "resume":   { "label": "Open Resume →", "url": "https://gauravlahoti.dev/assets/img/resume.pdf" }
+      "resume":   { "label": "Open Resume →", "url": "https://gauravlahoti.dev/resume.pdf" }
     },
     "nudge": {
       "label":  "Want a TL;DR of his career arc?",

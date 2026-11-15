@@ -40,6 +40,11 @@ jobs:
             --exclude='_site' \
             ./ _site/
 
+      # The resume lives in a folder in the repo (assets/img/resume.pdf) but is
+      # published at the short URL /resume.pdf. A missing file fails the deploy.
+      - name: Publish resume at /resume.pdf
+        run: cp assets/img/resume.pdf _site/resume.pdf
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:

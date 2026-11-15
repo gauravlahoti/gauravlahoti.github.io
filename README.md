@@ -31,7 +31,7 @@ Personal content lives in `content/`:
 | `graph.json` | Career nodes + edges for the 3D trajectory graph |
 | `posts.json` | LinkedIn posts for the Perspectives section |
 
-The resume PDF lives at `assets/img/resume.pdf`. Replace in place — no code change needed.
+The resume PDF lives at `assets/img/resume.pdf`. Replace in place, no code change needed. The deploy workflow publishes it at the short URL `/resume.pdf` (locally, open `/assets/img/resume.pdf`).
 
 ## Backend (`backend/`)
 
