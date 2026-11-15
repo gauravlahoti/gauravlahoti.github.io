@@ -56,6 +56,9 @@ window.__portfolioSessionId = uuidv4();
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
 // index.html <head> — runs before auto-restore + bfcache restore.)
 
+// A repeat visitor sees the questions counter immediately (see initAgentStat).
+showCachedAgentStat();
+
 (async function bootstrap() {
     // Kick off the page-transition module in parallel with everything else
     // (never awaited on the critical path — most loads arrive with no
@@ -137,42 +140,62 @@ function initWebMcp(profile) {
     setTimeout(recheck, 1500);
 }
 
-// Live Atlas counter: fetches the total questions answered from /api/agent-stats and
-// shows "Atlas has responded to N questions" under the hero buttons. It needs a real
-// number, so it cannot be in the first paint, but it appears the moment the number
-// arrives: no idle wait, no hold, no count-up, no fade. The line's space is reserved
-// from the start (display: block with opacity 0 in components.css, which also overrides
-// the [hidden] attribute), so showing it moves nothing. We only show it for a real positive number (never flash "0"). The endpoint
-// is CDN-cached for 1h, so this reflects a fresh count per visit.
+// Live Atlas counter: "Atlas has responded to N questions" under the hero buttons. The
+// number comes from /api/agent-stats, which takes a network round trip (after the profile
+// data that names the URL), so for a first-time visitor it appears when that arrives: no
+// idle wait, no hold, no count-up, no fade. For a repeat visitor it is there at once: the
+// last number we saw is kept in localStorage and shown the moment this script runs, then
+// quietly replaced when the fresh one arrives. It is only a public running total, nothing
+// about the visitor. The line's space is reserved from the start (display: block with
+// opacity 0 in components.css, which also overrides the [hidden] attribute), so showing it
+// moves nothing. We only ever show a real positive number (never flash "0"). The endpoint
+// is CDN-cached for 1h, so the fresh number is current to within the hour.
+const AGENT_STAT_KEY = "agent-stat-total";
+const agentStatFmt = new Intl.NumberFormat("en-US");
+
+function showAgentStat(n) {
+    const el = document.querySelector("[data-agent-stat]");
+    const numEl = el && el.querySelector("[data-agent-stat-num]");
+    if (!el || !numEl) return false;
+    numEl.textContent = agentStatFmt.format(n);
+    if (!el.classList.contains("is-shown")) {
+        // No transition for this first show: it should simply be there.
+        el.style.transition = "none";
+        el.hidden = false;
+        el.classList.add("is-shown");
+        requestAnimationFrame(() => el.style.removeProperty("transition"));
+    }
+    return true;
+}
+
+// Called as soon as this module runs, before anything is fetched.
+function showCachedAgentStat() {
+    try {
+        const n = Number(localStorage.getItem(AGENT_STAT_KEY));
+        if (Number.isFinite(n) && n > 0) showAgentStat(n);
+    } catch { /* private mode or storage blocked: just wait for the network */ }
+}
+
 function initAgentStat(profile) {
     const api = profile && profile.links && profile.links.agentStatsApi;
     const el = document.querySelector("[data-agent-stat]");
     const numEl = el && el.querySelector("[data-agent-stat-num]");
     if (!api || !el || !numEl) return;
 
-    const fmt = new Intl.NumberFormat("en-US");
     let total = 0;
     let ready = false;
-
-    const reveal = (n) => {
-        numEl.textContent = fmt.format(n);
-        // No transition for this first show: it should simply be there.
-        el.style.transition = "none";
-        el.hidden = false;
-        el.classList.add("is-shown");
-        requestAnimationFrame(() => el.style.removeProperty("transition"));
-    };
 
     fetch(api, { cache: "no-cache" })
         .then(r => (r.ok ? r.json() : null))
         .then(data => {
             const n = data && Number(data.total_conversations);
-            if (!Number.isFinite(n) || n <= 0) return; // stay hidden
+            if (!Number.isFinite(n) || n <= 0) return; // keep whatever is showing
             total = n;
             ready = true;
-            reveal(total);
+            showAgentStat(total);
+            try { localStorage.setItem(AGENT_STAT_KEY, String(total)); } catch { /* ignore */ }
         })
-        .catch(() => { /* leave hidden on failure */ });
+        .catch(() => { /* keep whatever is showing, or stay hidden */ });
 
     // Optimistic tick: when a visitor sends a question to Atlas (agent-widget
     // dispatches this), bump the displayed count by one with a brief pop so it
@@ -180,7 +203,8 @@ function initAgentStat(profile) {
     document.addEventListener("portfolio:agent-question", () => {
         if (!ready) return;
         total += 1;
-        numEl.textContent = fmt.format(total);
+        numEl.textContent = agentStatFmt.format(total);
+        try { localStorage.setItem(AGENT_STAT_KEY, String(total)); } catch { /* ignore */ }
         if (reduceMotion) return;
         numEl.classList.remove("bump");
         void numEl.offsetWidth; // reflow so the animation restarts each tick

@@ -24,6 +24,10 @@
     <link rel="stylesheet" href="assets/css/layout.css?v=410">
     <link rel="stylesheet" href="assets/css/components.css?v=405">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- The questions counter and the post chips call this backend a moment after boot. Opening
+         the connection now (DNS, TCP, TLS) takes that round trip off a first-time visitor's wait.
+         crossorigin because those are CORS fetches. Same origin as in the CSP connect-src below. -->
+    <link rel="preconnect" href="https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev" crossorigin>
     <!-- The hero portrait is the LCP element on desktop. srcset and sizes are copied
          verbatim from the <source> in the hero below, so the browser preloads the
          exact file it will use. Keep the two in step if either changes. -->

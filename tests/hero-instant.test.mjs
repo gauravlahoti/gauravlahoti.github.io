@@ -61,6 +61,19 @@ test("the counter and the Atlas widget no longer wait for a timer or for idle", 
     assert.ok(!/requestIdleCallback/.test(widget[0]), "the widget must not wait for browser idle");
 });
 
+test("the questions counter shows the last known number at once, and the backend is preconnected", () => {
+    // main.js shows a cached number before anything is fetched, and keeps it fresh.
+    assert.ok(/function showCachedAgentStat\(/.test(mainJs), "cached counter function should exist");
+    assert.ok(/\nshowCachedAgentStat\(\);/.test(mainJs), "it must run at module start, before the profile fetch");
+    assert.ok(/localStorage\.setItem\(AGENT_STAT_KEY/.test(mainJs), "the fresh number must be saved for next time");
+    assert.ok(/localStorage\.getItem\(AGENT_STAT_KEY/.test(mainJs), "the saved number must be read back");
+    // The connection to the stats backend is opened early (crossorigin: it is a CORS fetch).
+    assert.ok(
+        /<link rel="preconnect" href="https:\/\/gaurav-portfolio-resume-gate\.gaurav-lahoti25\.workers\.dev" crossorigin>/.test(html),
+        "index.html should preconnect to the backend origin"
+    );
+});
+
 test("the CSS has no stray 'undefined' left over from a template", () => {
     assert.ok(!/}undefined/.test(css), "found '}undefined' in the CSS");
 });
