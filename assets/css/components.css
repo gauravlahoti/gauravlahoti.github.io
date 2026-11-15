@@ -236,7 +236,7 @@
         50%  { transform: translate(60px, 0); opacity: 1; }
         80%  { opacity: 1; }
         100% { transform: translate(20px, 18px); opacity: 0; }
-    }undefined
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -245,7 +245,7 @@
         opacity: 0.7;
         transform: scale(1);
     }
-    .hi-agent { display: none; }undefined
+    .hi-agent { display: none; }
 }
 
 /* Off-screen pause: when #top (the hero section) leaves the viewport,
@@ -262,23 +262,6 @@
 /* Used by .bento-card-foot .kw and other nested keyword spans */
 .kw { color: var(--accent); }
 
-/* Hero name char wrapper (for the scramble animation) ---------------- */
-
-.hero-name .char {
-    display: inline-block;
-    will-change: transform, opacity;
-}
-
-/* Hero tagline word wrapper (for token-stream reveal) ---------------- */
-
-.hero-tagline .word {
-    display: inline-block;
-    will-change: transform, filter, opacity;
-}
-.hero-tagline .word::after {
-    content: "\00a0";
-}
-
 /* Certification Badge Rail (spec 10) --------------------------------- */
 
 .cert-rail {
@@ -288,7 +271,6 @@
     bottom: var(--space-12);
     height: 144px;
     z-index: 4;
-    opacity: 0;
     /* Clip horizontally only — vertical visible so a hovered tile (lifted
        -12px + scaled 1.35×) isn't cropped at the top by the rail bounds.
        `clip` is paint-only so it doesn't create a scroll container. */
@@ -527,19 +509,19 @@
     .cert-tile-popover { transition: opacity 0s, visibility 0s; }
     /* Stop the marquee; let users swipe through the row manually */
     .cert-rail { overflow-x: auto; }
-    .cert-rail-list { animation: none; transform: none; }undefined
+    .cert-rail-list { animation: none; transform: none; }
 }
 
 @media (max-width: 900px) {
     .cert-rail { height: 144px; }
     .cert-tile { flex: 0 0 100px; width: 100px; height: 100px; }
-    .cert-rail-list { gap: var(--space-4); }undefined
+    .cert-rail-list { gap: var(--space-4); }
 }
 
 @media (max-width: 600px) {
     .cert-rail { height: 108px; bottom: var(--space-8); }
     .cert-tile { flex: 0 0 79px; width: 79px; height: 79px; }
-    .cert-rail-list { gap: var(--space-3); }undefined
+    .cert-rail-list { gap: var(--space-3); }
 }
 
 /* Bento certs card upgrade: render badge images alongside text */
@@ -564,7 +546,7 @@
     filter: drop-shadow(0 0 12px rgba(0, 255, 209, 0.18));
 }
 @media (max-width: 375px) {
-    .cert-item-img-grid { grid-template-columns: repeat(3, 1fr); }undefined
+    .cert-item-img-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* Career Trajectory (spec 04) ---------------------------------------- */
@@ -676,7 +658,7 @@
     .trail-stats {
         padding: var(--space-4) 0;
     }
-    .trail-stat { padding: 0 var(--space-4); }undefined
+    .trail-stat { padding: 0 var(--space-4); }
 }
 
 .trail-grid {
@@ -1011,13 +993,13 @@
     .role-list { padding-left: 0; border-left: 0; margin-left: 0; }
     .role-tile { padding: var(--space-3) var(--space-4); }
     .role-tile::before { display: none; }
-    .role-title { font-size: var(--text-sm); }undefined
+    .role-title { font-size: var(--text-sm); }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .trail-rail-line { stroke-dashoffset: 0 !important; }
     .role-tile.is-pulsing { animation: none; }
-    .role-tile:hover { transform: none; }undefined
+    .role-tile:hover { transform: none; }
 }
 
 /* Capabilities -------------------------------------------------------- */
@@ -1101,7 +1083,7 @@
 @media (prefers-reduced-motion: reduce) {
     .cap-axis-head::after,
     .cap-axis-tag,
-    .cap-axis-title { transition: none; }undefined
+    .cap-axis-title { transition: none; }
 }
 .cap-axis-cards {
     display: flex;
@@ -1144,7 +1126,7 @@
            the head and the first card. Parent grid row-gap is var(--space-3),
            so add the missing var(--space-1) below the head. */
         margin-bottom: calc(var(--space-4) - var(--space-3));
-    }undefined
+    }
 }
 
 .cap-card {
@@ -1362,7 +1344,7 @@
     .cap-chip:hover { transform: none; }
     .cap-context { transition: none; }
     .cap-index { transition: none; }
-    .cap-chip-icon { transition: none; }undefined
+    .cap-chip-icon { transition: none; }
 }
 
 /* Coarse-pointer (touch) tap-target bumps — meet WCAG 2.5.5 where layout
@@ -1382,7 +1364,7 @@
     }
     /* Cert tiles: use .is-open to show the popover on tap (CSS hook
        already in place at line ~402; main.js wires the click). */
-    .cert-tile { -webkit-tap-highlight-color: transparent; }undefined
+    .cert-tile { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Custom cursor (spec 08) -------------------------------------------- */
@@ -1433,13 +1415,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
    or tablet. A touchscreen laptop also has a trackpad, so it keeps the
    cursor (cursor.js hides it just while a finger is in use). */
 @media not all and (any-pointer: fine), (any-hover: none), (prefers-reduced-motion: reduce) {
-    .cursor { display: none !important; }undefined
+    .cursor { display: none !important; }
 }
 
 /* Reduced-motion: kill the chrome animations ------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-    .dot, .caret { animation: none; }undefined
+    .dot, .caret { animation: none; }
 }
 
 
@@ -1926,7 +1908,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     }
     .post-row-title {
         font-size: var(--text-sm);
-    }undefined
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1945,7 +1927,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     }
     .post-search-wrap::after {
         animation: none;
-    }undefined
+    }
 }
 
 /* Nav flyout — recent posts dropdown on the Writing link (spec 14) ---- */
@@ -2279,19 +2261,13 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     flex-wrap: wrap;
     margin-top: var(--space-2);
     align-self: flex-start;
-    opacity: 0;
-}
-
-/* Hero CTA group starts hidden — GSAP reveals it after hero text + skills hex
-   finish (see scheduleHeroReveal() in main.js). */
-@media (prefers-reduced-motion: reduce) {
-    .hero-cta-group { opacity: 1; }undefined
 }
 
 /* Live Atlas counter — a quiet caption below the CTAs: ● Atlas, my AI agent,
    has answered N questions. No border/background — just a dim mono proof line
-   with a pulsing dot + mint number. Starts [hidden] (set in HTML); main.js
-   removes hidden + adds .is-shown once /api/agent-stats resolves, counts up. */
+   with a pulsing dot + mint number. The line's space is always reserved (display:
+   block with opacity 0, which also overrides the [hidden] attribute set in HTML), so
+   when main.js adds .is-shown as soon as /api/agent-stats resolves, nothing moves. */
 .hero-livestat {
     /* Normal text flow (not flex) so it inherits the hero's text-align —
        left on desktop, centered on mobile — and wraps cleanly. */
@@ -2339,7 +2315,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .hero-livestat {
         font-size: var(--text-xs);
         margin-top: var(--space-3);
-    }undefined
+    }
 }
 .hero-livestat-num.bump {
     animation: livestat-bump 0.5s var(--ease-out);
@@ -2352,7 +2328,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 @media (prefers-reduced-motion: reduce) {
     .hero-livestat { transition: none; }
     .hero-livestat-dot { animation: none; }
-    .hero-livestat-num.bump { animation: none; }undefined
+    .hero-livestat-num.bump { animation: none; }
 }
 
 .hero-agents-link {
@@ -2407,7 +2383,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         flex-direction: column;
         align-items: center;
         position: static;
-    }undefined
+    }
 }
 
 @media (max-width: 767px) {
@@ -2515,11 +2491,11 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         animation: agent-fab-breathe 6s ease-in-out infinite;
     }
     @media (prefers-reduced-motion: reduce) {
-        .mobile-bottombar-btn-primary::after { animation: none; }undefined
+        .mobile-bottombar-btn-primary::after { animation: none; }
     }
     @media (prefers-reduced-motion: reduce) {
         .mobile-bottombar { transition: none; }
-        .mobile-bottombar[data-hidden="true"] { transform: translateY(0); }undefined
+        .mobile-bottombar[data-hidden="true"] { transform: translateY(0); }
     }
 
     /* Section-progress strip — sits above the fixed nav. */
@@ -2554,7 +2530,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         inset: -20px 0 -20px 0;
     }
     @media (prefers-reduced-motion: reduce) {
-        .mobile-section-progress-dot { transition: none; }undefined
+        .mobile-section-progress-dot { transition: none; }
     }
 
     /* Hide FAB and bottom-bar while the agent panel is open so neither
@@ -2622,7 +2598,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .cap-axis-mobile-toggle-arrow { transition: transform var(--dur-fast) var(--ease-out); }
     .cap-axis[data-mobile-collapsed="false"] .cap-axis-mobile-toggle-arrow { transform: rotate(90deg); }
     @media (prefers-reduced-motion: reduce) {
-        .cap-axis-mobile-toggle-arrow { transition: none; }undefined
+        .cap-axis-mobile-toggle-arrow { transition: none; }
     }
 
     /* Trajectory — collapse companies behind <details> on mobile. The
@@ -2657,8 +2633,8 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     /* Hide the rail decoration entirely on mobile — nothing to measure. */
     .trail-rail { display: none; }
     @media (prefers-reduced-motion: reduce) {
-        .trail-company-summary-arrow { transition: none; }undefined
-    }undefined
+        .trail-company-summary-arrow { transition: none; }
+    }
 }
 
 /* ============================================================
@@ -2729,6 +2705,16 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     fill: none;
     filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 55%, transparent));
     transition: stroke-dashoffset 360ms var(--ease-out);
+}
+
+/* initSkillsHex(root, { instant: true }) adds .is-instant for the first frame only, so the
+   cluster is simply there instead of fading in. Removed again two frames later, which
+   restores the normal transitions (the idle shuffle needs the left/top ones). */
+.skills-hex-grid.is-instant .skills-hex-wrap,
+.skills-hex-grid.is-instant .skills-hex,
+.skills-hex-grid.is-instant .skills-hex::before,
+.skills-hex-grid.is-instant .skills-hex-connections line {
+    transition: none;
 }
 
 /* Cell wrapper — absolute (left/top set inline by JS) */
@@ -2933,7 +2919,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .tier-primary.is-visible .skills-hex { animation: none; filter: none; }
     .skills-hex-canvas { display: none; }
     .skills-hex-connections line { transition: none; }
-    .skills-hex::before { animation: none; opacity: 0; }undefined
+    .skills-hex::before { animation: none; opacity: 0; }
 }
 
 /* Mobile: hero panel itself is display:none below 901px (layout.css), so the
@@ -2984,7 +2970,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .hero-cta-icon,
     .hero-cta-icon .bot-eye-l,
     .hero-cta-icon .bot-eye-r,
-    .hero-cta-icon .bot-antenna { animation: none; }undefined
+    .hero-cta-icon .bot-antenna { animation: none; }
 }
 
 /* Resume icon — text lines scan in sequence, like a doc being read */
@@ -2998,7 +2984,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 @media (prefers-reduced-motion: reduce) {
     .resume-icon .resume-line-1,
     .resume-icon .resume-line-2,
-    .resume-icon .resume-line-3 { animation: none; opacity: 1; }undefined
+    .resume-icon .resume-line-3 { animation: none; opacity: 1; }
 }
 
 /* ---------- WebMCP activity pill (spec 45) ---------- */
@@ -3041,7 +3027,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 @media (prefers-reduced-motion: no-preference) {
     .webmcp-pill.is-live .webmcp-pill-dot {
         animation: webmcp-pill-pulse 1.1s ease-in-out infinite;
-    }undefined
+    }
 }
 @keyframes webmcp-pill-pulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-glow); }
@@ -3051,7 +3037,7 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     .webmcp-pill {
         left: var(--space-3);
         bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-3));
-    }undefined
+    }
 }
 @property --avatar-scan {
     syntax: "<angle>";
@@ -3112,7 +3098,7 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     background: var(--bg);
 }
 @media (prefers-reduced-motion: reduce) {
-    .site-stage { transition: none; }undefined
+    .site-stage { transition: none; }
 }
 
 
@@ -3140,5 +3126,5 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     .hero-name { font-size: clamp(2rem, min(5.5vw, 6.5vh), 3.5rem); }
     .hi-anchor, .hi-amp { font-size: clamp(1.125rem, min(2.2vw, 3.4vh), 1.75rem); }
     .hero-tagline { font-size: clamp(0.875rem, min(1.5vw, 2.5vh), 1.1rem); line-height: 1.55; }
-    .hero-livestat { margin-top: var(--space-1); }undefined
-}undefined
+    .hero-livestat { margin-top: var(--space-1); }
+}

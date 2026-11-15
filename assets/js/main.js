@@ -81,7 +81,6 @@ window.__portfolioSessionId = uuidv4();
         initWebMcp(profile);
         initLenis();
         initAnchorScroll();
-        scheduleHeroReveal();
         initHeroGraphWhenVisible();
 
         initTrajectoryWhenVisible(profile);
@@ -97,7 +96,7 @@ window.__portfolioSessionId = uuidv4();
         wireScrollTo();
         initCursorAsync();
         initRevealWhenIdle();
-        initAgentWidgetWhenIdle(profile, window.__portfolioSessionId);
+        initAgentWidgetOnBoot(profile, window.__portfolioSessionId);
         initMobileEnhancements(profile);
         initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
         initAgentStat(profile);
@@ -138,83 +137,55 @@ function initWebMcp(profile) {
     setTimeout(recheck, 1500);
 }
 
-// Live Atlas counter — fetches total questions answered from /api/agent-stats
-// and reveals "Atlas has answered N questions" under the hero tagline, counting
-// the number up. The element starts [hidden]; we only show it once we have a
-// real positive number (never flash "0"). Fired on idle to stay off the FCP
-// path. The endpoint is CDN-cached 1h, so this reflects a fresh count per visit.
+// Live Atlas counter: fetches the total questions answered from /api/agent-stats and
+// shows "Atlas has responded to N questions" under the hero buttons. It needs a real
+// number, so it cannot be in the first paint, but it appears the moment the number
+// arrives: no idle wait, no hold, no count-up, no fade. The line's space is reserved
+// from the start (display: block with opacity 0 in components.css, which also overrides
+// the [hidden] attribute), so showing it moves nothing. We only show it for a real positive number (never flash "0"). The endpoint
+// is CDN-cached for 1h, so this reflects a fresh count per visit.
 function initAgentStat(profile) {
     const api = profile && profile.links && profile.links.agentStatsApi;
     const el = document.querySelector("[data-agent-stat]");
     const numEl = el && el.querySelector("[data-agent-stat-num]");
     if (!api || !el || !numEl) return;
 
-    // The hero CTA buttons reveal via GSAP at ~2.6–2.8s (scheduleHeroReveal).
-    // Hold the stat until just after so it doesn't pop in before the buttons.
-    // Under reduced-motion the buttons show instantly, so reveal immediately.
-    const REVEAL_AT = reduceMotion ? 0 : 3100;
-
+    const fmt = new Intl.NumberFormat("en-US");
     let total = 0;
     let ready = false;
 
     const reveal = (n) => {
+        numEl.textContent = fmt.format(n);
+        // No transition for this first show: it should simply be there.
+        el.style.transition = "none";
         el.hidden = false;
-        // Two rAFs so the [hidden]→visible flip paints before we add
-        // .is-shown, letting the opacity/transform transition play.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            el.classList.add("is-shown");
-            countUp(numEl, n);
-        }));
+        el.classList.add("is-shown");
+        requestAnimationFrame(() => el.style.removeProperty("transition"));
     };
 
-    const run = () => {
-        fetch(api, { cache: "no-cache" })
-            .then(r => (r.ok ? r.json() : null))
-            .then(data => {
-                const n = data && Number(data.total_conversations);
-                if (!Number.isFinite(n) || n <= 0) return; // stay hidden
-                total = n;
-                ready = true;
-                const wait = Math.max(0, REVEAL_AT - performance.now());
-                wait ? setTimeout(() => reveal(total), wait) : reveal(total);
-            })
-            .catch(() => { /* leave hidden on failure */ });
-    };
+    fetch(api, { cache: "no-cache" })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => {
+            const n = data && Number(data.total_conversations);
+            if (!Number.isFinite(n) || n <= 0) return; // stay hidden
+            total = n;
+            ready = true;
+            reveal(total);
+        })
+        .catch(() => { /* leave hidden on failure */ });
 
     // Optimistic tick: when a visitor sends a question to Atlas (agent-widget
     // dispatches this), bump the displayed count by one with a brief pop so it
-    // feels live — even though /api/agent-stats is 1h-cached.
+    // feels live, even though /api/agent-stats is 1h-cached.
     document.addEventListener("portfolio:agent-question", () => {
         if (!ready) return;
         total += 1;
-        const fmt = new Intl.NumberFormat("en-US");
         numEl.textContent = fmt.format(total);
         if (reduceMotion) return;
         numEl.classList.remove("bump");
         void numEl.offsetWidth; // reflow so the animation restarts each tick
         numEl.classList.add("bump");
     });
-
-    if ("requestIdleCallback" in window) {
-        requestIdleCallback(run, { timeout: 3000 });
-    } else {
-        setTimeout(run, 1200);
-    }
-}
-
-function countUp(node, target) {
-    const fmt = new Intl.NumberFormat("en-US");
-    if (reduceMotion) { node.textContent = fmt.format(target); return; }
-    const duration = 1100;
-    const start = performance.now();
-    const ease = (t) => 1 - Math.pow(1 - t, 3); // easeOutCubic
-    const tick = (now) => {
-        const p = Math.min(1, (now - start) / duration);
-        node.textContent = fmt.format(Math.round(ease(p) * target));
-        if (p < 1) requestAnimationFrame(tick);
-        else node.textContent = fmt.format(target);
-    };
-    requestAnimationFrame(tick);
 }
 
 // Cross-page landings (e.g. clicking "Insights" on /live-agents/ → /#insights)
@@ -247,7 +218,7 @@ function initAnalyticsWhenIdle(profile, sessionId) {
     }
 }
 
-function initAgentWidgetWhenIdle(profile, sessionId) {
+function initAgentWidgetOnBoot(profile, sessionId) {
     if (!profile || !profile.links || !profile.links.agentApi) return;
     // Spec 78: inside the frame Atlas opens a page in, the home page is the
     // one behind it. A second Atlas here would be a second mic and a second call.
@@ -273,8 +244,8 @@ function initAgentWidgetWhenIdle(profile, sessionId) {
         return loading;
     };
 
-    // Spec 22: hero CTA + mobile bottom-bar use [data-agent-open]. Any tap
-    // eagerly loads the widget (if not already idle-loaded) and opens it.
+    // Spec 22: hero CTA + mobile bottom-bar use [data-agent-open]. A tap opens the
+    // widget; if it somehow has not loaded yet it loads first, then opens.
     document.addEventListener("click", (e) => {
         const trigger = e.target.closest("[data-agent-open]");
         if (!trigger) return;
@@ -284,11 +255,10 @@ function initAgentWidgetWhenIdle(profile, sessionId) {
         Promise.resolve(start()).then((api) => api && api.open && api.open());
     });
 
-    if ("requestIdleCallback" in window) {
-        requestIdleCallback(start, { timeout: 2500 });
-    } else {
-        setTimeout(start, 1500);
-    }
+    // Start loading as soon as the page has booted, not "when the browser is idle"
+    // (which could be 2.5s in), so the chat opens the moment someone clicks. The
+    // voice and avatar modules stay lazy: they load only when a mode is picked.
+    start();
 }
 
 async function initCursorAsync() {
@@ -658,7 +628,7 @@ function initSkillsHexWhenVisible() {
         : document.querySelector('[data-mobile-skills-root]');
     if (!root) return;
     import(v("./skills-hex.js"))
-        .then(({ initSkillsHex }) => initSkillsHex(root, { baseDelay: inHero ? 1200 : 800 }))
+        .then(({ initSkillsHex }) => initSkillsHex(root, { instant: true }))
         // The grid only exists now; hand it to the offscreen pause observer.
         .then(() => observeOffscreenPause(root.querySelector(".skills-hex-grid")))
         .catch((err) => console.warn("[skills-hex] failed to init", err));
@@ -967,195 +937,11 @@ function initPageLinks() {
     });
 }
 
-/* ---------- hero reveal (GSAP) ---------- */
-
-function scheduleHeroReveal() {
-    const stack = document.querySelector(".hero-stack");
-    const chrome = document.querySelectorAll(".hero-chrome .chrome");
-    if (!stack) return;
-
-    const nameEl = stack.querySelector(".hero-name");
-    const taglineEl = stack.querySelector(".hero-tagline");
-
-    splitChars(nameEl);
-    splitWords(taglineEl);
-
-    const bottomBar = document.querySelector("[data-mobile-bottombar]");
-    const agentsLink = document.querySelector(".hero-agents-link");
-
-    if (reduceMotion) {
-        chrome.forEach(c => (c.style.opacity = "1"));
-        if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
-        if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
-        document.querySelectorAll(".hero-cta-group")
-            .forEach(el => (el.style.opacity = "1"));
-        if (bottomBar) bottomBar.removeAttribute("data-hidden");
-        if (agentsLink) agentsLink.classList.add("is-shown");
-        const certRail = document.querySelector("[data-cert-rail]");
-        if (certRail) certRail.style.opacity = "1";
-        return;
-    }
-
-    if (typeof window.gsap !== "function" && typeof window.gsap !== "object") {
-        // GSAP didn't load — show everything statically
-        chrome.forEach(c => (c.style.opacity = "1"));
-        if (nameEl) nameEl.querySelectorAll(".char").forEach(c => (c.style.opacity = "1"));
-        if (taglineEl) taglineEl.querySelectorAll(".word").forEach(w => (w.style.opacity = "1"));
-        document.querySelectorAll(".hero-cta-group")
-            .forEach(el => (el.style.opacity = "1"));
-        if (bottomBar) bottomBar.removeAttribute("data-hidden");
-        if (agentsLink) agentsLink.classList.add("is-shown");
-        const certRail = document.querySelector("[data-cert-rail]");
-        if (certRail) certRail.style.opacity = "1";
-        return;
-    }
-
-    const gsap = window.gsap;
-    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-    // 0.4s — chrome lines slide in from edges
-    chrome.forEach((c, i) => {
-        const fromX = c.classList.contains("chrome-tl") || c.classList.contains("chrome-bl") ? -16 : 16;
-        const fromY = c.classList.contains("chrome-tl") || c.classList.contains("chrome-tr") ? -8 : 8;
-        tl.fromTo(c, { x: fromX, y: fromY, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.5 }, 0.4 + i * 0.08);
-    });
-
-    // 0.7s — name scramble
-    if (nameEl) {
-        tl.add(scrambleName(nameEl), 0.7);
-    }
-
-    // 1.1s — identity line fade (Cloud & AI-Native Architect.)
-    tl.fromTo(".hero-identity", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 }, 1.1);
-
-    // 1.3s — tagline streams word-by-word
-    if (taglineEl) {
-        tl.fromTo(taglineEl.querySelectorAll(".word"),
-            { opacity: 0, y: 6, filter: "blur(6px)" },
-            // clearProps: a finished `filter: blur(0px)` is still a filter —
-            // each of these ~40 words would keep its own filter pass and GPU
-            // layer for the life of the page, a standing composite cost that
-            // shows up as general lag on weaker (Windows) GPUs.
-            { opacity: 1, y: 0, filter: "blur(0px)", clearProps: "filter", duration: 0.45, stagger: 0.035, ease: "power2.out" },
-            1.3
-        );
-    }
-
-    // 2.6s — CTA group eases up after hero text + skills hex both complete
-    // (skills hex finishes ~2.4s desktop, hero text ~2.2s). Glow pulse only
-    // on the primary (agent) button to keep visual hierarchy clear.
-    tl.fromTo(".hero-cta-group",
-        { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" },
-        2.6
-    );
-    tl.to(".hero-cta-group .btn-primary", {
-        boxShadow: "0 0 24px 4px var(--accent-glow)",
-        duration: 0.4,
-        yoyo: true,
-        repeat: 1,
-    }, 2.8);
-
-    // Mobile bottom-bar slides up from below at the same beat (CSS handles
-    // the translateY transition via [data-hidden] → no transform on bar).
-    if (bottomBar) {
-        tl.call(() => bottomBar.removeAttribute("data-hidden"), [], 2.6);
-    }
-
-    // 2.9s — "See agents in production" link fades up after the CTA buttons.
-    // Mirrors the hero-livestat pattern: remove [hidden] then double-rAF so
-    // the browser paints opacity:0 before the CSS transition fires.
-    if (agentsLink) {
-        tl.call(() => {
-            agentsLink.hidden = false;
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                agentsLink.classList.add("is-shown");
-            }));
-        }, [], 2.9);
-    }
-
-    // 3.15s — cert rail fades in as the final piece of the hero reveal,
-    // after the chatbot CTA and its glow effect have finished.
-    tl.fromTo("[data-cert-rail]",
-        { opacity: 0 },
-        { opacity: 1, duration: 0.6, ease: "power2.out" },
-        3.15
-    );
-}
-
-function splitChars(el) {
-    if (!el) return;
-    const text = el.textContent;
-    el.textContent = "";
-    [...text].forEach(ch => {
-        const span = document.createElement("span");
-        span.className = "char";
-        span.style.opacity = "0";
-        span.textContent = ch === " " ? " " : ch;
-        el.appendChild(span);
-    });
-}
-
-function splitWords(el) {
-    if (!el) return;
-    const words = el.textContent.trim().split(/\s+/);
-    el.textContent = "";
-    words.forEach(w => {
-        const span = document.createElement("span");
-        span.className = "word";
-        span.style.opacity = "0";
-        span.textContent = w;
-        el.appendChild(span);
-    });
-}
-
-function scrambleName(nameEl) {
-    const gsap = window.gsap;
-    const chars = [...nameEl.querySelectorAll(".char")];
-    const finals = chars.map(c => c.textContent);
-    const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#@*+_-/";
-    // Each random glyph has its own width, so swapping them into the
-    // inline-block .char spans reflowed the whole name every ~28ms, a
-    // dozen-plus layout shifts per load (spec 91). Pin each char's width while it
-    // scrambles: measure all of them in one read when the scramble starts
-    // (so the measurement uses whatever font is live by then), and unpin
-    // each one as it locks to its final letter, which fits that box exactly.
-    const pin = () => {
-        const widths = chars.map(c => c.getBoundingClientRect().width);
-        chars.forEach((c, i) => {
-            c.style.width = `${widths[i]}px`;
-            c.style.textAlign = "center";
-        });
-    };
-    const unpin = (c) => {
-        c.style.width = "";
-        c.style.textAlign = "";
-    };
-    const tl = gsap.timeline({ onStart: pin });
-    chars.forEach((char, i) => {
-        const start = i * 0.018;
-        // randomize text for ~250-400ms then lock
-        tl.to(char, {
-            opacity: 1,
-            duration: 0.05,
-            onStart() {
-                let ticks = 0;
-                const max = 8 + Math.floor(Math.random() * 6);
-                const id = setInterval(() => {
-                    if (ticks >= max) {
-                        char.textContent = finals[i];
-                        unpin(char);
-                        clearInterval(id);
-                        return;
-                    }
-                    char.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
-                    ticks += 1;
-                }, 28);
-            }
-        }, start);
-    });
-    return tl;
-}
+/* ---------- hero ----------
+   The hero used to stage itself over about 3 seconds: chrome lines, a name scramble,
+   a word-by-word tagline, the buttons at ~2.6s, the agents link at ~2.9s, the badge
+   rail at ~3.15s. It is all plain HTML and CSS now and visible from the first paint,
+   so there is nothing for script to reveal. (Git history has the old timeline.) */
 
 /* ---------- scroll-state class ----------
    Toggles `body.is-scrolling` while the page is actively scrolling. The CSS

@@ -554,7 +554,6 @@ main { padding-top: 0; }
     font-size: var(--text-xs);
     color: var(--ink-muted);
     letter-spacing: 0.04em;
-    opacity: 0;
     pointer-events: auto;
 }
 .chrome-tl { grid-column: 1; grid-row: 1; justify-self: start; }
