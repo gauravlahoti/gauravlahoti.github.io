@@ -131,11 +131,9 @@
     font-style: italic;
 }
 .hi-noun {
-    font-size: var(--text-base);
-    font-weight: 400;
-    color: var(--ink-muted);
-    align-self: flex-end;
-    padding-bottom: 4px;
+    font-size: clamp(1.125rem, 2.2vw, 1.75rem);
+    font-weight: 600;
+    color: var(--ink);
     position: relative;
     display: inline-block;
 }
@@ -678,7 +676,7 @@
     position: sticky;
     top: var(--nav-h);
     width: 100%;
-    height: calc(100vh - var(--nav-h));
+    height: calc(100vh / var(--page-zoom, 1) - var(--nav-h));
     pointer-events: none;
 }
 .trail-rail-line {
@@ -2364,7 +2362,6 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
 
 .hero-mobile-actions { display: none; }
 .mobile-bottombar { display: none; }
-.mobile-section-progress { display: none; }
 
 /* Standalone skills honeycomb — shown only on phones/small tablets (≤900px)
    where the in-hero panel is not shown. At 901px+ the dead-zone fix in
@@ -2499,40 +2496,6 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     }
 
     /* Section-progress strip — sits above the fixed nav. */
-    .mobile-section-progress {
-        display: flex;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        z-index: 11;
-        gap: 2px;
-        padding: 0 var(--space-2);
-        pointer-events: auto;
-        background: transparent;
-    }
-    .mobile-section-progress-dot {
-        position: relative;
-        flex: 1;
-        height: 4px;
-        background: var(--border);
-        border: none;
-        cursor: pointer;
-        padding: 0;
-        transition: background var(--dur-fast) var(--ease-out);
-    }
-    .mobile-section-progress-dot[aria-current="true"] { background: var(--accent); }
-    /* Larger invisible hit area so 4px-tall dots still meet 44px tap target. */
-    .mobile-section-progress-dot::after {
-        content: "";
-        position: absolute;
-        inset: -20px 0 -20px 0;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .mobile-section-progress-dot { transition: none; }
-    }
-
     /* Hide FAB and bottom-bar while the agent panel is open so neither
        sits behind the bottom sheet. */
     body[data-agent-panel-open="true"] .agent-fab,
@@ -3124,7 +3087,41 @@ body[data-site-stage-open="true"] { overflow: hidden; }
         padding-bottom: calc(var(--cert-rail-h) + var(--space-12) + var(--space-4));
     }
     .hero-name { font-size: clamp(2rem, min(5.5vw, 6.5vh), 3.5rem); }
-    .hi-anchor, .hi-amp { font-size: clamp(1.125rem, min(2.2vw, 3.4vh), 1.75rem); }
+    .hi-anchor, .hi-amp, .hi-noun { font-size: clamp(1.125rem, min(2.2vw, 3.4vh), 1.75rem); }
     .hero-tagline { font-size: clamp(0.875rem, min(1.5vw, 2.5vh), 1.1rem); line-height: 1.55; }
     .hero-livestat { margin-top: var(--space-1); }
+}
+
+/* Phones: keep the certification rail on the landing screen (it is one of the
+   most important things on the page). The fixed bottom bar is 73px tall plus
+   the iOS safe area, so the rail sits just above it instead of behind it, the
+   portrait shrinks with the screen height, and the Atlas counter (the least
+   essential line) steps aside. Loaded after layout.css, so these win. */
+@media (max-width: 767px) {
+    .cert-rail {
+        bottom: calc(73px + env(safe-area-inset-bottom) + var(--space-2));
+    }
+    .hero-stack {
+        padding-bottom: calc(108px + 73px + env(safe-area-inset-bottom) + var(--space-4));
+    }
+    .hero-portrait {
+        width: calc(clamp(104px, 24svh, 200px) - var(--banner-full, 0px) * 0.6);
+        height: calc(clamp(104px, 24svh, 200px) - var(--banner-full, 0px) * 0.6);
+    }
+    .hero-livestat { display: none !important; }
+}
+
+/* Short phones (iPhone SE class, or any phone with the browser bars showing):
+   keep the rail on the first screen by dropping the secondary link, shrinking
+   the portrait a bit more, and tightening the text. */
+@media (max-width: 767px) and (max-height: 680px) {
+    .hero-agents-link { display: none !important; }
+    .hero-portrait {
+        width: calc(clamp(88px, 19svh, 200px) - var(--banner-full, 0px) * 0.6);
+        height: calc(clamp(88px, 19svh, 200px) - var(--banner-full, 0px) * 0.6);
+        margin-bottom: var(--space-2);
+    }
+    .hero-stack { padding-bottom: calc(108px + 73px + env(safe-area-inset-bottom) + var(--space-2)); }
+    .hero-text { gap: var(--space-2); }
+    .hero-tagline { line-height: 1.5; font-size: var(--text-sm); }
 }

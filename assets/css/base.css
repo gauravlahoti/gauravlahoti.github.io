@@ -178,6 +178,15 @@ html {
     html { font-size: 14px; }
 }
 
+/* Desktop scale. The site was tuned to read right at Chrome's 90% zoom, so
+   on desktop we apply that scale ourselves. CSS zoom shrinks vh/svh by the
+   same factor, so full-screen heights divide by --page-zoom to stay full. */
+:root { --page-zoom: 1; }
+@media (min-width: 1024px) {
+    :root { --page-zoom: 0.9; }
+    html { zoom: var(--page-zoom); }
+}
+
 body {
     background: var(--bg);
     color: var(--ink);
@@ -186,7 +195,7 @@ body {
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    min-height: 100vh;
+    min-height: calc(100vh / var(--page-zoom, 1));
 }
 
 /* Announcement bar space hold. announce-hint.js adds .ann-pending to <html> in
