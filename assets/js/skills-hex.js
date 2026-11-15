@@ -392,7 +392,10 @@ function buildCell(skill) {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export function initSkillsHex(root, { baseDelay = 0 } = {}) {
+// instant: draw every cell and the mesh at once, with no build-up (no particle entry, no
+// bounce, no staggered waves), then start the same idle shuffle a few seconds later.
+// Without it the cluster builds itself over ~2.4s after `baseDelay`.
+export function initSkillsHex(root, { baseDelay = 0, instant = false } = {}) {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const grid = document.createElement('div');
@@ -481,6 +484,17 @@ export function initSkillsHex(root, { baseDelay = 0 } = {}) {
   if (reduceMotion) {
     cells.forEach(c => c.wrap.classList.add('is-visible'));
     lines.forEach(({ line }) => { line.style.strokeDashoffset = '0'; });
+    return;
+  }
+
+  if (instant) {
+    // `is-instant` switches off the fade transitions for this first frame only, so the
+    // cluster is simply there. Particles are set up (not played) so hover still works.
+    grid.classList.add('is-instant');
+    cells.forEach(c => { c.ps._init(); c.wrap.classList.add('is-visible'); });
+    lines.forEach(({ line }) => { line.style.strokeDashoffset = '0'; });
+    requestAnimationFrame(() => requestAnimationFrame(() => grid.classList.remove('is-instant')));
+    setTimeout(startShuffleLoop, 4000);
     return;
   }
 
