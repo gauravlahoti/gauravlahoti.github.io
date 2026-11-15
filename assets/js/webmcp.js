@@ -269,7 +269,7 @@ export function defineTools(ctx) {
                 }
 
                 if (section === "resume") {
-                    const path = profile?.links?.resume || "/resume.pdf";
+                    const path = profile?.links?.resume || "/assets/img/resume.pdf";
                     const url = new URL(path, location.origin).href;
                     return out(`${url}\nNo sign-in required.`);
                 }
