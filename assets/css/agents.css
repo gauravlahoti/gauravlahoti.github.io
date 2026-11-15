@@ -11,7 +11,7 @@
 /* ─── Page layout ─────────────────────────────────────────────────── */
 
 .agents-page {
-    min-height: 100vh;
+    min-height: calc(100vh / var(--page-zoom, 1));
     background: var(--bg);
     color: var(--ink);
 }

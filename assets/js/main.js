@@ -1,5 +1,5 @@
 // main.js — bootstrap. Reads profile.json, binds DOM, sets up Lenis,
-// orchestrates the hero reveal, lazy-loads hero-graph when #top is in view.
+// orchestrates the hero reveal.
 
 import { initNavDrawer } from "./nav-drawer.js";
 
@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "362";
+const ASSET_VERSION = "369";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -84,7 +84,6 @@ showCachedAgentStat();
         initWebMcp(profile);
         initLenis();
         initAnchorScroll();
-        initHeroGraphWhenVisible();
 
         initTrajectoryWhenVisible(profile);
         initSkillsHexWhenVisible();
@@ -1043,41 +1042,6 @@ function initOffscreenAnimationPause() {
     targets.forEach((el) => io.observe(el));
 }
 
-/* ---------- hero graph lazy load ---------- */
-
-function initHeroGraphWhenVisible() {
-    const canvas = document.getElementById("hero-gl");
-    if (!canvas) return;
-
-    // Spec 22: mobile (<768px) skips Three.js entirely and renders the
-    // upgraded static .hero-fallback SVG mesh. Reduced-motion and save-data
-    // remain the desktop kill switches.
-    if (reduceMotion || saveData || isNarrow) {
-        canvas.remove();
-        return;
-    }
-
-    const io = new IntersectionObserver(async (entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
-            try {
-                const mod = await import(v("./hero-graph.js"));
-                const accent = getComputedStyle(ROOT).getPropertyValue("--accent").trim() || "#00FFD1";
-                const inst = await mod.initHeroGraph(canvas, { accent, isTouch });
-                if (inst && inst.canvas) inst.canvas.classList.add("is-ready");
-                else canvas.classList.add("is-ready");
-                window.__heroGraph = inst;
-            } catch (err) {
-                console.warn("[hero-graph] failed to load", err);
-                canvas.remove();
-            }
-        }
-    }, { rootMargin: "200px" });
-
-    io.observe(canvas);
-}
-
 /* ---------- cert-tile tap-to-open (mobile) ---------- */
 
 function initCertTilesTouch() {
@@ -1100,7 +1064,7 @@ function initCertTilesTouch() {
 }
 
 /* ========== Spec 22 — Mobile enhancements ============================
-   Wires the cert chip toggle, sticky section-progress strip, and the
+   Wires the cert chip toggle, and the
    scroll-aware bottom-bar. Capabilities + Trajectory collapse helpers
    live below; they're called from initCapabilities and the trajectory
    lazy-load callback respectively.
@@ -1113,44 +1077,7 @@ function initMobileEnhancements(profile) {
     // animated cert ticker on mobile. setupCertChip / .cert-rail-chip-mobile
     // are no longer wired.
     void profile;
-    setupSectionProgress();
     setupScrollAwareBottombar();
-}
-
-function setupSectionProgress() {
-    const strip = document.querySelector("[data-section-progress]");
-    if (!strip) return;
-    const sections = Array.from(document.querySelectorAll("main > section[id]"));
-    if (!sections.length) return;
-
-    strip.replaceChildren();
-    const dots = sections.map((sec) => {
-        const dot = document.createElement("button");
-        dot.type = "button";
-        dot.className = "mobile-section-progress-dot";
-        const label = sec.getAttribute("aria-label") || sec.id;
-        dot.setAttribute("aria-label", `Jump to ${label}`);
-        dot.addEventListener("click", () => {
-            window.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { id: sec.id } }));
-            sec.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-        });
-        strip.appendChild(dot);
-        return dot;
-    });
-    strip.setAttribute("aria-hidden", "false");
-
-    const io = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            const idx = sections.indexOf(entry.target);
-            if (idx < 0) return;
-            dots.forEach((d, i) => {
-                if (i === idx) d.setAttribute("aria-current", "true");
-                else d.removeAttribute("aria-current");
-            });
-        });
-    }, { rootMargin: "-40% 0px -55% 0px", threshold: 0 });
-    sections.forEach((sec) => io.observe(sec));
 }
 
 function setupScrollAwareBottombar() {
