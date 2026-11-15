@@ -27,7 +27,7 @@
 .mcp-lab-page {
     background: var(--bg);
     color: var(--ink);
-    min-height: 100vh;
+    min-height: calc(100vh / var(--page-zoom, 1));
 }
 
 #mcp-main {
@@ -1427,7 +1427,7 @@
 
 /* ═══ AI Lab hub (/ai-concepts/) ════════════════════════════════════════════ */
 
-.ai-concepts-page { background: var(--bg); color: var(--ink); min-height: 100vh; }
+.ai-concepts-page { background: var(--bg); color: var(--ink); min-height: calc(100vh / var(--page-zoom, 1)); }
 #concepts-main {
     max-width: var(--max-w);
     margin: 0 auto;
