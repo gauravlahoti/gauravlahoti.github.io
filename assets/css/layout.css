@@ -496,24 +496,19 @@ main { padding-top: 0; }
         margin: calc(var(--nav-h) + var(--safe-top) + var(--space-2)) auto calc(var(--space-4) - min(var(--banner-full, 0px), var(--space-2)));
         width: calc(clamp(170px, 44vw, 220px) - var(--banner-full, 0px) * 0.6);
         height: calc(clamp(170px, 44vw, 220px) - var(--banner-full, 0px) * 0.6);
-        border-radius: 50%;
+        border-radius: var(--radius-lg);
         overflow: hidden;
         z-index: 2;
-        /* Solid background prevents the teal hero atmosphere from bleeding
-           through the mask's transparent outer ring. */
         background: var(--bg);
-        /* Tighter circular crop — fade out before reaching the background bleed zone. */
-        -webkit-mask-image: radial-gradient(circle at center,
-            black 68%,
-            rgba(0, 0, 0, 0.6) 84%,
-            transparent 100%);
-                mask-image: radial-gradient(circle at center,
-            black 68%,
-            rgba(0, 0, 0, 0.6) 84%,
-            transparent 100%);
+        /* Rounded square with a thin accent border and a soft glow, to match
+           the cert tiles below and the rectangular portrait on desktop. */
+        border: 1px solid var(--border-strong);
+        box-shadow: 0 0 0 1px var(--accent-soft), 0 0 32px var(--accent-glow);
+        -webkit-mask-image: none;
+                mask-image: none;
     }
     .hero-portrait img {
-        /* Re-center on the face for the smaller circular crop. */
+        /* Re-center on the face for the smaller square crop. */
         object-position: 50% 22%;
     }
     .hero-portrait::after {
