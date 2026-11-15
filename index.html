@@ -21,8 +21,8 @@
          before first paint (paint waits for the stylesheets anyway), so the page
          transition guard and scroll reset behave the same. -->
     <link rel="stylesheet" href="assets/css/base.css?v=407">
-    <link rel="stylesheet" href="assets/css/layout.css?v=409">
-    <link rel="stylesheet" href="assets/css/components.css?v=404">
+    <link rel="stylesheet" href="assets/css/layout.css?v=410">
+    <link rel="stylesheet" href="assets/css/components.css?v=405">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <!-- The hero portrait is the LCP element on desktop. srcset and sizes are copied
          verbatim from the <source> in the hero below, so the browser preloads the
@@ -34,7 +34,7 @@
          downloading, instead of when the parser reaches the end of <body>. Its
          ?v= must match the <script type="module"> tag below; /publish bumps every
          ?v=N in this file together, so they stay in step. -->
-    <link rel="modulepreload" href="assets/js/main.js?v=360">
+    <link rel="modulepreload" href="assets/js/main.js?v=361">
     <!-- Warm announcement.css in parallel with announcement.json. announcement.js
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
@@ -45,7 +45,7 @@
     <!-- Marks <html class="ann-pending"> before first paint when an announcement bar is
          live, so base.css can hold the bar's space and the page does not jump when
          announcement.js adds it. Same ?v= as main.js so /publish bumps it with the rest. -->
-    <script src="assets/js/announce-hint.js?v=360"></script>
+    <script src="assets/js/announce-hint.js?v=361"></script>
     <title>Gaurav Lahoti</title>
     <meta name="description" content="Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.">
     <link rel="canonical" href="https://gauravlahoti.dev/">
@@ -495,7 +495,7 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=360"></script>
+    <script type="module" src="assets/js/main.js?v=361"></script>
 <script type="module" src="/assets/js/announcement.js?v=7"></script>
 </body>
 </html>
