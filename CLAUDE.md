@@ -50,7 +50,7 @@ no-build-step rule. Excluded from the Pages deploy.
 | HTML | `index.html` | Single page; semantic anchors |
 | Standalone pages | `live-agents/index.html` | `/live-agents/` portfolio; shares the nav but boots its own module |
 | CSS | `assets/css/{base,layout,components,agents}.css` | `base.css` holds all variables; `agents.css` styles the `/live-agents/` page |
-| JS modules | `assets/js/{main,trajectory,hero-graph,cursor,agent-widget}.js` | One module per surface. (`resume-gate.js` deleted 2026-08-09 — the Google Sign-In download gate it powered was retired 2026-06-10; the Resume link goes straight to `/resume.pdf` now.) |
+| JS modules | `assets/js/{main,trajectory,hero-graph,cursor,agent-widget}.js` | One module per surface. (`resume-gate.js` deleted 2026-08-09 — the Google Sign-In download gate it powered was retired 2026-06-10; the Resume link goes straight to `/assets/img/resume.pdf` now.) |
 | Agent-portfolio JS | `assets/js/{agents-page,page-transition}.js` | `agents-page` renders agent cards from `agents.json`; `page-transition` is the "Neural Slash" transition between main ↔ `/live-agents/` |
 | Additional JS | `assets/js/{analytics,posts-list,skills-hex,token-bridge,scroll-restore}.js` | Beacon, Perspectives, hex grid, auth token, scroll |
 | Content data | `content/*.json` | `profile.json`, `graph.json`, `posts.json`, `agents.json`, `build-story.json`. See `content/README.md` for the file-by-file map. Live post-engagement metrics come from the `/api/post-metrics` endpoint, not a static file. `build-story.json` is corpus-only (no page renders it) and answers "how was this site built?" via Atlas's `get_build_story` tool. It deliberately carries **no counts, dates or cost figures** — spec 61 stripped them as repo telemetry, and a unit test enforces it. |
@@ -67,7 +67,7 @@ no-build-step rule. Excluded from the Pages deploy.
 
 ## Backend, analytics & MCP → `.claude/docs/backend.md`
 
-`backend/` is the site's general-purpose backend: Cloudflare Worker + D1 in prod (`backend/src/index.js`), Node + SQLite locally (`backend/local-server.js` → `:8787`). Holds the agent audit log (`agent_interactions`), resume/note send-and-rate-limit endpoints, self-hosted page-view analytics (`page_views`, `daily_stats` rollup), post metrics, and GCP cost alerts. It kept the "resume-gate" name from its original purpose — gating the resume PDF behind Google Sign-In — but that gate was retired 2026-06-10; the Resume link is a direct `/resume.pdf` now, and `resume_downloads` is read-only historical data. `resend_mcp_server/` is a Cloud Run MCP server exposing `send-email`, used by both agents.
+`backend/` is the site's general-purpose backend: Cloudflare Worker + D1 in prod (`backend/src/index.js`), Node + SQLite locally (`backend/local-server.js` → `:8787`). Holds the agent audit log (`agent_interactions`), resume/note send-and-rate-limit endpoints, self-hosted page-view analytics (`page_views`, `daily_stats` rollup), post metrics, and GCP cost alerts. It kept the "resume-gate" name from its original purpose — gating the resume PDF behind Google Sign-In — but that gate was retired 2026-06-10; the Resume link is a direct `/assets/img/resume.pdf` now, and `resume_downloads` is read-only historical data. `resend_mcp_server/` is a Cloud Run MCP server exposing `send-email`, used by both agents.
 
 → **Full endpoint list, migrations, audit-log schema, scripts, analytics beacon, and MCP commands: `.claude/docs/backend.md`.**
 
