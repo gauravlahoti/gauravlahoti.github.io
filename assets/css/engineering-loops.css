@@ -19,7 +19,7 @@
 .loops-lab-page {
     background: var(--bg);
     color: var(--ink);
-    min-height: 100vh;
+    min-height: calc(100vh / var(--page-zoom, 1));
 }
 
 #loops-main {

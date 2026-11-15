@@ -3125,3 +3125,20 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     .hero-text { gap: var(--space-2); }
     .hero-tagline { line-height: 1.5; font-size: var(--text-sm); }
 }
+
+/* Phones: calmer, smaller hero type. The edge vignette only existed to keep
+   text readable over the old web, so it goes on phones (it just read as a
+   black wash). The bio keeps its full colour and gets a little more side room. */
+@media (max-width: 767px) {
+    .hero::after { display: none; }
+    .hero-name {
+        font-size: 1.75rem;
+        text-shadow: none;
+    }
+    .hi-anchor, .hi-amp, .hi-noun { font-size: 1rem; }
+    .hero-tagline {
+        font-size: 0.875rem;
+        line-height: 1.6;
+    }
+    .hero-stack { padding-left: var(--space-5); padding-right: var(--space-5); }
+}
