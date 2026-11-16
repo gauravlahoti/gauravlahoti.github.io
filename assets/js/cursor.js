@@ -114,6 +114,11 @@ export function initCursor(opts = {}) {
             targetH = IDLE_SIZE;
         }
 
+        // html { zoom } (base.css --page-zoom) scales this fixed element's CSS
+        // px, but mouse/rect coords are viewport px. Divide so they line up.
+        const k = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+        targetX /= k; targetY /= k; targetW /= k; targetH /= k;
+
         const lerp = 0.22;
         curX += (targetX - curX) * lerp;
         curY += (targetY - curY) * lerp;
