@@ -8,7 +8,7 @@
 > "Read `.claude/specs/96-reflex-progress.md` and `.claude/specs/96-reflex-system-one-desk.md`, then continue
 > from the Next actions. Do not re-decide anything listed under Locked decisions."
 
-Last updated: 2026-11-16 · Branch: `feature/reflex-system-one-desk` · Based on `main` at `bf07799`
+Last updated: 2026-11-16 · Lives on `main` (merged by PR from `feature/reflex-system-one-desk`, now deleted). Just `git pull` on `main`.
 
 ## Status in one line
 Spec and visual mock are done and pushed. **No agent code exists yet.** Sprint 1 has not started. It is
