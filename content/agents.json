@@ -257,10 +257,11 @@
       { "label": "Inter-agent",    "value": "A2A Protocol" }
     ],
     "index": {
-      "capabilities": ["ondemand", "team", "cites", "acts", "learns"],
+      "capabilities": ["text", "ondemand", "team", "cites", "acts", "learns"],
       "model": "Gemini 2.5",
       "shipped": "2026-05",
       "evidence": {
+        "text": "Describe a GCP error in plain words in the chat and read the diagnosis and fix as a written answer.",
         "ondemand": "Runs when a developer submits a GCP error, then works it through to a fix.",
         "team": "An orchestrator sends each error to a quick scan or a parallel research pipeline, with a knowledge agent over A2A.",
         "cites": "Searches GCP docs and community sources, plus its own vector knowledge bank in AlloyDB.",
