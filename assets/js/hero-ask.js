@@ -111,11 +111,6 @@ function show(anchor, prompts, getWidget) {
     const qEl = bubble.querySelector(".hero-try-q");
     const closeBtn = bubble.querySelector(".hero-try-close");
     host.appendChild(bubble);
-    // Phones: the card covers the bottom-bar button and stands a few pixels
-    // taller, never reaching the cert rail above the bar (see the CSS).
-    if (anchor.where === "bar") {
-        bubble.style.setProperty("--hero-try-h", `${Math.max(58, anchor.el.offsetHeight + 14)}px`);
-    }
 
     // Desktop: size the bubble once, around the longest question with the
     // "AI Lab" tag showing, so it holds still while text types and erases.

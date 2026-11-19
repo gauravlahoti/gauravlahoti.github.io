@@ -34,10 +34,17 @@ If nothing matches, say so and stop. Do not invent a link.
 
 ## Step 2: Draft the banner copy
 
-- `text`: one plain sentence, 80 characters or fewer. On phones (the main
-  audience) the bar shows it at 13px (`--text-sm` minus 1px), left-aligned and
-  clamped to two lines, so anything longer gets cut off with no way to read it.
-  On a laptop it fits one line. Say what it is, not that it is "new". The user may be
+- `text`: one plain sentence, 80 characters or fewer. This is what laptops show,
+  on one line.
+- `mobileText`: what phones show instead, **28 characters or fewer**. Always write
+  one. The phone text column is only about 270px wide, and visitors who raise
+  their text size (Android's font size setting) get 115% to 150% type. The full
+  `text` fits in two lines only at the default size and is cut off past that
+  (this happened, the tail "Watch it work." was lost on a real phone). The
+  phone text is centred on the screen with the arrow and close button on the
+  right, so the column is only about 180px. 28 characters stays inside two
+  lines up to 150%. It is the same message, not a
+  fragment: "Watch an agent harness work." not "Harness tour". Say what it is, not that it is "new". The user may be
   promoting an old post, so never add "New post:" or "Just launched" unless the
   user said it is new.
 - `cta`: two or three words. `Read the post` for a post, `Open the lab` for a lab.
@@ -46,7 +53,9 @@ If nothing matches, say so and stop. Do not invent a link.
 - Derive `text` from the post's first line or the lab's tagline. Trim, do not pad.
 
 Design constraints already built into the bar, do not work around them in the copy:
-- Phone text is 13px, two lines max, set in `assets/css/announcement.css`.
+- Phone text is 13px and shows `mobileText`. A four-line clamp in
+  `assets/css/announcement.css` is only a safety net for an old announcement with
+  none.
 - The cyan "Read it" label only shows on laptops. On phones it is a round arrow,
   so never rely on the `cta` wording to carry meaning.
 - No emoji, no trailing arrow or "link" words in `text`. The sentence is itself the link.
@@ -58,6 +67,7 @@ option to edit the text):
 
 ```
 Text:  <text>
+Phone: <mobileText>
 CTA:   <cta>
 Link:  <href>
 Runs:  <startsOn> to <end date>  (<durationDays> days)
@@ -73,6 +83,7 @@ Write `content/announcement.json` with these keys:
   "id": "<slug>-<YYYY-MM-DD>",
   "kind": "post | lab",
   "text": "...",
+  "mobileText": "...",
   "cta": "...",
   "href": "...",
   "startsOn": "<today, YYYY-MM-DD>",

@@ -43,12 +43,12 @@ async function boot() {
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/assets/css/announcement.css?v=8";
+    link.href = "/assets/css/announcement.css?v=11";
     document.head.appendChild(link);
     await new Promise((r) => { link.onload = link.onerror = r; });
 
     const bar = document.createElement("div");
-    bar.className = "announce";
+    bar.className = a.mobileText ? "announce announce--has-short" : "announce";
     bar.setAttribute("role", "region");
     bar.setAttribute("aria-label", "Announcement");
 
@@ -58,7 +58,19 @@ async function boot() {
     text.className = "announce-text";
     text.href = a.href;
     if (external) { text.target = "_blank"; text.rel = "noopener noreferrer"; }
-    text.textContent = a.text;
+    // Phones get `mobileText` when there is one: the full sentence stops fitting
+    // as soon as a visitor raises their text size, and a cut-off line has no way
+    // to be read. CSS shows one span or the other (announcement.css).
+    const full = document.createElement("span");
+    full.className = "announce-full";
+    full.textContent = a.text;
+    text.append(full);
+    if (a.mobileText) {
+        const short = document.createElement("span");
+        short.className = "announce-short";
+        short.textContent = a.mobileText;
+        text.append(short);
+    }
 
     const sep = document.createElement("span");
     sep.className = "announce-sep";

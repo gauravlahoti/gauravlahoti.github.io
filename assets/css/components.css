@@ -2403,42 +2403,50 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     outline: none;
 }
 
-/* Phones: there is no free space above the cert rail (25px on a small phone),
-   so the pop-up does not float above the bar. It is a card that sits exactly
-   over the "Chat with my AI agent, Atlas" button, a few pixels taller, and
-   takes its place for the 30 seconds. Its top edge stays level with the
-   bar's own top, which is clear of the rail. hero-ask.js sets --hero-try-h
-   from the button's real height. Absolute inside the fixed bar, so it
-   slides away with the bar on scroll. */
+/* Phones: a compact chip just above the bottom bar, its tail pointing down at
+   the "Chat with my AI agent, Atlas" button. There is no free space above the
+   certificate rail (about 25px on a small phone), so for its 30 seconds the
+   chip does cover the lower part of the rail. That is a deliberate trade, so
+   it is kept short: a one-line eyebrow, then the question at 13px with two
+   lines reserved, so it never grows while it types. Absolute inside the fixed
+   bar, so it slides away with the bar when the page scrolls. */
 .hero-try--bar {
     top: auto;
     left: var(--space-3);
     right: var(--space-3);
-    bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
-    height: var(--hero-try-h, 58px);
+    bottom: calc(100% + var(--space-2));
     max-width: none;
     align-items: stretch;
     transform-origin: 50% 100%;
     transform: translateY(var(--space-2)) scale(0.96);
 }
 .hero-try--bar.is-leaving { transform: translateY(var(--space-1)) scale(0.96); }
-.hero-try--bar::after { display: none; } /* no tail: it IS the button's place */
+.hero-try--bar::after {
+    top: 100%;
+    bottom: auto;
+    left: calc(50% - 5px);
+    margin: -5px 0 0;
+    border: 0;
+    border-right: 1px solid var(--accent-glow);
+    border-bottom: 1px solid var(--accent-glow);
+}
 .hero-try--bar .hero-try-ask {
-    justify-content: center;
     flex-direction: column;
     align-items: flex-start;
+    justify-content: center;
     gap: 2px;
-    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+    padding: var(--space-2) var(--space-1) var(--space-2) var(--space-4);
     white-space: normal;
     -webkit-tap-highlight-color: transparent;
 }
 .hero-try--bar .hero-try-eyebrow { font-size: 0.6875rem; line-height: 1.2; }
 .hero-try--bar .hero-try-tag { font-size: 0.5625rem; line-height: 1.3; padding: 0 var(--space-2); }
 .hero-try--bar .hero-try-q {
-    font-size: var(--text-sm);
+    min-height: calc(2 * 1.25em);
+    font-size: 0.8125rem;
     line-height: 1.25;
 }
-/* Thumb-sized dismiss target (44px wide, the card's full height). */
+/* Thumb-sized dismiss target: 44px wide, the chip's full height. */
 .hero-try--bar .hero-try-close {
     align-self: stretch;
     width: 44px;
