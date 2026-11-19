@@ -77,6 +77,20 @@ function clampInt(v, min, max, dflt) {
     return Math.max(min, Math.min(max, n));
 }
 
+// Opens Atlas the way a person would (clicking the page's own chat button
+// also loads the widget if it hasn't loaded yet), but tags the click so the
+// spec 98 funnel counts it as an agent's open, not a visitor's. main.js reads
+// data-agent-source synchronously inside the click, so it's put back at once.
+function clickChatTrigger() {
+    const trigger = document.querySelector("[data-agent-open]:not(.agent-fab)");
+    if (!trigger) return;
+    const prev = trigger.getAttribute("data-agent-source");
+    trigger.setAttribute("data-agent-source", "webmcp");
+    trigger.click();
+    if (prev === null) trigger.removeAttribute("data-agent-source");
+    else trigger.setAttribute("data-agent-source", prev);
+}
+
 function waitFor(check, timeoutMs) {
     return new Promise((resolve) => {
         const started = performance.now();
@@ -503,11 +517,10 @@ export function defineTools(ctx) {
                 if (!targets.includes(target)) return fail(`No target "${target}".`, `Targets here: ${targets.join(", ")}`);
 
                 if (target === "chat") {
-                    const trigger = document.querySelector("[data-agent-open]:not(.agent-fab)");
-                    if (trigger) trigger.click();
+                    clickChatTrigger();
                     const api = await waitFor(() => window.__agentWidget, 2500);
                     if (!api) return fail("The chat panel isn't available on this page right now.");
-                    if (typeof api.open === "function") api.open();
+                    if (typeof api.open === "function") api.open("webmcp");
                     return out("Atlas chat panel is open. A person can now type into it.");
                 }
 
@@ -547,8 +560,7 @@ export function defineTools(ctx) {
                 if (body.length < 2) return fail("The note is empty.", "Pass the visitor's message in `note`.");
                 if (body.length > 500) return fail("The note is too long.", "Keep it under 500 characters.");
 
-                const trigger = document.querySelector("[data-agent-open]:not(.agent-fab)");
-                if (trigger) trigger.click();
+                clickChatTrigger();
                 const api = await waitFor(() => window.__agentWidget, 2500);
                 if (!api || typeof api.prefill !== "function") {
                     return fail("The chat panel isn't available, so nothing was drafted.");

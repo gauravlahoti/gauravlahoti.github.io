@@ -593,3 +593,23 @@ def test_a_mid_month_export_says_where_it_starts():
     assert out["partial_from"] == "2 Oct"
     html = _email(cost={**_COST, **out})
     assert "billed from 2 Oct" in html and "starts 2 Oct, so spend before that isn" in html
+
+
+def test_journey_shows_atlas_opens_and_entry_points():
+    """Spec 98: the funnel's client-side steps render as numbers from D1."""
+    f = {"sessions": 40, "opened": 10, "asked": 5, "chatted": 5, "avatar": 1, "emailed": 0,
+         "open_sources": [{"source": "hero-try", "sessions": 5}, {"source": "fab", "sessions": 3}],
+         "chips": [{"chip": "hero-try-lab-mcp", "clicks": 2}, {"chip": "panel-0", "clicks": 1}]}
+    html = ambient_send._journey({"funnel": f})
+    assert "Opened Atlas" in html
+    # Chats are now a share of the people who opened Atlas, not of all visits.
+    assert "50% of the step before" in html  # 5 chats of 10 opens
+    assert "pop-up" in html and "floating button" in html
+    assert "pop-up: mcp lab" in html and "panel starter 1" in html
+
+
+def test_journey_hides_opens_before_the_beacon_has_data():
+    """No widget_events yet (migration 014 not applied): no zero 'Opened' step."""
+    html = ambient_send._journey({"funnel": {"sessions": 40, "chatted": 3, "avatar": 0, "emailed": 0}})
+    assert "Opened Atlas" not in html and "Opened from" not in html
+    assert "8% of the step before" in html  # chatted 3 of 40 visits, as before

@@ -558,9 +558,15 @@ def _journey(stats: dict[str, Any]) -> str:
     sessions = _int(f.get("sessions"))
     if not sessions:
         return ""
-    steps = [
-        ("Visited the site", sessions, None),
-        ("Chatted with Atlas", _int(f.get("chatted")), sessions),
+    # Spec 98: opens are a client-side beacon (widget_events). Before
+    # migration 014 lands, or in a period with no opens at all, the step is
+    # left out rather than shown as a misleading zero above real chats.
+    opened = _int(f.get("opened"))
+    steps = [("Visited the site", sessions, None)]
+    if opened:
+        steps.append(("Opened Atlas", opened, sessions))
+    steps += [
+        ("Chatted with Atlas", _int(f.get("chatted")), opened or sessions),
         ("Used the avatar or a live call", _int(f.get("avatar")), _int(f.get("chatted"))),
         ("Asked for the resume or sent a note", _int(f.get("emailed")), _int(f.get("chatted"))),
     ]
@@ -572,7 +578,54 @@ def _journey(stats: dict[str, Any]) -> str:
             f'{label}{conv}<div style="margin-top:5px">{_bar([(share, "#00b39a"), (1 - share, _LINE)], 8)}</div>',
             f"<strong style=\"color:{_INK}\">{_num(n)}</strong>",
         ))
-    return _section("Journey", _rows(rows), "visits this period")
+    return _section("Journey", _rows(rows) + _entry_points(f), "visits this period")
+
+
+# Spec 98: where visitors opened Atlas from, and which suggested questions they
+# clicked. Plain labels for the fixed source strings the page sends.
+_OPEN_SOURCE_LABELS = {
+    "hero-try": "pop-up",
+    "hero": "hero button",
+    "fab": "floating button",
+    "bottombar": "phone bottom bar",
+    "webmcp": "an AI agent (WebMCP)",
+    "external": "other",
+}
+
+
+def _chip_label(chip: str) -> str:
+    """'hero-try-lab-mcp' -> 'pop-up: mcp lab', 'hero-try-ai-0' -> 'pop-up: AI question 1',
+    'panel-2' -> 'panel starter 3'."""
+    if chip.startswith("hero-try-lab-"):
+        return f"pop-up: {chip[len('hero-try-lab-'):]} lab"
+    if chip.startswith("hero-try-ai-"):
+        n = chip[len("hero-try-ai-"):]
+        return f"pop-up: AI question {int(n) + 1}" if n.isdigit() else chip
+    if chip.startswith("panel-"):
+        n = chip[len("panel-"):]
+        return f"panel starter {int(n) + 1}" if n.isdigit() else chip
+    return chip
+
+
+def _entry_points(f: dict[str, Any]) -> str:
+    sources = [s for s in f.get("open_sources") or [] if _int(s.get("sessions"))]
+    chips = [c for c in f.get("chips") or [] if _int(c.get("clicks"))][:4]
+    lines = []
+    if sources:
+        lines.append("Opened from: " + " · ".join(
+            f"{_esc(_OPEN_SOURCE_LABELS.get(s.get('source') or '', s.get('source') or ''))} "
+            f"<strong style=\"color:{_INK}\">{_num(_int(s.get('sessions')))}</strong>"
+            for s in sources))
+    if chips:
+        lines.append("Suggestions clicked: " + " · ".join(
+            f"{_esc(_chip_label(c.get('chip') or ''))} "
+            f"<strong style=\"color:{_INK}\">{_num(_int(c.get('clicks')))}</strong>"
+            for c in chips))
+    if not lines:
+        return ""
+    return "".join(
+        f'<div style="font-size:12px;line-height:1.6;color:{_MUTED};margin-top:8px">{line}</div>'
+        for line in lines)
 
 
 def _what_they_asked(stats: dict[str, Any], themes_html: str, ai: str = "") -> str:

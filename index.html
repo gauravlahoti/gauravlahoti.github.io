@@ -22,7 +22,7 @@
          transition guard and scroll reset behave the same. -->
     <link rel="stylesheet" href="assets/css/base.css?v=410">
     <link rel="stylesheet" href="assets/css/layout.css?v=419">
-    <link rel="stylesheet" href="assets/css/components.css?v=417">
+    <link rel="stylesheet" href="assets/css/components.css?v=422">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <!-- The questions counter and the post chips call this backend a moment after boot. Opening
          the connection now (DNS, TCP, TLS) takes that round trip off a first-time visitor's wait.
@@ -38,7 +38,7 @@
          downloading, instead of when the parser reaches the end of <body>. Its
          ?v= must match the <script type="module"> tag below; /publish bumps every
          ?v=N in this file together, so they stay in step. -->
-    <link rel="modulepreload" href="assets/js/main.js?v=373">
+    <link rel="modulepreload" href="assets/js/main.js?v=381">
     <!-- Warm announcement.css in parallel with announcement.json. announcement.js
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
@@ -423,7 +423,7 @@
          (The top section-progress strip was removed.) -->
 
     <aside class="mobile-bottombar" data-mobile-bottombar aria-label="Primary action">
-        <button class="mobile-bottombar-btn mobile-bottombar-btn-primary" type="button" data-agent-open data-cursor="magnet">
+        <button class="mobile-bottombar-btn mobile-bottombar-btn-primary" type="button" data-agent-open data-agent-source="bottombar" data-cursor="magnet">
             <svg class="hero-cta-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="7" width="18" height="13" rx="3"/>
                 <circle class="bot-eye-l" cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
@@ -439,7 +439,7 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=373"></script>
+    <script type="module" src="assets/js/main.js?v=381"></script>
 <script type="module" src="/assets/js/announcement.js?v=7"></script>
 </body>
 </html>
