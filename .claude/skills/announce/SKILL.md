@@ -36,15 +36,16 @@ If nothing matches, say so and stop. Do not invent a link.
 
 - `text`: one plain sentence, 80 characters or fewer. This is what laptops show,
   on one line.
-- `mobileText`: what phones show instead, **28 characters or fewer**. Always write
+- `mobileText`: what phones show instead, **24 characters or fewer**. Always write
   one. The phone text column is only about 270px wide, and visitors who raise
   their text size (Android's font size setting) get 115% to 150% type. The full
   `text` fits in two lines only at the default size and is cut off past that
   (this happened, the tail "Watch it work." was lost on a real phone). The
-  phone text is centred on the screen with the arrow and close button on the
-  right, so the column is only about 180px. 28 characters stays inside two
-  lines up to 150%. It is the same message, not a
-  fragment: "Watch an agent harness work." not "Harness tour". Say what it is, not that it is "new". The user may be
+  phone bar is one slim line (44px), text centred on the screen with the arrow
+  and close button on the right, so the column is only about 230px. 24
+  characters stays on one line up to 130% text size on a 390px phone (a narrower
+  phone wraps to two lines sooner, which is still fine). It is the same message, not a
+  fragment: "Watch the harness work." not "Harness tour". Say what it is, not that it is "new". The user may be
   promoting an old post, so never add "New post:" or "Just launched" unless the
   user said it is new.
 - `cta`: two or three words. `Read the post` for a post, `Open the lab` for a lab.
