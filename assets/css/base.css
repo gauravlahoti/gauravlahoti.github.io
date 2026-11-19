@@ -139,7 +139,7 @@
     --banner-h: 0px; /* set by announcement.js: visible height of the top bar */
     /* Height the announcement bar renders at, used to hold its space before it
        exists (see html.ann-pending below). 40px row on laptops and tablets; on
-       phones the 40px close button plus padding sets it at 57px whatever the text.
+       phones it is 44px for one line of text (see announcement.css).
        If announcement.css changes the bar's height, change these two to match. */
     --banner-reserve: 40px;
 
@@ -205,7 +205,7 @@ body {
    height stands where the bar will be. announcement.js removes the class in the
    same task it inserts the bar, so the real bar replaces the block with no shift. */
 @media (max-width: 720px) {
-    :root { --banner-reserve: 57px; }
+    :root { --banner-reserve: 44px; }
 }
 html.ann-pending {
     --banner-full: var(--banner-reserve);

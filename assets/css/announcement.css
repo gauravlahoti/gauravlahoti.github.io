@@ -65,23 +65,24 @@
 
 .announce-short { display: none; }
 
-/* Phones: the primary audience. One calm row, centred, 13px copy, a round
-   36px arrow as the tap target and a 40px close. The text column is only about
-   270px, so the full sentence fits in two lines at the default text size and
-   gets cut off at 115% and up (Android's font size setting). The JSON's
-   `mobileText` is short enough to stay in two lines up to 150%, so it takes
-   the full sentence's place here. The four-line clamp is only a safety net,
-   so even extreme text sizes read in full. */
+/* Phones: the primary audience. One slim row, 44px tall when the text is on
+   one line: centred 13px copy, a round 28px arrow and a 32px close on the
+   right (the whole sentence is a link too, so the arrow is only a cue). The
+   JSON's `mobileText` is short enough for one line at the usual text sizes;
+   past that it wraps to as many lines as it needs, up to four, rather than
+   being cut off (Android's font size setting scales this text, and the full
+   sentence used to lose its end). base.css holds 44px for the bar before it
+   exists (--banner-reserve), so keep the two in step. */
 @media (max-width: 720px) {
     .announce {
         justify-content: flex-start;
-        gap: var(--space-3);
-        min-height: 52px;
+        gap: var(--space-2);
+        min-height: 44px;
         /* Centred on the screen like the hero heading below it. The arrow and
            the close button sit on the right, so the left padding mirrors the
-           space they take (gap + 36px arrow + gap + 40px close + its margin),
-           which puts the text column's middle on the screen's middle. */
-        padding: var(--space-2) 0 var(--space-2) calc(var(--space-3) + 36px + var(--space-3) + 40px + var(--space-1));
+           space they take (gap + 28px arrow + gap + 32px close), which puts
+           the text column's middle on the screen's middle. */
+        padding: var(--space-1) 0 var(--space-1) calc(var(--space-2) + 28px + var(--space-2) + 32px);
         font-size: calc(var(--text-sm) - 1px);
         line-height: 1.35;
         text-align: center;
@@ -93,7 +94,7 @@
         -webkit-line-clamp: 4;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        text-wrap: balance; /* two even lines, not a long one and a stub */
+        text-wrap: balance; /* if it wraps: even lines, not a long one and a stub */
     }
     .announce--has-short .announce-full { display: none; }
     .announce--has-short .announce-short { display: inline; }
@@ -103,19 +104,19 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
-        height: 36px;
+        width: 28px;
+        height: 28px;
         padding: 0;
         border-radius: 50%;
-        font-size: var(--text-base);
+        font-size: var(--text-sm);
     }
     .announce-close {
         position: static;
         transform: none;
         flex: none;
-        width: 40px;
-        height: 40px;
-        margin-right: var(--space-1);
+        width: 32px;
+        height: 32px;
+        margin: 0;
     }
 }
 @media (prefers-reduced-motion: no-preference) {

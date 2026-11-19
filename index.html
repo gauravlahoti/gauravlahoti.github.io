@@ -20,7 +20,7 @@
          links first, the requests all go out together. Both scripts still run
          before first paint (paint waits for the stylesheets anyway), so the page
          transition guard and scroll reset behave the same. -->
-    <link rel="stylesheet" href="assets/css/base.css?v=410">
+    <link rel="stylesheet" href="assets/css/base.css?v=411">
     <link rel="stylesheet" href="assets/css/layout.css?v=419">
     <link rel="stylesheet" href="assets/css/components.css?v=425">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
@@ -43,7 +43,7 @@
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
          one in announcement.js. -->
-    <link rel="preload" href="/assets/css/announcement.css?v=11" as="style">
+    <link rel="preload" href="/assets/css/announcement.css?v=12" as="style">
     <script src="assets/js/scroll-restore.js?v=279"></script>
     <script src="assets/js/transition-guard.js?v=1"></script>
     <!-- Marks <html class="ann-pending"> before first paint when an announcement bar is
