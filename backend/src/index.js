@@ -4,7 +4,7 @@
 // GET  /api/leads : admin dump (Authorization: Bearer ADMIN_TOKEN).
 // SCHEDULED : monthly retention cleanup.
 
-import { NOT_AN_ERROR, digestExtras, digestFields, reportWindow, roundCoord } from "./digest.js";
+import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, roundCoord, widgetEventFields } from "./digest.js";
 
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
 const RETENTION_REDACT_SECONDS = 30 * 24 * 60 * 60;  // agent_interactions text -> NULL; resume_sends/note_sends delete
@@ -92,6 +92,10 @@ export default {
 
         if (url.pathname === "/api/pageview" && request.method === "POST") {
             return handlePageview(request, env, origin, allowed, corsHeaders);
+        }
+
+        if (url.pathname === "/api/widget-event" && request.method === "POST") {
+            return handleWidgetEvent(request, env, origin, allowed, corsHeaders);
         }
 
         if (url.pathname === "/api/post-metrics" && request.method === "GET") {
@@ -205,6 +209,17 @@ export default {
             console.log(`[retention] page_views: deleted ${meta?.changes ?? 0} rows older than 180d`);
         } catch (err) {
             console.error("[retention] page_views cleanup failed", err);
+        }
+
+        // widget_events (spec 98): only the recent funnel matters to the
+        // digest, which compares this period with the one before. 30d.
+        try {
+            const { meta } = await env.DB.prepare(
+                "DELETE FROM widget_events WHERE at < ?"
+            ).bind(redactCutoff).run();
+            console.log(`[retention] widget_events: deleted ${meta?.changes ?? 0} rows older than 30d`);
+        } catch (err) {
+            console.error("[retention] widget_events cleanup failed", err);
         }
     }
 };
@@ -1339,6 +1354,49 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
         console.error("[pageview] insert failed", err);
     }
     return new Response(null, { status: 204, headers: corsHeaders });
+}
+
+// ─── Atlas entry funnel beacon (public, spec 98) ──────────────────────────────
+
+// POST /api/widget-event — one funnel step from the chat widget. Body:
+// { sessionId, event: open|chip|first_send, source }. Same posture as the
+// pageview beacon: public, origin-gated, bots dropped, always 204. event and
+// source are allowlisted (widgetEventFields), and rows are capped per session
+// and per daily visitor_hash so a script can't run up D1 writes.
+async function handleWidgetEvent(request, env, origin, allowed, corsHeaders) {
+    const done = () => new Response(null, { status: 204, headers: corsHeaders });
+    if (!origin || !allowed.includes(origin)) return done();
+    const ua = request.headers.get("User-Agent") || "";
+    if (!ua || BOT_UA_RE.test(ua)) return done();
+
+    let body = {};
+    try { body = await request.json(); } catch (_) { return done(); }
+    const fields = widgetEventFields(body);
+    if (!fields) return done();
+
+    const ip = request.headers.get("CF-Connecting-IP") || "";
+    const utcDate = new Date().toISOString().slice(0, 10);
+    let visitorHash = null;
+    try {
+        if (ip) visitorHash = (await sha256hex(`${ip}|${ua}|${utcDate}`)).slice(0, 16);
+    } catch (_) { visitorHash = null; }
+
+    const at = Math.floor(Date.now() / 1000);
+    try {
+        const counts = await env.DB.prepare(
+            `SELECT COALESCE(SUM(session_id = ?), 0) AS s, COALESCE(SUM(visitor_hash = ?), 0) AS v
+             FROM widget_events WHERE at > ? AND (session_id = ? OR visitor_hash = ?)`
+        ).bind(fields.sessionId, visitorHash, at - 86400, fields.sessionId, visitorHash).first();
+        if ((counts?.s || 0) >= WIDGET_EVENT_CAPS.session || (counts?.v || 0) >= WIDGET_EVENT_CAPS.visitor) {
+            return done();
+        }
+        await env.DB.prepare(
+            `INSERT INTO widget_events (at, session_id, visitor_hash, event, source) VALUES (?, ?, ?, ?, ?)`
+        ).bind(at, fields.sessionId, visitorHash, fields.event, fields.source).run();
+    } catch (err) {
+        console.error("[widget-event] insert failed", err);
+    }
+    return done();
 }
 
 // ─── Agent log (admin read) ───────────────────────────────────────────────────

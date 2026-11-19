@@ -60,6 +60,7 @@ from app.app_utils.dashes import DashGuard, strip_dashes
 from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
 from app.app_utils.lead_note import NoteFilter
+from app.app_utils.tool_leak import ToolLeakGuard
 from app.app_utils.resume_send import warm_mcp_server
 from app.app_utils.speak import MAX_TEXT_CHARS, sanitize_for_speech, speak_text
 from app.app_utils.speak import warm as warm_speak
@@ -317,6 +318,16 @@ async def _capped_avatar_stream(reason: str, kind: str = "avatar") -> AsyncItera
 _EMPTY_REPLY_NUDGE = (
     "(Your previous reply reached the visitor empty. Answer their last question "
     "now, following all your rules, starting with your [[NOTE]] block.)"
+)
+
+
+# Sent (server-side, never shown) when a reply was a tool call typed out as
+# text instead of an answer (see tool_leak.py).
+_TOOL_LEAK_NUDGE = (
+    "(Your previous reply was a raw tool call written out as text, so the visitor "
+    "never saw an answer. Answer their last question now in plain sentences. If you "
+    "need a fact, call the tool for real. Do not write tool names, code, JSON or "
+    "links you were not given, and start with your [[NOTE]] block.)"
 )
 
 
@@ -648,6 +659,10 @@ async def _stream_agent(
     # Spec 67: the working note ([[NOTE]] block, or an untagged one) goes to
     # the Thinking panel, never into the reply.
     lead_guard = NoteFilter()
+    # A tool call typed out as the reply is caught at its opening words and the
+    # turn is retried once (tool_leak.py). Sits in front of lead_guard.
+    leak_guard = ToolLeakGuard()
+    leaked = False
     step_streamed = False  # this model step has streamed partial answer text
     # Spec 67: no em/en dashes in anything Atlas writes (see dashes.py).
     # Spec 67: and no email address Atlas wasn't given (see emails.py).
@@ -680,6 +695,15 @@ async def _stream_agent(
         to_send = pending[:safe_len]
         pending = pending[safe_len:]
         return to_send
+
+    def _gate(text: str) -> str:
+        """Run text through the tool-leak guard. Sets `leaked` when the reply
+        turns out to be a typed-out tool call; whatever comes back is safe."""
+        nonlocal leaked
+        out, leak = leak_guard.push(text)
+        if leak:
+            leaked = True
+        return out
 
     def _absorb(new_text: str) -> list[str]:
         """Process new_text through the sentinel detector. Returns delta chunks to yield."""
@@ -845,7 +869,7 @@ async def _stream_agent(
                             if cleaned:
                                 yield _sse({"thinking": cleaned})
 
-                if not answer_texts:
+                if leaked or not answer_texts:
                     continue
                 full = "".join(answer_texts)
 
@@ -871,6 +895,11 @@ async def _stream_agent(
 
                 for chunk in _absorb(new_text):
                     if chunk:
+                        chunk = _gate(chunk)
+                        if leaked:
+                            break
+                        if not chunk:
+                            continue
                         # Spec 67: a working note written into the reply goes
                         # to the Thinking panel instead (see lead_note.py).
                         shown, note = lead_guard.push(chunk)
@@ -892,6 +921,24 @@ async def _stream_agent(
                 yield _sse({"delta": held})
             yield _sse({"delta": _failure_reply(exc)})
 
+        if leaked and status == "ok":
+            if attempt == 0:
+                logger.warning("atlas: reply was a typed-out tool call, retrying once")
+                turn_message = types.Content(role="user", parts=[types.Part.from_text(text=_TOOL_LEAK_NUDGE)])
+            else:
+                # Twice in a row: say so plainly rather than show the leak.
+                logger.error("atlas: reply was a typed-out tool call twice, giving up")
+                status = "error"
+                error_message = "tool call written out as the reply"
+                yield _sse({"delta": _GENERIC_ERROR_REPLY})
+            user_visible, pending, meta_open, meta_parts = [], "", False, []
+            lead_guard = NoteFilter()
+            leak_guard = ToolLeakGuard()
+            leaked = False
+            step_streamed = False
+            if status == "ok":
+                continue
+            break
         answered = lead_guard.without_note(
             "".join(user_visible) + ("" if meta_open else pending)
         ).strip()
@@ -902,9 +949,11 @@ async def _stream_agent(
         lead_guard = NoteFilter()
         turn_message = types.Content(role="user", parts=[types.Part.from_text(text=_EMPTY_REPLY_NUDGE)])
 
-    # Flush any remaining safe pending chars (unlikely but defensive).
+    # Flush any remaining safe pending chars (unlikely but defensive). They go
+    # through the leak guard too, so order is kept with a reply it still holds.
     if pending and not meta_open:
         user_visible.append(pending)
+        pending = _gate(pending)
         shown, note = lead_guard.push(pending)
         if note:
             yield _sse({"thinking": dash_guard.whole(note)})
@@ -912,6 +961,16 @@ async def _stream_agent(
         if shown:
             yield _sse({"delta": shown})
         pending = ""
+    # A short reply (under a couple of dozen characters) is still inside the
+    # leak guard: it was judged clean above, so let it out now.
+    tail_text, _ = leak_guard.flush()
+    if tail_text:
+        shown, note = lead_guard.push(tail_text)
+        if note:
+            yield _sse({"thinking": dash_guard.whole(note)})
+        shown = dash_guard.push(shown) if shown else ""
+        if shown:
+            yield _sse({"delta": shown})
     held, note = lead_guard.flush()
     if note:
         yield _sse({"thinking": dash_guard.whole(note)})

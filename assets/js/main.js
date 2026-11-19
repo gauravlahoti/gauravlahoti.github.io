@@ -98,7 +98,7 @@ showCachedAgentStat();
         wireScrollTo();
         initCursorAsync();
         initRevealWhenIdle();
-        initAgentWidgetOnBoot(profile, window.__portfolioSessionId);
+        initHeroAsk(profile, initAgentWidgetOnBoot(profile, window.__portfolioSessionId));
         initMobileEnhancements(profile);
         initAnalyticsWhenIdle(profile, window.__portfolioSessionId);
         initAgentStat(profile);
@@ -275,13 +275,25 @@ function initAgentWidgetOnBoot(profile, sessionId) {
         // FAB has its own internal handler; don't double-open.
         if (trigger.classList.contains("agent-fab")) return;
         e.preventDefault();
-        Promise.resolve(start()).then((api) => api && api.open && api.open());
+        const source = trigger.getAttribute("data-agent-source") || "hero";
+        Promise.resolve(start()).then((api) => api && api.open && api.open(source));
     });
 
     // Start loading as soon as the page has booted, not "when the browser is idle"
     // (which could be 2.5s in), so the chat opens the moment someone clicks. The
     // voice and avatar modules stay lazy: they load only when a mode is picked.
     start();
+    return start;
+}
+
+// Spec 98: a one-off pop-up that nudges a first-time visitor to try Atlas.
+// Built entirely in hero-ask.js and positioned off the Atlas button, so it
+// costs first paint nothing. No widget (iframe, save-data): no nudge.
+function initHeroAsk(profile, getWidget) {
+    if (!getWidget || !profile.heroAsk) return;
+    import(v("./hero-ask.js"))
+        .then((m) => m.initHeroAsk({ content: profile.heroAsk, getWidget }))
+        .catch((err) => console.warn("[hero-ask] failed to load", err));
 }
 
 async function initCursorAsync() {

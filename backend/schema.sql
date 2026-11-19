@@ -188,3 +188,17 @@ CREATE TABLE IF NOT EXISTS daily_stats (
   rolled_up_at              INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ds_day ON daily_stats(day);
+
+-- Spec 98: Atlas entry funnel (open / chip / first_send by source). Shipped as
+-- migration 014-widget-events.sql for prod D1. See that file for the policy.
+CREATE TABLE IF NOT EXISTS widget_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  at            INTEGER NOT NULL,
+  session_id    TEXT    NOT NULL,
+  visitor_hash  TEXT,
+  event         TEXT    NOT NULL,
+  source        TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_we_at      ON widget_events(at);
+CREATE INDEX IF NOT EXISTS idx_we_session ON widget_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_we_visitor ON widget_events(visitor_hash, at);

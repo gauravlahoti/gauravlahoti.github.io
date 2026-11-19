@@ -83,6 +83,8 @@ export function initAgentWidget(root, profile, pageSessionId) {
     // Spec 49: same again for spoken replies.
     const speakApiUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-speak") : apiUrl;
     const probeBase = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/stream-probe") : apiUrl;
+    // Spec 98: funnel beacons go to the same Worker as the pageview beacon.
+    const widgetEventUrl = links.pageviewApi ? links.pageviewApi.replace(/\/api\/pageview$/, "/api/widget-event") : null;
     // Avatar answers come from a live session that is ~1.5s faster once it
     // has been open a moment, so one is opened as the visitor starts typing.
     const liveWarmUrl = apiUrl ? apiUrl.replace(/\/api\/agent-chat$/, "/api/agent-live/warm") : apiUrl;
@@ -1559,7 +1561,83 @@ export function initAgentWidget(root, profile, pageSessionId) {
         })();
     }
 
-    function openPanel() {
+    // Spec 98: one beacon per funnel step (open, chip, first_send). Same
+    // cookieless, fire-and-forget shape as analytics.js, same page sessionId,
+    // and no free text ever: event and source are fixed strings the Worker
+    // checks against an allowlist.
+    let openSource = null;     // where the visitor opened Atlas from, this page load
+    let firstSendTracked = false;
+    function trackWidget(event, source) {
+        if (!widgetEventUrl) return;
+        if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
+        try {
+            const body = JSON.stringify({ sessionId, event, source: source || "unknown" });
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(widgetEventUrl, new Blob([body], { type: "text/plain" }));
+            } else {
+                fetch(widgetEventUrl, { method: "POST", headers: { "Content-Type": "text/plain" },
+                    body, keepalive: true, mode: "cors" }).catch(() => {});
+            }
+        } catch (_) { /* analytics must never break the widget */ }
+    }
+
+    // Spec 98: the warm-up used to fire only when the panel opened. The hero
+    // ask-bar calls this on first focus or hover, so Atlas is already up by
+    // the time the question lands.
+    function warm() {
+        if (warmedThisSession || !warmUrl) return;
+        warmedThisSession = true;
+        fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
+            .catch(() => { /* best-effort; failure is harmless */ });
+    }
+
+    // Spec 98: ask a question from outside the panel (the hero ask-bar and its
+    // pills). Opens Atlas with the question as the first message, so one click
+    // gets an answer. Ignored while a reply is still streaming.
+    // A visitor who left Atlas in Avatar mode gets the face back on open, but
+    // the face loads asynchronously (~1s). sendCurrent() only hands a turn to
+    // the avatar once it has loaded, so a question sent the instant the panel
+    // opens used to come back as text under an idle face. ask() waits for the
+    // face, briefly: 3s also keeps the visitor's click inside the window
+    // where browsers (iOS Safari especially) still let the face play sound.
+    const AVATAR_WAIT_MS = 3000;
+    let asking = false; // a question is waiting on the face
+    async function ask(text, opts = {}) {
+        const q = String(text || "").trim();
+        if (!q || isPending || asking) return false;
+        const source = opts.source || "external";
+        if (opts.chip != null) trackWidget("chip", `${source}-${opts.chip}`);
+        // The visitor's question goes first: no intro typing out ahead of it.
+        if (!introRendered) introRendered = true;
+        promptsEl.classList.add("is-hidden");
+        if (!isOpen) openPanel(source);
+        else if (isMinimized) restore();
+        input.value = q; // in the composer while the face loads, so nothing looks lost
+
+        if (FEATURES.avatarMode && avatarOn && !avatar && avatarLoading) {
+            asking = true;
+            await Promise.race([
+                avatarLoading.catch(() => {}),
+                new Promise((r) => setTimeout(r, AVATAR_WAIT_MS)),
+            ]);
+            asking = false;
+            if (!isOpen) return false; // closed while waiting: drop the question
+            // The face didn't make it in time (or failed): answer in text, and
+            // take the face down rather than leave it idle over a text reply.
+            // Only this session's mode changes; the saved preference stays, so
+            // Avatar is back next time the visitor opens the panel.
+            if (avatarOn && !avatar) setAvatarMode(false);
+            input.value = q;
+        }
+        sendCurrent();
+        return true;
+    }
+
+    function openPanel(source) {
+        // The FAB passes its click event through togglePanel; only a string is a source.
+        const src = typeof source === "string" ? source : "fab";
+        if (!isOpen) trackWidget("open", src);
+        if (!openSource) openSource = src;
         setTimeout(runStreamProbe, 1500);
         isOpen = true;
         panelEverOpened = true;
@@ -1604,11 +1682,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
             // so no delay needed there.
             setTimeout(() => requestAnimationFrame(renderIntroMessage), REDUCE_MOTION ? 0 : 340);
         }
-        if (!warmedThisSession && warmUrl) {
-            warmedThisSession = true;
-            fetch(warmUrl, { method: "GET", mode: "cors", cache: "no-store" })
-                .catch(() => { /* best-effort; failure is harmless */ });
-        }
+        warm();
         requestAnimationFrame(() => { input.focus(); syncScrollHint(); });
     }
     function closePanel() {
@@ -1670,13 +1744,14 @@ export function initAgentWidget(root, profile, pageSessionId) {
             promptsEl.appendChild(btn);
         });
 
-        starters.forEach((p) => {
+        starters.forEach((p, i) => {
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "agent-prompt-chip";
             btn.textContent = p;
             btn.addEventListener("click", () => {
                 if (isPending) return;
+                trackWidget("chip", `panel-${i}`);
                 input.value = p;
                 sendCurrent();
             });
@@ -1709,13 +1784,14 @@ export function initAgentWidget(root, profile, pageSessionId) {
                 row.appendChild(btn);
             });
 
-            starters.forEach((s) => {
+            starters.forEach((s, i) => {
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "agent-suggestion-chip";
                 btn.textContent = s;
                 btn.addEventListener("click", () => {
                     if (isPending) return;
+                    trackWidget("chip", `panel-${i}`);
                     input.value = s;
                     sendCurrent();
                 });
@@ -1804,6 +1880,10 @@ export function initAgentWidget(root, profile, pageSessionId) {
             appendSystem(emailError);
             input.value = text;
             return;
+        }
+        if (!firstSendTracked) {
+            firstSendTracked = true;
+            trackWidget("first_send", openSource || "fab");
         }
         // Spec 71: mid-conversation, a typed line is just another turn.
         if (convo && convo.live) {
@@ -2603,7 +2683,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         if (dom.transcript) ro.observe(dom.transcript);
     }
 
-    return { open: openPanel, close: closePanel, prefill: prefillComposer, stop: stopStreaming };
+    return { open: openPanel, close: closePanel, prefill: prefillComposer, stop: stopStreaming, ask, warm };
 }
 
 // --- Explainer modal --------------------------------------------------------

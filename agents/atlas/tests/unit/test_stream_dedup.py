@@ -93,3 +93,66 @@ def test_a_turn_with_no_answer_text_is_retried_once(monkeypatch) -> None:
     reply = "".join(e["delta"] for e in events if "delta" in e)
     assert reply.strip() == "He takes select consulting work [1]."
     assert len(calls) == 2 and "empty" in calls[1]
+
+
+# ── Spec 98: a tool call typed out as the reply ──────────────────────────────
+# Captured from a live turn: the reply opened with the ADK function namespace.
+_LEAKED = ("out:default_api:get_ai_labs[{description:A visual explainer,id:web-mcp,"
+           "url:https://gauravlahoti.dev/ai-labs/web-mcp/}]")
+
+
+def _collect_turn(monkeypatch, runs):
+    """Run one turn against a fake model whose successive attempts are `runs`
+    (lists of text pieces). Returns (events, nudges the model was sent)."""
+    nudges = []
+
+    async def run_async(**kwargs):
+        nudges.append(kwargs["new_message"].parts[0].text)
+        pieces = runs[min(len(nudges), len(runs)) - 1]
+        for p in pieces:
+            yield _event(True, p)
+        yield _event(False, "".join(pieces))
+
+    monkeypatch.setattr(api, "_runner", SimpleNamespace(run_async=run_async))
+    logged = []
+
+    async def log(*args, **kwargs):
+        logged.append(kwargs or args)
+
+    monkeypatch.setattr(api, "_log_turn", log)
+
+    async def collect():
+        return [json.loads(c[6:]) async for c in api._stream_agent(
+            "s98", "What are engineering loops?", turn_index=0, identity=None, client_meta={}, geo_task=None)]
+
+    return asyncio.run(collect()), nudges, logged
+
+
+_CLEAN = ["Gaurav's Engineering Loops lab covers four nested ways to steer AI [1].",
+          '\n\n[[META]]{"citations":[],"suggestions":[],"cta":null,"badges":[]}[[/META]]']
+
+
+def test_a_typed_out_tool_call_is_dropped_and_the_turn_retried_once(monkeypatch) -> None:
+    pieces = [_LEAKED[i:i + 9] for i in range(0, len(_LEAKED), 9)]
+    events, nudges, _ = _collect_turn(monkeypatch, [pieces, _CLEAN])
+    reply = "".join(e["delta"] for e in events if "delta" in e)
+    assert "default_api" not in reply and "web-mcp" not in reply
+    assert reply.strip() == "Gaurav's Engineering Loops lab covers four nested ways to steer AI [1]."
+    assert len(nudges) == 2 and "raw tool call" in nudges[1]
+    assert events[-1] == {"done": True}
+
+
+def test_two_leaks_in_a_row_show_an_apology_not_the_leak(monkeypatch) -> None:
+    pieces = [_LEAKED[i:i + 9] for i in range(0, len(_LEAKED), 9)]
+    events, nudges, logged = _collect_turn(monkeypatch, [pieces, pieces])
+    reply = "".join(e["delta"] for e in events if "delta" in e)
+    assert reply == api._GENERIC_ERROR_REPLY
+    assert len(nudges) == 2  # tried once more, not a third time
+    assert "default_api" not in json.dumps(logged, default=str)  # the leak is not stored in the audit row
+
+
+def test_a_normal_short_reply_is_not_held_back(monkeypatch) -> None:
+    events, nudges, _ = _collect_turn(monkeypatch, [["Yes, he does.",
+        '\n\n[[META]]{"citations":[],"suggestions":[],"cta":null,"badges":[]}[[/META]]']])
+    assert "".join(e["delta"] for e in events if "delta" in e).strip() == "Yes, he does."
+    assert len(nudges) == 1

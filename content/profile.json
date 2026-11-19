@@ -39,6 +39,13 @@
       "prefill": "I'd like to send Gaurav a note: "
     }
   ],
+  "heroAsk": {
+    "prompts": [
+      "What AI agents has Gaurav shipped?",
+      "How was Atlas, this agent, built?",
+      "Which AI certifications does Gaurav hold?"
+    ]
+  },
   "agentPrompts": [
     "How was this site built?",
     "What is he writing about lately on LinkedIn?",

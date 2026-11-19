@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
-import { NOT_AN_ERROR, digestExtras, digestFields, reportWindow } from "./src/digest.js";
+import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, widgetEventFields } from "./src/digest.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;
@@ -514,6 +514,36 @@ async function handlePageview(req, res, origin, cors) {
     res.writeHead(204, cors); res.end();
 }
 
+// Spec 98: mirror of the Worker's POST /api/widget-event (src/index.js).
+async function handleWidgetEvent(req, res, origin, cors) {
+    const done = () => { res.writeHead(204, cors); res.end(); };
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) return done();
+    const ua = req.headers["user-agent"] || "";
+    if (!ua || BOT_UA_RE.test(ua)) return done();
+    let body = {};
+    try { body = await readJson(req, 4 * 1024); } catch (_) { return done(); }
+    const fields = widgetEventFields(body);
+    if (!fields) return done();
+
+    const ip = req.socket?.remoteAddress || "";
+    const utcDate = new Date().toISOString().slice(0, 10);
+    const visitorHash = ip
+        ? createHash("sha256").update(`${ip}|${ua}|${utcDate}`).digest("hex").slice(0, 16)
+        : null;
+    const at = Math.floor(Date.now() / 1000);
+    try {
+        const counts = db.prepare(
+            `SELECT COALESCE(SUM(session_id = ?), 0) AS s, COALESCE(SUM(visitor_hash = ?), 0) AS v
+             FROM widget_events WHERE at > ? AND (session_id = ? OR visitor_hash = ?)`
+        ).get(fields.sessionId, visitorHash, at - 86400, fields.sessionId, visitorHash);
+        if ((counts?.s || 0) >= WIDGET_EVENT_CAPS.session || (counts?.v || 0) >= WIDGET_EVENT_CAPS.visitor) return done();
+        db.prepare(
+            `INSERT INTO widget_events (at, session_id, visitor_hash, event, source) VALUES (?, ?, ?, ?, ?)`
+        ).run(at, fields.sessionId, visitorHash, fields.event, fields.source);
+    } catch (err) { console.error("[widget-event] insert failed", err.message); }
+    done();
+}
+
 async function handleAmbientStats(req, res, url) {
     if (!AGENT_LOG_TOKEN) return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
     if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
@@ -665,6 +695,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/pageview" && req.method === "POST") {
         return handlePageview(req, res, origin, cors);
+    }
+    if (url.pathname === "/api/widget-event" && req.method === "POST") {
+        return handleWidgetEvent(req, res, origin, cors);
     }
     if (url.pathname === "/api/post-metrics" && req.method === "GET") {
         return handlePostMetricsRead(req, res, cors);

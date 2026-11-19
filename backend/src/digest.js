@@ -189,6 +189,33 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
     const hours = Array.from({ length: 24 }, (_, h) => 0);
     for (const row of hourRows) hours[Number(row.hour)] = Number(row.views) || 0;
 
+    // Spec 98: how sessions got into Atlas. widget_events arrives with
+    // migration 014; until it's applied the table is missing, and the digest
+    // must still go out, so a failure here just leaves these at zero.
+    const widget = { opened: 0, asked: 0, open_sources: [], chips: [] };
+    try {
+        const w = (await r(
+            `SELECT COUNT(DISTINCT CASE WHEN event = 'open' THEN session_id END) AS opened,
+                    COUNT(DISTINCT CASE WHEN event = 'first_send' THEN session_id END) AS asked
+             FROM widget_events WHERE at > ? AND at <= ?`,
+            [winStart, now]
+        ))[0] || {};
+        widget.opened = Number(w.opened) || 0;
+        widget.asked = Number(w.asked) || 0;
+        widget.open_sources = (await r(
+            `SELECT source, COUNT(DISTINCT session_id) AS sessions FROM widget_events
+             WHERE event = 'open' AND at > ? AND at <= ? GROUP BY source ORDER BY sessions DESC`,
+            [winStart, now]
+        )).map((s) => ({ source: s.source, sessions: Number(s.sessions) || 0 }));
+        widget.chips = (await r(
+            `SELECT source AS chip, COUNT(*) AS clicks FROM widget_events
+             WHERE event = 'chip' AND at > ? AND at <= ? GROUP BY source ORDER BY clicks DESC LIMIT 8`,
+            [winStart, now]
+        )).map((c) => ({ chip: c.chip, clicks: Number(c.clicks) || 0 }));
+    } catch (err) {
+        console.warn("[digest] widget_events unavailable (migration 014 not applied?)", err?.message || err);
+    }
+
     const funnelRow = (await r(
         `SELECT COUNT(DISTINCT session_id) AS sessions,
                 COUNT(DISTINCT CASE WHEN session_id IN (${chattedSessions}) THEN session_id END) AS chatted,
@@ -240,8 +267,43 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
             chatted: Number(funnelRow.chatted) || 0,
             avatar: Number(funnelRow.avatar) || 0,
             emailed: emails.resumes + emails.notes,
+            // Spec 98: opened the panel / sent a first message (client-side
+            // beacons), where opens came from, and which suggestions got clicked.
+            opened: widget.opened,
+            asked: widget.asked,
+            open_sources: widget.open_sources,
+            chips: widget.chips,
         },
     };
+}
+
+// ── Spec 98: POST /api/widget-event validation, shared with local-server.js ──
+// Every value is a fixed string the page sends; anything else is dropped.
+const OPEN_SOURCES = new Set(["fab", "hero", "bottombar", "webmcp", "hero-try", "external"]);
+// Which suggested question: the pop-up's ("hero-try-ai-0", "hero-try-lab-mcp")
+// or a starter chip inside the panel ("panel-2").
+const CHIP_SOURCE_RE = /^(hero-try-(ai-\d{1,2}|lab-[a-z0-9-]{1,32})|panel-\d{1,2})$/;
+const SESSION_RE = /^[A-Za-z0-9_-]{8,128}$/;
+
+/** Rows kept per session / per visitor_hash in any 24h. A real visit sends a
+ * handful; the caps only bound what a script hammering the endpoint can write. */
+export const WIDGET_EVENT_CAPS = { session: 20, visitor: 60 };
+
+/** Validate a POST /api/widget-event body -> {sessionId, event, source} or null. */
+export function widgetEventFields(body) {
+    const sessionId = body?.sessionId;
+    const event = body?.event;
+    const source = body?.source;
+    if (typeof sessionId !== "string" || !SESSION_RE.test(sessionId)) return null;
+    if (typeof source !== "string") return null;
+    if (event === "open" || event === "first_send") {
+        if (!OPEN_SOURCES.has(source)) return null;
+    } else if (event === "chip") {
+        if (!CHIP_SOURCE_RE.test(source)) return null;
+    } else {
+        return null;
+    }
+    return { sessionId, event, source };
 }
 
 const REPLY_MODES = new Set(["text", "voice", "avatar", "convo"]);
