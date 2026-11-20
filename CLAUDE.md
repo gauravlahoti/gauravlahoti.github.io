@@ -161,6 +161,8 @@ All user-facing text (headings, body, captions, button labels, JSON content in `
 
 Specs are append-only. Never rewrite an old spec — write a new one. Zero-padded numbering (`00`, `01`, …).
 
+**Parked follow-ups:** `.claude/specs/openitemstoaddress.md` lists what was deliberately left open after spec 98 (tracking backend deploy, Atlas quality, mobile checks). Read it before picking up that work.
+
 ## Recent specs (31–38)
 
 - **Spec 31** — Ambient agent on Cloud Run (background runs, visitor digest email)
