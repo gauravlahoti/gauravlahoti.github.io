@@ -11,6 +11,9 @@ make install
 make dev               # → http://localhost:8000
 ```
 
+The top of the left panel carries the `gauravlahoti.dev` wordmark (GL mark, `.dev` in cyan).
+It links to the portfolio in a new tab, so it never interrupts a session.
+
 ## What it shows
 
 1. **Parse** — paste text or upload a PDF

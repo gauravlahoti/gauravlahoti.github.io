@@ -75,6 +75,27 @@ body.is-scrolling .nav-inner {
     background: url("../img/logo.svg") center / contain no-repeat;
 }
 
+/* Footer wordmark: the GL mark + gauravlahoti.dev, the same one the Harness and RAG Lab carry.
+   Sits in each page's "© year" line. Logo drawn like the nav brand, .dev in the accent. */
+.brand-wordmark {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.brand-wordmark::before {
+    content: "";
+    width: var(--space-5);
+    height: var(--space-5);
+    margin-right: var(--space-2);
+    background: url("../img/logo.svg") center / contain no-repeat;
+}
+.brand-wordmark-dev { color: var(--accent); }
+.brand-wordmark:hover,
+.brand-wordmark:focus-visible { color: var(--ink); outline: none; }
+
 .nav-links {
     display: flex;
     gap: var(--space-2);

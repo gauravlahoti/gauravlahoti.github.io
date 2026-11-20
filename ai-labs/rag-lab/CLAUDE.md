@@ -35,6 +35,10 @@ available (`replace`, not `href=`, so the stub never enters browser history).
   (see `.claude/specs/38-agentic-rag-lab.md` for the original design) — don't just edit this
   stub, replace it as part of that larger effort and update `.claude/docs/agents.md`'s
   `agents/rag-lab/` entry accordingly.
+- **Branding on the off-repo lab:** the lab carries the same `gauravlahoti.dev` wordmark as the
+  Agentic Harness, at the top of its left panel (`.brand-wordmark` in
+  `agents/rag-lab/frontend/`). It opens in a new tab on purpose, so a stray click can't drop a
+  visitor's ingested document. Redeploy the `agentic-rag` service after changing it.
 - **This directory is not where the agent's actual code lives.** That's `agents/rag-lab/`
   (a completely separate part of the repo, deployed independently, excluded from the Pages
   rsync build). Don't confuse the two `rag-lab` paths.

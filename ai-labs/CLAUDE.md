@@ -18,6 +18,11 @@ It's the nav's "AI Lab" destination (`/ai-labs/`) and the parent folder for ever
 | `ai-labs/rag-lab/` | RAG Lab redirect stub — see its own `CLAUDE.md` |
 | `ai-labs/agentic-harness/` | Agentic Harness redirect stub (hosted guided tour) — see its own `CLAUDE.md` |
 
+Every page here carries the `gauravlahoti.dev` wordmark (`.brand-wordmark`, styled in
+`assets/css/layout.css`) in its "© year" footer line, besides the nav pill. When you add a
+lab, copy a sibling's footer markup. The off-repo labs (RAG Lab, Agentic Harness) carry their
+own copy of the wordmark in their own codebases.
+
 ## Design choice: cards are pure data, the hub has no lab-specific code
 
 `ai-concepts-page.js` doesn't know anything about any individual lab — it only knows the
