@@ -1,0 +1,191 @@
+{
+  "studies": [
+    {
+      "id": "atlas",
+      "kind": "Conversational AI",
+      "title": "Self-service that absorbs the repetitive question load",
+      "problem": "Every organisation answers the same questions thousands of times: policies, products, order status, how-tos. It is high-volume, repetitive work spread across support, HR and IT. A human-handled contact costs a median $13.50 (Gartner), and a live chat waits about 35 seconds just for an agent's first reply (LiveChat). Knowledge workers lose about a fifth of the workday searching for information (McKinsey). Automate it once, and the saving compounds with every question asked.",
+      "architecture": {
+        "flow": [
+          "A multimodal front end: text, voice, or a live video avatar, on one conversational core",
+          "Retrieval-grounded answers from authoritative sources, fetched live and cited",
+          "Tiered model routing tuned for latency and cost, with automatic failover under load",
+          "Agentic actions through MCP, such as dispatching a document or a follow-up note"
+        ],
+        "stack": [
+          "Google ADK",
+          "Gemini",
+          "Gemini Live Avatar",
+          "Speech-to-text + TTS",
+          "MCP",
+          "Cloud Run",
+          "Claude Code"
+        ]
+      },
+      "outcome": {
+        "value": "~500x",
+        "label": "lower cost per answer",
+        "basis": "benchmarked",
+        "viz": {
+          "kind": "count",
+          "count": {
+            "to": 500,
+            "prefix": "~",
+            "suffix": "x"
+          }
+        },
+        "levers": [
+          {
+            "key": "cost",
+            "label": "Cost",
+            "metric": "$0.01–0.03",
+            "line": "per answer vs $13.50"
+          },
+          {
+            "key": "speed",
+            "label": "Speed",
+            "metric": "< 3 s",
+            "line": "vs ~35 s for a live agent"
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "metric": "400",
+            "line": "concurrent chats"
+          },
+          {
+            "key": "productivity",
+            "label": "Productivity",
+            "metric": "~1 day/wk",
+            "line": "back per employee"
+          }
+        ]
+      }
+    },
+    {
+      "id": "document-workflow",
+      "kind": "Ambient Agentic Workflow",
+      "title": "Touchless document processing, with people only on the exceptions",
+      "problem": "Invoice processing is the heartbeat of procure-to-pay, yet most AP automation is template-based OCR that breaks on a new vendor, a revised layout or a scanned copy. Every exception lands back in an AP queue, each invoice costs about $9.40 to process (Ardent Partners), and a median AP specialist handles about 12,000 invoices a year (APQC).",
+      "architecture": {
+        "flow": [
+          "A decision model triages the inbox, separating real documents (signal) from noise",
+          "A decision model gauges each document's complexity and picks the right-sized model to read it",
+          "Deterministic rules catch duplicates, gaps and limit breaches, then route each document to the right system",
+          "People step in only on flagged exceptions, to approve or reject"
+        ],
+        "stack": [
+          "Google ADK 2.0",
+          "Gemini 2.5 family",
+          "Decision models",
+          "Workflow graph",
+          "Human in the loop",
+          "Claude Code"
+        ]
+      },
+      "outcome": {
+        "value": "~68x",
+        "label": "lower model cost per invoice",
+        "basis": "measured",
+        "viz": {
+          "kind": "count",
+          "count": {
+            "to": 68,
+            "prefix": "~",
+            "suffix": "x"
+          }
+        },
+        "levers": [
+          {
+            "key": "cost",
+            "label": "Cost",
+            "metric": "$0.14",
+            "line": "per invoice vs $9.40"
+          },
+          {
+            "key": "speed",
+            "label": "Speed",
+            "metric": "~25 s",
+            "line": "email to ERP, per invoice"
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "metric": "$415/mo",
+            "line": "3k invoices vs $28.2k"
+          },
+          {
+            "key": "productivity",
+            "label": "Productivity",
+            "metric": "Up to 3 FTE",
+            "line": "AP capacity at 3k/mo"
+          }
+        ]
+      }
+    },
+    {
+      "id": "errorlens",
+      "kind": "Multi-Agent System",
+      "title": "A self-learning team of AI agents for cloud errors",
+      "problem": "Every cloud team hits the same cryptic errors again and again. An engineer spends 30 to 90 minutes digging through docs, Stack Overflow and GitHub issues for a fix, then the answer vanishes into a chat thread, a runbook or one person's head. About 42% of institutional knowledge is unique to the individual (Panopto), so teams keep re-triaging errors they have already solved. Generic AI tools have no memory of your confirmed fixes, and can't spot a repeat error that is worded differently.",
+      "architecture": {
+        "flow": [
+          "A router agent pulls the key signals from the raw error and sends it down the right path",
+          "Semantic search over the team's solved errors runs first, returning a confirmed fix at 0.85 similarity",
+          "New errors fan out to docs and community research in parallel, with fixes ranked by confidence",
+          "Each confirmed fix is embedded into a shared knowledge bank, so tacit knowledge compounds"
+        ],
+        "stack": [
+          "Google ADK",
+          "Gemini",
+          "A2A",
+          "AlloyDB + pgvector",
+          "Vertex AI embeddings",
+          "MCP Toolbox",
+          "Developer Knowledge MCP",
+          "Google Search",
+          "Cloud Run"
+        ]
+      },
+      "outcome": {
+        "value": "~2x",
+        "label": "faster incident research",
+        "basis": "design",
+        "viz": {
+          "kind": "count",
+          "count": {
+            "to": 2,
+            "prefix": "~",
+            "suffix": "x"
+          }
+        },
+        "levers": [
+          {
+            "key": "cost",
+            "label": "Cost",
+            "metric": "$0",
+            "line": "research on repeat errors"
+          },
+          {
+            "key": "speed",
+            "label": "Speed",
+            "metric": "Parallel",
+            "line": "2 agents search at once"
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "metric": "3",
+            "line": "independent services"
+          },
+          {
+            "key": "productivity",
+            "label": "Productivity",
+            "metric": "Compounding",
+            "line": "every fix reused"
+          }
+        ]
+      }
+    }
+  ]
+}

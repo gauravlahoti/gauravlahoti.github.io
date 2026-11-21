@@ -22,7 +22,7 @@
          transition guard and scroll reset behave the same. -->
     <link rel="stylesheet" href="assets/css/base.css?v=411">
     <link rel="stylesheet" href="assets/css/layout.css?v=421">
-    <link rel="stylesheet" href="assets/css/components.css?v=425">
+    <link rel="stylesheet" href="assets/css/components.css?v=468">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <!-- The questions counter and the post chips call this backend a moment after boot. Opening
          the connection now (DNS, TCP, TLS) takes that round trip off a first-time visitor's wait.
@@ -38,7 +38,7 @@
          downloading, instead of when the parser reaches the end of <body>. Its
          ?v= must match the <script type="module"> tag below; /publish bumps every
          ?v=N in this file together, so they stay in step. -->
-    <link rel="modulepreload" href="assets/js/main.js?v=383">
+    <link rel="modulepreload" href="assets/js/main.js?v=415">
     <!-- Warm announcement.css in parallel with announcement.json. announcement.js
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
@@ -140,6 +140,7 @@
                     <a href="#insights" data-cursor="magnet" aria-haspopup="true" aria-expanded="false">Insights</a>
                     <div class="nav-flyout" data-posts-flyout role="menu" aria-label="Recent insights" hidden></div>
                 </div>
+                <a href="/selected-work/" class="nav-live-link" data-page-link data-cursor="magnet">Selected Work</a>
                 <a href="/live-agents/" class="nav-live-link" data-page-link data-cursor="magnet">Live Agents</a>
                 <a href="/ai-labs/" class="nav-live-link" data-page-link data-cursor="magnet">AI Lab</a>
                 <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" data-cursor="magnet">Resume</a>
@@ -187,6 +188,7 @@
                 <a href="#career">Career</a>
                 <a href="#about">About</a>
                 <a href="#insights">Insights</a>
+                <a href="/selected-work/" class="nav-live-link" data-page-link>Selected Work</a>
                 <a href="/live-agents/" class="nav-live-link" data-page-link>Live Agents</a>
                 <a href="/ai-labs/" class="nav-live-link" data-page-link>AI Lab</a>
                 <a href="/resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
@@ -367,6 +369,15 @@
             </div>
         </section>
 
+        <section id="work" class="section section-work" aria-label="Selected work">
+            <header class="work-header" data-reveal>
+                <p class="work-eyebrow">// shipped.systems()</p>
+                <h2 class="work-title">Selected work.</h2>
+            </header>
+            <div class="work-teaser" data-work-teaser-root></div>
+            <a class="work-teaser-cta" href="/selected-work/" data-page-link>See the case studies <span aria-hidden="true">→</span></a>
+        </section>
+
         <section id="about" class="section section-capabilities" aria-label="Capabilities">
             <header class="cap-header" data-reveal>
                 <p class="cap-eyebrow">// architect.capabilities()</p>
@@ -439,7 +450,7 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=383"></script>
+    <script type="module" src="assets/js/main.js?v=415"></script>
 <script type="module" src="/assets/js/announcement.js?v=9"></script>
 </body>
 </html>

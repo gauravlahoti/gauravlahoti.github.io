@@ -487,7 +487,7 @@ export function defineTools(ctx) {
                         ? { type: "string", description: "Lab id from list_work (kind=labs), e.g. mcp, rag, loops, webmcp." }
                         : {
                               type: "string",
-                              enum: ["top", "career", "about", "insights", "chat"],
+                              enum: ["top", "career", "work", "about", "insights", "chat"],
                               description: "Which section to bring into view, or chat to open the Atlas panel.",
                           },
                 },
@@ -512,7 +512,7 @@ export function defineTools(ctx) {
                 }
 
                 // home
-                const targets = ["top", "career", "about", "insights", "chat"];
+                const targets = ["top", "career", "work", "about", "insights", "chat"];
                 const target = input.target;
                 if (!targets.includes(target)) return fail(`No target "${target}".`, `Targets here: ${targets.join(", ")}`);
 

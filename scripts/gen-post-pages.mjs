@@ -146,6 +146,7 @@ ${jsonLd}
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
                 <a href="/#insights" class="nav-link-active" aria-current="page">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
                 <a href="/live-agents/">Live Agents</a>
             </nav>
             <div class="nav-actions">
@@ -185,6 +186,7 @@ ${jsonLd}
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
                 <a href="/#insights">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
                 <a href="/live-agents/">Live Agents</a>
             </nav>
             <a class="nav-drawer-cta btn btn-ghost" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
