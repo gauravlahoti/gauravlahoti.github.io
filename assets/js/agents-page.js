@@ -1147,13 +1147,6 @@ function initPageChrome() {
 
     initNavDrawer();
 
-    document.querySelectorAll("[data-resume-trigger-agents]").forEach(eln => {
-        eln.addEventListener("click", e => {
-            e.preventDefault();
-            window.location.href = "/#";
-        });
-    });
-
     initInsightsFlyout();
 }
 

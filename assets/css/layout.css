@@ -70,6 +70,8 @@ body.is-scrolling .nav-inner {
 }
 .nav-brand::before {
     content: "";
+    /* Never let a tight row squeeze the mark into the name beside it. */
+    flex: none;
     width: var(--space-6);
     height: var(--space-6);
     background: url("../img/logo.svg") center / contain no-repeat;
