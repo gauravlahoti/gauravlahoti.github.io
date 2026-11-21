@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "373";
+const ASSET_VERSION = "405";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -86,6 +86,7 @@ showCachedAgentStat();
         initAnchorScroll();
 
         initTrajectoryWhenVisible(profile);
+        initLazySection("#work [data-work-teaser-root]", "./selected-work.js", "initSelectedWorkTeaser");
         initSkillsHexWhenVisible();
         initPostsListWhenVisible(profile);
         initPostsFlyoutEager();
@@ -650,6 +651,27 @@ function initTrajectoryWhenVisible(profile) {
             }
         }
     }, { rootMargin: "300px" });
+    io.observe(root);
+}
+
+// Selected Work teaser: a plain content section, so it loads its module the first
+// time it nears the viewport (same pattern as the career trail above). The CSS
+// reserves its height so a late render shifts nothing.
+function initLazySection(selector, modulePath, exportName) {
+    const root = document.querySelector(selector);
+    if (!root) return;
+    const io = new IntersectionObserver(async (entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            io.disconnect();
+            try {
+                const mod = await import(v(modulePath));
+                await mod[exportName](root);
+            } catch (err) {
+                console.warn(`[${exportName}] failed to init`, err);
+            }
+        }
+    }, { rootMargin: "600px" });
     io.observe(root);
 }
 
