@@ -15,7 +15,7 @@
 // the page. Expiry is computed from the date here, so the hint switches itself
 // off after durationDays with no publish.
 (function () {
-    var ANN = {"id":"agentic-harness-2026-11-17","startsOn":"2026-11-17","durationDays":7};
+    var ANN = {"id":"system-one-models-2026-11-23","startsOn":"2026-11-23","durationDays":7};
 
     if (!ANN) return;
     var start = Date.parse(ANN.startsOn + "T00:00:00");
