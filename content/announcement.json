@@ -1,11 +1,11 @@
 {
   "_readme": "Top-of-page announcement. Shows for 7 days from startsOn, then disappears on its own. Set kind to post or lab. Edit this one file to change it.",
-  "id": "agentic-harness-2026-11-17",
-  "kind": "lab",
-  "text": "The model only reasons. The harness does everything else. Watch it work.",
-  "mobileText": "Watch the harness work.",
-  "cta": "Take the tour",
-  "href": "https://agentic-harness.gauravlahoti.dev/?tour",
-  "startsOn": "2026-11-17",
+  "id": "system-one-models-2026-11-23",
+  "kind": "post",
+  "text": "Your agent's small decisions don't need an LLM. Meet System One models.",
+  "mobileText": "Meet System One models.",
+  "cta": "Read the post",
+  "href": "https://www.linkedin.com/feed/update/urn:li:activity:7530635247575531520/",
+  "startsOn": "2026-11-23",
   "durationDays": 7
 }
