@@ -1,0 +1,32 @@
+# Gaurav Lahoti
+
+> Cloud & AI-Native Architect based in Gurugram, India. I spent 11+ years making enterprise systems talk to each other on GCP and AWS. Now I build production AI agents that plug into those systems, with Google ADK, LangGraph and the Model Context Protocol (MCP).
+
+This site is built to be read by agents as well as people. It registers WebMCP tools (search_site, get_profile, list_work, go_to, draft_note_to_gaurav), so an agent in the browser can call typed functions instead of scraping the page. It also runs a live chat agent, Atlas, that answers questions about my work.
+
+## Work
+
+- [Selected Work](https://gauravlahoti.dev/selected-work/): three enterprise AI systems, each told as use case, solution and efficiency gained. A self-service assistant, touchless invoice processing, and a self-learning agent team for cloud errors.
+- [Live Agents](https://gauravlahoti.dev/live-agents/): agents running in production. Atlas (chat), Pulse (a scheduled ambient agent), ErrorLens, Agentic RAG and Agentic Harness.
+
+## AI Lab: interactive explainers
+
+- [MCP Lab](https://gauravlahoti.dev/ai-labs/mcp-lab/): the Model Context Protocol, explained in six clickable acts.
+- [Engineering Loops](https://gauravlahoti.dev/ai-labs/engineering-loops/): prompt, context, harness and loop engineering, drawn as layers around one model.
+- [Agent-Ready Web](https://gauravlahoti.dev/ai-labs/agent-ready/): WebMCP on this site. A live tool registry and a console that runs each tool.
+- [All labs](https://gauravlahoti.dev/ai-labs/)
+
+## Writing
+
+- [MCP explained by making it clickable, not readable](https://gauravlahoti.dev/insights/mcp-explained-by-making-it-clickable-not-readable/)
+- [I gave my website an employee](https://gauravlahoti.dev/insights/i-gave-my-website-an-employee-it-works-2-days-a-week-and-nev/)
+- [Context bloat is quietly wrecking your coding agent](https://gauravlahoti.dev/insights/context-bloat-is-quietly-wrecking-your-coding-agent/)
+- [Build agents with agents](https://gauravlahoti.dev/insights/build-agents-with-agents/)
+- [The biggest blind spot in AI for incident response](https://gauravlahoti.dev/insights/the-biggest-blind-spot-in-ai-for-incident-response-is-simple/)
+
+## Contact
+
+- [LinkedIn](https://www.linkedin.com/in/glahoti/)
+- [GitHub](https://github.com/gauravlahoti)
+- [Topmate](https://topmate.io/gaurav_lahoti25): short advisory and mentorship calls
+- [Resume (PDF)](https://gauravlahoti.dev/resume.pdf)
