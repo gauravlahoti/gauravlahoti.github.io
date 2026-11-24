@@ -1,4 +1,4 @@
-# Spec 87: Atlas never writes a visitor's note for them
+# Spec 102: Atlas never writes a visitor's note for them
 
 ## Problem
 
