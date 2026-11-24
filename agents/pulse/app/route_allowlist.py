@@ -1,4 +1,4 @@
-"""Fail-closed route allowlist for the public Pulse service (spec 86).
+"""Fail-closed route allowlist for the public Pulse service (spec 101).
 
 `get_fast_api_app()` publishes ADK's whole developer surface next to our own
 routes: `/run` and `/run_sse` (the agent, which can read visitor analytics and

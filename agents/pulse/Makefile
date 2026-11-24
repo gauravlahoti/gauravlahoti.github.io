@@ -23,7 +23,7 @@ lint: ## Lint with ruff (auto-fix).
 
 # --remove-env-vars keeps ADK's dev routes closed even if someone once set
 # PULSE_DEV_ROUTES on the service by hand (--update-env-vars would otherwise
-# preserve it). See app/route_allowlist.py (spec 86).
+# preserve it). See app/route_allowlist.py (spec 101).
 deploy: ## Deploy Pulse (ambient digest) to Cloud Run (service: pulse, us-central1).
 	gcloud beta run deploy pulse \
 		--project gcp-experiments-490306 \

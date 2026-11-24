@@ -55,6 +55,6 @@ needing a human to actually read the next digest, not just green tests.
   D1 query, never from the model.** The model contributes only the
   qualitative insights block. Don't let the instruction start asking it to
   restate or compute a metric.
-- **New HTTP route:** add it to `ALLOWED_ROUTES` in `app/route_allowlist.py`, or it 404s in prod (`tests/unit/test_route_allowlist.py` fails if you forget). Pulse is public so Cloud Scheduler can reach it, and until spec 86 that also exposed ADK's `/run_sse`, session CRUD and dev UI with no auth. Never "fix" a 404 by setting `PULSE_DEV_ROUTES=1` on the deployed service.
+- **New HTTP route:** add it to `ALLOWED_ROUTES` in `app/route_allowlist.py`, or it 404s in prod (`tests/unit/test_route_allowlist.py` fails if you forget). Pulse is public so Cloud Scheduler can reach it, and until spec 101 that also exposed ADK's `/run_sse`, session CRUD and dev UI with no auth. Never "fix" a 404 by setting `PULSE_DEV_ROUTES=1` on the deployed service.
 - Only modify code targeted by the request — preserve surrounding code,
   config values, and formatting.

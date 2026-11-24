@@ -1,4 +1,4 @@
-# Spec 86: Pulse route allowlist
+# Spec 101: Pulse route allowlist
 
 ## Problem
 
