@@ -28,5 +28,6 @@ This site is built to be read by agents as well as people. It registers WebMCP t
 
 - [LinkedIn](https://www.linkedin.com/in/glahoti/)
 - [GitHub](https://github.com/gauravlahoti)
+- [Credly](https://www.credly.com/users/gaurav-lahoti.a6cc6340): verified certifications
 - [Topmate](https://topmate.io/gaurav_lahoti25): short advisory and mentorship calls
 - [Resume (PDF)](https://gauravlahoti.dev/resume.pdf)
