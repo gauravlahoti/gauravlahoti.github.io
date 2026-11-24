@@ -20,6 +20,11 @@ Defense in depth, layered:
       layer that holds when the prompt is talked around. Returning a dict here
       skips the tool entirely, so a blocked note never reaches Resend and never
       burns a row in the rate-limit ledger.
+    - Grounding check on the same `message`: most of its words must come from
+      what the visitor actually typed. Asked to "write a Python snippet and
+      send it to Gaurav", Atlas once declined the code and then filled the
+      note in itself ("Hi Gaurav, I would like to connect with you."), which
+      would have gone out under the visitor's name once they confirmed.
 
 These are cheap, deterministic filters. We deliberately do NOT use LLM-as-judge
 for the input filter — at portfolio traffic levels and the simplicity of our
@@ -347,6 +352,12 @@ NOTE_TOO_LONG_REPLY = (
     f"{_MAX_NOTE_CHARS} characters and I'll send it on?"
 )
 
+NOTE_UNGROUNDED_REPLY = (
+    "I can only pass along what you tell me in your own words, and I'd started "
+    "writing that note myself, so I've held it back. What would you like to say "
+    "to Gaurav?"
+)
+
 # Codes this module can hand back in place of a real tool result. api.py reads
 # this to tell a deliberate guardrail block apart from a genuine send failure.
 GUARDRAIL_BLOCK_CODE = "unsupported_content"
@@ -381,4 +392,70 @@ def before_tool_callback(
     if looks_like_code(message):
         return {"ok": False, "code": GUARDRAIL_BLOCK_CODE, "message": NOTE_CODE_REPLY}
 
+    visitor_text = _visitor_text(tool_context)
+    if visitor_text is not None and not is_grounded_in(message, visitor_text):
+        return {"ok": False, "code": GUARDRAIL_BLOCK_CODE, "message": NOTE_UNGROUNDED_REPLY}
+
     return None
+
+
+# Words that carry no content of their own, plus the salutations and sign-offs
+# a relayed note may reasonably gain ("Hi Gaurav, ... Thanks"). Pronouns are in
+# here because relaying flips them: "tell him I loved his talk" becomes "I
+# loved your talk".
+_FREE_WORDS = frozenset(
+    """a an the and or but if so to of in on at by for from with about as into
+    over than then that this these those there here it its is am are was were be
+    been being do does did done have has had will would can could should shall
+    may might must not no yes very just also too all any some more most such
+    i im i'm ive i've id i'd me my mine we our us you your yours youre you're he
+    him his she her they them their who whom what which when where why how
+    hi hello hey dear gaurav thanks thank regards best cheers please kindly
+    message note send pass along tell let know""".split()
+)
+_WORD_RE = re.compile(r"[a-z0-9][a-z0-9']*")
+# Below this share of a note's content words found in what the visitor typed,
+# the note is Atlas's writing, not theirs.
+_MIN_GROUNDED_SHARE = 0.5
+
+
+def _stem(word: str) -> str:
+    # Tolerates the edits a relay is allowed to make (tense, plurals, a fixed
+    # typo at the end of a word) without a stemmer dependency.
+    return word[:5]
+
+
+def is_grounded_in(message: str, visitor_text: str) -> bool:
+    """True if most of `message`'s content words appear in `visitor_text`."""
+    # A visitor writing in a non-Latin script gets a translated note, which
+    # shares no words with what they typed. Don't hold those back.
+    if sum(1 for ch in visitor_text if ord(ch) > 127 and ch.isalpha()) >= 10:
+        return True
+
+    content = [w for w in _WORD_RE.findall(message.lower()) if w not in _FREE_WORDS]
+    if not content:
+        return True
+    said = _WORD_RE.findall(visitor_text.lower())
+    words, stems = set(said), {_stem(w) for w in said if len(w) >= 5}
+    found = sum(1 for w in content if w in words or (len(w) >= 5 and _stem(w) in stems))
+    return found / len(content) >= _MIN_GROUNDED_SHARE
+
+
+def _visitor_text(tool_context: ToolContext | None) -> str | None:
+    """Everything the visitor has typed this session, or None if unknowable.
+
+    A note can be gathered across turns ("I want to reach Gaurav" ... "tell
+    him X" ... "jane@x.com" ... "yes"), so this reads every user turn, not
+    just the latest.
+    """
+    if tool_context is None:
+        return None
+    parts: list[str] = []
+    session = getattr(tool_context, "session", None)
+    for event in getattr(session, "events", None) or []:
+        if getattr(event, "author", None) == "user" and event.content:
+            parts.extend(p.text for p in event.content.parts or [] if p.text)
+    user_content = getattr(tool_context, "user_content", None)
+    if user_content is not None:
+        parts.extend(p.text for p in user_content.parts or [] if p.text)
+    return "\n".join(parts) if parts else None
