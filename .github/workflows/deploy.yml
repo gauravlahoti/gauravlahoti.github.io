@@ -15,10 +15,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Build and deploy run as two jobs. Uploading and deploying in one job broke
+  # in Nov 2026: deploy-pages could not see an artifact finalized seconds
+  # earlier in the same job ("No artifacts named github-pages were found").
+  # A separate deploy job starts after the upload is visible.
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -66,6 +67,13 @@ jobs:
         with:
           path: _site
 
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
