@@ -123,6 +123,11 @@ the user picks "Add" or "Cancel".
    tell the user it was added between fetch and write.
 4. Prepend the new entry (newest-first ordering).
 5. Write back as 2-space-indented JSON with a trailing newline.
+6. Run `node scripts/gen-post-pages.mjs`. It stamps the post's `slug` into
+   `posts.json` (this fixes the post's URL for good), writes
+   `insights/<slug>/index.html`, and regenerates `sitemap.xml` (spec 104).
+   The deploy workflow runs it again, but running it here lets you preview
+   the page locally and commit the slug.
 
 ## Step 7 — Report
 
@@ -133,6 +138,7 @@ Added to content/posts.json:
   • {firstLine}
   • {date}
 
+Page:    insights/{slug}/   (sitemap.xml updated)
 Review:  git diff content/posts.json
 Reload:  http://localhost:5173/  (hard-refresh; posts.json fetches with cache: "no-cache")
 ```

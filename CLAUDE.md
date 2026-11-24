@@ -93,6 +93,8 @@ Use the exact `google/<id>@default` name, and check the **second** column says `
 
 ## Standalone scripts (`scripts/`)
 
+`scripts/gen-post-pages.mjs` — builds `insights/<slug>/index.html` for every post in `posts.json`, then runs `scripts/gen-sitemap.mjs` to write `sitemap.xml` (specs 103–104). The deploy workflow runs it on every push, and `/add-post` runs it locally. Asset `?v=` values are read from `index.html` (shared CSS/JS) or hashed from the file (insight-only), never hardcoded, and a re-run on unchanged inputs is byte-identical. `robots.txt` and `llms.txt` at the root are hand-written; refresh `llms.txt` when a big piece of work ships.
+
 `scripts/add-post.mjs` — Node script that fetches Open Graph metadata from a LinkedIn URL and prepends a post entry to `posts.json`. The `/add-post` slash command wraps this. Supports `--print` flag for preview without writing.
 
 ## Design system

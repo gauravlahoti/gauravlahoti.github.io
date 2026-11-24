@@ -2,8 +2,14 @@
 // gen-post-pages.mjs — generates static insight pages from content/posts.json.
 // Run: node scripts/gen-post-pages.mjs
 // Also called by /add-post after prepending a new post entry.
+//
+// Asset versions are never hardcoded here (spec 104). Shared CSS/JS take the
+// ?v= that index.html currently uses, so /publish bumps flow through; the two
+// insight-only files get a hash of their contents. Re-running this script on
+// unchanged inputs must leave every committed page byte-identical.
 
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { createHash } from "crypto";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -56,7 +62,26 @@ if (dirty) {
     console.log("Updated content/posts.json with slugs.");
 }
 
-const ASSET_V = "349";
+// ?v= for an asset shared with the home page, read from index.html.
+const indexHtml = readFileSync(join(ROOT, "index.html"), "utf8");
+function siteVersion(asset) {
+    const m = indexHtml.match(new RegExp(asset.replace(/[.]/g, "\\.") + "\\?v=(\\d+)"));
+    if (!m) throw new Error(`index.html has no ?v= for ${asset}`);
+    return m[1];
+}
+// ?v= for an insight-only asset: short hash of the file, so editing it busts the cache.
+function hashVersion(relPath) {
+    return createHash("sha1").update(readFileSync(join(ROOT, relPath))).digest("hex").slice(0, 8);
+}
+const V = {
+    base: siteVersion("base.css"),
+    layout: siteVersion("layout.css"),
+    components: siteVersion("components.css"),
+    announcement: siteVersion("announcement.js"),
+    insightCss: hashVersion("assets/css/insight.css"),
+    insightNav: hashVersion("assets/js/insight-nav.js"),
+};
+const CSP = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
 
 for (const post of posts) {
     const { slug, firstLine, excerpt, date, tags = [], url } = post;
@@ -102,6 +127,7 @@ for (const post of posts) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
+    <meta http-equiv="Content-Security-Policy" content="${CSP}">
     <title>${titleEsc} | Gaurav Lahoti</title>
     <meta name="description" content="${desc}">
     <link rel="canonical" href="${canonical}">
@@ -123,10 +149,10 @@ for (const post of posts) {
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="assets/css/base.css?v=${ASSET_V}">
-    <link rel="stylesheet" href="assets/css/layout.css?v=${ASSET_V}">
-    <link rel="stylesheet" href="assets/css/components.css?v=${ASSET_V}">
-    <link rel="stylesheet" href="assets/css/insight.css?v=${ASSET_V}">
+    <link rel="stylesheet" href="assets/css/base.css?v=${V.base}">
+    <link rel="stylesheet" href="assets/css/layout.css?v=${V.layout}">
+    <link rel="stylesheet" href="assets/css/components.css?v=${V.components}">
+    <link rel="stylesheet" href="assets/css/insight.css?v=${V.insightCss}">
     <script type="application/ld+json">
 ${jsonLd}
     </script>
@@ -254,27 +280,8 @@ ${paragraphs}
         </div>
     </footer>
 
-    <script>
-    (function () {
-        var trigger = document.querySelector("[data-nav-trigger]");
-        var drawer = document.querySelector("[data-nav-drawer]");
-        var closes = document.querySelectorAll("[data-nav-close]");
-        if (!trigger || !drawer) return;
-        function open() {
-            trigger.setAttribute("aria-expanded", "true");
-            drawer.setAttribute("aria-hidden", "false");
-        }
-        function close() {
-            trigger.setAttribute("aria-expanded", "false");
-            drawer.setAttribute("aria-hidden", "true");
-        }
-        trigger.addEventListener("click", function () {
-            trigger.getAttribute("aria-expanded") === "true" ? close() : open();
-        });
-        closes.forEach(function (el) { el.addEventListener("click", close); });
-        document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-    })();
-    </script>
+    <script src="assets/js/insight-nav.js?v=${V.insightNav}"></script>
+<script type="module" src="/assets/js/announcement.js?v=${V.announcement}"></script>
 </body>
 </html>`;
 

@@ -2,24 +2,55 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://gauravlahoti.dev/</loc>
+    <lastmod>2026-11-24</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/selected-work/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/live-agents/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/ai-labs/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/ai-labs/mcp-lab/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/ai-labs/engineering-loops/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/ai-labs/agent-ready/</loc>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/your-agents-small-decisions-dont-need-an-llm/</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/i-built-an-agent-harness-in-plain-python-where-you-can-watch/</loc>
+    <lastmod>2026-11-17</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/my-website-now-has-a-face-a-voice-and-control-of-the-screen/</loc>
+    <lastmod>2026-09-30</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/the-badges-came-after-the-building-not-before/</loc>
+    <lastmod>2026-09-16</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/my-websites-ai-agent-used-to-only-type-now-it-talks-back-in/</loc>
+    <lastmod>2026-08-31</lastmod>
+  </url>
+  <url>
+    <loc>https://gauravlahoti.dev/insights/i-made-my-website-agentready-with-webmcp-five-tools-no-dom-p/</loc>
+    <lastmod>2026-08-24</lastmod>
   </url>
   <url>
     <loc>https://gauravlahoti.dev/insights/i-got-claude-certified-by-building-not-cramming/</loc>
