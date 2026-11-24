@@ -277,6 +277,7 @@ ${paragraphs}
             <a class="footer-link" href="mailto:gaurav.lahoti25@gmail.com">gaurav.lahoti25@gmail.com</a>
             <a class="footer-link" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
             <a class="footer-link" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a class="footer-link" href="https://www.credly.com/users/gaurav-lahoti.a6cc6340" target="_blank" rel="noopener noreferrer">Credly</a>
         </div>
     </footer>
 
