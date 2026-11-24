@@ -285,3 +285,6 @@ ${paragraphs}
 }
 
 console.log(`\nGenerated ${posts.length} insight pages.`);
+
+// Keep sitemap.xml in step with the insight pages (spec 103).
+await import("./gen-sitemap.mjs");

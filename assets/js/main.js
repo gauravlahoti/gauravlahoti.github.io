@@ -79,7 +79,6 @@ showCachedAgentStat();
         }
 
         bindDOM(profile);
-        setTitle(profile);
         setYear();
         initWebMcp(profile);
         initLenis();
@@ -918,11 +917,6 @@ function lookup(profile, path) {
 
 function resolve(obj, path) {
     return path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
-}
-
-function setTitle(profile) {
-    const title = `${profile.name} | ${profile.title}`;
-    if (document.title !== title) document.title = title;
 }
 
 function setYear() {
