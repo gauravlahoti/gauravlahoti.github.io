@@ -69,37 +69,33 @@ test("no card carries a qualifier tag; every headline is a measured or sourced f
 });
 
 // ── Card 01: conversational ───────────────────────────────────────────────
+// Spec 106: headlines compare like with like (time with time, total cost with
+// total cost), never model cost against a fully loaded human cost.
 
-test("conversational card: every figure sourced or derived from production data", () => {
+test("conversational card: ~10x is time to first reply against a live agent's first reply", () => {
   const o = byId.atlas.outcome;
   const lv = tiles("atlas");
-  assert.equal(o.value, "~500x");
-  assert.equal(o.label, "lower cost per answer");
+  assert.equal(o.value, "~10x");
+  assert.equal(o.label, "faster first response");
+  assert.equal(o.basis, "measured");
+
+  // Production chat-timing logs, 11 to 20 Nov 2026 (spec 100): TTFT p50 2.9 s,
+  // complete answer p50 4.0 s. Baseline: a live agent's first chat reply, ~35 s
+  // (LiveChat). 35/2.9 is ~12x and 35/4.0 is ~9x, so ~10x sits between them.
+  const liveAgent = 35, ttft = 2.9, complete = 4.0;
+  assert.ok(liveAgent / ttft >= 10 && liveAgent / complete >= 8.5);
+  assert.equal(lv.speed.metric, "< 3 s");
+  assert.match(lv.speed.line, /first reply/, "under 3 s is the first reply, not the full answer");
 
   // Unit cost from production tokens (~17.5k in, ~150 out) at Vertex list price,
   // intro ($0.75/$3.75 per 1M) and 2027 standard ($1.50/$7.50).
   const perAnswer = (inP, outP) => (17_500 * inP + 150 * outP) / 1e6;
-  const low = perAnswer(0.75, 3.75), high = perAnswer(1.5, 7.5);
-  assert.ok(low >= 0.01 && high <= 0.03, "cost per answer is 1 to 3 cents");
-  // ~493x at the 2027 price, ~986x at today's: "~500x" is the conservative read.
-  assert.ok(13.5 / high >= 480 && 13.5 / low >= 900);
+  assert.ok(perAnswer(0.75, 3.75) >= 0.01 && perAnswer(1.5, 7.5) <= 0.03, "cost per answer is 1 to 3 cents");
   assert.equal(lv.cost.metric, "$0.01–0.03");
-  assert.match(lv.cost.line, /vs \$13\.50/);
-
-  // Speed: owner-stated (< 3 s). Nov 2026 logs measured p50 4.0 s / p95 6.6 s
-  // complete answers; see spec 100. Baseline: a live agent's first chat reply.
-  assert.equal(lv.speed.metric, "< 3 s");
-  assert.match(lv.speed.line, /~35 s for a live agent/);
+  assert.doesNotMatch(JSON.stringify(o), /vs \$13\.50|~500x|day\/wk/, "no model-cost ratio, no time-back overclaim");
 
   // Scale: configured capacity (Cloud Run 5 instances x 80).
   assert.equal(lv.scale.metric, String(5 * 80));
-
-  // Productivity: knowledge workers spend ~19% of the workday finding information
-  // (McKinsey); 19% of a 5-day week is about a day. The size of the opportunity
-  // the assistant targets, not a measurement of this system.
-  assert.ok(Math.abs(0.19 * 5 - 1) < 0.1);
-  assert.equal(lv.productivity.metric, "~1 day/wk");
-  assert.match(byId.atlas.problem, /fifth of the workday searching for information \(McKinsey\)/);
 
   // The human baselines are the problem statement, so their sources live in the use case.
   assert.match(byId.atlas.problem, /\$13\.50 \(Gartner\)/);
@@ -109,23 +105,22 @@ test("conversational card: every figure sourced or derived from production data"
 
 // ── Card 02: ambient workflow ─────────────────────────────────────────────
 
-test("document card: owner's measured model cost against Ardent's $9.40, and the volume math holds", () => {
-  // Owner's solution brief (22 Nov 2026): Gemini model cost $0.1382 per average
-  // invoice (15 KB, 4 pages, digital text) vs Ardent Partners' $9.40 industry
-  // average (AP Metrics That Matter 2025, via WEX). Model cost only.
+test("document card: ~70% is Ardent's average against best-in-class, total cost to total cost", () => {
+  // Ardent Partners, AP Metrics That Matter 2025 (via WEX): $9.40 average,
+  // $2.78 best-in-class per invoice. (9.40 - 2.78) / 9.40 is about 70%. The
+  // owner's measured model cost ($0.1382 per average invoice, 22 Nov 2026) plus
+  // people on the flagged exceptions lands in the best-in-class range.
   const s = byId["document-workflow"];
   const lv = tiles("document-workflow");
-  const model = 0.1382, industry = 9.4;
-  assert.equal(s.outcome.value, "~68x");
-  assert.ok(Math.abs(industry / model - 68) < 1, "9.40 / 0.1382 is about 68");
+  const avg = 9.4, best = 2.78, model = 0.1382;
+  assert.equal(s.outcome.value, "~70%");
+  assert.equal(s.outcome.label, "lower cost per invoice");
+  assert.equal(Math.round(((avg - best) / avg) * 100), 70);
+  assert.ok(model < best, "model cost alone sits well under best-in-class");
   assert.equal(lv.cost.metric, "$0.14");
-  assert.match(lv.cost.line, /vs \$9\.40/);
-  assert.equal(lv.scale.metric, "$415/mo");
-  assert.equal(Math.round(3000 * model), 415);
-  assert.match(lv.scale.line, /3k invoices vs \$28\.2k/);
-  assert.equal(3000 * industry, 28_200);
+  assert.doesNotMatch(JSON.stringify(s.outcome), /vs \$9\.40|28\.2k|~68x/, "no model-cost ratio");
   assert.equal(lv.speed.metric, "~25 s", "a 24.4 s end-to-end run in the owner's snapshot");
-  assert.match(s.problem, /\$9\.40 to process \(Ardent Partners\)/, "the benchmark's source is in the use case");
+  assert.match(s.problem, /\$9\.40 to process \(Ardent Partners\), against \$2\.78 for best-in-class teams/);
   assert.match(s.problem, /template-based OCR/);
   // Productivity: 3k invoices/month = 36k a year, at APQC's median of ~12,000
   // invoices per AP FTE a year = 3 FTE of capacity. "Up to", since exceptions still need people.
@@ -138,14 +133,19 @@ test("document card: owner's measured model cost against Ardent's $9.40, and the
 
 // ── Card 03: multi-agent ──────────────────────────────────────────────────
 
-test("multi-agent card: every claim rests on ErrorLens's own card", () => {
+test("multi-agent card: ~80% is scoped to repeat errors, and rests on ErrorLens's own card", () => {
+  const o = byId.errorlens.outcome;
   const lv = tiles("errorlens");
   const card = JSON.stringify(agentList.find((a) => a.id === "error-lens"));
-  assert.equal(byId.errorlens.outcome.value, "~2x");
-  assert.match(card, /roughly in half/);
-  assert.equal(lv.cost.metric, "$0");
+  // Owner's brief: 30 to 90 min of digging per error. A repeat error hits the
+  // knowledge bank and skips research; allow up to 5 min for the engineer to
+  // check the stored fix. Even at the 30 min low end that saves over 80%.
+  assert.equal(o.value, "~80%");
+  assert.match(o.label, /repeat errors/, "the claim is scoped to repeat errors");
+  assert.ok((30 - 5) / 30 >= 0.8);
   assert.match(card, /skip the research pipeline/);
   assert.match(card, /≥0\.85/);
+  assert.equal(lv.cost.metric, "1 lookup");
   assert.equal(lv.scale.metric, "3");
   assert.match(card, /Cloud Run \(3 services\)/);
   assert.match(card, /independently deployed/);

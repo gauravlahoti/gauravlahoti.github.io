@@ -23,13 +23,13 @@
         ]
       },
       "outcome": {
-        "value": "~500x",
-        "label": "lower cost per answer",
-        "basis": "benchmarked",
+        "value": "~10x",
+        "label": "faster first response",
+        "basis": "measured",
         "viz": {
           "kind": "count",
           "count": {
-            "to": 500,
+            "to": 10,
             "prefix": "~",
             "suffix": "x"
           }
@@ -39,13 +39,13 @@
             "key": "cost",
             "label": "Cost",
             "metric": "$0.01–0.03",
-            "line": "per answer vs $13.50"
+            "line": "model cost per answer"
           },
           {
             "key": "speed",
             "label": "Speed",
             "metric": "< 3 s",
-            "line": "vs ~35 s for a live agent"
+            "line": "median to first reply"
           },
           {
             "key": "scale",
@@ -56,8 +56,8 @@
           {
             "key": "productivity",
             "label": "Productivity",
-            "metric": "~1 day/wk",
-            "line": "back per employee"
+            "metric": "Self-serve",
+            "line": "policy, product, how-to"
           }
         ]
       }
@@ -66,7 +66,7 @@
       "id": "document-workflow",
       "kind": "Ambient Agentic Workflow",
       "title": "Touchless document processing, with people only on the exceptions",
-      "problem": "Invoice processing is the heartbeat of procure-to-pay, yet most AP automation is template-based OCR that breaks on a new vendor, a revised layout or a scanned copy. Every exception lands back in an AP queue, each invoice costs about $9.40 to process (Ardent Partners), and a median AP specialist handles about 12,000 invoices a year (APQC).",
+      "problem": "Invoice processing is the heartbeat of procure-to-pay, yet most AP automation is template-based OCR that breaks on a new vendor, a revised layout or a scanned copy. Every exception lands back in an AP queue, each invoice costs about $9.40 to process (Ardent Partners), against $2.78 for best-in-class teams, and a median AP specialist handles about 12,000 invoices a year (APQC).",
       "architecture": {
         "flow": [
           "A decision model triages the inbox, separating real documents (signal) from noise",
@@ -84,15 +84,15 @@
         ]
       },
       "outcome": {
-        "value": "~68x",
-        "label": "lower model cost per invoice",
-        "basis": "measured",
+        "value": "~70%",
+        "label": "lower cost per invoice",
+        "basis": "benchmarked",
         "viz": {
           "kind": "count",
           "count": {
-            "to": 68,
+            "to": 70,
             "prefix": "~",
-            "suffix": "x"
+            "suffix": "%"
           }
         },
         "levers": [
@@ -100,7 +100,7 @@
             "key": "cost",
             "label": "Cost",
             "metric": "$0.14",
-            "line": "per invoice vs $9.40"
+            "line": "model cost per invoice"
           },
           {
             "key": "speed",
@@ -111,8 +111,8 @@
           {
             "key": "scale",
             "label": "Scale",
-            "metric": "$415/mo",
-            "line": "3k invoices vs $28.2k"
+            "metric": "Any layout",
+            "line": "no per-vendor templates"
           },
           {
             "key": "productivity",
@@ -148,29 +148,29 @@
         ]
       },
       "outcome": {
-        "value": "~2x",
-        "label": "faster incident research",
+        "value": "~80%",
+        "label": "faster fixes on repeat errors",
         "basis": "design",
         "viz": {
           "kind": "count",
           "count": {
-            "to": 2,
+            "to": 80,
             "prefix": "~",
-            "suffix": "x"
+            "suffix": "%"
           }
         },
         "levers": [
           {
             "key": "cost",
             "label": "Cost",
-            "metric": "$0",
-            "line": "research on repeat errors"
+            "metric": "1 lookup",
+            "line": "no research on repeats"
           },
           {
             "key": "speed",
             "label": "Speed",
-            "metric": "Parallel",
-            "line": "2 agents search at once"
+            "metric": "Seconds",
+            "line": "vs 30–90 min digging"
           },
           {
             "key": "scale",
