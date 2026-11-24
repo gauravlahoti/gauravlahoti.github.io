@@ -23,6 +23,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history: gen-sitemap.mjs dates each static page's <lastmod>
+          # from git log. A shallow clone would stamp every page "today".
+          fetch-depth: 0
+
+      # Spec 104: build insight pages + sitemap.xml from content/posts.json on
+      # every deploy, so a post added to the JSON always gets its page and its
+      # sitemap entry. Idempotent: on committed inputs it changes nothing.
+      # Node ships on ubuntu-latest; the scripts have no dependencies.
+      - name: Generate insight pages and sitemap
+        run: node scripts/gen-post-pages.mjs
 
       - name: Stage site (exclude non-site dirs)
         run: |
