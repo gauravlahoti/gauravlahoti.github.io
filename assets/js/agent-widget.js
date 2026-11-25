@@ -332,7 +332,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
         };
         const root = document.createElement("div");
         root.className = "agent-convo";
-        const start = make("agent-convo-start", "Start conversation");
+        const start = make("agent-convo-start", startLabel());
         // Spec 72: a spoken call has two controls, Mute and End. Talking
         // over Atlas interrupts it, so there is no Stop, and no composer:
         // End brings the composer back for anything easier typed.
@@ -376,12 +376,25 @@ export function initAgentWidget(root, profile, pageSessionId) {
         c.hint.hidden = !text;
     }
 
+    // Spec 107: once the face has answered a typed question (the hero pop-up
+    // lands here), the call reads as carrying on, not starting over. Still
+    // the visitor's tap that opens the mic, never automatic.
+    let faceAnswered = false;
+    function startLabel() { return faceAnswered ? "Keep talking" : "Start conversation"; }
+    function inviteFollowUp() {
+        faceAnswered = true;
+        const c = convoControls;
+        if (!c || convo || c.start.disabled) return;
+        c.start.textContent = startLabel();
+        showConvoHint("Ask a follow-up out loud");
+    }
+
     function resetConvoControls() {
         const c = convoControls;
         if (!c) return;
         c.start.hidden = false;
         c.start.disabled = false;
-        c.start.textContent = "Start conversation";
+        c.start.textContent = startLabel();
         c.mute.hidden = c.end.hidden = true;
         c.mute.setAttribute("aria-pressed", "false");
         c.mute.textContent = "Mute";
@@ -1612,6 +1625,13 @@ export function initAgentWidget(root, profile, pageSessionId) {
         promptsEl.classList.add("is-hidden");
         if (!isOpen) openPanel(source);
         else if (isMinimized) restore();
+        // Spec 107: a caller can ask for the answer on the avatar (the hero
+        // pop-up does). Only this session's mode changes, never the saved
+        // preference, and a visitor out of avatar time today stays as they are.
+        if (opts.mode === "avatar" && FEATURES.avatarMode && !avatarOn && !avatarResting) {
+            silenceSpeakerForAvatar();
+            setAvatarMode(true, { autoplay: false });
+        }
         input.value = q; // in the composer while the face loads, so nothing looks lost
 
         if (FEATURES.avatarMode && avatarOn && !avatar && avatarLoading) {
@@ -2148,6 +2168,7 @@ export function initAgentWidget(root, profile, pageSessionId) {
                         // Remove typing caret first, then do one-shot render with citations
                         finalizeAssistant(assistant, full, turnState.citations);
                         tagVia(assistant, avatarVoice ? "avatar" : (FEATURES.speakReplies && speakerOn ? "voice" : "text"));
+                        if (avatarVoice) inviteFollowUp();
                         messages.push({ role: "assistant", content: full });
                         liveRegion.textContent = stripUrls(full).slice(0, 240);
 

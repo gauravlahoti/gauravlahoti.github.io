@@ -130,6 +130,26 @@
     border-radius: var(--radius-lg);
 }
 
+/* Spec 107: 1:1 session box, between the post and "More from Gaurav". */
+.insight-session {
+    margin-bottom: var(--space-6);
+    padding: var(--space-8);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-lg);
+}
+
+.insight-session .insight-cta-eyebrow {
+    color: var(--accent);
+}
+
+.insight-session-text {
+    margin-bottom: var(--space-5);
+    font-size: var(--text-lg);
+    line-height: 1.6;
+    color: var(--ink);
+}
+
 .insight-cta-eyebrow {
     font-family: var(--font-mono);
     font-size: var(--text-xs);
@@ -160,6 +180,15 @@
 
     .insight-cta-btns {
         flex-direction: column;
+    }
+
+    .insight-session {
+        padding: var(--space-6) var(--space-5);
+    }
+
+    .insight-session .btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .insight-cta-btns .btn {

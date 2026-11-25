@@ -22,7 +22,7 @@
          transition guard and scroll reset behave the same. -->
     <link rel="stylesheet" href="assets/css/base.css?v=411">
     <link rel="stylesheet" href="assets/css/layout.css?v=421">
-    <link rel="stylesheet" href="assets/css/components.css?v=468">
+    <link rel="stylesheet" href="assets/css/components.css?v=470">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <!-- The questions counter and the post chips call this backend a moment after boot. Opening
          the connection now (DNS, TCP, TLS) takes that round trip off a first-time visitor's wait.
@@ -38,7 +38,7 @@
          downloading, instead of when the parser reaches the end of <body>. Its
          ?v= must match the <script type="module"> tag below; /publish bumps every
          ?v=N in this file together, so they stay in step. -->
-    <link rel="modulepreload" href="assets/js/main.js?v=417">
+    <link rel="modulepreload" href="assets/js/main.js?v=419">
     <!-- Warm announcement.css in parallel with announcement.json. announcement.js
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
@@ -186,8 +186,8 @@
                         </a>
                     </li>
                 </ul>
-                <a class="nav-cta btn btn-ghost btn-sm" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
-                    <span>Let's Talk</span>
+                <a class="nav-cta btn btn-outline-accent btn-sm" data-cursor="magnet" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
+                    <span>Book a 1:1</span>
                 </a>
             </div>
         </div>
@@ -234,8 +234,8 @@
                     </a>
                 </li>
             </ul>
-            <a class="nav-drawer-cta btn btn-ghost" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
-                <span>Let's Talk</span>
+            <a class="nav-drawer-cta btn btn-outline-accent" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">
+                <span>Book a 1:1</span>
             </a>
         </div>
     </aside>
@@ -246,7 +246,7 @@
             </div>
 
             <div class="hero-chrome" aria-hidden="true">
-                <div class="chrome chrome-tl">// open to architecture engagements</div>
+                <div class="chrome chrome-tl">// building AI agents in public</div>
                 <div class="chrome chrome-br">↓ scroll to explore <span class="caret">_</span></div>
             </div>
 
@@ -284,6 +284,11 @@
                     </p>
                     <p class="hero-tagline" data-bind="profile.tagline">Architecting autonomous workflows that bridge legacy enterprise stacks and production-grade AI.</p>
 
+                    <div class="hero-links">
+                        <a href="/live-agents/" class="hero-agents-link is-shown" data-page-link>See agents in production →</a>
+                        <a class="hero-agents-link is-shown" data-bind-href="profile.links.topmate" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">Book a 1:1 session →</a>
+                    </div>
+
                     <div class="hero-cta-group">
                         <button class="hero-cta-desktop btn btn-primary" type="button" data-agent-open data-cursor="magnet">
                             <svg class="hero-cta-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -308,8 +313,6 @@
                             <span aria-hidden="true">→</span>
                         </a>
                     </div>
-
-                    <a href="/live-agents/" class="hero-agents-link is-shown" data-page-link>See agents in production →</a>
 
                     <p class="hero-livestat" data-agent-stat hidden>
                         <span class="hero-livestat-dot" aria-hidden="true"></span>
@@ -445,6 +448,7 @@
             <a class="footer-link" data-bind-href="profile.links.linkedin" target="_blank" rel="noopener noreferrer">LinkedIn</a>
             <a class="footer-link" data-bind-href="profile.links.github" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a class="footer-link" data-bind-href="profile.links.credly" target="_blank" rel="noopener noreferrer">Credly</a>
+            <a class="footer-link" data-bind-href="profile.links.topmate" target="_blank" rel="noopener noreferrer">1:1 sessions</a>
         </div>
     </footer>
 
@@ -468,7 +472,7 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=417"></script>
+    <script type="module" src="assets/js/main.js?v=419"></script>
 <script type="module" src="/assets/js/announcement.js?v=9"></script>
 </body>
 </html>
