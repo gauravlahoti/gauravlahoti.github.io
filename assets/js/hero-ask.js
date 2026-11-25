@@ -2,8 +2,9 @@
 //
 // A small speech bubble pops out of the "Chat with my AI agent, Atlas" button
 // 2.5 seconds after the page lands (above the bottom bar on phones). It types sample
-// questions, alternating AI questions with questions about the AI Labs, and
-// clicking the bubble opens Atlas with that question already sent.
+// questions, alternating questions about Gaurav with questions about the AI
+// Labs, and clicking the bubble opens Atlas with that question already sent,
+// answered on the avatar first (spec 107; text if the face can't load).
 //   - every page load, on screen for 30 seconds, then it leaves on its own;
 //   - × or opening Atlas any other way takes it down early;
 //   - hover or focus freezes it on the whole question (and holds it past the
@@ -196,7 +197,7 @@ function show(anchor, prompts, getWidget) {
         const q = current();
         const chip = item().id; // "ai-0" / "lab-mcp", for the funnel's chip mix
         leave();
-        Promise.resolve(getWidget()).then((api) => api && api.ask && api.ask(q, { source: "hero-try", chip }));
+        Promise.resolve(getWidget()).then((api) => api && api.ask && api.ask(q, { source: "hero-try", chip, mode: "avatar" }));
     });
     closeBtn.addEventListener("click", leave);
 

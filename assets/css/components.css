@@ -2543,6 +2543,15 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
         transform var(--dur-base) var(--ease-out);
 }
 .hero-agents-link.is-shown { opacity: 0.8; transform: none; }
+/* Spec 107: agents link and the 1:1 session link share one row. */
+.hero-links {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-6);
+}
+@media (max-width: 767px) {
+    .hero-links { justify-content: center; }
+}
 .hero-agents-link.is-shown:hover,
 .hero-agents-link.is-shown:focus-visible {
     opacity: 1;
@@ -3281,7 +3290,7 @@ body[data-site-stage-open="true"] { overflow: hidden; }
     .cert-rail-list { gap: var(--space-4); }
     .hero .hero-stack {
         gap: var(--space-3);
-        /* clears the "// open to architecture engagements" line above */
+        /* clears the "// building AI agents in public" line above */
         padding-top: calc(var(--nav-h) + var(--space-12));
         /* the rail, its offset from the bottom, and a gap above it */
         padding-bottom: calc(var(--cert-rail-h) + var(--space-12) + var(--space-4));

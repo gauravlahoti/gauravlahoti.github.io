@@ -193,8 +193,8 @@ ${jsonLd}
                         </a>
                     </li>
                 </ul>
-                <a class="nav-cta btn btn-ghost btn-sm" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
-                    <span>Let's Talk</span>
+                <a class="nav-cta btn btn-outline-accent btn-sm" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                    <span>Book a 1:1</span>
                 </a>
             </div>
         </div>
@@ -215,8 +215,8 @@ ${jsonLd}
                 <a href="/selected-work/">Selected Work</a>
                 <a href="/live-agents/">Live Agents</a>
             </nav>
-            <a class="nav-drawer-cta btn btn-ghost" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
-                <span>Let's Talk</span>
+            <a class="nav-drawer-cta btn btn-outline-accent" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                <span>Book a 1:1</span>
             </a>
         </div>
     </aside>
@@ -250,6 +250,14 @@ ${paragraphs}
                 </div>
             </article>
 
+            <aside class="insight-session" aria-label="1:1 sessions">
+                <p class="insight-cta-eyebrow">// 1:1 sessions</p>
+                <p class="insight-session-text">Building your first agent, or working out which cloud or AI cert to go for next? I do short 1:1 sessions on exactly that.</p>
+                <a class="btn btn-outline-accent" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                    Book a 1:1 session →
+                </a>
+            </aside>
+
             <section class="insight-cta-section">
                 <p class="insight-cta-eyebrow">// More from Gaurav</p>
                 <div class="insight-cta-btns">
@@ -278,6 +286,7 @@ ${paragraphs}
             <a class="footer-link" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
             <a class="footer-link" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a class="footer-link" href="https://www.credly.com/users/gaurav-lahoti.a6cc6340" target="_blank" rel="noopener noreferrer">Credly</a>
+            <a class="footer-link" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">1:1 sessions</a>
         </div>
     </footer>
 

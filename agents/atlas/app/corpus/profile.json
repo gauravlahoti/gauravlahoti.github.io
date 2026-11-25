@@ -12,14 +12,15 @@
   "careerStart": "2015-04",
   "availability": {
     "status": "Full-time at Deloitte as a Cloud & AI-Native Architect.",
-    "consulting": "Considers select consulting and advisory work case by case, depending on scope and timing.",
-    "advisory": "Short 1:1 advisory and mentorship calls run through Topmate.",
+    "consulting": "Focused on his role at Deloitte, so he doesn't take on outside consulting projects.",
+    "advisory": "Runs short 1:1 mentorship sessions through Topmate: picking and preparing for cloud and AI certs, moving into cloud and AI roles, architect interview prep, and getting a first AI agent built.",
     "route": "For a concrete project, drop a note through this agent or reach out on LinkedIn."
   },
   "links": {
     "email": "gaurav.lahoti25@gmail.com",
     "linkedin": "https://www.linkedin.com/in/glahoti/",
     "github": "https://github.com/gauravlahoti",
+    "credly": "https://www.credly.com/users/gaurav-lahoti.a6cc6340",
     "topmate": "https://topmate.io/gaurav_lahoti25",
     "resume": "/resume.pdf",
     "agentApi": "https://atlas-lw4bt7nrba-uc.a.run.app/api/agent-chat",
@@ -41,9 +42,10 @@
   ],
   "heroAsk": {
     "prompts": [
-      "What AI agents has Gaurav shipped?",
-      "How was Atlas, this agent, built?",
-      "Which AI certifications does Gaurav hold?"
+      "Which AI agents has Gaurav put into production?",
+      "How did Gaurav go from integration to AI agents?",
+      "Can you email me Gaurav's resume?",
+      "Can you pass a note to Gaurav for me?"
     ]
   },
   "agentPrompts": [

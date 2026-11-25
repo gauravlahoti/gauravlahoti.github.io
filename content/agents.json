@@ -147,8 +147,8 @@
     "role": "Ambient Agent",
     "status": "LIVE",
     "headline": "The autonomous agent running silently behind this portfolio.",
-    "description": "Pulse is a scheduled, background agent. Cloud Scheduler fires it twice a week. It fetches visitor interaction stats from Cloudflare D1, identifies engagement patterns, drafts personalised follow-up notes for qualifying leads, and emails a digest, all without Gaurav initiating anything.",
-    "value": "Turns passive visitor data into actionable outreach while Gaurav sleeps. Every run completes in under 30 seconds, leaves an audit trail, and only sends email when engagement thresholds are met.",
+    "description": "Pulse is a scheduled, background agent. Cloud Scheduler fires it every Monday and Thursday morning. It pulls the site's visitor and Atlas stats from Cloudflare D1, reads what changed since the last run, and emails Gaurav a site performance report: who visited and from where, how they talked to Atlas, what they asked, LinkedIn reach, site speed and the cloud bill, with a short Gemini-written summary on top. Nobody has to start it.",
+    "value": "Turns raw site data into a twice-weekly report Gaurav can read in two minutes: what's working, what visitors want, and what it's costing. Every run completes in under 30 seconds and leaves an audit trail.",
     "stack": ["Google ADK", "Gemini 3.8 Flash", "Cloud Run", "Cloud Scheduler", "MCP", "Cloudflare D1"],
     "diagramSvg": "agent-portfolio/diagrams/ambient-agent-v1.svg",
     "diagramAlt": "Cloud Scheduler → Ambient Agent (ADK/Gemini) → Cloudflare D1 (stats) + Resend MCP (email)",
@@ -165,13 +165,13 @@
       },
       {
         "n": 3,
-        "label": "Insights generated, leads qualified",
-        "detail": "Gemini 3.8 Flash reasons over the interaction data: top questions, resume downloads, hiring-intent signals. Leads above the threshold get a draft outreach note."
+        "label": "Insights generated",
+        "detail": "Gemini 3.8 Flash reasons over the period's data: traffic against the same days last week, the themes in what visitors asked Atlas, how they reached the site, and what to improve next."
       },
       {
         "n": 4,
         "label": "Digest email sent to Gaurav via MCP",
-        "detail": "The agent calls the Resend MCP Server with a weekly summary: engagement stats, top questions, notable visitors. Always sent, regardless of lead count."
+        "detail": "The agent calls the Resend MCP Server with the report: visitors, chats by text, voice and avatar with response times, where visitors are, the visitor journey, top questions, LinkedIn reach, site speed and cost against budget."
       }
     ],
     "techDecisions": [
