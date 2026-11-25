@@ -1,7 +1,7 @@
 // hero-ask.js — spec 98: a pop-up nudge to try Atlas.
 //
 // A small speech bubble pops out of the "Chat with my AI agent, Atlas" button
-// right after the page lands (above the bottom bar on phones). It types sample
+// 2.5 seconds after the page lands (above the bottom bar on phones). It types sample
 // questions, alternating AI questions with questions about the AI Labs, and
 // clicking the bubble opens Atlas with that question already sent.
 //   - every page load, on screen for 30 seconds, then it leaves on its own;
@@ -17,7 +17,7 @@
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const SHOW_AFTER_MS = 1200;  // just long enough for the hero to land
+const SHOW_AFTER_MS = 2500;  // let the visitor read the hero first, then nudge
 const LIFETIME_MS = 30000;   // then it goes, unless the visitor is on it
 const TYPE_MS = 40;
 const ERASE_MS = 18;
