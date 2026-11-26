@@ -1159,10 +1159,6 @@ function initInsightsFlyout() {
         initPostsFlyout(flyoutRoot)
     ).then(inst => {
         if (!inst) return;
-        // posts-list sets the footer href to "#insights" (same-page on
-        // the main site). Here it must be the cross-page path.
-        const footLink = flyoutRoot.querySelector(".nav-flyout-foot");
-        if (footLink) footLink.href = "/#insights";
 
         const group = flyoutRoot.closest("[data-flyout-group]");
         const link  = group && group.querySelector("a[aria-haspopup]");

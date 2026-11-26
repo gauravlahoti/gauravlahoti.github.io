@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#000000">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://atlas-lw4bt7nrba-uc.a.run.app wss://atlas-lw4bt7nrba-uc.a.run.app; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>My website&#39;s AI agent used to only type. Now it talks back in 70+ languages. | Gaurav Lahoti</title>
     <meta name="description" content="Atlas, the AI agent on my portfolio site, has answered 418 questions from 19 cities across four countries so far. Until this weekend, it could only…">
     <link rel="canonical" href="https://gauravlahoti.dev/insights/my-websites-ai-agent-used-to-only-type-now-it-talks-back-in/">
@@ -28,8 +28,8 @@
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="assets/css/base.css?v=411">
     <link rel="stylesheet" href="assets/css/layout.css?v=421">
-    <link rel="stylesheet" href="assets/css/components.css?v=470">
-    <link rel="stylesheet" href="assets/css/insight.css?v=77a0cab8">
+    <link rel="stylesheet" href="assets/css/components.css?v=471">
+    <link rel="stylesheet" href="assets/css/insight.css?v=3001638f">
     <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -72,7 +72,7 @@
             <nav class="nav-links" aria-label="Primary">
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
-                <a href="/#insights" class="nav-link-active" aria-current="page">Insights</a>
+                <a href="/insights/" class="nav-link-active" aria-current="page">Insights</a>
                 <a href="/selected-work/">Selected Work</a>
                 <a href="/live-agents/">Live Agents</a>
             </nav>
@@ -112,7 +112,7 @@
             <nav class="nav-drawer-links" aria-label="Sections">
                 <a href="/#career">Career</a>
                 <a href="/#about">About</a>
-                <a href="/#insights">Insights</a>
+                <a href="/insights/">Insights</a>
                 <a href="/selected-work/">Selected Work</a>
                 <a href="/live-agents/">Live Agents</a>
             </nav>
@@ -123,9 +123,10 @@
     </aside>
 
     <main id="insight-main" class="insight-main">
-        <div class="insight-container">
+        <div class="insight-container insight-layout">
+            <div class="insight-primary">
             <nav class="insight-breadcrumb" aria-label="Breadcrumb">
-                <a href="/#insights" class="insight-back">
+                <a href="/insights/" class="insight-back">
                     <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
                     All insights
                 </a>
@@ -157,7 +158,9 @@ Both ship first-class in 3.5 Transcribe. That is the difference between a transc
                 <p>#VoiceAI #AIAgents #ADK #Gemini #AgenticAI</p>
                 </div>
             </article>
+            </div>
 
+            <div class="insight-rail">
             <aside class="insight-session" aria-label="1:1 sessions">
                 <p class="insight-cta-eyebrow">// 1:1 sessions</p>
                 <p class="insight-session-text">Building your first agent, or working out which cloud or AI cert to go for next? I do short 1:1 sessions on exactly that.</p>
@@ -166,10 +169,21 @@ Both ship first-class in 3.5 Transcribe. That is the difference between a transc
                 </a>
             </aside>
 
+            <nav class="insight-more" aria-label="More insights">
+                <p class="insight-cta-eyebrow">// More insights</p>
+                <ul class="insight-more-list">
+                    <li><a class="insight-more-link" href="/insights/i-built-an-agent-harness-in-plain-python-where-you-can-watch/">I built an agent harness in plain Python where you can watch every part light up</a></li>
+                    <li><a class="insight-more-link" href="/insights/mcp-explained-by-making-it-clickable-not-readable/">MCP explained by making it clickable, not readable</a></li>
+                    <li><a class="insight-more-link" href="/insights/i-attended-google-cloud-summit-india-2026-alongside-1000-ai/">I attended Google Cloud Summit India 2026 alongside 1000+ AI builders</a></li>
+                    <li><a class="insight-more-link" href="/insights/80-made-it-to-the-google-cloud-agentic-premier-league-grand/">80 made it to the Google Cloud Agentic Premier League Grand Finale. 15 finished on top. I was one of them.</a></li>
+                </ul>
+                <a class="insight-more-all" href="/insights/">View all 19 insights →</a>
+            </nav>
+
             <section class="insight-cta-section">
                 <p class="insight-cta-eyebrow">// More from Gaurav</p>
                 <div class="insight-cta-btns">
-                    <a class="btn btn-primary" href="/">
+                    <a class="btn btn-primary" href="/?chat=1" data-agent-open>
                         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="7" width="18" height="13" rx="3"/>
                             <circle cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
@@ -184,6 +198,7 @@ Both ship first-class in 3.5 Transcribe. That is the difference between a transc
                     </a>
                 </div>
             </section>
+            </div>
         </div>
     </main>
 
@@ -198,7 +213,9 @@ Both ship first-class in 3.5 Transcribe. That is the difference between a transc
         </div>
     </footer>
 
+    <div id="agent-root"></div>
     <script src="assets/js/insight-nav.js?v=0975ab23"></script>
+    <script type="module" src="assets/js/insight-atlas.js?v=422"></script>
 <script type="module" src="/assets/js/announcement.js?v=9"></script>
 </body>
 </html>

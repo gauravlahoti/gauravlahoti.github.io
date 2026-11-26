@@ -18,6 +18,7 @@ This site is built to be read by agents as well as people. It registers WebMCP t
 
 ## Writing
 
+- [All insights](https://gauravlahoti.dev/insights/)
 - [MCP explained by making it clickable, not readable](https://gauravlahoti.dev/insights/mcp-explained-by-making-it-clickable-not-readable/)
 - [I gave my website an employee](https://gauravlahoti.dev/insights/i-gave-my-website-an-employee-it-works-2-days-a-week-and-nev/)
 - [Context bloat is quietly wrecking your coding agent](https://gauravlahoti.dev/insights/context-bloat-is-quietly-wrecking-your-coding-agent/)

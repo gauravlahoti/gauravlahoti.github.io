@@ -25,7 +25,8 @@
       "google",
       "anthropic"
     ],
-    "slug": "i-built-an-agent-harness-in-plain-python-where-you-can-watch"
+    "slug": "i-built-an-agent-harness-in-plain-python-where-you-can-watch",
+    "featured": true
   },
   {
     "url": "https://www.linkedin.com/feed/update/urn:li:activity:7511100036873613314/",
@@ -106,7 +107,8 @@
       "modelcontextprotocol",
       "agenticai"
     ],
-    "slug": "mcp-explained-by-making-it-clickable-not-readable"
+    "slug": "mcp-explained-by-making-it-clickable-not-readable",
+    "featured": true
   },
   {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloudsummitindia-agenticai-googlecloudindia-ugcPost-7469420652228268032-oMZL/",
@@ -121,7 +123,8 @@
       "antigravity",
       "geminienterprise"
     ],
-    "slug": "i-attended-google-cloud-summit-india-2026-alongside-1000-ai"
+    "slug": "i-attended-google-cloud-summit-india-2026-alongside-1000-ai",
+    "featured": true
   },
   {
     "url": "https://www.linkedin.com/posts/glahoti_rag-agenticai-anthropic-ugcPost-7467893169557520384-04v1/",
@@ -169,7 +172,8 @@
       "gdg",
       "ai"
     ],
-    "slug": "80-made-it-to-the-google-cloud-agentic-premier-league-grand"
+    "slug": "80-made-it-to-the-google-cloud-agentic-premier-league-grand",
+    "featured": true
   },
   {
     "url": "https://www.linkedin.com/posts/glahoti_googlecloud-anthropic-developercommunity-ugcPost-7459463340470489089-RvoX?utm_source=share&utm_medium=member_desktop&rcm=ACoAABDhZQ8B14Sz9-RdUzCWGebD5biN3tgqr4A",
@@ -184,7 +188,8 @@
       "vibecoding",
       "promptwars"
     ],
-    "slug": "i-spent-a-weekend-inside-googles-promptwars-and-the-claude-c"
+    "slug": "i-spent-a-weekend-inside-googles-promptwars-and-the-claude-c",
+    "featured": true
   },
   {
     "url": "https://www.linkedin.com/posts/glahoti_anthropic-claudecode-codingagents-ugcPost-7456920960491839488-dmRL",
