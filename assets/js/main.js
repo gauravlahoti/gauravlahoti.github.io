@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "422";
+const ASSET_VERSION = "425";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -345,208 +345,19 @@ function auditConsole() {
     });
 }
 
+// Spec 109: "What I bring" is a bento rendered by capabilities.js, loaded as
+// the section nears the viewport (it brings its own stylesheet).
 function initCapabilities(profile) {
     const root = document.querySelector("[data-capabilities-root]");
     if (!root || !profile) return;
-
-    const caps = profile.capabilities || {};
-    // All chips are presentational — no click-to-scroll. Skill chips name
-    // technologies, not navigation targets. The "+N more" reveal trigger
-    // remains a real <button> because it actually does something.
-    renderAxis("ai-native", caps.aiNative || []);
-    renderAxis("cloud",     caps.cloud    || []);
-    renderAxis("business",  caps.business || []);
-
-    // Spec 22: collapse each axis behind a 3-chip preview on mobile.
-    if (isNarrow) setupCapabilitiesMobileCollapse(root);
-
-    // Row alignment across the 3 axis columns is now CSS-only — see the
-    // `display: contents` block in components.css.
-
-    const cards = root.querySelectorAll(".cap-card");
-    if (!cards.length) return;
-
-    const gsap = window.gsap;
-
     const io = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.disconnect();
-            if (gsap && !reduceMotion) {
-                // clearProps wipes inline opacity+transform once the tween
-                // finishes so nothing leaks into post-animation layout.
-                gsap.from(cards, {
-                    opacity: 0,
-                    y: 16,
-                    stagger: 0.05,
-                    duration: 0.5,
-                    ease: "power3.out",
-                    clearProps: "opacity,transform",
-                });
-            }
-            triggerScanLines(cards);
-        }
-    }, { rootMargin: "0px 0px -10% 0px" });
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        import(v("./capabilities.js"))
+            .then(({ initCapabilities: init }) => init(root, { profile }))
+            .catch((err) => console.warn("[capabilities] failed to init", err));
+    }, { rootMargin: "800px 0px" });
     io.observe(root);
-}
-
-const CHIP_VISIBLE_LIMIT = 5;
-
-function renderAxis(axisKey, groups) {
-    const body = document.querySelector(`[data-axis-body="${axisKey}"]`);
-    if (!body) return;
-    body.replaceChildren();
-
-    groups.forEach((group, idx) => {
-        const card = document.createElement("article");
-        card.className = "cap-card";
-        card.dataset.axis = axisKey;
-        if (group.key) card.dataset.key = group.key;
-
-        const index = String(idx + 1).padStart(2, "0");
-        card.innerHTML = `
-            <span class="cap-bracket cap-bracket-tl" aria-hidden="true"></span>
-            <span class="cap-bracket cap-bracket-br" aria-hidden="true"></span>
-            <span class="cap-scan" aria-hidden="true"></span>
-            <span class="cap-index" aria-hidden="true">${index}</span>
-            <header class="cap-card-head">
-                <h4 class="cap-label">${escapeHtml(group.label || group.key || "")}</h4>
-            </header>
-            ${group.context ? `<p class="cap-context">${escapeHtml(group.context)}</p>` : ""}
-            <ul class="cap-chips" role="list"></ul>
-        `;
-
-        const chipList = card.querySelector(".cap-chips");
-        const items = group.items || [];
-        const overflow = items.length > CHIP_VISIBLE_LIMIT;
-
-        items.forEach((name, i) => {
-            const li = document.createElement("li");
-            if (overflow && i >= CHIP_VISIBLE_LIMIT) li.className = "cap-chip-extra";
-            li.appendChild(buildChip(name));
-            chipList.appendChild(li);
-        });
-
-        if (overflow) {
-            chipList.dataset.collapsed = "true";
-            const moreLi = document.createElement("li");
-            moreLi.className = "cap-chip-more-wrap";
-            const moreBtn = document.createElement("button");
-            moreBtn.type = "button";
-            moreBtn.className = "cap-chip cap-chip-more";
-            moreBtn.dataset.capMore = "";
-            moreBtn.setAttribute("aria-expanded", "false");
-            moreBtn.textContent = `+${items.length - CHIP_VISIBLE_LIMIT} more`;
-
-            const fewerLi = document.createElement("li");
-            fewerLi.className = "cap-chip-extra cap-chip-fewer-wrap";
-            const fewerBtn = document.createElement("button");
-            fewerBtn.type = "button";
-            fewerBtn.className = "cap-chip cap-chip-more";
-            fewerBtn.textContent = "Show fewer";
-
-            const setCollapsed = (collapsed) => {
-                chipList.dataset.collapsed = String(collapsed);
-                moreBtn.setAttribute("aria-expanded", String(!collapsed));
-            };
-            moreBtn.addEventListener("click", () => setCollapsed(false));
-            fewerBtn.addEventListener("click", () => setCollapsed(true));
-
-            moreLi.appendChild(moreBtn);
-            fewerLi.appendChild(fewerBtn);
-            chipList.appendChild(moreLi);
-            chipList.appendChild(fewerLi);
-        }
-
-        body.appendChild(card);
-    });
-}
-
-function buildChip(name) {
-    const iconEl = chipIconSvgEl(name);
-    const labelEl = document.createElement("span");
-    labelEl.className = "cap-chip-label";
-    labelEl.textContent = name;
-
-    const el = document.createElement("span");
-    el.className = "cap-chip";
-    el.appendChild(iconEl);
-    el.appendChild(labelEl);
-    return el;
-}
-
-const CHIP_ICON_PATHS = {
-    sparkle:  '<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4.3 4.3l2.1 2.1M9.6 9.6l2.1 2.1M4.3 11.7l2.1-2.1M9.6 6.4l2.1-2.1"/>',
-    cursor:   '<path d="M3 3 L13 8 L8.5 9 L7 13 Z"/>',
-    bracket:  '<path d="M6 4 L2 8 L6 12 M10 4 L14 8 L10 12"/>',
-    triangle: '<path d="M2.5 13 L8 3 L13.5 13 Z"/>',
-    cloud:    '<path d="M4 11h8a3 3 0 0 0 0-6 4 4 0 0 0-8 0 3 3 0 0 0 0 6Z"/>',
-    chain:    '<path d="M6 6H5a3 3 0 0 0 0 6h1M10 6h1a3 3 0 0 1 0 6h-1M5 9h6"/>',
-    dots:     '<circle cx="3.5" cy="5" r="1"/><circle cx="8" cy="5" r="1"/><circle cx="12.5" cy="5" r="1"/><circle cx="3.5" cy="11" r="1"/><circle cx="8" cy="11" r="1"/><circle cx="12.5" cy="11" r="1"/>',
-    cube:     '<path d="M8 2 L13 5 L8 8 L3 5 Z M3 5 V11 L8 14 V8 M13 5 V11 L8 14"/>',
-    flow:     '<path d="M3 4 H13 M3 8 H13 M3 12 H13"/>',
-    lock:     '<path d="M5 8 V6 a3 3 0 0 1 6 0 V8"/><rect x="3.5" y="8" width="9" height="6" rx="1"/>',
-    db:       '<ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4 V12 a5 2 0 0 0 10 0 V4 M3 8 a5 2 0 0 0 10 0"/>',
-    chart:    '<path d="M3 13 V8 M7 13 V5 M11 13 V3 M2.5 13 H12"/>',
-    shield:   '<path d="M8 2 L13 4 V8 a5 6 0 0 1 -5 6 a5 6 0 0 1 -5 -6 V4 Z"/>',
-    ring:     '<circle cx="8" cy="8" r="5"/>',
-    diamond:  '<path d="M8 2 L14 8 L8 14 L2 8 Z"/>'
-};
-
-function chipIconKey(name) {
-    const n = (name || "").toLowerCase();
-    if (n.includes("claude") || n.includes("gemini") || n.includes("gpt")) return "sparkle";
-    if (n.includes("cursor") || n.includes("windsurf")) return "cursor";
-    if (n.includes("vs code") || n.includes("vscode") || n.includes("copilot")) return "bracket";
-    if (n.includes("openapi") || n.includes("oas") ||
-        n.includes("python") || n.includes("pydantic") || n.includes("fastapi") || n.includes("sql") ||
-        n.includes("tool calling") || n.includes("function calling") || n.includes("structured output")) return "bracket";
-    if (n.includes("vertex") || n.includes("agent platform") || n.includes("gcp") || n.includes("adk")) return "triangle";
-    if (n.includes("aws") || n.includes("bedrock") || n.includes("lambda") ||
-        n.includes("eventbridge") || n.includes("sagemaker") ||
-        n.includes("cloud run") || n.includes("gemini enterprise") || n === "s3") return "cloud";
-    if (n.includes("langchain") || n.includes("langgraph") || n.includes("mcp") ||
-        n.includes("a2a") || n.includes("agent-to-agent") || n.includes("model context") ||
-        n.includes("crewai") || n.includes("autogen")) return "chain";
-    if (n.includes("rag") || n.includes("vector") || n.includes("pinecone") ||
-        n.includes("embedding") || n.includes("titan") || n.includes("gecko") ||
-        n.includes("hybrid search") || n.includes("reranking")) return "dots";
-    if (n.includes("kubernetes") || n.includes("terraform")) return "cube";
-    if (n.includes("pub/sub") || n.includes("event-driven") || n.includes("microservice") ||
-        n.includes("apigee") || n.includes("boomi") || n.includes("oracle") || n.includes("odi") ||
-        n.includes("integration")) return "flow";
-    if (n.includes("guardrails")) return "shield";
-    if (n.includes("oauth") || n.includes("iam") || n.includes("zero trust") ||
-        n.includes("dlp") || n.includes("security")) return "lock";
-    if (n.includes("firestore") || n.includes("bigquery") || n.includes("alloydb") ||
-        n.includes("pgvector")) return "db";
-    if (n.includes("langsmith") || n.includes("langfuse") || n.includes("phoenix") ||
-        n.includes("arize") || n.includes("promptfoo") || n.includes("opentelemetry") ||
-        n.includes("agent engine") || n.includes("eval") || n.includes("observability")) return "chart";
-    if (n.includes("agent sdk") || n.includes("agent skills") ||
-        n.includes("progressive disclosure") || n.includes("cloud deployment")) return "ring";
-    return "diamond";
-}
-
-function chipIconSvgEl(name) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "cap-chip-icon");
-    svg.setAttribute("viewBox", "0 0 16 16");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "1.4");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    svg.setAttribute("aria-hidden", "true");
-    svg.innerHTML = CHIP_ICON_PATHS[chipIconKey(name)] || CHIP_ICON_PATHS.diamond;
-    return svg;
-}
-
-function triggerScanLines(cards) {
-    if (reduceMotion) return;
-    cards.forEach((card, i) => {
-        setTimeout(() => card.classList.add("is-scanned"), 200 + i * 80);
-    });
 }
 
 function escapeHtml(s) {
@@ -1144,62 +955,6 @@ function setupScrollAwareBottombar() {
         });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-}
-
-function setupCapabilitiesMobileCollapse(root) {
-    const axes = root.querySelectorAll(".cap-axis");
-    axes.forEach((axis) => {
-        const cards = axis.querySelectorAll(".cap-card");
-        if (!cards.length) return;
-
-        // Build a 3-label preview from the first three capability labels.
-        const previewLabels = Array.from(cards).slice(0, 3).map((card) => {
-            const label = card.querySelector(".cap-label");
-            return label ? label.textContent.trim() : "";
-        }).filter(Boolean);
-
-        const preview = document.createElement("ul");
-        preview.className = "cap-axis-mobile-preview";
-        preview.setAttribute("aria-hidden", "true");
-        previewLabels.forEach((text) => {
-            const li = document.createElement("li");
-            li.textContent = text;
-            preview.appendChild(li);
-        });
-
-        const toggle = document.createElement("button");
-        toggle.type = "button";
-        toggle.className = "cap-axis-mobile-toggle";
-        const labelEl = document.createElement("span");
-        labelEl.textContent = `Show ${cards.length} capabilities`;
-        const arrow = document.createElement("span");
-        arrow.className = "cap-axis-mobile-toggle-arrow";
-        arrow.setAttribute("aria-hidden", "true");
-        arrow.textContent = "›";
-        toggle.appendChild(labelEl);
-        toggle.appendChild(arrow);
-        toggle.setAttribute("aria-expanded", "false");
-
-        const cardsEl = axis.querySelector(".cap-axis-cards");
-        if (cardsEl) {
-            cardsEl.parentNode.insertBefore(preview, cardsEl);
-            cardsEl.parentNode.insertBefore(toggle, cardsEl);
-        } else {
-            axis.appendChild(preview);
-            axis.appendChild(toggle);
-        }
-
-        axis.setAttribute("data-mobile-collapsed", "true");
-
-        toggle.addEventListener("click", () => {
-            const collapsed = axis.getAttribute("data-mobile-collapsed") === "true";
-            axis.setAttribute("data-mobile-collapsed", collapsed ? "false" : "true");
-            toggle.setAttribute("aria-expanded", String(collapsed));
-            labelEl.textContent = collapsed
-                ? "Hide capabilities"
-                : `Show ${cards.length} capabilities`;
-        });
-    });
 }
 
 function setupTrajectoryMobileCollapse(root) {

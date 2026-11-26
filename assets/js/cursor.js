@@ -96,6 +96,9 @@ export function initCursor(opts = {}) {
         }
 
         let targetX, targetY, targetW, targetH;
+        // Brackets show only around a magnet (links, buttons, cards); idle
+        // they fade out so they never sit on top of text (spec 109).
+        cursor.classList.toggle("is-idle", !cachedMagnet);
         if (cachedMagnet) {
             cursor.classList.add("is-magnet");
             // Re-read rect each frame so the brackets follow the magnet
