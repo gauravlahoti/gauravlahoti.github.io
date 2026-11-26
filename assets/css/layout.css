@@ -569,7 +569,6 @@ main { padding-top: 0; }
     letter-spacing: 0.04em;
     pointer-events: auto;
 }
-.chrome-tl { grid-column: 1; grid-row: 1; justify-self: start; }
 .chrome-tr { grid-column: 2; grid-row: 1; justify-self: end; text-align: right; }
 .chrome-bl { grid-column: 1; grid-row: 3; justify-self: start; }
 .chrome-br { grid-column: 2; grid-row: 3; justify-self: end; text-align: right; }
@@ -692,7 +691,6 @@ main { padding-top: 0; }
     }
     /* Hide the chrome status line on mobile — it overlaps the portrait
        column at narrow widths and the brand row already conveys context. */
-    .chrome-tl { display: none; }
 }
 @media (max-width: 600px) {
     .hero-stack { padding-bottom: 130px; }
