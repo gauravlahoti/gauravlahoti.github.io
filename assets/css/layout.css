@@ -738,7 +738,8 @@ main { padding-top: 0; }
 }
 
 .cap-header {
-    max-width: 760px;
+    /* Spec 109: the intro spans the bento below (CLAUDE.md layout rule). */
+    max-width: none;
     margin-bottom: var(--space-10);
     display: flex;
     flex-direction: column;
@@ -762,7 +763,6 @@ main { padding-top: 0; }
     color: var(--ink-muted);
     font-size: var(--text-base);
     line-height: 1.55;
-    max-width: 620px;
 }
 .cap-return {
     margin-top: var(--space-2);

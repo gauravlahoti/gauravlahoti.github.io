@@ -78,6 +78,20 @@
       { "key": "people",     "label": "People & mentorship",   "context": "Growing engineers from joiners to senior contributors",               "items": ["Mentorship", "Capability academies", "1:1 coaching", "Performance reviews"] }
     ]
   },
+  "bring": {
+    "intro": "I design AI agents that reason and act, and the cloud platforms that carry them to production.",
+    "pillars": [
+      { "key": "ai",    "eyebrow": "AI-native architecture", "title": "Agents that reason, act, and run in production.", "signal": "agents", "link": { "label": "See it running", "href": "/live-agents/" } },
+      { "key": "cloud", "eyebrow": "Cloud foundations",      "title": "Production platforms on GCP and AWS, secure by default.", "signal": "certs", "stack": ["Cloud Run", "Vertex AI", "BigQuery", "Pub/Sub", "AWS Lambda", "Terraform"], "link": { "label": "See the case studies", "href": "/selected-work/" } }
+    ],
+    "tiles": [
+      { "key": "multi",    "viz": "nodes", "title": "Multi-agent systems",   "line": "Agents that plan, hand off and recover, built on ADK and the Claude Agent SDK.", "tools": ["Google ADK", "Claude Agent SDK", "LangGraph"] },
+      { "key": "protocol", "viz": "wire",  "title": "MCP & A2A",             "line": "Tools and agents wired through open protocols, not glue code.",                   "tools": ["MCP", "A2A", "WebMCP"] },
+      { "key": "evals",    "viz": "evals", "title": "Evals before shipping", "line": "Agents graded before they ship, with eval sets, LLM-as-judge and tracing.",      "tools": ["LangSmith", "Vertex AI Eval", "Cloud Trace"] },
+      { "key": "secure",   "viz": "lock",  "title": "Secure by default",     "line": "Least privilege, zero trust and data-loss prevention, designed in from day one.", "tools": ["IAM", "OAuth2", "DLP"] }
+    ],
+    "toolkitLabel": "Full toolkit"
+  },
   "certifications": [
     {
       "name": "Claude Certified Associate · Foundations",

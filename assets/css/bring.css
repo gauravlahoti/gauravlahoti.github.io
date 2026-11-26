@@ -1,0 +1,434 @@
+/* bring.css: the "What I bring" bento (spec 109). Loaded by capabilities.js
+   when the section is about to render, so it costs first paint nothing.
+   Motion is opt-in: every tile's resting state is its final state, and
+   reveals, glyph loops and the spotlight's easing only run when reduced
+   motion is off. */
+
+@property --spot {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+/* ── Grid ─────────────────────────────────────────────────────────────── */
+
+.bring-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+.bring-pillar--ai    { grid-column: span 7; }
+.bring-pillar--cloud { grid-column: span 5; }
+.bring-skills {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+    border-radius: var(--radius-lg);
+}
+.bring-skills:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+}
+
+@media (max-width: 1023px) {
+    .bring-pillar--ai,
+    .bring-pillar--cloud { grid-column: span 12; }
+    .bring-skills        { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Phones: the four skills become one swipeable row instead of four
+   full-height tiles stacked on top of each other. */
+@media (max-width: 599px) {
+    .bring-skills {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        margin-inline: calc(-1 * var(--space-4));
+        padding-inline: var(--space-4);
+        scroll-padding-inline: var(--space-4);
+    }
+    .bring-skills::-webkit-scrollbar { display: none; }
+    .bring-skill {
+        flex: 0 0 78%;
+        scroll-snap-align: start;
+    }
+}
+
+/* ── Tile ─────────────────────────────────────────────────────────────── */
+
+.bring-tile {
+    position: relative;
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-6);
+    background:
+        radial-gradient(120% 80% at 100% 0%, var(--accent-soft), transparent 60%),
+        var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    isolation: isolate;
+    transition: border-color var(--dur-fast) var(--ease-out);
+}
+.bring-skill {
+    background: var(--bg-elev);
+}
+.bring-tile:hover {
+    border-color: var(--border-strong);
+}
+
+/* Border spotlight that follows the pointer. A 1px ring masked to a radial
+   gradient around --mx/--my; --spot grows on hover. */
+.bring-tile::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: radial-gradient(
+        var(--spot) circle at var(--mx, 50%) var(--my, 0%),
+        var(--accent),
+        transparent 100%
+    );
+    -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask:
+        linear-gradient(#000 0 0) content-box exclude,
+        linear-gradient(#000 0 0);
+    pointer-events: none;
+    z-index: -1;
+}
+/* A soft inner glow under the pointer, same position. */
+.bring-tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+        calc(var(--spot) * 1.6) circle at var(--mx, 50%) var(--my, 0%),
+        var(--accent-soft),
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: -1;
+}
+.bring-tile:hover { --spot: 220px; }
+@media (prefers-reduced-motion: no-preference) {
+    .bring-tile { transition: border-color var(--dur-fast) var(--ease-out), --spot 0.35s var(--ease-out); }
+}
+
+/* Scroll-driven entrance where supported; otherwise tiles simply sit there. */
+@media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+        .bring-tile {
+            animation: bring-rise linear both;
+            animation-timeline: view();
+            animation-range: entry 0% entry 55%;
+        }
+    }
+}
+@keyframes bring-rise {
+    from { opacity: 0; translate: 0 28px; scale: 0.98; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+}
+
+/* ── Pillars ──────────────────────────────────────────────────────────── */
+
+.bring-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+.bring-title {
+    font-family: var(--font-sans);
+    font-size: clamp(var(--text-xl), 2.4vw, 1.875rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    max-width: 22ch;
+}
+.bring-signal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+.bring-signal-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin-top: var(--space-2);
+}
+.bring-live,
+.bring-labs,
+.bring-issuers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.bring-chiplink {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--bg);
+    transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.bring-chiplink:hover,
+.bring-chiplink:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.bring-labs .bring-chiplink {
+    color: var(--ink-muted);
+}
+.bring-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent-glow);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .bring-dot { animation: bring-ping 2.4s var(--ease-out) 2; }
+    .bring-live li:nth-child(2) .bring-dot { animation-delay: 0.3s; }
+    .bring-live li:nth-child(3) .bring-dot { animation-delay: 0.6s; }
+    .bring-live li:nth-child(4) .bring-dot { animation-delay: 0.9s; }
+    .bring-live li:nth-child(5) .bring-dot { animation-delay: 1.2s; }
+}
+@keyframes bring-ping {
+    0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
+    70%  { box-shadow: 0 0 0 7px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.bring-stat {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+}
+.bring-stat-num {
+    font-family: var(--font-sans);
+    font-size: clamp(3rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+}
+.bring-stat-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+.bring-issuers li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+.bring-stack {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.7;
+    color: var(--ink);
+}
+.bring-issuer-count {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+}
+
+.bring-foot {
+    margin-top: auto;
+    padding-top: var(--space-4);
+}
+.bring-link {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: none;
+}
+.bring-link:hover,
+.bring-link:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+/* Wide pillar: title on the left, signals on the right. */
+@container (min-width: 640px) {
+    .bring-pillar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+            "eyebrow signal"
+            "title   signal"
+            "foot    signal";
+        grid-template-rows: auto auto 1fr;
+        column-gap: var(--space-8);
+    }
+    .bring-pillar .bring-eyebrow { grid-area: eyebrow; }
+    .bring-pillar .bring-title   { grid-area: title; }
+    .bring-pillar .bring-signal  { grid-area: signal; margin-top: 0; }
+    .bring-pillar .bring-foot    { grid-area: foot; align-self: end; }
+    .bring-pillar .bring-signal-label:first-child { margin-top: 0; }
+}
+
+/* ── Skill tiles ──────────────────────────────────────────────────────── */
+
+.bring-viz-wrap {
+    height: 44px;
+    margin-bottom: var(--space-2);
+}
+.bring-viz {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    overflow: visible;
+}
+.bring-skill-title {
+    font-family: var(--font-sans);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--ink);
+}
+.bring-skill-line {
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    color: var(--ink-muted);
+}
+.bring-tools {
+    margin-top: auto;
+    padding-top: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+}
+
+/* Glyph base styles (the resting, final state). */
+.bring-viz .bv-link,
+.bring-viz .bv-wire { stroke: var(--border-strong); stroke-width: 2; fill: none; }
+.bring-viz .bv-node { fill: var(--bg); stroke: var(--accent); stroke-width: 2; }
+.bring-viz .bv-signal {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    fill: none;
+    stroke-dasharray: 14 200;
+    stroke-dashoffset: -58;
+}
+.bring-viz .bv-port { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.bring-viz .bv-track { fill: var(--border); }
+.bring-viz .bv-fill { fill: var(--accent); transform-origin: 4px 22px; }
+.bring-viz .bv-pass { fill: var(--accent); font-family: var(--font-mono); font-size: 11px; }
+.bring-viz .bv-shackle { stroke: var(--accent); stroke-width: 3; fill: none; stroke-linecap: round; }
+.bring-viz .bv-body { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.bring-viz .bv-key { fill: var(--accent); }
+
+/* Glyph motion: a few runs each time the tile comes into view (under 5s in
+   total, so no pause control is needed), only with motion allowed. */
+@media (prefers-reduced-motion: no-preference) {
+    .is-inview .bv-n1 { animation: bv-hand 1.5s var(--ease-out) 3; }
+    .is-inview .bv-n2 { animation: bv-hand 1.5s var(--ease-out) 0.25s 3; }
+    .is-inview .bv-n3 { animation: bv-hand 1.5s var(--ease-out) 0.5s 3; }
+    .is-inview .bv-signal { animation: bv-travel 1.4s var(--ease-in-out) 3; }
+    .is-inview .bv-fill { animation: bv-fill 1.5s var(--ease-out) 3; }
+    .is-inview .bv-pass { animation: bv-pass 1.5s var(--ease-out) 3; }
+    .is-inview .bv-shackle { animation: bv-close 1.5s var(--ease-spring) 3; }
+}
+@keyframes bv-hand {
+    0%, 100% { fill: var(--bg); }
+    30%      { fill: var(--accent); }
+}
+@keyframes bv-travel {
+    from { stroke-dashoffset: 0; }
+    to   { stroke-dashoffset: -58; }
+}
+@keyframes bv-fill {
+    from { scale: 0 1; }
+    to   { scale: 1 1; }
+}
+@keyframes bv-pass {
+    0%, 70% { opacity: 0; }
+    100%    { opacity: 1; }
+}
+@keyframes bv-close {
+    0%       { translate: 0 -5px; }
+    60%, 100% { translate: 0 0; }
+}
+
+/* ── Full toolkit ─────────────────────────────────────────────────────── */
+
+.bring-toolkit {
+    margin-top: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-elev);
+}
+.bring-toolkit-summary {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink);
+}
+.bring-toolkit-summary::-webkit-details-marker { display: none; }
+.bring-toolkit-summary::before {
+    content: "▸";
+    color: var(--accent);
+    transition: rotate var(--dur-fast) var(--ease-out);
+}
+.bring-toolkit[open] > .bring-toolkit-summary::before { rotate: 90deg; }
+.bring-toolkit-count {
+    color: var(--ink-subtle);
+    font-size: var(--text-xs);
+}
+.bring-toolkit-summary:hover .bring-toolkit-label { color: var(--accent); }
+.bring-toolkit-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--space-8);
+    padding: var(--space-2) var(--space-6) var(--space-6);
+}
+.bring-toolkit-head {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: var(--space-3);
+}
+.bring-toolkit-list dt {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: var(--space-3);
+}
+.bring-toolkit-list dd {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    color: var(--ink-muted);
+}

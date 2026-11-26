@@ -21,8 +21,8 @@
          before first paint (paint waits for the stylesheets anyway), so the page
          transition guard and scroll reset behave the same. -->
     <link rel="stylesheet" href="assets/css/base.css?v=411">
-    <link rel="stylesheet" href="assets/css/layout.css?v=421">
-    <link rel="stylesheet" href="assets/css/components.css?v=471">
+    <link rel="stylesheet" href="assets/css/layout.css?v=422">
+    <link rel="stylesheet" href="assets/css/components.css?v=472">
     <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
     <!-- The questions counter and the post chips call this backend a moment after boot. Opening
          the connection now (DNS, TCP, TLS) takes that round trip off a first-time visitor's wait.
@@ -38,7 +38,7 @@
          downloading, instead of when the parser reaches the end of <body>. Its
          ?v= must match the <script type="module"> tag below; /publish bumps every
          ?v=N in this file together, so they stay in step. -->
-    <link rel="modulepreload" href="assets/js/main.js?v=422">
+    <link rel="modulepreload" href="assets/js/main.js?v=425">
     <!-- Warm announcement.css in parallel with announcement.json. announcement.js
          still injects the stylesheet itself, but now it is already in cache, so
          the bar no longer waits for a second round trip. Keep ?v= equal to the
@@ -400,33 +400,14 @@
 
         <section id="about" class="section section-capabilities" aria-label="Capabilities">
             <header class="cap-header" data-reveal>
-                <p class="cap-eyebrow">// architect.capabilities()</p>
+                <p class="cap-eyebrow">// what I bring</p>
                 <h2 class="cap-title">What I bring.</h2>
-                <p class="cap-sub">Three layers to every system I build. AI-native architecture leads, with agents that reason and act. Cloud foundations carry it to production. And eleven years of enterprise delivery makes sure it actually ships.</p>
-                <p class="cap-return mono"><span class="kw">return</span> <span data-bind="profile.name">Gaurav Lahoti</span>;</p>
+                <p class="cap-sub" data-bind="profile.bring.intro">I design AI agents that reason and act, and the cloud platforms that carry them to production.</p>
             </header>
-            <div class="capabilities-grid" data-capabilities-root>
-                <section class="cap-axis" data-axis="ai-native" aria-label="AI-native architecture capabilities">
-                    <header class="cap-axis-head">
-                        <span class="cap-axis-tag">// axis.01</span>
-                        <h3 class="cap-axis-title">AI-Native Architecture</h3>
-                    </header>
-                    <div class="cap-axis-cards" data-axis-body="ai-native"></div>
-                </section>
-                <section class="cap-axis" data-axis="cloud" aria-label="Cloud foundations capabilities">
-                    <header class="cap-axis-head">
-                        <span class="cap-axis-tag">// axis.02</span>
-                        <h3 class="cap-axis-title">Cloud Foundations</h3>
-                    </header>
-                    <div class="cap-axis-cards" data-axis-body="cloud"></div>
-                </section>
-                <section class="cap-axis" data-axis="business" aria-label="Business and delivery capabilities">
-                    <header class="cap-axis-head">
-                        <span class="cap-axis-tag">// axis.03</span>
-                        <h3 class="cap-axis-title">Business &amp; Delivery</h3>
-                    </header>
-                    <div class="cap-axis-cards" data-axis-body="business"></div>
-                </section>
+            <!-- Spec 109: bento rendered by assets/js/capabilities.js from
+                 profile.bring + profile.capabilities (full toolkit). -->
+            <div class="bring" data-capabilities-root></div>
+        </section>
             </div>
         </section>
 
@@ -472,7 +453,7 @@
          the FAB and slide-in panel; lazy-loaded via requestIdleCallback. -->
     <div id="agent-root"></div>
 
-    <script type="module" src="assets/js/main.js?v=422"></script>
+    <script type="module" src="assets/js/main.js?v=425"></script>
 <script type="module" src="/assets/js/announcement.js?v=9"></script>
 </body>
 </html>

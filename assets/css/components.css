@@ -1402,6 +1402,10 @@
 }
 .cursor.is-hidden,
 .cursor.is-touch { opacity: 0; }
+/* Spec 109: the brackets only show around something clickable. Idle, they
+   sat over body text ("platf[o]rms") and read as a rendering glitch,
+   especially on a screen share. */
+.cursor.is-idle { opacity: 0; }
 
 /* Hide the magnetic cursor while the agent panel is open. Otherwise the
    brackets stay snapped to whichever magnet was last under the mouse
