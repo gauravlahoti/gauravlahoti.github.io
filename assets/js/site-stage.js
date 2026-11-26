@@ -54,13 +54,26 @@ const REDUCE_MOTION = typeof matchMedia === "function" && matchMedia("(prefers-r
 // stage instead of loading a second copy of the site (and its Atlas) in it.
 const HOME_PATHS = new Set(["/", "/index.html"]);
 
+// Spec 108: Atlas also runs on pages that aren't the home page (insight posts,
+// /live-agents/). There a home-page section can't be scrolled to, so it opens
+// in the stage frame instead (main.js keeps a framed home page's own Atlas
+// off), and the home page is real content in the frame, not "take me back".
+// (Unit tests import this module under Node, where there is no `location`.)
+const ON_HOME = typeof location === "undefined" || HOME_PATHS.has(location.pathname);
+
 let stage = null; // { root, frame, title, onClose }
 
 // Show a target. Returns its title, or null for an unknown key.
 // `onChange(open)` is told when the stage opens or closes.
 export function showTarget(key, { onChange } = {}) {
-    const t = resolveTarget(key);
+    let t = resolveTarget(key);
     if (!t) return null;
+    if (t.section && !ON_HOME) {
+        // Insights has its own page now; every other section is on the home page.
+        t = t.section === "insights"
+            ? { path: "/insights/", title: t.title }
+            : { path: t.section === "top" ? "/" : `/#${t.section}`, title: t.title };
+    }
     if (t.section) {
         closeStage();
         document.dispatchEvent(new CustomEvent("portfolio:scroll-to", { detail: { anchor: "#" + t.section } }));
@@ -122,7 +135,8 @@ function openStage(t, onChange) {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "site-stage-close";
-    close.textContent = "Back to home";
+    // Off the home page, closing returns to the page the visitor was on.
+    close.textContent = ON_HOME ? "Back to home" : "Close";
     close.addEventListener("click", closeStage);
     // Close first: on a wide screen the Atlas panel covers the bar's right end.
     bar.append(close, title);
@@ -136,7 +150,7 @@ function openStage(t, onChange) {
         // home page means "take me back".
         let path = "";
         try { path = frame.contentWindow.location.pathname; } catch (_) { return; }
-        if (HOME_PATHS.has(path)) closeStage();
+        if (ON_HOME && HOME_PATHS.has(path)) closeStage();
     });
 
     root.append(bar, frame);

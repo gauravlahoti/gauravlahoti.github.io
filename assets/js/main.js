@@ -33,7 +33,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "419";
+const ASSET_VERSION = "422";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -283,6 +283,17 @@ function initAgentWidgetOnBoot(profile, sessionId) {
     // (which could be 2.5s in), so the chat opens the moment someone clicks. The
     // voice and avatar modules stay lazy: they load only when a mode is picked.
     start();
+
+    // Spec 108: "Chat with my agent" on insight pages links to /?chat=1, so
+    // the visitor lands with Atlas already open. Drop the param afterwards so
+    // a reload or a shared link doesn't keep reopening it.
+    const params = new URLSearchParams(location.search);
+    if (params.has("chat")) {
+        params.delete("chat");
+        const qs = params.toString();
+        history.replaceState(history.state, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
+        Promise.resolve(start()).then((api) => api && api.open && api.open("insight-post"));
+    }
     return start;
 }
 
@@ -704,7 +715,9 @@ function initPostsListWhenVisible(profile) {
         initPromise = (async () => {
             try {
                 const { initPostsList } = await import(v("./posts-list.js"));
-                const inst = await initPostsList(root, { metricsApi });
+                // Spec 108: the home page shows the five featured posts plus
+                // a "View all" link; the full list lives on /insights/.
+                const inst = await initPostsList(root, { metricsApi, featured: true, limit: 5 });
                 window.__postsList = inst;
             } catch (err) {
                 console.warn("[posts] failed to init", err);

@@ -70,18 +70,115 @@ function siteVersion(asset) {
     return m[1];
 }
 // ?v= for an insight-only asset: short hash of the file, so editing it busts the cache.
-function hashVersion(relPath) {
-    return createHash("sha1").update(readFileSync(join(ROOT, relPath))).digest("hex").slice(0, 8);
+function hashVersion(...relPaths) {
+    const h = createHash("sha1");
+    for (const p of relPaths) h.update(readFileSync(join(ROOT, p)));
+    return h.digest("hex").slice(0, 8);
 }
 const V = {
     base: siteVersion("base.css"),
     layout: siteVersion("layout.css"),
     components: siteVersion("components.css"),
     announcement: siteVersion("announcement.js"),
+    // insight-atlas.js loads the chat widget with this ?v=, the same one the
+    // home page uses for main.js and everything it imports.
+    atlas: siteVersion("main.js"),
     insightCss: hashVersion("assets/css/insight.css"),
     insightNav: hashVersion("assets/js/insight-nav.js"),
+    // The index page's module imports posts-list.js with its own ?v=, so the
+    // hash covers both files.
+    insightsPage: hashVersion("assets/js/insights-page.js", "assets/js/posts-list.js"),
 };
-const CSP = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+// connect-src and media-src come from index.html's CSP, which is updated after
+// every Atlas deploy, so the chat widget on these pages reaches the same hosts.
+const homeCsp = (indexHtml.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || "";
+const homeDirective = (name) => {
+    const m = homeCsp.match(new RegExp(`${name} [^;]+`));
+    if (!m) throw new Error(`index.html CSP has no ${name}`);
+    return m[0];
+};
+const CSP = `default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; ${homeDirective("media-src")}; ${homeDirective("connect-src")}; object-src 'none'; base-uri 'self'; form-action 'self'`;
+
+// Nav + drawer and footer, shared by the post pages and the /insights/ index.
+const NAV = `    <header class="nav" role="banner">
+        <div class="nav-inner">
+            <a class="nav-brand" href="/">Gaurav Lahoti</a>
+            <button class="nav-menu-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-trigger>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+            </button>
+            <nav class="nav-links" aria-label="Primary">
+                <a href="/#career">Career</a>
+                <a href="/#about">About</a>
+                <a href="/insights/" class="nav-link-active" aria-current="page">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
+                <a href="/live-agents/">Live Agents</a>
+            </nav>
+            <div class="nav-actions">
+                <ul class="nav-channels" aria-label="Channels">
+                    <li>
+                        <a class="nav-channel" href="mailto:gaurav.lahoti25@gmail.com" aria-label="Email">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/></svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                        </a>
+                    </li>
+                </ul>
+                <a class="nav-cta btn btn-outline-accent btn-sm" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                    <span>Book a 1:1</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <aside class="nav-drawer" id="nav-drawer" aria-hidden="true" data-nav-drawer>
+        <div class="nav-drawer-backdrop" data-nav-close aria-hidden="true"></div>
+        <div class="nav-drawer-panel" role="dialog" aria-modal="true" aria-label="Site navigation">
+            <button class="nav-drawer-close" type="button" aria-label="Close menu" data-nav-close>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18"/>
+                </svg>
+            </button>
+            <nav class="nav-drawer-links" aria-label="Sections">
+                <a href="/#career">Career</a>
+                <a href="/#about">About</a>
+                <a href="/insights/">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
+                <a href="/live-agents/">Live Agents</a>
+            </nav>
+            <a class="nav-drawer-cta btn btn-outline-accent" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                <span>Book a 1:1</span>
+            </a>
+        </div>
+    </aside>
+
+`;
+// Featured posts (posts.json "featured": true), newest first, for the post
+// pages' sidebar. Same picks as the home page's Insights section.
+const FEATURED = posts
+    .filter((p) => p.featured === true && p.slug)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+const FOOTER = `    <footer class="footer" role="contentinfo">
+        <div class="footer-inner">
+            <span class="footer-copy">&copy; ${new Date().getFullYear()} Gaurav Lahoti</span>
+            <a class="footer-link" href="mailto:gaurav.lahoti25@gmail.com">gaurav.lahoti25@gmail.com</a>
+            <a class="footer-link" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a class="footer-link" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a class="footer-link" href="https://www.credly.com/users/gaurav-lahoti.a6cc6340" target="_blank" rel="noopener noreferrer">Credly</a>
+            <a class="footer-link" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">1:1 sessions</a>
+        </div>
+    </footer>
+`;
 
 for (const post of posts) {
     const { slug, firstLine, excerpt, date, tags = [], url } = post;
@@ -104,6 +201,19 @@ for (const post of posts) {
     const tagsHtml = tags
         .map((t) => `<span class="insight-tag">#${esc(t)}</span>`)
         .join(" ");
+
+    // Spec 108: "More insights" in the sidebar, the featured posts minus this one.
+    const more = FEATURED.filter((p) => p.slug !== slug).slice(0, 4);
+    const moreHtml = more.length
+        ? `            <nav class="insight-more" aria-label="More insights">
+                <p class="insight-cta-eyebrow">// More insights</p>
+                <ul class="insight-more-list">
+${more.map((p) => `                    <li><a class="insight-more-link" href="/insights/${p.slug}/">${esc(p.firstLine)}</a></li>`).join("\n")}
+                </ul>
+                <a class="insight-more-all" href="/insights/">View all ${posts.length} insights →</a>
+            </nav>
+`
+        : "";
 
     const jsonLd = JSON.stringify(
         {
@@ -160,71 +270,11 @@ ${jsonLd}
 <body>
     <a class="skip-link" href="#insight-main">Skip to content</a>
 
-    <header class="nav" role="banner">
-        <div class="nav-inner">
-            <a class="nav-brand" href="/">Gaurav Lahoti</a>
-            <button class="nav-menu-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-trigger>
-                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
-                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
-                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
-            </button>
-            <nav class="nav-links" aria-label="Primary">
-                <a href="/#career">Career</a>
-                <a href="/#about">About</a>
-                <a href="/#insights" class="nav-link-active" aria-current="page">Insights</a>
-                <a href="/selected-work/">Selected Work</a>
-                <a href="/live-agents/">Live Agents</a>
-            </nav>
-            <div class="nav-actions">
-                <ul class="nav-channels" aria-label="Channels">
-                    <li>
-                        <a class="nav-channel" href="mailto:gaurav.lahoti25@gmail.com" aria-label="Email">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="nav-channel" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/></svg>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="nav-channel" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-                        </a>
-                    </li>
-                </ul>
-                <a class="nav-cta btn btn-outline-accent btn-sm" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
-                    <span>Book a 1:1</span>
-                </a>
-            </div>
-        </div>
-    </header>
-
-    <aside class="nav-drawer" id="nav-drawer" aria-hidden="true" data-nav-drawer>
-        <div class="nav-drawer-backdrop" data-nav-close aria-hidden="true"></div>
-        <div class="nav-drawer-panel" role="dialog" aria-modal="true" aria-label="Site navigation">
-            <button class="nav-drawer-close" type="button" aria-label="Close menu" data-nav-close>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                    <path d="M6 6l12 12M18 6L6 18"/>
-                </svg>
-            </button>
-            <nav class="nav-drawer-links" aria-label="Sections">
-                <a href="/#career">Career</a>
-                <a href="/#about">About</a>
-                <a href="/#insights">Insights</a>
-                <a href="/selected-work/">Selected Work</a>
-                <a href="/live-agents/">Live Agents</a>
-            </nav>
-            <a class="nav-drawer-cta btn btn-outline-accent" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
-                <span>Book a 1:1</span>
-            </a>
-        </div>
-    </aside>
-
-    <main id="insight-main" class="insight-main">
-        <div class="insight-container">
+${NAV}    <main id="insight-main" class="insight-main">
+        <div class="insight-container insight-layout">
+            <div class="insight-primary">
             <nav class="insight-breadcrumb" aria-label="Breadcrumb">
-                <a href="/#insights" class="insight-back">
+                <a href="/insights/" class="insight-back">
                     <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
                     All insights
                 </a>
@@ -249,7 +299,9 @@ ${jsonLd}
 ${paragraphs}
                 </div>
             </article>
+            </div>
 
+            <div class="insight-rail">
             <aside class="insight-session" aria-label="1:1 sessions">
                 <p class="insight-cta-eyebrow">// 1:1 sessions</p>
                 <p class="insight-session-text">Building your first agent, or working out which cloud or AI cert to go for next? I do short 1:1 sessions on exactly that.</p>
@@ -258,10 +310,11 @@ ${paragraphs}
                 </a>
             </aside>
 
+${moreHtml}
             <section class="insight-cta-section">
                 <p class="insight-cta-eyebrow">// More from Gaurav</p>
                 <div class="insight-cta-btns">
-                    <a class="btn btn-primary" href="/">
+                    <a class="btn btn-primary" href="/?chat=1" data-agent-open>
                         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="7" width="18" height="13" rx="3"/>
                             <circle cx="8.5" cy="13" r="1.5" fill="currentColor" stroke="none"/>
@@ -276,21 +329,14 @@ ${paragraphs}
                     </a>
                 </div>
             </section>
+            </div>
         </div>
     </main>
 
-    <footer class="footer" role="contentinfo">
-        <div class="footer-inner">
-            <span class="footer-copy">&copy; ${new Date().getFullYear()} Gaurav Lahoti</span>
-            <a class="footer-link" href="mailto:gaurav.lahoti25@gmail.com">gaurav.lahoti25@gmail.com</a>
-            <a class="footer-link" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-            <a class="footer-link" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a class="footer-link" href="https://www.credly.com/users/gaurav-lahoti.a6cc6340" target="_blank" rel="noopener noreferrer">Credly</a>
-            <a class="footer-link" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">1:1 sessions</a>
-        </div>
-    </footer>
-
+${FOOTER}
+    <div id="agent-root"></div>
     <script src="assets/js/insight-nav.js?v=${V.insightNav}"></script>
+    <script type="module" src="assets/js/insight-atlas.js?v=${V.atlas}"></script>
 <script type="module" src="/assets/js/announcement.js?v=${V.announcement}"></script>
 </body>
 </html>`;
@@ -302,6 +348,109 @@ ${paragraphs}
 }
 
 console.log(`\nGenerated ${posts.length} insight pages.`);
+
+// ── /insights/ index (spec 108) ─────────────────────────────────────────────
+// Every post as a static row, so the list is crawlable and works without JS;
+// insights-page.js then adds search, tag filters and live engagement chips.
+// Same markup as posts-list.js renderPost(), newest first.
+{
+    const profile = JSON.parse(readFileSync(join(ROOT, "content", "profile.json"), "utf8"));
+    const metricsOrigin = profile?.links?.metricsApi ? new URL(profile.links.metricsApi).origin : "";
+    // CSP's connect-src (copied from index.html) already allows the metrics worker.
+    if (metricsOrigin && !CSP.includes(metricsOrigin)) throw new Error("CSP connect-src is missing the metrics API origin");
+    const indexCsp = CSP;
+    const shortDate = (d) =>
+        new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+    const preview = (t) => {
+        const s = (t || "").trimEnd();
+        return !s || s.endsWith("…") || s.endsWith("...") ? s : s + "…";
+    };
+    const sorted = [...posts].filter((p) => p.slug).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const rows = sorted
+        .map((p) => {
+            const tags = (p.tags || []).map((t) => `<span class="post-row-tag">#${esc(t)}</span>`).join("");
+            return `                <a class="post-row" href="/insights/${p.slug}/" data-cursor="magnet">
+                    <span class="post-row-title">${esc(p.firstLine)}</span>
+                    <span class="post-row-preview">${esc(preview(p.excerpt))}</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left">${p.date ? `<time class="post-row-date" datetime="${p.date}">${shortDate(p.date)}</time>` : ""}</span>${tags ? `<span class="post-row-tags">${tags}</span>` : ""}</span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>`;
+        })
+        .join("\n");
+    const title = "Insights | Gaurav Lahoti";
+    const desc = "Posts on AI agents, cloud architecture and the craft of building systems that reason and act, by Gaurav Lahoti.";
+    const canonical = "https://gauravlahoti.dev/insights/";
+    const jsonLd = JSON.stringify(
+        {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: "Insights",
+            url: canonical,
+            author: { "@type": "Person", name: "Gaurav Lahoti", url: "https://gauravlahoti.dev/" },
+        },
+        null,
+        2
+    );
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#000000">
+    <meta http-equiv="Content-Security-Policy" content="${indexCsp}">
+    <title>${title}</title>
+    <meta name="description" content="${desc}">
+    <link rel="canonical" href="${canonical}">
+    <meta property="og:title" content="${title}">
+    <meta property="og:description" content="${desc}">
+    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="${canonical}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Gaurav Lahoti">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${title}">
+    <meta name="twitter:description" content="${desc}">
+    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <base href="/">
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/css/base.css?v=${V.base}">
+    <link rel="stylesheet" href="assets/css/layout.css?v=${V.layout}">
+    <link rel="stylesheet" href="assets/css/components.css?v=${V.components}">
+    <link rel="stylesheet" href="assets/css/insight.css?v=${V.insightCss}">
+    <script type="application/ld+json">
+${jsonLd}
+    </script>
+</head>
+<body>
+    <a class="skip-link" href="#insight-main">Skip to content</a>
+
+${NAV}    <main id="insight-main" class="insight-main">
+        <div class="insight-container insights-index">
+            <header class="posts-header">
+                <p class="posts-eyebrow">thinking out loud</p>
+                <h1 class="posts-title">Insights.</h1>
+                <p class="posts-sub">Thought leadership on AI agents, cloud architecture, and the craft of building systems that reason and act. Ideas I share openly with the community on LinkedIn.</p>
+            </header>
+            <div class="posts-list" data-posts-root>
+${rows}
+            </div>
+        </div>
+    </main>
+
+${FOOTER}
+    <script src="assets/js/insight-nav.js?v=${V.insightNav}"></script>
+    <script type="module" src="assets/js/insights-page.js?v=${V.insightsPage}"></script>
+<script type="module" src="/assets/js/announcement.js?v=${V.announcement}"></script>
+</body>
+</html>`;
+    writeFileSync(join(ROOT, "insights", "index.html"), html);
+    console.log(`  insights/ (index, ${sorted.length} posts)`);
+}
 
 // Keep sitemap.xml in step with the insight pages (spec 103).
 await import("./gen-sitemap.mjs");

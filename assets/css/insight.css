@@ -14,6 +14,116 @@
     padding: 0 var(--space-6);
 }
 
+/* Spec 108: the /insights/ index. Same width as the nav, with the home page's
+   post cards in two columns on wider screens. The intro, search console and
+   grid all span that width (CLAUDE.md: page intros span the content). */
+.insights-index {
+    max-width: calc(var(--max-w) + 2 * var(--space-6));
+}
+.insights-index .posts-header,
+.insights-index .posts-sub,
+.insights-index .post-search-outer,
+.insights-index .posts-list {
+    max-width: none;
+}
+@media (min-width: 900px) {
+    .insights-index .posts-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-4);
+    }
+    /* Cards in a row share a height; keep date and tags on the bottom edge. */
+    .insights-index .post-row {
+        grid-template-rows: auto auto 1fr;
+    }
+    .insights-index .post-row-foot {
+        align-self: end;
+    }
+    .insights-index .post-search-empty {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Spec 108: post pages. The article keeps its readable 720px measure; on wide
+   screens a sidebar (1:1 box, more insights, Atlas) fills the right instead
+   of empty space. Below 1100px it stacks under the article as before. */
+.insight-more {
+    margin-bottom: var(--space-6);
+    padding: var(--space-6);
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+.insight-more-list {
+    list-style: none;
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+.insight-more-link {
+    display: block;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+.insight-more-list li:first-child .insight-more-link {
+    padding-top: 0;
+}
+.insight-more-link:hover,
+.insight-more-link:focus-visible {
+    color: var(--accent);
+}
+.insight-more-all {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    text-decoration: none;
+}
+.insight-more-all:hover,
+.insight-more-all:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+@media (min-width: 1100px) {
+    .insight-layout {
+        max-width: calc(var(--max-w) + 2 * var(--space-6));
+        display: grid;
+        grid-template-columns: minmax(0, 720px) 320px;
+        justify-content: center;
+        column-gap: var(--space-16);
+        align-items: start;
+    }
+    /* The rail is narrow, so its boxes get tighter padding and stacked buttons. */
+    .insight-rail .insight-session,
+    .insight-rail .insight-more,
+    .insight-rail .insight-cta-section {
+        padding: var(--space-6);
+    }
+    .insight-rail .insight-session-text {
+        font-size: var(--text-base);
+    }
+    .insight-rail .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    .insight-rail .insight-cta-btns {
+        flex-direction: column;
+    }
+}
+/* Keep the rail in view while reading, but only when it fits on screen. */
+@media (min-width: 1100px) and (min-height: 900px) {
+    .insight-rail {
+        position: sticky;
+        top: calc(var(--nav-h, 64px) + var(--space-8));
+    }
+}
+
 /* ── Breadcrumb ────────────────────────────────────────────────────────────── */
 
 .insight-back {

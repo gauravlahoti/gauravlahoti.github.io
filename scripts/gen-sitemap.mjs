@@ -22,6 +22,7 @@ const ORIGIN = "https://gauravlahoti.dev";
 const STATIC_PAGES = [
     ["/", ["index.html", "content/profile.json", "content/graph.json", "content/posts.json"]],
     ["/selected-work/", ["selected-work/index.html", "content/selected-work.json"]],
+    ["/insights/", ["insights/index.html", "content/posts.json"]],
     ["/live-agents/", ["live-agents/index.html", "content/agents.json"]],
     ["/ai-labs/", ["ai-labs/index.html", "content/ai-concepts.json"]],
     ["/ai-labs/mcp-lab/", ["ai-labs/mcp-lab/index.html", "content/mcp-lab.json"]],

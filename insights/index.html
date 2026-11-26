@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#000000">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://storage.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://gaurav-portfolio-resume-gate.gaurav-lahoti25.workers.dev https://atlas-lw4bt7nrba-uc.a.run.app wss://atlas-lw4bt7nrba-uc.a.run.app; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <title>Insights | Gaurav Lahoti</title>
+    <meta name="description" content="Posts on AI agents, cloud architecture and the craft of building systems that reason and act, by Gaurav Lahoti.">
+    <link rel="canonical" href="https://gauravlahoti.dev/insights/">
+    <meta property="og:title" content="Insights | Gaurav Lahoti">
+    <meta property="og:description" content="Posts on AI agents, cloud architecture and the craft of building systems that reason and act, by Gaurav Lahoti.">
+    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://gauravlahoti.dev/insights/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Gaurav Lahoti">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Insights | Gaurav Lahoti">
+    <meta name="twitter:description" content="Posts on AI agents, cloud architecture and the craft of building systems that reason and act, by Gaurav Lahoti.">
+    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <base href="/">
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/css/base.css?v=411">
+    <link rel="stylesheet" href="assets/css/layout.css?v=421">
+    <link rel="stylesheet" href="assets/css/components.css?v=471">
+    <link rel="stylesheet" href="assets/css/insight.css?v=3001638f">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Insights",
+  "url": "https://gauravlahoti.dev/insights/",
+  "author": {
+    "@type": "Person",
+    "name": "Gaurav Lahoti",
+    "url": "https://gauravlahoti.dev/"
+  }
+}
+    </script>
+</head>
+<body>
+    <a class="skip-link" href="#insight-main">Skip to content</a>
+
+    <header class="nav" role="banner">
+        <div class="nav-inner">
+            <a class="nav-brand" href="/">Gaurav Lahoti</a>
+            <button class="nav-menu-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-trigger>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+                <span class="nav-menu-trigger-bar" aria-hidden="true"></span>
+            </button>
+            <nav class="nav-links" aria-label="Primary">
+                <a href="/#career">Career</a>
+                <a href="/#about">About</a>
+                <a href="/insights/" class="nav-link-active" aria-current="page">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
+                <a href="/live-agents/">Live Agents</a>
+            </nav>
+            <div class="nav-actions">
+                <ul class="nav-channels" aria-label="Channels">
+                    <li>
+                        <a class="nav-channel" href="mailto:gaurav.lahoti25@gmail.com" aria-label="Email">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/></svg>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-channel" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                        </a>
+                    </li>
+                </ul>
+                <a class="nav-cta btn btn-outline-accent btn-sm" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                    <span>Book a 1:1</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <aside class="nav-drawer" id="nav-drawer" aria-hidden="true" data-nav-drawer>
+        <div class="nav-drawer-backdrop" data-nav-close aria-hidden="true"></div>
+        <div class="nav-drawer-panel" role="dialog" aria-modal="true" aria-label="Site navigation">
+            <button class="nav-drawer-close" type="button" aria-label="Close menu" data-nav-close>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18"/>
+                </svg>
+            </button>
+            <nav class="nav-drawer-links" aria-label="Sections">
+                <a href="/#career">Career</a>
+                <a href="/#about">About</a>
+                <a href="/insights/">Insights</a>
+                <a href="/selected-work/">Selected Work</a>
+                <a href="/live-agents/">Live Agents</a>
+            </nav>
+            <a class="nav-drawer-cta btn btn-outline-accent" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">
+                <span>Book a 1:1</span>
+            </a>
+        </div>
+    </aside>
+
+    <main id="insight-main" class="insight-main">
+        <div class="insight-container insights-index">
+            <header class="posts-header">
+                <p class="posts-eyebrow">thinking out loud</p>
+                <h1 class="posts-title">Insights.</h1>
+                <p class="posts-sub">Thought leadership on AI agents, cloud architecture, and the craft of building systems that reason and act. Ideas I share openly with the community on LinkedIn.</p>
+            </header>
+            <div class="posts-list" data-posts-root>
+                <a class="post-row" href="/insights/your-agents-small-decisions-dont-need-an-llm/" data-cursor="magnet">
+                    <span class="post-row-title">Your agent’s small decisions don’t need an LLM</span>
+                    <span class="post-row-preview">A new class of model is emerging in the AI ecosystem and it doesn’t generate text.
+𝗦𝘆𝘀𝘁𝗲𝗺 𝗢𝗻𝗲 𝗠𝗼𝗱𝗲𝗹𝘀
+
+LLMs are System Two: slow, deliberate, great at working through a problem. System One models are built for the blink. Give them context and typed questions and they return answers your code can use directly, each with a probability and a confidence score. Nothing to parse.
+
+I’ve been reviewing two of them. 𝗝𝗲𝘃 is the flagship System One model from TypeSafe AI. Google launched 𝗚𝗲𝗺𝗶𝗻𝗶 𝗗𝗲𝗰𝗶𝘀𝗶𝗼𝗻 𝟭 on November 11. It takes up to 1,000 questions per request, with 150 to 250 ms end-to-end latency. OpenAI is already in this space too. This is a category now, not a one-off.
+
+One nuance: these models can’t return malformed output, but they can still be wrong. That’s why the confidence score matters. High confidence, act. Low confidence, escalate.
+
+Where they fit outside chat:
+→ Checking whether an invoice can be paid (escalating edge cases to a human)
+→ Moderating live chat in real time
+→ Catching fabricated citations in LLM answers
+
+For agents, the immediate value is in the small decisions made before acting:
+→ Input guardrails: catch prompt injection before the LLM sees it
+→ Model routing: is this query worth a cheap model or a frontier one?
+→ Tool selection: identify which tools will actually help
+→ Skill selection: pick the single relevant capability, or none
+
+Each one becomes a typed question answered in milliseconds and the LLM is called only when there is real reasoning to do.
+I’m building an agent this way and will share the architecture and my findings in my next post.
+
+𝗠𝘆 𝘁𝗮𝗸𝗲: Use System One models for fast, cheap decisions and reserve LLMs like Claude or Gemini for deep reasoning. The strongest agent stacks will use both.
+
+🎬 90-second visual breakdown of the System One Model architecture below.
+
+#AgenticAI #AIEngineering #LLMs #Gemini #Jev #SystemArchitecture…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-11-23">Nov 23, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#agenticai</span><span class="post-row-tag">#aiengineering</span><span class="post-row-tag">#llms</span><span class="post-row-tag">#gemini</span><span class="post-row-tag">#jev</span><span class="post-row-tag">#systemarchitecture</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-built-an-agent-harness-in-plain-python-where-you-can-watch/" data-cursor="magnet">
+                    <span class="post-row-title">I built an agent harness in plain Python where you can watch every part light up</span>
+                    <span class="post-row-preview">Most AI agents feel like black boxes. You see the model, not the system keeping it on the rails.
+To make that boundary visible, I built a modular agent harness in plain Python where every runtime state lights up during execution.
+
+𝗔𝗴𝗲𝗻𝘁 = 𝗠𝗼𝗱𝗲𝗹 + 𝗛𝗮𝗿𝗻𝗲𝘀𝘀
+
+The model only reasons. The harness does everything else: what enters the context window, what persists, which tools can run, who has to approve and what gets checked before you read a word.
+
+That hidden layer is where production agents actually break: the wrong context, an unchecked tool call, an answer nobody verified.
+
+The seven components you can watch light up:
+
+1. Context management: Deciding what enters the context window and what stays out. Core system instructions stay loaded, while specialized skills load dynamically via progressive disclosure.
+2. Planning: Tracking progress via a live checklist. The harness blocks early exit while items remain open.
+3. Memory: Pruning and compacting short-term history as the token limit approaches, while fetching persistent facts across user sessions.
+4. The agentic loop: Reason, act, observe, repeat. Capped by strict step, token, and cost budgets.
+5. Tools and sub-agents: The model emits intent, the harness executes. Sub-agents run inside isolated context windows to avoid context contamination.
+6. Self-verification: Testing outputs against schemas, unit tests, or critic models before delivery so the agent can self-correct.
+7. Guardrails: Hard permission boundaries, human approval on high-risk actions, and perimeter defense against prompt injection.
+
+With the exact same foundation model, a stronger harness is what actually unlocks higher agentic performance.
+Model intelligence is a rented commodity. Harness engineering is the actual system architecture. Stop waiting for the next frontier model release to fix problems you can solve in your runtime today.
+
+A framework is just someone else&#39;s harness. Building your own is the fastest way to understand how agents actually work.
+Code repository and a 5-minute video walkthrough are linked in the comments.
+
+#AIAgents #HarnessEngineering #Google #Anthropic…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-11-17">Nov 17, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#aiagents</span><span class="post-row-tag">#harnessengineering</span><span class="post-row-tag">#google</span><span class="post-row-tag">#anthropic</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/my-website-now-has-a-face-a-voice-and-control-of-the-screen/" data-cursor="magnet">
+                    <span class="post-row-title">My website now has a face, a voice, and control of the screen.</span>
+                    <span class="post-row-preview">My website now has a face, a voice, and control of the screen.
+Right now, every website puts all the work on you: clicking through menus, searching pages, and hunting for what you need.
+
+I integrated an interactive avatar into my site, built on Google Gemini 3.8 Live with Live Avatar, which went GA in Gemini Enterprise last week.
+
+Ask Atlas, my AI agent, to open a lab or pull up an architecture diagram, and it drives the screen hands-free while the conversation keeps flowing. Cut it off mid-sentence, and it picks right back up.
+
+The website stops being something you navigate and becomes something that navigates for you.
+
+Now picture a field technician asking an avatar to walk them through a repair while it pulls up the right schematic. That&#39;s where this gets interesting.
+
+Try it yourself (and see if you can trip up its barge-in): link in comments 👇
+
+#GoogleCloud #GeminiEnterprise #AIAgents #ConversationalAI #GeminiLive…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-09-30">Sep 30, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloud</span><span class="post-row-tag">#geminienterprise</span><span class="post-row-tag">#aiagents</span><span class="post-row-tag">#conversationalai</span><span class="post-row-tag">#geminilive</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/the-badges-came-after-the-building-not-before/" data-cursor="magnet">
+                    <span class="post-row-title">The badges came after the building, not before.</span>
+                    <span class="post-row-preview">The badges came after the building, not before.
+I recently completed all four Anthropic Claude certifications: Associate, Developer, Architect Foundations and Architect Professional.
+
+Every pattern on those exams was something I had already debugged in production across the systems on gauravlahoti.dev: a conversational agent, a WebMCP tool surface, a multi-agent incident triage system and an ambient digest agent, all on Claude and the Google stack. The live systems were the study guide.
+
+If you are preparing for these certifications, two things make the difference:
+
+1. Read Anthropic&#39;s documentation end to end. Do not treat it just as a reference when something breaks. Read it front to back to understand the full surface area, then go deep on the tools you use daily.
+
+2. Build something that has to stay alive. A demo only teaches the happy path. Real users teach you rate limits, token budgets, retry strategies, and the edge cases tutorials never mention.
+
+See Atlas in action in the clip below, answering how the Claude Code and reviewer-agent pipeline behind this site actually works.
+
+#AgenticAI #AIEngineering #Anthropic #Claude #Certification…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-09-16">Sep 16, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#agenticai</span><span class="post-row-tag">#aiengineering</span><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#claude</span><span class="post-row-tag">#certification</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/my-websites-ai-agent-used-to-only-type-now-it-talks-back-in/" data-cursor="magnet">
+                    <span class="post-row-title">My website&#39;s AI agent used to only type. Now it talks back in 70+ languages.</span>
+                    <span class="post-row-preview">Atlas, the AI agent on my portfolio site, has answered 418 questions from 19 cities across four countries so far. Until this weekend, it could only generate text. Now it listens on a speech model Google shipped five days ago, and responds in voice in 70+ languages.
+
+Atlas is now a cascaded voice agent powered by three specialist Gemini models, each doing one thing well. gemini-3.5-transcribe listens. gemini-3.7-flash reasons and calls the tools. gemini-3.1-flash-tts speaks.
+
+2 decisions worth writing down.
+
+Speech-to-text runs on a dedicated speech model, not the reasoning model. Reasoning models transcribe fine. What they do not give me is disfluency removal as a setting instead of a judgement call, and a custom vocabulary biased toward the proper nouns on my site.
+Both ship first-class in 3.5 Transcribe. That is the difference between a transcript I hand straight to the agent and one I clean first.
+
+Native audio was on the table. Audio in, audio out, better prosody, one less place for latency to hide. I still went with the cascade and so does most of what is running in production. Swap any stage without touching the other two, and price each separately. Atlas calls tools, and the moment tools are in play the text boundary stops being overhead and starts being what you debug against.
+
+Open Atlas, hold the mic, and ask what I actually do. Link in the comments.
+
+#VoiceAI #AIAgents #ADK #Gemini #AgenticAI…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-08-31">Aug 31, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#voiceai</span><span class="post-row-tag">#aiagents</span><span class="post-row-tag">#adk</span><span class="post-row-tag">#gemini</span><span class="post-row-tag">#agenticai</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-made-my-website-agentready-with-webmcp-five-tools-no-dom-p/" data-cursor="magnet">
+                    <span class="post-row-title">I made my website agent-ready with WebMCP. Five tools, no DOM parsing.</span>
+                    <span class="post-row-preview">My website is agent-ready.
+An agent no longer has to run vision models over screenshots, parse the DOM, or simulate clicks to work out what my site can do. It reads a list of tools and calls them.
+
+I implemented this using WebMCP, a W3C Community Group proposal backed by Google and Microsoft.
+
+Today&#39;s agents operate against an interface built for eyes and hands. They infer intent from layout, wait on asynchronous rendering, and accumulate failure with every UI change. There is no contract to depend on, so there is nothing to hold stable.
+
+WebMCP exposes structured tools as website capabilities. Five are registered on my site: search_site, get_profile, list_work, go_to, and draft_note_to_gaurav.
+
+Where this pays off immediately:
+• Travel: query live availability, skip the date picker.
+• E-commerce: cart and checkout as deterministic state, not simulated clicks.
+• SaaS: filtered data queries, not five levels of menu.
+• Lead capture: structured submissions with human confirmation.
+
+Mainstream agent adoption is still in an early phase, but building on an emerging standard from major browser vendors is the right place to be.
+
+The video shows the inspector calling these tools live. Link to test it yourself is in the comments.
+
+#WebMCP #AgenticWeb #ModelContextProtocol #AIAgents…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-08-24">Aug 24, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#webmcp</span><span class="post-row-tag">#agenticweb</span><span class="post-row-tag">#modelcontextprotocol</span><span class="post-row-tag">#aiagents</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-got-claude-certified-by-building-not-cramming/" data-cursor="magnet">
+                    <span class="post-row-title">I got Claude Certified by building, not cramming</span>
+                    <span class="post-row-preview">Officially a Claude Certified Architect !!
+
+Glad to close this one out, and grateful for the road that got me here. Claude is moving fast in the enterprise, and this credential sits right at the center of it.
+
+What carried me through wasn&#39;t the reading. It was the building.
+
+I stood up my entire personal website and a working portfolio of agents from first principles, with Claude doing the heavy lifting alongside me. Every design tradeoff, every failed run, and every &quot;why on earth did the agent do that&quot; moment taught me more than any slide deck could.
+
+Thanks to Deloitte for genuinely investing in this space: the certifications, the tooling, and a culture that encourages the people who like to build to push past the edge of the map.
+
+The website is in the comments, and I&#39;d love your feedback.
+In an upcoming post, I&#39;ll share the hard-won lessons from my prep for anyone considering taking it on.
+
+#Anthropic #ClaudeCertifiedArchitect #Certification #Deloitte…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-07-01">Jul 1, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#claudecertifiedarchitect</span><span class="post-row-tag">#certification</span><span class="post-row-tag">#deloitte</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/mcp-explained-by-making-it-clickable-not-readable/" data-cursor="magnet">
+                    <span class="post-row-title">MCP explained by making it clickable, not readable</span>
+                    <span class="post-row-preview">&quot;Isn&#39;t MCP just APIs with extra steps?&quot;
+
+I get some version of that question almost every week. From engineers, from leaders, from people already shipping agents. MCP is the most hyped protocol in AI and the most argued about.
+
+So I did what I always do when a concept is too debated to settle in a sentence. I turned it into something you can click.
+
+Meet the MCP Lab. It&#39;s the newest edition in my AI Labs, the corner of my site where I take a hyped AI concept and make it click through interactive visuals. Last edition was a 3D RAG explorer.
+
+What it actually shows you:
+
+• The sprawl. 3 models × 4 tools = 12 hand-written integrations. Swap one model, they all break. That&#39;s the tax every AI team is quietly paying.
+• The real shift. The model asks the server what it can do at runtime, instead of you hardcoding it. Discovery, not glue code.
+• The fix. One open standard, and that M×N tangle collapses to a clean M+N. Expose your system once, any model can use it.
+• The debate, settled. MCP doesn&#39;t replace your APIs. It sits on top and teaches them to speak the model&#39;s language. Same infrastructure underneath.
+
+The best way to learn a concept isn&#39;t to read about it. It&#39;s to play with it. Walkthrough below. Link in the comments and go break it yourself,
+
+#Anthropic #MCP #ModelContextProtocol #AgenticAI…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-06-29">Jun 29, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#mcp</span><span class="post-row-tag">#modelcontextprotocol</span><span class="post-row-tag">#agenticai</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-attended-google-cloud-summit-india-2026-alongside-1000-ai/" data-cursor="magnet">
+                    <span class="post-row-title">I attended Google Cloud Summit India 2026 alongside 1000+ AI builders</span>
+                    <span class="post-row-preview">I attended Google Cloud Summit India 2026 at Yashobhoomi, Delhi alongside 1000+ AI builders.
+
+The keynote raised the bar. suchit puri, Prashanth Subrahmanyam and Abirami Sukumaran, Ph.D unpacked the Gemini Enterprise Agent Platform and shipped working agents on stage. Live, not slideware.
+
+But the beat that stuck with me was a 1:1 conversation with Romin Irani on Antigravity 2.0 and ADK 2.0. We skipped past &quot;what&#39;s new&quot; and got into &quot;why now&quot;: the rationale behind a shift this big and what it actually takes for builders to adapt instead of chasing every release. The developer&#39;s job is shifting from code-first to AI-first. You stop living in an editor and start directing the agent that writes the code. That is not a tooling update, it is a new way of working.
+
+One session that stood out was a preview of an unreleased AI-powered architecture diagramming tool for Google Cloud. Stenal P Jolly pulled back the curtain on its multi-agent architecture. The premise is hard to argue with if you design systems for a living: we lose hours hand-drawing the same diagrams over and over. An agentic system that generates them is not a nice-to-have. It is overdue.
+
+This year I was not there solo. A few of my Deloitte colleagues came along, Lakshay Sharma, Akshay Goel, SAJAL KULSHRESHTHA, and having people from your own team in the room changes the dynamic. Every session turned into a quick huddle on how we can actually apply this to our work.
+
+Left with a full notebook and a short list I actually intend to act on.
+
+P.S. The second photo was generated live at the event using Nano Banana 2! Pro-grade output at Flash speed, rendered in seconds while you watch.
+
+#GoogleCloudSummitIndia #AgenticAI #GoogleCloudIndia #ADK #Antigravity #GeminiEnterprise…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-06-07">Jun 7, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloudsummitindia</span><span class="post-row-tag">#agenticai</span><span class="post-row-tag">#googlecloudindia</span><span class="post-row-tag">#adk</span><span class="post-row-tag">#antigravity</span><span class="post-row-tag">#geminienterprise</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-just-built-a-3d-agentic-rag-app-that-makes-the-entire-retr/" data-cursor="magnet">
+                    <span class="post-row-title">I just built a 3D agentic RAG app that makes the entire retrieval process visible</span>
+                    <span class="post-row-preview">I just built a 3D agentic RAG app using claude sdk and gemini embedding 2 that makes the entire retrieval process visible. Every vector, every score, every decision, as it happens. Not just another prototype or recording. It&#39;s live, on my site, for anyone to play around with, guided walkthrough or bring your own key. Link in the comments.
+
+Most RAG is a black box. A question goes in, an answer comes out and the reasoning in between is invisible. That gap is exactly where hallucinations hide.
+
+I gave Claude a hybrid search tool and let it drive. When the retrieved context is thin, the model reformulates its own query and searches again, iterating until the evidence is sufficient. Retrieval becomes a reasoning process. The model decides when it has enough, rather than answering from whatever a single static lookup happened to return.
+
+Underneath, every query resolves through 2 retrieval strategies running in parallel:
+
+• Semantic search ranks by cosine similarity over the embeddings, so &quot;neural net&quot; and &quot;deep learning&quot; converge even with no shared tokens.
+
+• Lexical search uses BM25 to anchor precision: exact names, rare terms, error codes, the signal pure semantics tends to wash out.
+
+The 2 rankings are then merged through Reciprocal Rank Fusion (RRF), which blends both into a single ordered set without either one dominating.
+
+All 8 stages, rendered in 3D vector space:
+Chunk → Embed → Store → Embed Query → Retrieve → Fuse → Augment → Grounded Answer
+
+Watch the retrieval unfold below.
+
+#RAG #AgenticAI #Anthropic #Claude #VoyageAI #Google #Gemini…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-06-03">Jun 3, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#rag</span><span class="post-row-tag">#agenticai</span><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#claude</span><span class="post-row-tag">#voyageai</span><span class="post-row-tag">#google</span><span class="post-row-tag">#gemini</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-gave-my-website-an-employee-it-works-2-days-a-week-and-nev/" data-cursor="magnet">
+                    <span class="post-row-title">I gave my website an employee. It works 2 days a week and never asks questions.</span>
+                    <span class="post-row-preview">My website has an employee now. It works 2 days a week, never asks questions and only emails me when something actually matters.
+
+It&#39;s an ambient agent. Most AI agents are reactive: they wait for a prompt, answer and go quiet. Ambient agents invert that, running on their own schedule or in response to events instead of waiting on a human. From there it&#39;s a design decision. I built mine to stay quiet and surface only what crosses a threshold worth my attention.
+
+Mine wakes up every Monday and Thursday, looks at the week, and sends me one short email. Traffic trends, what visitors asked my site&#39;s ai agent, and where it fell short on answers. That&#39;s it. No dashboard to open. It doesn&#39;t just report, it reasons over the week and comes back with what&#39;s working and what&#39;s worth improving.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-05-26">May 26, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#agenticai</span><span class="post-row-tag">#googleadk</span><span class="post-row-tag">#cloudrun</span><span class="post-row-tag">#gemini</span><span class="post-row-tag">#mcp</span><span class="post-row-tag">#ambientagents</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/80-made-it-to-the-google-cloud-agentic-premier-league-grand/" data-cursor="magnet">
+                    <span class="post-row-title">80 made it to the Google Cloud Agentic Premier League Grand Finale. 15 finished on top. I was one of them.</span>
+                    <span class="post-row-preview">3,000+ builders entered across 30 cities in India. 80 made it to the Grand Finale. 15 finished at the top. I&#39;m one of them. Easily one of the sharpest rooms full of AI builders I&#39;ve been in this year.
+
+The Google Cloud Agentic Premier League Grand Finale took place at Google Ananta in Bengaluru. One time-boxed agentic challenge followed by a live pitch to Googlers.
+
+The challenge focused on resolving logistical chaos and security gaps at crowded cricket stadiums. I built a real-time multi-agent command platform that dynamically routes fan flow and automates emergency responses using Antigravity 2.0 and Gemini 3.5 Flash.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-05-25">May 25, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#agenticpremiereleague</span><span class="post-row-tag">#googlecloud</span><span class="post-row-tag">#gemini</span><span class="post-row-tag">#antigravity</span><span class="post-row-tag">#buildwithai</span><span class="post-row-tag">#hackathon</span><span class="post-row-tag">#gdg</span><span class="post-row-tag">#ai</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-spent-a-weekend-inside-googles-promptwars-and-the-claude-c/" data-cursor="magnet">
+                    <span class="post-row-title">I spent a weekend inside Google&#39;s PromptWars and the Claude community. Here&#39;s what I saw.</span>
+                    <span class="post-row-preview">I spent the last 2 days in 2 different rooms with 100+ Builders pushing the absolute limits of AI. Day 1 was PromptWars at the Google office, where I built a fully functional travel planning app from scratch, vibe coded with Antigravity, orchestrating Gemini and Claude in a few hours. I landed in the top 15. Day 2 was meeting the fastest-growing community of AI builders in the Claude ecosystem. Two communities. Two days. One very clear signal: things are moving fast.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-05-11">May 11, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloud</span><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#developercommunity</span><span class="post-row-tag">#claude</span><span class="post-row-tag">#vibecoding</span><span class="post-row-tag">#promptwars</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/unleashing-the-power-of-claude-code-subagents/" data-cursor="magnet">
+                    <span class="post-row-title">Unleashing the power of Claude Code Sub-agents</span>
+                    <span class="post-row-preview">I discovered a single question rule for Claude Code subagents: does the intermediate work matter? No? Delegate. Yes? Keep it in the main thread. Code reviews are where this gets interesting.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-05-04">May 4, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#anthropic</span><span class="post-row-tag">#claudecode</span><span class="post-row-tag">#codingagents</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/context-bloat-is-quietly-wrecking-your-coding-agent/" data-cursor="magnet">
+                    <span class="post-row-title">Context bloat is quietly wrecking your coding agent.</span>
+                    <span class="post-row-preview">Context bloat is quietly wrecking your coding agent. Context engineering is how you fix it. Here&#39;s the mental model I use to keep agent context clean across long sessions.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-04-26">Apr 26, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#ai</span><span class="post-row-tag">#agents</span><span class="post-row-tag">#anthropic</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/build-agents-with-agents/" data-cursor="magnet">
+                    <span class="post-row-title">Build agents with agents 🤖</span>
+                    <span class="post-row-preview">Every developer building AI agents today hits the same 2 walls: fragmented tooling and a coding agent that hallucinates. I showed how agents-cli collapses both in a single workflow at Google Cloud Next &#39;26.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-04-23">Apr 23, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloudnext26</span><span class="post-row-tag">#agentscli</span><span class="post-row-tag">#adk</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/the-biggest-blind-spot-in-ai-for-incident-response-is-simple/" data-cursor="magnet">
+                    <span class="post-row-title">The biggest blind spot in AI for incident response is simple: it does not know what your team already learned.</span>
+                    <span class="post-row-preview">On-call engineers keep getting sent down paths their teammates already ruled out last month. I built a multi-agent system that fixes that, starting with your team&#39;s own runbooks and past incidents.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-04-21">Apr 21, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#aiagents</span><span class="post-row-tag">#googleadk</span><span class="post-row-tag">#multiagent</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-vibe-coded-a-gcp-advisor-agent-that-never-guesses/" data-cursor="magnet">
+                    <span class="post-row-title">I vibe coded a GCP Advisor agent that never guesses.</span>
+                    <span class="post-row-preview">Vibe coding gets you a prototype fast, but it cuts corners: hallucinated APIs, invented patterns. ADK agent skills fix that by giving Gemini CLI the right context to build correctly from architecture through evals.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-03-22">Mar 22, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloud</span><span class="post-row-tag">#gcp</span><span class="post-row-tag">#adk</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+                <a class="post-row" href="/insights/i-built-an-agent-that-reads-every-gcp-release-note-so-you-do/" data-cursor="magnet">
+                    <span class="post-row-title">I built an agent that reads every GCP release note so you don&#39;t have to.</span>
+                    <span class="post-row-preview">Meet ReleaseLens: an AI agent that monitors Google Cloud release notes, filters the noise, and tells developers exactly how updates impact their specific tech stacks. No more changelog spelunking.…</span>
+                    <span class="post-row-foot"><span class="post-row-foot-left"><time class="post-row-date" datetime="2026-03-15">Mar 15, 2026</time></span><span class="post-row-tags"><span class="post-row-tag">#googlecloud</span><span class="post-row-tag">#generativeai</span><span class="post-row-tag">#aiagents</span></span></span>
+                    <span class="post-row-arrow" aria-hidden="true">→</span>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer" role="contentinfo">
+        <div class="footer-inner">
+            <span class="footer-copy">&copy; 2026 Gaurav Lahoti</span>
+            <a class="footer-link" href="mailto:gaurav.lahoti25@gmail.com">gaurav.lahoti25@gmail.com</a>
+            <a class="footer-link" href="https://www.linkedin.com/in/glahoti/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a class="footer-link" href="https://github.com/gauravlahoti" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a class="footer-link" href="https://www.credly.com/users/gaurav-lahoti.a6cc6340" target="_blank" rel="noopener noreferrer">Credly</a>
+            <a class="footer-link" href="https://topmate.io/gaurav_lahoti25" target="_blank" rel="noopener noreferrer">1:1 sessions</a>
+        </div>
+    </footer>
+
+    <script src="assets/js/insight-nav.js?v=0975ab23"></script>
+    <script type="module" src="assets/js/insights-page.js?v=3f905a2f"></script>
+<script type="module" src="/assets/js/announcement.js?v=9"></script>
+</body>
+</html>

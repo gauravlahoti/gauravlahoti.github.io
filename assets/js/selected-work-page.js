@@ -18,8 +18,6 @@ function initInsightsFlyout() {
         initPostsFlyout(flyoutRoot)
     ).then((inst) => {
         if (!inst) return;
-        const footLink = flyoutRoot.querySelector(".nav-flyout-foot");
-        if (footLink) footLink.href = "/#insights";
         const group = flyoutRoot.closest("[data-flyout-group]");
         const link = group && group.querySelector("a[aria-haspopup]");
         if (!group || !link) return;

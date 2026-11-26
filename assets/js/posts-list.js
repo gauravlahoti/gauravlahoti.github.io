@@ -1,5 +1,8 @@
 // posts-list.js — Writing section (LinkedIn posts feed) + nav flyout.
-// Exports: initPostsList(root, opts) → flat-link rows in #insights (all posts)
+// Exports: initPostsList(root, opts) → flat-link rows. With opts.featured
+//            (home #insights, spec 108) it shows the posts flagged
+//            `featured` plus a "View all" link to /insights/; without it
+//            (the /insights/ page) it shows every post with search + filters.
 //          initPostsFlyout(root)     → top FLYOUT_LIMIT posts in nav dropdown
 // Both surfaces sort by date descending so adding a newer post via
 // /add-post automatically rises to the top of the flyout — no need to
@@ -47,6 +50,14 @@ function deriveActivityId(url) {
     return m[2] || m[1] || null;
 }
 
+// Posts flagged `featured` in posts.json (newest first), topped up with the
+// newest unflagged posts if fewer than `limit` are flagged.
+function pickFeatured(posts, limit) {
+    const flagged = posts.filter(p => p && p.featured === true);
+    const rest = posts.filter(p => !(p && p.featured === true));
+    return [...flagged, ...rest].slice(0, limit);
+}
+
 function sortNewestFirst(posts) {
     return [...posts].sort((a, b) => {
         const da = (a && a.date) || "";
@@ -77,9 +88,12 @@ export async function initPostsList(root, opts = {}) {
         return { destroy() {} };
     }
 
+    const total = posts.length;
+    const shown = opts?.featured ? pickFeatured(posts, opts.limit || 5) : posts;
+
     const frag = document.createDocumentFragment();
     const allRows = [];
-    for (const post of posts) {
+    for (const post of shown) {
         const node = renderPost(post);
         if (node) {
             const tags = Array.isArray(post.tags) ? post.tags : (post.tag ? [post.tag] : []);
@@ -89,7 +103,18 @@ export async function initPostsList(root, opts = {}) {
         }
     }
     root.replaceChildren(frag);
-    buildSearchAndFilter(root, allRows, posts.length);
+    let viewAll = null;
+    if (opts?.featured) {
+        // Short list on the home page: no search bar, just a way to the rest.
+        viewAll = document.createElement("a");
+        viewAll.className = "posts-view-all";
+        viewAll.href = "/insights/";
+        viewAll.dataset.cursor = "magnet";
+        viewAll.textContent = `View all ${total} insights →`;
+        root.after(viewAll);
+    } else {
+        buildSearchAndFilter(root, allRows, posts.length);
+    }
 
     // Fetch live metrics without blocking; patch the chips onto rendered rows.
     if (opts?.metricsApi) {
@@ -102,6 +127,7 @@ export async function initPostsList(root, opts = {}) {
         destroy() {
             const outer = root.parentElement && root.parentElement.querySelector(".post-search-outer");
             if (outer) outer.remove();
+            if (viewAll) viewAll.remove();
             root.replaceChildren();
         },
     };
@@ -135,7 +161,7 @@ export async function initPostsFlyout(root) {
 
     const foot = document.createElement("a");
     foot.className = "nav-flyout-foot";
-    foot.href = "#insights";
+    foot.href = "/insights/";
     foot.setAttribute("role", "menuitem");
     foot.dataset.cursor = "magnet";
     foot.textContent = remaining > 0

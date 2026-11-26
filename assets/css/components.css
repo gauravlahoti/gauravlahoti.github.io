@@ -1460,6 +1460,28 @@ body[data-agent-panel-open="true"] .cursor { display: none; }
     max-width: 760px;
 }
 
+/* Spec 108: link from the home page's featured posts to /insights/. */
+.posts-view-all {
+    display: inline-block;
+    margin-top: var(--space-6);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: none;
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+.posts-view-all:hover,
+.posts-view-all:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+@media (max-width: 767px) {
+    .posts-view-all {
+        display: block;
+        text-align: center;
+    }
+}
+
 /* Post search bar ---------------------------------------------------- */
 
 .post-search-outer {
