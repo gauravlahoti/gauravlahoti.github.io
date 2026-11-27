@@ -80,7 +80,7 @@ Each has a "Refresh" button that refetches.
 
 If the preview still shows the placeholder OG image:
 - Confirm `index.html` references the new file path.
-- Bump the query string: `<meta property="og:image" content="…/og-image.png?v=2">`
+- Bump the query string: `<meta property="og:image" content="…/og-image.jpg?v=2">`
 - Re-validate.
 
 ## Step 6 — Local cache lying to you?

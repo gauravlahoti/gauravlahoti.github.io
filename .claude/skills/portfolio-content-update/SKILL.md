@@ -23,7 +23,7 @@ checklist for doing that cleanly.
 | Career graph (companies, projects, skills, edges) | `content/graph.json` | nodes + edges                      |
 | Cert badges (images)          | `assets/img/badges/<slug>.png`   | one per certification              |
 | Resume PDF                    | `assets/img/resume.pdf`          | replace file in place              |
-| OG image                      | `assets/img/og-image.png`        | 1200×630 PNG                       |
+| OG image                      | `assets/img/og-image.jpg`        | 1200×630 PNG                       |
 | Favicon                       | `assets/img/favicon.svg`         | SVG with project tokens            |
 
 ## Workflow
@@ -58,7 +58,7 @@ Use `/add-project <slug>` — it appends a node + edges to
 
 1. Generate a 1200×630 PNG with the user's name + tagline +
    accent.
-2. Save as `assets/img/og-image.png`.
+2. Save as `assets/img/og-image.jpg`.
 3. Optionally, also bump the `og:image` query string in
    `index.html` (`?v=2`) to bust social-platform caches.
 

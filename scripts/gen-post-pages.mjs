@@ -243,7 +243,7 @@ ${more.map((p) => `                    <li><a class="insight-more-link" href="/i
     <link rel="canonical" href="${canonical}">
     <meta property="og:title" content="${titleEsc}">
     <meta property="og:description" content="${desc}">
-    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:url" content="${canonical}">
@@ -254,7 +254,7 @@ ${more.map((p) => `                    <li><a class="insight-more-link" href="/i
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${titleEsc}">
     <meta name="twitter:description" content="${desc}">
-    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.jpg">
     <base href="/">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
@@ -404,7 +404,7 @@ console.log(`\nGenerated ${posts.length} insight pages.`);
     <link rel="canonical" href="${canonical}">
     <meta property="og:title" content="${title}">
     <meta property="og:description" content="${desc}">
-    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta property="og:image" content="https://gauravlahoti.dev/assets/img/og-image.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:url" content="${canonical}">
@@ -413,7 +413,7 @@ console.log(`\nGenerated ${posts.length} insight pages.`);
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${desc}">
-    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.png">
+    <meta name="twitter:image" content="https://gauravlahoti.dev/assets/img/og-image.jpg">
     <base href="/">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
