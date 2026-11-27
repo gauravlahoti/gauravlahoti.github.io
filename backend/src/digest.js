@@ -36,7 +36,11 @@ export function median(values) {
 export function referrerHost(ref) {
     if (!ref) return "direct";
     try {
-        const host = new URL(ref).hostname.replace(/^www\./, "").toLowerCase();
+        // page_views.referrer is stored as a bare hostname ("www.linkedin.com"),
+        // which new URL() rejects. Until spec 111 that sent every real source
+        // to "other", so Pulse's sources never showed LinkedIn or Google.
+        const url = /^[a-z][a-z0-9+.-]*:/i.test(ref) ? ref : `https://${ref}`;
+        const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
         if (OWN_HOSTS.has(host) || OWN_HOSTS.has("www." + host)) return null;
         // LinkedIn arrives as linkedin.com, lnkd.in and the android-app scheme.
         if (host.endsWith("linkedin.com") || host === "lnkd.in" || host === "com.linkedin.android") return "linkedin";
@@ -355,4 +359,53 @@ export function reportWindow(url, defaultDays) {
     days = Math.max(1, Math.min(30, days));
     const span = days * 24 * 60 * 60;
     return { from: now - span, to: now, prevFrom: now - 2 * span, prevTo: now - span };
+}
+
+// ── Spec 111: one session's facts for the note briefing ──────────────────────
+// The single row-level join of page_views.session_id to a person, by design:
+// it runs only when that session sends Gaurav a note, and the result goes only
+// to his private briefing email. See .claude/docs/backend.md.
+export const NOTE_CONTEXT_MAX_PAGES = 10;
+
+/** {referrer, pages, city, country, first_seen, turns, modes} for one session, or null. */
+export async function noteContext(run, sessionId) {
+    if (typeof sessionId !== "string" || !SESSION_RE.test(sessionId)) return null;
+    const r = async (sql, binds) => (await run(sql, binds)) || [];
+    const views = await r(
+        `SELECT path, referrer, city, country, viewed_at FROM page_views
+         WHERE session_id = ? ORDER BY viewed_at LIMIT 200`,
+        [sessionId]
+    );
+    const chat = (await r(
+        `SELECT COUNT(*) AS turns, MIN(logged_at) AS first_turn,
+                MAX(country) AS country, MAX(city) AS city
+         FROM agent_interactions WHERE session_id = ?`,
+        [sessionId]
+    ))[0] || {};
+    const modes = (await r(
+        `SELECT DISTINCT ${MODE} AS mode FROM agent_interactions WHERE session_id = ?`,
+        [sessionId]
+    )).map((m) => m.mode).filter(Boolean);
+
+    const pages = [];
+    for (const v of views) {
+        if (v.path && !pages.includes(v.path)) pages.push(v.path);
+        if (pages.length >= NOTE_CONTEXT_MAX_PAGES) break;
+    }
+    // The first page view with an outside referrer is how they arrived.
+    let referrer = views.length ? "direct" : null;
+    for (const v of views) {
+        const host = referrerHost(v.referrer || "");
+        if (host && host !== "direct") { referrer = host; break; }
+    }
+    const geo = views.find((v) => v.city || v.country) || {};
+    return {
+        referrer,
+        pages,
+        city: geo.city || chat.city || null,
+        country: geo.country || chat.country || null,
+        first_seen: views[0]?.viewed_at ?? chat.first_turn ?? null,
+        turns: Number(chat.turns) || 0,
+        modes,
+    };
 }

@@ -13,6 +13,8 @@ Shared helpers (`app_utils/{resume_send,telemetry,typing}.py`) are duplicated in
 
 ### Injecting session context into a tool without exposing it to the model
 
+**Note emails (spec 111).** A confirmed `send_note_to_gaurav` sends two emails, nobody CC'd: a private briefing to Gaurav (Reply-To the visitor) with the message, "Atlas's read" (one `gemini-3.6-flash` JSON call in `app_utils/note_brief.py`, 6s cap: suggested next step + what they asked) and the visit facts from the Worker's `GET /api/note-context`; then a confirmation to the visitor with 2-3 "while you wait" pages picked by id from an allowlist built from the live corpus (`build_allowlist`), so the model can never write a URL. Either AI part failing just drops that section. Templates: `app_utils/note_emails.py`; preview: `uv run python app/dev_scripts/preview_note_emails.py <dir>`. Voice and avatar notes get the chat through `note_send.set_history_provider` (registered in `api.py`), since `live_brain.ToolDispatcher` has no ToolContext.
+
 `send_resume`/`send_note_to_gaurav` (`agents/atlas/app/tools.py`) take a `tool_context:
 ToolContext` parameter (from `google.adk.tools.tool_context`) alongside the LLM-visible args,
 and read `tool_context.session.id` to get the real session id — never something the model

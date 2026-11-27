@@ -4,7 +4,7 @@
 // GET  /api/leads : admin dump (Authorization: Bearer ADMIN_TOKEN).
 // SCHEDULED : monthly retention cleanup.
 
-import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, roundCoord, widgetEventFields } from "./digest.js";
+import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, noteContext, reportWindow, roundCoord, widgetEventFields } from "./digest.js";
 import { NOT_OWNER, VISITOR_HASH_V2_SINCE, isOwnerSession, visitorKey } from "./visitor-key.js";
 
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
@@ -87,6 +87,9 @@ export default {
             return handleAmbientInteractions(request, env);
         }
 
+        if (url.pathname === "/api/note-context" && request.method === "GET") {
+            return handleNoteContext(request, env);
+        }
         if (url.pathname === "/api/ambient/stats" && request.method === "GET") {
             return handleAmbientStats(request, env);
         }
@@ -1144,6 +1147,33 @@ async function handleAmbientInteractions(request, env) {
         return json({ ok: true, interactions: results || [] }, 200, {});
     } catch (err) {
         console.error("[ambient] interactions query failed", err);
+        return json({ ok: false, error: "Internal" }, 500, {});
+    }
+}
+
+// GET /api/note-context?session=<id> — spec 111. One session's pages, arrival
+// source, place and chat modes, for the private briefing Atlas emails Gaurav
+// when that session sends him a note. Server-to-server only (X-Internal-Token),
+// no CORS. The one sanctioned row-level join on page_views.session_id: see
+// .claude/docs/backend.md.
+async function handleNoteContext(request, env) {
+    const token = env.AGENT_LOG_TOKEN;
+    if (!token) {
+        return json({ ok: false, error: "Endpoint disabled" }, 503, {});
+    }
+    if (request.headers.get("X-Internal-Token") !== token) {
+        return json({ ok: false, error: "Unauthorized" }, 401, {});
+    }
+    const sessionId = new URL(request.url).searchParams.get("session") || "";
+    try {
+        const context = await noteContext(
+            async (sql, binds) => (await env.DB.prepare(sql).bind(...binds).all()).results || [],
+            sessionId
+        );
+        if (!context) return json({ ok: false, error: "Invalid session" }, 400, {});
+        return json({ ok: true, context }, 200, {});
+    } catch (err) {
+        console.error("[note-context] query failed", err);
         return json({ ok: false, error: "Internal" }, 500, {});
     }
 }

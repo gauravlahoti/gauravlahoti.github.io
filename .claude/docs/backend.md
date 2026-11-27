@@ -146,6 +146,15 @@ visitors who loaded a page also chatted"), never a row-level "visitor X did Y th
 no equivalent "downloaded" funnel step: the gate that would have made that an instrumented event
 was retired 2026-06-10, so a static `/resume.pdf` link fires no backend call to count.
 
+**The one exception (spec 111, approved by Gaurav 2026-11-27): `GET /api/note-context`.** When a
+visitor sends Gaurav a note through Atlas, Atlas asks this internal endpoint (X-Internal-Token,
+no CORS) for *that one session's* visit: first outside referrer (via `referrerHost`), distinct
+pages in order (cap 10), city and country, first page-view time, turn count and reply modes
+(`noteContext` in `backend/src/digest.js`). The result goes only into Gaurav's private briefing
+email, never to the visitor, never stored anywhere new. The justification is that the visitor
+chose to contact him. Do not widen it: no other caller, no batch form, no admin page, and
+nothing for sessions that didn't send a note.
+
 ### Email-failure alerting (`backend/monitoring/`)
 
 `email-send-failure-policy.yaml` is a Cloud Monitoring **log-based** alert policy, wired to

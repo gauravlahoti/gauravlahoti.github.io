@@ -1,15 +1,19 @@
 """Send-a-note-to-Gaurav helpers for the portfolio agent.
 
 A site visitor composes a personal message and provides their email
-address. send_note_email() fires a transactional email TO Gaurav,
-CC'd to the visitor so both sides have a record. Gaurav's Reply-To
-goes directly back to the visitor.
+address. Since spec 111 that sends two emails: a private briefing TO Gaurav
+(Reply-To the visitor) with Atlas's read of the chat and the visit's facts,
+and a separate confirmation TO the visitor. Nobody is CC'd, so the briefing
+can say things the visitor shouldn't see.
 
 Architecture:
   agent.send_note_to_gaurav(visitor_email, message)
     → validate inputs
     → POST /api/note-send-check (Worker) → {allowed}
-    → call MCP tool `send-email` on the resend-mcp-server
+    → GET /api/note-context (Worker) → this session's pages, source, place
+    → note_brief.brief_note() → Atlas's read (Gemini, ~6s cap, optional)
+    → MCP `send-email`: Gaurav's briefing (must succeed)
+    → MCP `send-email`: the visitor's confirmation (best effort)
     → POST /api/note-send-record (Worker) → row in note_sends
     → return {ok, message, code}
 
@@ -21,12 +25,31 @@ crafted CC. Resend's own send limits apply as a further backstop.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
+import httpx
+
+from app import corpus_live
+from app.app_utils.conversation import plain_turns
+from app.app_utils.note_brief import build_allowlist, brief_note
+from app.app_utils.note_emails import (
+    RECEIPT_SUBJECT,
+    NoteEmail,
+    briefing_html,
+    briefing_subject,
+    briefing_text,
+    receipt_html,
+    receipt_text,
+)
 from app.app_utils.resume_send import (
+    _FALLBACK_CTX,
     _check_rate_limit,
+    _check_url,
     _env,
     _record_send,
     _send_via_mcp,
@@ -40,50 +63,72 @@ logger = logging.getLogger(__name__)
 _MIN_MESSAGE_LEN = 10
 _CHECK_PATH = "note-send-check"
 _RECORD_PATH = "note-send-record"
+_CONTEXT_TIMEOUT_S = 2.0
+
+# session_id -> the chat as ADK Content turns. api.py registers one so voice
+# and avatar notes (live_brain's ToolDispatcher has no ToolContext) still get
+# Atlas's read. The text path passes `conversation` directly instead.
+_history_provider: Callable[[str], Awaitable[list]] | None = None
 
 
-def _note_html(visitor_email: str, message: str) -> str:
-    def _esc(s: str) -> str:
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-    safe_email = _esc(visitor_email)
-    safe_msg   = _esc(message).replace("\n", "<br>")
-    return (
-        "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"
-        "font-size:15px;line-height:1.5;color:#1a1a1a;\">"
-        "<p><strong>New message from a site visitor</strong></p>"
-        f"<p>From: <a href=\"mailto:{safe_email}\">{safe_email}</a></p>"
-        "<blockquote style=\"border-left:4px solid #ccc;padding:8px 16px;"
-        "margin:16px 0;color:#333;\">"
-        f"{safe_msg}"
-        "</blockquote>"
-        "<p style=\"color:#666;font-size:13px;margin-top:24px;\">"
-        "— Sent via the AI Agent on "
-        "<a href=\"https://gauravlahoti.dev\">gauravlahoti.dev</a>. "
-        "Reply directly to this email to reach the visitor.</p>"
-        "</div>"
-    )
+def set_history_provider(fn: Callable[[str], Awaitable[list]] | None) -> None:
+    global _history_provider
+    _history_provider = fn
 
 
-def _note_text(visitor_email: str, message: str) -> str:
-    return (
-        "New message from a site visitor\n"
-        f"From: {visitor_email}\n\n"
-        f"{message}\n\n"
-        "---\n"
-        "Sent via the AI Agent on https://gauravlahoti.dev.\n"
-        "Reply directly to this email to reach the visitor.\n"
-    )
+async def _conversation(session_id: str | None, given: list | None) -> list[tuple[str, str]]:
+    if given is not None:
+        return plain_turns(given)
+    if not session_id or _history_provider is None:
+        return []
+    try:
+        return plain_turns(await _history_provider(session_id))
+    except Exception:
+        logger.warning("note: chat history unavailable", exc_info=True)
+        return []
+
+
+async def _note_context(session_id: str | None, token: str) -> dict[str, Any] | None:
+    """This session's visit facts from the Worker (spec 111), or None."""
+    url = _check_url("note-context")
+    if not url or not token or not session_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_CONTEXT_TIMEOUT_S) as client:
+            r = await client.get(url, params={"session": session_id}, headers={"X-Internal-Token": token})
+        if r.status_code != 200:
+            logger.warning("note-context failed: %s", r.status_code)
+            return None
+        ctx = r.json().get("context")
+        return ctx if isinstance(ctx, dict) else None
+    except Exception as exc:
+        logger.warning("note-context errored: %s", type(exc).__name__)
+        return None
+
+
+async def _links() -> tuple[str, str]:
+    """(linkedin, topmate) from the live profile, with the static fallback."""
+    try:
+        links = (await corpus_live.get_profile() or {}).get("links") or {}
+        return (links.get("linkedin") or _FALLBACK_CTX["linkedin"],
+                links.get("topmate") or _FALLBACK_CTX["topmate"])
+    except Exception:
+        return _FALLBACK_CTX["linkedin"], _FALLBACK_CTX["topmate"]
 
 
 async def send_note_email(
-    visitor_email: str, message: str, *, session_id: str | None = None
+    visitor_email: str, message: str, *, session_id: str | None = None,
+    conversation: list | None = None,
 ) -> dict[str, Any]:
     """Validate inputs → send via MCP → return result dict.
 
     session_id is server-side context (injected via ToolContext in tools.py,
     never something the model supplies) — recorded on failure so a send that
-    failed can be traced back to the conversation it happened in.
+    failed can be traced back to the conversation it happened in. It also
+    keys the visit facts and, without `conversation`, the chat history.
+
+    conversation: the chat so far as ADK Content turns (text path); None
+    means read it through the registered history provider (live path).
 
     Schema returned to the agent:
         {"ok": bool, "message": str, "code": "<short-code>"}
@@ -164,18 +209,32 @@ async def send_note_email(
             ),
         }
 
-    arguments = {
+    # Visit facts and Atlas's read. Both optional: a slow or failed lookup
+    # leaves its section out, never the note.
+    chat, context, allowlist, (linkedin, topmate) = await asyncio.gather(
+        _conversation(session_id, conversation),
+        _note_context(session_id, log_tok),
+        build_allowlist(),
+        _links(),
+    )
+    brief = await brief_note(msg, chat, allowlist)
+    note = NoteEmail(
+        visitor_email=visitor_clean, message=msg, sent_at=datetime.now(UTC),
+        context=context, brief=brief, allowlist=allowlist,
+        linkedin=linkedin, topmate=topmate, session_id=session_id or "",
+    )
+
+    briefing = {
         "from":    sender,
         "to":      [to_addr],
-        "cc":      [visitor_clean],
         "replyTo": [visitor_clean],  # Gaurav hits Reply → goes straight to visitor
-        "subject": f"Note from {visitor_clean} via gauravlahoti.dev",
-        "html":    _note_html(visitor_clean, msg),
-        "text":    _note_text(visitor_clean, msg),
+        "subject": briefing_subject(note),
+        "html":    briefing_html(note),
+        "text":    briefing_text(note),
     }
 
     mcp_start = time.monotonic()
-    ok, _, attempts = await _send_via_mcp(arguments)
+    ok, _, attempts = await _send_via_mcp(briefing)
     if not ok:
         latency_ms = int((time.monotonic() - mcp_start) * 1000)
         await record_send_failure(
@@ -190,6 +249,26 @@ async def send_note_email(
                 "or reach Gaurav directly on LinkedIn."
             ),
         }
+
+    # The visitor's copy. Gaurav already has the note, so a failure here is
+    # logged and reported, never turned into a failed send.
+    receipt_start = time.monotonic()
+    # BCC Gaurav so he sees exactly what the visitor got; a reply to the
+    # confirmation reaches him too. send-email requires a replyTo.
+    ok, _, attempts = await _send_via_mcp({
+        "from":    sender,
+        "to":      [visitor_clean],
+        "bcc":     [to_addr],
+        "replyTo": [to_addr],
+        "subject": RECEIPT_SUBJECT,
+        "html":    receipt_html(note),
+        "text":    receipt_text(note),
+    })
+    if not ok:
+        await record_send_failure(
+            "note", "receipt_failed", h, session_id=session_id, attempts=attempts,
+            latency_ms=int((time.monotonic() - receipt_start) * 1000),
+        )
 
     await _record_send(h, log_tok, path=_RECORD_PATH)
     return {

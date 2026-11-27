@@ -56,6 +56,8 @@ from app.agent import root_agent
 from app.app_utils import avatar_speak
 from app.app_utils.audit_log import log_interaction
 from app.app_utils.citations import CitationGuard, split_markers
+from app.app_utils.conversation import turns_from_events
+from app.app_utils import note_send
 from app.app_utils.dashes import DashGuard, strip_dashes
 from app.app_utils.emails import EmailGuard, emails_in, fix_emails
 from app.app_utils.geo_lookup import lookup_geo
@@ -451,7 +453,6 @@ async def _relay_avatar(
 # gemini-3.6-flash writing a whole reply for the avatar to read. Read per
 # request, so it is switched on or off with an env change alone.
 _LIVE_HISTORY_TURNS = 12
-_META_BLOCK_RE = re.compile(r"\[\[META\]\].*", re.DOTALL)
 
 
 def _live_brain_on() -> bool:
@@ -463,19 +464,21 @@ async def _chat_history(session_id: str) -> list[types.Content]:
     session = await _runner.session_service.get_session(
         app_name=APP_NAME, user_id=session_id, session_id=session_id
     )
-    turns: list[types.Content] = []
-    for event in (session.events if session else []):
-        content = event.content
-        if not content or not content.parts:
-            continue
-        text = "".join(p.text or "" for p in content.parts if p.text and not p.thought)
-        if content.role == "model":
-            text = split_markers(_META_BLOCK_RE.sub("", text))
-        text = text.strip()
-        if text:
-            turns.append(types.Content(role="user" if content.role == "user" else "model",
-                                       parts=[types.Part.from_text(text=text)]))
-    return turns[-_LIVE_HISTORY_TURNS:]
+    return turns_from_events(session.events if session else [])[-_LIVE_HISTORY_TURNS:]
+
+
+async def _note_history(session_id: str) -> list[types.Content]:
+    """The whole chat, for the note briefing (spec 111). Voice and avatar
+    turns land in the same ADK session, so this covers every mode."""
+    session = await _runner.session_service.get_session(
+        app_name=APP_NAME, user_id=session_id, session_id=session_id
+    )
+    return turns_from_events(session.events if session else [])
+
+
+# Voice and avatar notes go through live_brain's ToolDispatcher, which has no
+# ToolContext, so note_send reads the chat through this instead (spec 111).
+note_send.set_history_provider(_note_history)
 
 
 async def _remember_live_turn(session_id: str, question: str, answer: str) -> None:

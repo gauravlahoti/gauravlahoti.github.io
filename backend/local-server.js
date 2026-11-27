@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
-import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, widgetEventFields } from "./src/digest.js";
+import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, noteContext, reportWindow, widgetEventFields } from "./src/digest.js";
 import { NOT_OWNER, VISITOR_HASH_V2_SINCE, isOwnerSession, visitorKey } from "./src/visitor-key.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -548,6 +548,17 @@ async function handleWidgetEvent(req, res, origin, cors) {
     done();
 }
 
+// Spec 111: mirror of the Worker's GET /api/note-context.
+async function handleNoteContext(req, res, url) {
+    if (!AGENT_LOG_TOKEN) return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
+    if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: "Unauthorized" }, {});
+    }
+    const context = await noteContext((sql, binds) => db.prepare(sql).all(...binds), url.searchParams.get("session") || "");
+    if (!context) return sendJson(res, 400, { ok: false, error: "Invalid session" }, {});
+    sendJson(res, 200, { ok: true, context }, {});
+}
+
 async function handleAmbientStats(req, res, url) {
     if (!AGENT_LOG_TOKEN) return sendJson(res, 503, { ok: false, error: "Endpoint disabled" }, {});
     if ((req.headers["x-internal-token"] || "") !== AGENT_LOG_TOKEN) {
@@ -694,6 +705,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/ambient/interactions" && req.method === "GET") {
         return handleAmbientInteractions(req, res, url);
+    }
+    if (url.pathname === "/api/note-context" && req.method === "GET") {
+        return handleNoteContext(req, res, url);
     }
     if (url.pathname === "/api/ambient/stats" && req.method === "GET") {
         return handleAmbientStats(req, res, url);
