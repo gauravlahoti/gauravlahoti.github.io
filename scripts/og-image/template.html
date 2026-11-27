@@ -3,14 +3,21 @@
   Open Graph card template for gauravlahoti.dev (1200x630).
   Rendered to assets/img/og-image.png by scripts/og-image/render.sh.
   Design tokens mirror assets/css/base.css. Edit copy here, then re-render.
-  {{PORTRAIT}} is replaced with a base64 data URI at render time.
+  {{PORTRAIT}} and {{BADGE:<slug>}} are replaced with base64 data URIs at
+  render time (slugs match assets/img/badges/<slug>.png).
+
+  v4: the card has to sell the click at LinkedIn's ~400px thumbnail, where
+  anything under ~28px turns to mush. So: no small grey tagline, a proof row
+  of three big numbers, and the cert badges as a colour strip under the photo.
+  Keep the numbers in step with content/profile.json (certifications,
+  careerStart) and content/agents.json.
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #000000;
@@ -20,6 +27,7 @@
     --accent: #00FFD1;
     --accent-glow: rgba(0, 255, 209, 0.35);
     --accent-soft: rgba(0, 255, 209, 0.12);
+    --border: rgba(255, 255, 255, 0.08);
     --border-strong: rgba(255, 255, 255, 0.16);
     --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
     --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -33,75 +41,100 @@
     position: relative;
     overflow: hidden;
   }
-  /* subtle dot grid */
   .grid {
     position: absolute; inset: 0;
-    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0);
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0);
     background-size: 32px 32px;
-    mask-image: linear-gradient(to right, rgba(0,0,0,0.9), transparent 70%);
+    mask-image: linear-gradient(to right, rgba(0,0,0,0.9), transparent 75%);
   }
-  /* accent glow, top-left */
   .glow {
     position: absolute;
-    width: 620px; height: 620px;
-    top: -240px; left: -200px;
+    width: 700px; height: 700px;
+    top: -300px; left: -240px;
     background: radial-gradient(circle, var(--accent-glow), transparent 62%);
     filter: blur(20px);
-    opacity: 0.55;
+    opacity: 0.5;
+  }
+  .glow-r {
+    position: absolute;
+    width: 640px; height: 640px;
+    top: -10px; right: -180px;
+    background: radial-gradient(circle, var(--accent-soft), transparent 65%);
   }
   .frame {
     position: absolute; inset: 0;
     display: flex; align-items: center;
-    padding: 0 76px;
-    gap: 56px;
+    padding: 0 64px 0 72px;
+    gap: 48px;
   }
   .left { flex: 1; }
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 20px;
-    letter-spacing: 0.28em;
-    color: var(--accent);
-    text-transform: uppercase;
-    margin-bottom: 30px;
+
+  .brand {
     display: inline-flex; align-items: center; gap: 12px;
-  }
-  .eyebrow .mark { width: 56px; height: 56px; flex: none; }
-  /* the GL mark replaces the old accent dash before the label */
-  .name {
-    font-size: 96px;
-    font-weight: 800;
-    line-height: 0.98;
-    letter-spacing: -0.03em;
-    color: #FFFFFF;
+    font-family: var(--font-mono);
+    font-size: 26px;
+    color: var(--ink);
     margin-bottom: 26px;
+  }
+  .brand .mark { width: 44px; height: 44px; flex: none; }
+  .brand b { color: var(--accent); font-weight: 500; }
+
+  .name {
+    font-size: 104px;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.035em;
+    color: #FFFFFF;
+    margin-bottom: 24px;
+    white-space: nowrap;
   }
   .title {
-    font-size: 34px;
-    font-weight: 600;
+    font-size: 40px;
+    font-weight: 700;
     color: var(--ink);
-    padding-left: 20px;
-    border-left: 3px solid var(--accent);
-    line-height: 1.2;
-    margin-bottom: 26px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin-bottom: 44px;
   }
-  .title b { color: var(--accent); font-weight: 600; }
-  .tagline {
+  .title b { color: var(--accent); font-weight: 700; }
+
+  .proof {
+    display: flex;
+    gap: 0;
+  }
+  .stat {
+    padding: 0 32px;
+    border-left: 2px solid var(--border-strong);
+  }
+  .stat:first-child { padding-left: 0; border-left: 0; }
+  .stat .n {
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .stat .l {
     font-size: 23px;
-    color: var(--ink-muted);
-    max-width: 560px;
-    line-height: 1.4;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--ink);
+    white-space: nowrap;
   }
+
   .right {
-    position: relative;
-    width: 340px; height: 340px;
     flex-shrink: 0;
+    width: 340px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 26px;
   }
   .portrait-ring {
-    position: absolute; inset: 0;
+    width: 320px; height: 320px;
     border-radius: 50%;
     padding: 5px;
-    background: linear-gradient(140deg, var(--accent), transparent 55%);
-    box-shadow: 0 0 60px rgba(0,255,209,0.28);
+    background: linear-gradient(140deg, var(--accent), transparent 60%);
+    box-shadow: 0 0 70px rgba(0,255,209,0.30);
   }
   .portrait-ring img {
     width: 100%; height: 100%;
@@ -109,35 +142,45 @@
     object-fit: cover;
     display: block;
     background: var(--bg-card);
-    border: 2px solid var(--bg);
+    border: 3px solid var(--bg);
   }
-  .domain {
-    position: absolute;
-    left: 76px; bottom: 54px;
-    font-family: var(--font-mono);
-    font-size: 22px;
-    color: var(--ink-muted);
-    letter-spacing: 0.02em;
+  .badges {
+    display: flex; gap: 6px; justify-content: center;
   }
-  .domain b { color: var(--accent); font-weight: 500; }
+  .badges img {
+    width: 64px; height: 64px;
+    object-fit: contain;
+    display: block;
+  }
 </style>
 </head>
 <body>
   <div class="grid"></div>
   <div class="glow"></div>
+  <div class="glow-r"></div>
   <div class="frame">
     <div class="left">
-      <div class="eyebrow"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 12 V48 H48" fill="none" stroke="#E5E5E5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="12" r="6" fill="#000" stroke="#E5E5E5" stroke-width="5"/><circle cx="48" cy="48" r="6" fill="#000" stroke="#E5E5E5" stroke-width="5"/><circle cx="18" cy="48" r="12" fill="#00FFD1" opacity=".22"/><circle cx="18" cy="48" r="7.5" fill="#00FFD1"/></svg>Portfolio</div>
+      <div class="brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 12 V48 H48" fill="none" stroke="#E5E5E5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="12" r="6" fill="#000" stroke="#E5E5E5" stroke-width="5"/><circle cx="48" cy="48" r="6" fill="#000" stroke="#E5E5E5" stroke-width="5"/><circle cx="18" cy="48" r="12" fill="#00FFD1" opacity=".22"/><circle cx="18" cy="48" r="7.5" fill="#00FFD1"/></svg><span>gauravlahoti<b>.dev</b></span></div>
       <h1 class="name">Gaurav Lahoti</h1>
       <div class="title">Cloud &amp; <b>AI-Native</b> Architect</div>
-      <p class="tagline">Bridging legacy enterprise stacks with production-grade AI.</p>
+      <div class="proof">
+        <div class="stat"><div class="n">11+</div><div class="l">years in<br>enterprise tech</div></div>
+        <div class="stat"><div class="n">14</div><div class="l">cloud &amp; AI<br>certifications</div></div>
+        <div class="stat"><div class="n">5</div><div class="l">AI agents<br>live on the site</div></div>
+      </div>
     </div>
     <div class="right">
       <div class="portrait-ring">
         <img src="{{PORTRAIT}}" alt="Gaurav Lahoti">
       </div>
+      <div class="badges">
+        <img src="{{BADGE:claude-certified-architect-professional}}" alt="">
+        <img src="{{BADGE:aws-ml-specialty}}" alt="">
+        <img src="{{BADGE:gcp-generative-ai-leader}}" alt="">
+        <img src="{{BADGE:gcp-security-engineer}}" alt="">
+        <img src="{{BADGE:aws-ml-engineer-associate}}" alt="">
+      </div>
     </div>
   </div>
-  <div class="domain"><b>&gt;</b> gauravlahoti.dev</div>
 </body>
 </html>
