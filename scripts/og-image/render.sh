@@ -4,7 +4,7 @@
 #
 # JPEG, not PNG: WhatsApp silently drops link-preview images over ~300 KB,
 # and the PNG of this card is ~285 KB. JPEG q90 is ~105 KB with no visible
-# loss. The script fails if the JPEG creeps past 280 KB.
+# loss. Baseline, not progressive, for the simplest decoders. The script fails if the JPEG creeps past 280 KB.
 #
 # Usage:  ./scripts/og-image/render.sh
 # Edit template.html, then re-run this. The portrait and badges are inlined
@@ -42,7 +42,7 @@ import os, sys
 from PIL import Image
 src, out = sys.argv[1:3]
 Image.open(src).convert("RGB").save(out, "JPEG", quality=90, optimize=True,
-                                    progressive=True, subsampling=0)
+                                    progressive=False, subsampling=0)
 kb = os.path.getsize(out) / 1024
 print(f"{kb:.0f} KB")
 if kb > 280:
