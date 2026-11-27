@@ -9,6 +9,8 @@
 // agent-voice.js, so that lazy-loaded module shares agent-widget.js's
 // cache-bust rather than being pinned to whatever the browser cached first.
 // Same pattern as agents-page.js's _selfV/_vq.
+import { tagSessionId } from "./owner.js";
+
 const _selfV = new URL(import.meta.url).searchParams.get("v") || "";
 const _vq = (path) => _selfV ? `${path}?v=${_selfV}` : path;
 
@@ -3704,6 +3706,10 @@ function startLoadingStages(assistantLi, isFirstTurn) {
 
 // A fresh chat session id (same shape as main.js's page id).
 function newSessionId() {
+    return tagSessionId(mintUuid());   // "owner-" prefix for the owner (spec 110)
+}
+
+function mintUuid() {
     if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
     const b = crypto.getRandomValues(new Uint8Array(16));
     b[6] = (b[6] & 0x0f) | 0x40;

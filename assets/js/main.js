@@ -2,6 +2,7 @@
 // orchestrates the hero reveal.
 
 import { initNavDrawer } from "./nav-drawer.js";
+import { tagSessionId } from "./owner.js";
 
 const ROOT = document.documentElement;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,7 +34,7 @@ function isChrome() {
 // Append `?v=ASSET_VERSION` to dynamic imports so a cache-bust on the entry
 // script also invalidates lazy-loaded modules. Bump together with the
 // ?v=N query strings on <link>/<script> in index.html.
-const ASSET_VERSION = "425";
+const ASSET_VERSION = "426";
 const v = (path) => `${path}?v=${ASSET_VERSION}`;
 
 function uuidv4() {
@@ -51,7 +52,7 @@ function uuidv4() {
 // value regardless of which loads first. Aggregate-only by policy: this is
 // what lets daily_stats compute "did a visitor who loaded a page also chat"
 // as a same-day count, never a row-level join — see .claude/docs/backend.md.
-window.__portfolioSessionId = uuidv4();
+window.__portfolioSessionId = tagSessionId(uuidv4());   // "owner-" prefix for the owner (spec 110)
 
 // (Refresh-lands-at-top behavior is handled by the inline <script> in
 // index.html <head> — runs before auto-restore + bfcache restore.)

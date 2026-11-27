@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, widgetEventFields } from "./src/digest.js";
+import { NOT_OWNER, VISITOR_HASH_V2_SINCE, isOwnerSession, visitorKey } from "./src/visitor-key.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8787;
@@ -408,7 +409,7 @@ async function handleSendFail(req, res) {
 // handlers in src/index.js so the flow can be exercised locally.
 const ambientInteractions = db.prepare(
     `SELECT question, response, status, country, city, logged_at
-     FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?
+     FROM agent_interactions WHERE logged_at > ? AND logged_at <= ? AND ${NOT_OWNER}
      ORDER BY logged_at DESC LIMIT 100`
 );
 
@@ -439,14 +440,14 @@ const pvUniqSince    = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM
 const pvUniqBetween  = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views WHERE viewed_at > ? AND viewed_at <= ?`);
 const pvCountAll     = db.prepare(`SELECT COUNT(*) AS n FROM page_views`);
 const pvUniqAll      = db.prepare(`SELECT COUNT(DISTINCT visitor_hash) AS n FROM page_views`);
-const convAll        = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions`);
-const convSince      = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ?`);
-const convBetween    = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?`);
+const convAll        = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE ${NOT_OWNER}`);
+const convSince      = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ? AND ${NOT_OWNER}`);
+const convBetween    = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM agent_interactions WHERE logged_at > ? AND logged_at <= ? AND ${NOT_OWNER}`);
 const turnsSince     = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ?`);
 const errSince       = db.prepare(`SELECT COUNT(*) AS n FROM agent_interactions WHERE logged_at > ? AND status NOT IN ${NOT_AN_ERROR}`);
 const topQStmt = db.prepare(
     `SELECT question, COUNT(*) AS count FROM agent_interactions
-     WHERE logged_at > ? AND question != '' GROUP BY question
+     WHERE logged_at > ? AND question != '' AND ${NOT_OWNER} GROUP BY question
      ORDER BY count DESC, MAX(logged_at) DESC LIMIT 10`
 );
 const geoStmt = db.prepare(
@@ -495,19 +496,21 @@ async function handlePageview(req, res, origin, cors) {
     try { body = await readJson(req, 4 * 1024); } catch (_) { body = {}; }
     const path = String(body?.path || "/").slice(0, 256);
     const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
+    if (isOwnerSession(sessionId)) { res.writeHead(204, cors); return res.end(); }  // spec 110
     let referrer = "";
     try {
         const ref = String(body?.referrer || "");
         referrer = ref ? new URL(ref).hostname.slice(0, 128) : "";
     } catch (_) { referrer = ""; }
 
-    // No request.cf locally — geo is null; visitor_hash from remote address.
+    // No request.cf locally — geo is null; visitor_hash from remote address,
+    // with the same weekly key as the Worker (spec 110, src/visitor-key.js).
     const ip = req.socket?.remoteAddress || "";
-    const utcDate = new Date().toISOString().slice(0, 10);
-    const visitorHash = ip
-        ? createHash("sha256").update(`${ip}|${ua}|${utcDate}`).digest("hex").slice(0, 16)
-        : null;
     const at = Math.floor(Date.now() / 1000);
+    let visitorHash = null;
+    try {
+        visitorHash = await visitorKey({ ip, ua, now: at, secret: process.env.VISITOR_HASH_SECRET });
+    } catch (_) { visitorHash = null; }
     try {
         insertPageView.run(at, path, referrer || null, null, null, null, visitorHash, sessionId);
     } catch (err) { console.error("[pageview] insert failed", err.message); }
@@ -523,8 +526,9 @@ async function handleWidgetEvent(req, res, origin, cors) {
     let body = {};
     try { body = await readJson(req, 4 * 1024); } catch (_) { return done(); }
     const fields = widgetEventFields(body);
-    if (!fields) return done();
+    if (!fields || isOwnerSession(fields.sessionId)) return done();
 
+    // Daily full-IP hash on purpose: rate cap only (see src/index.js).
     const ip = req.socket?.remoteAddress || "";
     const utcDate = new Date().toISOString().slice(0, 10);
     const visitorHash = ip
@@ -559,6 +563,7 @@ async function handleAmbientStats(req, res, url) {
     sendJson(res, 200, {
         ok: true,
         window_days: days,
+        visitor_hash_since: VISITOR_HASH_V2_SINCE,  // spec 110
         ...extras,
         all_time: {
             pageviews: pvCountAll.get().n,

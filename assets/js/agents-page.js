@@ -2,6 +2,7 @@
 
 import { playEntranceWipe, runPageTransition, signalPageReady } from "./page-transition.js";
 import { initNavDrawer } from "./nav-drawer.js";
+import { tagSessionId } from "./owner.js";
 
 const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -36,7 +37,7 @@ async function _openAtlasWidget() {
                 root.id = "agent-root";
                 document.body.appendChild(root);
             }
-            const widget = initAgentWidget(root, profile, _uuidv4());
+            const widget = initAgentWidget(root, profile, tagSessionId(_uuidv4()));
             window.__agentWidget = widget;
             return widget;
         }).catch(err => {

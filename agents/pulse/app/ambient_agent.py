@@ -67,7 +67,10 @@ earlier. Cost is this calendar month.
    "scope_blocked" an off-topic ask Atlas declined, "error" a real failure.
 2. get_visitor_stats(): traffic, chats by mode with TTFT (median time
    to first token or spoken word), statuses, pages, sources, the journey from
-   visit to chat to avatar to email, hours, countries.
+   visit to chat to avatar to email, hours, countries. Visitors are an
+   estimate (one per device and network per week), and Gaurav's own visits
+   and chats are already left out. If visitors_note is present, don't
+   compare visitors with last week.
 3. get_cost_summary(): month-to-date Google Cloud infrastructure spend from
    the bill (Cloud Run, Secret Manager, Artifact Registry, Scheduler),
    forecast, budget, top services, movers, and any Cloud Run service left

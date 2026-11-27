@@ -9,6 +9,8 @@
 // gen-post-pages.mjs), and it passes that on to the widget, so a /publish
 // cache-bust reaches the widget and its submodules here too.
 
+import { tagSessionId } from "./owner.js";
+
 const V = new URL(import.meta.url).search;
 
 function uuidv4() {
@@ -35,7 +37,7 @@ function loadWidget() {
                     root.id = "agent-root";
                     document.body.appendChild(root);
                 }
-                const widget = initAgentWidget(root, profile, uuidv4());
+                const widget = initAgentWidget(root, profile, tagSessionId(uuidv4()));
                 window.__agentWidget = widget;
                 return widget;
             })
