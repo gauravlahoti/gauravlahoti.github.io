@@ -26,6 +26,7 @@ import httpx
 from google.adk.tools.tool_context import ToolContext
 
 from app import corpus_live
+from app.app_utils.conversation import turns_from_events
 from app.app_utils.note_send import send_note_email
 from app.app_utils.resume_send import send_resume_email
 
@@ -345,7 +346,11 @@ async def send_note_to_gaurav(
     gate = _confirm_gate(tool_context, "send_note_to_gaurav", visitor_email, confirmed)
     if gate is not None:
         return gate
-    return await send_note_email(visitor_email, message, session_id=tool_context.session.id)
+    # The chat so far feeds Atlas's read in Gaurav's briefing (spec 111).
+    return await send_note_email(
+        visitor_email, message, session_id=tool_context.session.id,
+        conversation=turns_from_events(tool_context.session.events),
+    )
 
 
 async def get_certifications() -> list[dict]:
