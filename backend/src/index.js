@@ -5,6 +5,7 @@
 // SCHEDULED : monthly retention cleanup.
 
 import { NOT_AN_ERROR, WIDGET_EVENT_CAPS, digestExtras, digestFields, reportWindow, roundCoord, widgetEventFields } from "./digest.js";
+import { NOT_OWNER, VISITOR_HASH_V2_SINCE, isOwnerSession, visitorKey } from "./visitor-key.js";
 
 const RESUME_SEND_WINDOW_SECONDS = 24 * 60 * 60;    // per-recipient rate-limit window
 const RETENTION_REDACT_SECONDS = 30 * 24 * 60 * 60;  // agent_interactions text -> NULL; resume_sends/note_sends delete
@@ -268,14 +269,18 @@ async function rollupDailyStats(env) {
     return ok === days.length;
 }
 
+// unique_visitors here is one UTC day's distinct visitor_hash. Since spec 110
+// the hash lasts a report week, so the same visitor can appear on several
+// days: SUM(unique_visitors) across days is visitor-days, not people.
+// conversations/turns leave out the owner's own sessions (NOT_OWNER).
 async function rollupOneDay(env, day) {
     const { results } = await env.DB.prepare(
         `SELECT
            (SELECT COUNT(*) FROM page_views WHERE date(viewed_at,'unixepoch') = ?1) AS pageviews,
            (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE date(viewed_at,'unixepoch') = ?1) AS unique_visitors,
            (SELECT COUNT(*) FROM resume_downloads WHERE date(downloaded_at,'unixepoch') = ?1) AS downloads,
-           (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS conversations,
-           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS turns,
+           (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND ${NOT_OWNER}) AS conversations,
+           (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND ${NOT_OWNER}) AS turns,
            (SELECT COALESCE(SUM(tokens_input),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_in,
            (SELECT COALESCE(SUM(tokens_output),0) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1) AS tokens_out,
            (SELECT COUNT(*) FROM agent_interactions WHERE date(logged_at,'unixepoch') = ?1 AND status NOT IN ${NOT_AN_ERROR}) AS errors,
@@ -957,7 +962,7 @@ async function handleAgentStats(request, env, corsHeaders) {
             `SELECT
                (SELECT COALESCE(SUM(turns),0) FROM daily_stats) +
                (SELECT COUNT(*) FROM agent_interactions
-                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS total`
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats) AND ${NOT_OWNER}) AS total`
         ).all();
         const total = results?.[0]?.total ?? 0;
         return new Response(JSON.stringify({ ok: true, total_conversations: total }), {
@@ -994,12 +999,12 @@ async function handleAgentGeoStats(request, env, corsHeaders) {
             `SELECT COUNT(DISTINCT country) AS countries,
                     COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,'')) AS cities
              FROM agent_interactions
-             WHERE country IS NOT NULL AND country != ''`
+             WHERE country IS NOT NULL AND country != '' AND ${NOT_OWNER}`
         ).all();
         const top = await env.DB.prepare(
             `SELECT country, city, COUNT(*) AS count
              FROM agent_interactions
-             WHERE country IS NOT NULL AND country != ''
+             WHERE country IS NOT NULL AND country != '' AND ${NOT_OWNER}
              GROUP BY country, city
              ORDER BY count DESC
              LIMIT 10`
@@ -1133,7 +1138,7 @@ async function handleAmbientInteractions(request, env) {
     try {
         const { results } = await env.DB.prepare(
             `SELECT question, response, status, country, city, logged_at
-             FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?
+             FROM agent_interactions WHERE logged_at > ? AND logged_at <= ? AND ${NOT_OWNER}
              ORDER BY logged_at DESC LIMIT 100`
         ).bind(from, to).all();
         return json({ ok: true, interactions: results || [] }, 200, {});
@@ -1178,13 +1183,14 @@ async function handleAmbientStats(request, env) {
                (SELECT COUNT(*) FROM page_views
                 WHERE date(viewed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS pageviews,
 
+               -- visitor-days, not people: see rollupOneDay (spec 110)
                (SELECT COALESCE(SUM(unique_visitors),0) FROM daily_stats) +
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views
                 WHERE date(viewed_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS unique_visitors,
 
                (SELECT COALESCE(SUM(conversations),0) FROM daily_stats) +
                (SELECT COUNT(DISTINCT session_id) FROM agent_interactions
-                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats)) AS conversations,
+                WHERE date(logged_at,'unixepoch') NOT IN (SELECT day FROM daily_stats) AND ${NOT_OWNER}) AS conversations,
 
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE country IS NOT NULL AND country != '') AS unique_locations,
@@ -1206,7 +1212,7 @@ async function handleAmbientStats(request, env) {
             `SELECT
                (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                         AS pageviews,
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)      AS unique_visitors,
-               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2 AND ${NOT_OWNER}) AS conversations,
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2)                  AS agent_turns,
                (SELECT COUNT(*) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2 AND status NOT IN ${NOT_AN_ERROR}) AS agent_errors,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
@@ -1221,7 +1227,7 @@ async function handleAmbientStats(request, env) {
             `SELECT
                (SELECT COUNT(*) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2)                    AS pageviews,
                (SELECT COUNT(DISTINCT visitor_hash) FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2) AS unique_visitors,
-               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS conversations,
+               (SELECT COUNT(DISTINCT session_id) FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2 AND ${NOT_OWNER}) AS conversations,
                (SELECT COUNT(DISTINCT COALESCE(country,'') || '|' || COALESCE(city,''))
                 FROM page_views WHERE viewed_at > ?1 AND viewed_at <= ?2 AND country IS NOT NULL AND country != '') AS unique_locations,
                (SELECT COALESCE(SUM(tokens_input),0)  FROM agent_interactions WHERE logged_at > ?1 AND logged_at <= ?2) AS tokens_in,
@@ -1233,7 +1239,7 @@ async function handleAmbientStats(request, env) {
         const topQ = await env.DB.prepare(
             `SELECT question, COUNT(*) AS count
              FROM agent_interactions
-             WHERE logged_at > ? AND logged_at <= ? AND question != ''
+             WHERE logged_at > ? AND logged_at <= ? AND question != '' AND ${NOT_OWNER}
              GROUP BY question
              ORDER BY count DESC, MAX(logged_at) DESC
              LIMIT 10`
@@ -1278,6 +1284,10 @@ async function handleAmbientStats(request, env) {
         return json({
             ok: true,
             window_days: days,
+            // Spec 110: when visitor_hash switched to the weekly key. A
+            // prev_window that starts before this used the old daily hash, so
+            // its unique_visitors can't be compared with this window's.
+            visitor_hash_since: VISITOR_HASH_V2_SINCE,
             ...extras,
             all_time: allTime,
             window: win,
@@ -1300,7 +1310,8 @@ const BOT_UA_RE = /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|embedl
 
 // POST /api/pageview — cookieless pageview beacon. Body: { path, referrer }.
 // Public, CORS-gated to the site origins. Stores one page_views row with geo
-// from request.cf and a daily-rotating visitor_hash.
+// from request.cf and a weekly visitor_hash (spec 110, src/visitor-key.js).
+// The owner's own sessions ("owner-…", spec 110) are dropped here.
 // Always returns 204 — a beacon must never surface errors to the page.
 async function handlePageview(request, env, origin, allowed, corsHeaders) {
     // Beacon is fire-and-forget; quietly ignore disallowed origins / bots.
@@ -1321,6 +1332,9 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     // joined to email/name at the row level in any shipped query — see
     // .claude/docs/backend.md.
     const sessionId = body?.sessionId ? String(body.sessionId).slice(0, 128) : null;
+    if (isOwnerSession(sessionId)) {
+        return new Response(null, { status: 204, headers: corsHeaders });
+    }
     let referrer = "";
     try {
         const ref = String(body?.referrer || "");
@@ -1336,13 +1350,12 @@ async function handlePageview(request, env, origin, allowed, corsHeaders) {
     const longitude = roundCoord(cf.longitude, 180);
 
     const ip = request.headers.get("CF-Connecting-IP") || "";
-    const utcDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+    const at = Math.floor(Date.now() / 1000);
     let visitorHash = null;
     try {
-        if (ip) visitorHash = (await sha256hex(`${ip}|${ua}|${utcDate}`)).slice(0, 16);
+        visitorHash = await visitorKey({ ip, ua, now: at, secret: env.VISITOR_HASH_SECRET });
     } catch (_) { visitorHash = null; }
 
-    const at = Math.floor(Date.now() / 1000);
     try {
         await env.DB.prepare(
             `INSERT INTO page_views (viewed_at, path, referrer, country, region, city, visitor_hash, session_id,
@@ -1372,8 +1385,11 @@ async function handleWidgetEvent(request, env, origin, allowed, corsHeaders) {
     let body = {};
     try { body = await request.json(); } catch (_) { return done(); }
     const fields = widgetEventFields(body);
-    if (!fields) return done();
+    if (!fields || isOwnerSession(fields.sessionId)) return done();
 
+    // Deliberately the old daily full-IP hash, not visitorKey(): this one
+    // only feeds the rate cap, and a /24 would let one office NAT trip it
+    // for everyone behind it (spec 110).
     const ip = request.headers.get("CF-Connecting-IP") || "";
     const utcDate = new Date().toISOString().slice(0, 10);
     let visitorHash = null;

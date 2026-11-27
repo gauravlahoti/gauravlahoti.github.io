@@ -36,6 +36,7 @@ from app.app_utils.ambient_data import (
     get_post_titles,
     get_site_performance,
     get_visitor_stats,
+    visitors_comparable,
 )
 from app.app_utils.resume_send import _env, _send_via_mcp, record_send_failure
 
@@ -315,7 +316,8 @@ def fallback_tldr(stats: dict[str, Any], cost: dict[str, Any], recs: list[dict[s
     never missing."""
     win, prev = stats.get("window") or {}, stats.get("prev_window") or {}
     visitors, before = _int(win.get("unique_visitors")), _int(prev.get("unique_visitors"))
-    trend = f"{before} the same days last week"
+    trend = (f"{before} the same days last week" if visitors_comparable(stats)
+             else "counted a new way from this report")
     out = [f"{_plural(visitors, 'visitor')} ({trend}), {_plural(_int(win.get('conversations')), 'chat')} "
            f"with Atlas, {_plural(avatar_chats(stats), 'avatar chat')}."]
     if recs:
@@ -369,6 +371,11 @@ def _kpi(value: str, label: str, sub: str) -> str:
     )
 
 
+# Spec 110: what the Visitors number is, under the KPI row.
+VISITOR_FOOTNOTE = ("Visitors are an estimate: one per device and network for the report week. "
+                    "Your own visits and chats are left out.")
+
+
 def _kpis(stats: dict[str, Any], cost: dict[str, Any], images: Images) -> str:
     win, prev = stats.get("window") or {}, stats.get("prev_window") or {}
     mins = avatar_minutes(stats)
@@ -394,9 +401,11 @@ def _kpis(stats: dict[str, Any], cost: dict[str, Any], images: Images) -> str:
         pending = cost.get("reason") == "export_pending"
         spend = _kpi("n/a", "Cloud spend",
                      f'<span style="color:{_MUTED}">{"billing data due within a day" if pending else "no billing data"}</span>')
+    # Spec 110: last week's visitors used the old, inflated count, so no ▲/▼.
+    visitor_sub = (_delta(_int(win.get("unique_visitors")), _int(prev.get("unique_visitors")))
+                   if visitors_comparable(stats) else f'<span style="color:{_MUTED}">new method</span>')
     cells = (
-        _kpi(_num(win.get("unique_visitors")), "Visitors",
-             _delta(_int(win.get("unique_visitors")), _int(prev.get("unique_visitors"))))
+        _kpi(_num(win.get("unique_visitors")), "Visitors", visitor_sub)
         + _kpi(_num(win.get("conversations")), "Chats with Atlas",
                _delta(_int(win.get("conversations")), _int(prev.get("conversations"))))
         + _kpi(_num(chats_now), "Avatar chats", avatar_sub)
@@ -404,7 +413,8 @@ def _kpis(stats: dict[str, Any], cost: dict[str, Any], images: Images) -> str:
     )
     row = (
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        f'style="margin:0 0 14px"><tr>{cells}</tr></table>'
+        f'style="margin:0 0 6px"><tr>{cells}</tr></table>'
+        f'<div style="font-size:12px;color:{_MUTED};margin:0 0 14px">{VISITOR_FOOTNOTE}</div>'
     )
     daily = stats.get("daily") or []
     alt = "Visitors and chats with Atlas per day, last 14 days: " + ", ".join(

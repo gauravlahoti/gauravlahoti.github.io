@@ -112,13 +112,12 @@ rows, confirm the aggregate query still returns the pre-delete total.
 
 Two columns need special handling, do not treat them like the others:
 
-- **`unique_visitors` is exact to sum across days, not an approximation.** `visitor_hash =
-  sha256(ip|ua|UTC_date)` bakes the date into the hash, so the same physical visitor gets a
-  different hash on different days — no hash value can appear on two different days. Summing
-  per-day distinct counts is therefore mathematically identical to a global `COUNT(DISTINCT
-  visitor_hash)`, which is itself always a "visitor-days" count, not true lifetime-unique
-  people. This was already true before the rollup existed; the rollup didn't change what the
-  metric means, only fixed it surviving deletion.
+- **`unique_visitors` summed across days is "visitor-days", not people.** Each row is one UTC
+  day's `COUNT(DISTINCT visitor_hash)`. Before spec 110 the hash was `sha256(ip|ua|UTC_date)`,
+  so no hash spanned two days and the sum was exact (but every visitor was a new one each day).
+  Since spec 110 the hash lasts a report week (see "Visitor key" below), so a repeat visitor
+  appears on several days and the sum counts them once per day. Fine as a trend; never present
+  it as unique people. `conversations`/`turns` leave out the owner's sessions from spec 110 on.
 - **`cost_usd` is a labelled approximation, not a queried fact.** It's priced with a single
   blended rate (`BLENDED_PRICE_IN_PER_1M`/`_OUT`, mirroring `ambient_send.py`'s `_PRICE_IN`/
   `_PRICE_OUT`) because Atlas's fallback cascade means a day's tokens can span more than one
@@ -179,7 +178,39 @@ recovers doesn't page anyone; only the final give-up emits `EMAIL_SEND_FAILED`.
 
 ## Analytics beacon
 
-`analytics.js` fires `navigator.sendBeacon` → `profile.links.pageviewApi` (`POST /api/pageview`) on each page load. Worker stores `{path, referrer, visitor_hash, session_id}` in `page_views` (bot traffic filtered; raw IP never stored; hash rotates daily). Lazy-loaded via `requestIdleCallback`.
+`analytics.js` fires `navigator.sendBeacon` → `profile.links.pageviewApi` (`POST /api/pageview`) on each page load. Worker stores `{path, referrer, visitor_hash, session_id}` in `page_views` (bot traffic filtered; raw IP never stored; hash rotates weekly, see below). Lazy-loaded via `requestIdleCallback`.
+
+### Visitor key (spec 110, `backend/src/visitor-key.js`)
+
+`visitor_hash = sha256(VISITOR_HASH_SECRET | report_period | ip_prefix | ua_family)[:16]`.
+
+- `report_period` rotates Monday 02:30 UTC (08:00 IST, when Pulse runs), so each Mon→Thu and
+  Thu→Mon report window sits inside one period and a repeat visitor counts once per report.
+- `ip_prefix` is the IPv4 /24 or IPv6 /48, so mobile IP churn (CGNAT, IPv6 privacy addresses)
+  doesn't split one person. `ua_family` is browser + platform without versions, so an
+  auto-update doesn't either.
+- The secret stops the small input space being brute-forced back to a network from a D1 dump.
+- Known limits: phone and laptop are two visitors; two people on one /24 with the same browser
+  and OS are one. The old daily hash inflated counts ~3–4x on a Mon→Thu report (spec 110 found
+  "19 visitors" from two cities).
+- `VISITOR_HASH_V2_SINCE` marks the cutover. `/api/ambient/stats` returns it as
+  `visitor_hash_since`, and Pulse shows "new method" instead of a ▲/▼ when the comparison span
+  starts before it.
+- `widget_events.visitor_hash` deliberately keeps the old daily full-IP hash: it only feeds the
+  per-visitor rate cap, and a /24 would let one office NAT trip the cap for everyone.
+
+### Owner traffic (spec 110)
+
+`/?owner=1` (any page, once) sets `localStorage.gl_owner` via `assets/js/owner.js`; `?owner=0`
+clears it. While set, every session id the site mints is prefixed `owner-`.
+
+- `POST /api/pageview` and `POST /api/widget-event` drop `owner-` sessions at ingest.
+- `agent_interactions` keeps them (the transcripts help debug Atlas), but every visitor-facing
+  count adds `NOT_OWNER`: conversations, top questions, the interactions Pulse reads, modes,
+  map "chatted", the 14-day chat line, the journey, the rollup's `conversations`/`turns`, and
+  the public `/api/agent-stats` and `/api/agent-geo-stats`.
+- Health and cost queries (statuses, errors, fallback, model usage, tokens, latency) keep the
+  owner's turns: an error is real whoever hit it, and the owner's tokens are billed too.
 
 `session_id` is generated once in `main.js` (`window.__portfolioSessionId`, before either the
 beacon or the chat widget lazy-load) and passed to both, so it's the *same* id as whatever

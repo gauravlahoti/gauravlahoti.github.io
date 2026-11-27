@@ -18,6 +18,9 @@ database_id = "d9a264ea-3937-4259-afd8-b237a8c068b2"
 #                          BigQuery Data Viewer + BigQuery Job User on the billing
 #                          export project
 #   RESEND_API_KEY       — Resend API key (from resend.com dashboard)
+#   VISITOR_HASH_SECRET  — random string mixed into page_views.visitor_hash
+#                          (spec 110, src/visitor-key.js). Without it the hash
+#                          falls back to a dev salt that is in the repo.
 #
 # Ambient-agent note: the ambient agent runs on Cloud Run (ADK), triggered by a
 # Claude scheduler via POST /api/ambient/run. This Worker only exposes the

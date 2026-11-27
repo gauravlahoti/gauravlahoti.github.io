@@ -107,6 +107,21 @@ async def get_recent_interactions() -> list[dict[str, Any]]:
         return []
 
 
+def visitors_comparable(stats: dict[str, Any]) -> bool:
+    """Spec 110: can this window's unique_visitors be compared with prev_window's?
+
+    The Worker switched visitor_hash from a daily key to a weekly one at
+    `visitor_hash_since`. A comparison span that starts before then was counted
+    the old way (inflated), so a ▲/▼ against it would be fake. A Worker that
+    doesn't send the field is the old one: both spans use the old key.
+    """
+    since = stats.get("visitor_hash_since")
+    prev_from = (stats.get("period") or {}).get("prev_from")
+    if not isinstance(since, (int, float)) or not isinstance(prev_from, (int, float)):
+        return True
+    return prev_from >= since
+
+
 async def get_visitor_stats() -> dict[str, Any]:
     """Return pre-aggregated site + agent metrics for the digest.
 
@@ -123,6 +138,10 @@ async def get_visitor_stats() -> dict[str, Any]:
           all_time:    {pageviews, unique_visitors, conversations, send_failures, ...}
           period: {from, to, prev_from, prev_to}  (unix seconds)
           window / prev_window: {pageviews, unique_visitors, conversations, ...}
+            unique_visitors is an estimate: one per device and network per
+            report week. The site owner's own visits and chats are left out.
+          visitors_note: present only when last week's visitors were counted
+            a different way; then never compare visitors with last week
           usage_mtd: [{model, turns, tokens_in, tokens_out, avatar_seconds}]
             this month's model usage
           model_spend_usd: {tokens, avatar, total} this month's ESTIMATED
@@ -155,6 +174,9 @@ async def get_visitor_stats() -> dict[str, Any]:
             return {}
         stats = dict(r.json())
         stats["model_spend_usd"] = estimate_model_spend(stats.get("usage_mtd") or [])
+        if not visitors_comparable(stats):
+            stats["visitors_note"] = ("Visitor counting changed after last week's period, "
+                                      "so this week's visitors can't be compared with last week's.")
         return stats
     except Exception as exc:
         logger.warning("ambient stats errored: %s", exc)

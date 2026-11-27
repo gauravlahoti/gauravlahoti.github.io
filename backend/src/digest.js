@@ -8,6 +8,13 @@
 //   Worker: (sql, b) => env.DB.prepare(sql).bind(...b).all().then(r => r.results || [])
 //   Node:   (sql, b) => db.prepare(sql).all(...b)
 
+import { NOT_OWNER } from "./visitor-key.js";
+
+// Visitor-behaviour queries (who chatted, how, when) leave out the owner's
+// own test sessions (spec 110). Health and cost queries (statuses, fallback,
+// usage) keep them: an error is a real error whoever caused it, and the
+// owner's tokens are billed like anyone's.
+
 // Statuses that are not failures, as a SQL list (spec 82). A visitor talking
 // over the avatar ends the turn on purpose. A constant, never user input.
 export const NOT_AN_ERROR = "('ok', 'interrupted', 'cancelled')";
@@ -44,14 +51,14 @@ async function modes(run, from, to) {
     const rows = await run(
         `SELECT ${MODE} AS mode, COUNT(*) AS turns, COUNT(DISTINCT session_id) AS sessions,
                 COALESCE(SUM(avatar_seconds), 0) AS avatar_seconds
-         FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?
+         FROM agent_interactions WHERE logged_at > ? AND logged_at <= ? AND ${NOT_OWNER}
          GROUP BY 1 ORDER BY turns DESC`,
         [from, to]
     );
     const firsts = await run(
         `SELECT ${MODE} AS mode, first_ms FROM agent_interactions
          WHERE logged_at > ? AND logged_at <= ? AND first_ms IS NOT NULL
-           AND status IN ('ok', 'interrupted')`,
+           AND status IN ('ok', 'interrupted') AND ${NOT_OWNER}`,
         [from, to]
     );
     const byMode = {};
@@ -138,7 +145,7 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
 
     // Sessions that talked to Atlas. Aggregate-only join on session_id, the
     // same one daily_stats' pageview_sessions_* columns use.
-    const chattedSessions = `SELECT DISTINCT session_id FROM agent_interactions WHERE logged_at > ? AND logged_at <= ?`;
+    const chattedSessions = `SELECT DISTINCT session_id FROM agent_interactions WHERE logged_at > ? AND logged_at <= ? AND ${NOT_OWNER}`;
 
     const geoPoints = await r(
         `SELECT latitude AS lat, longitude AS lon, city, country,
@@ -167,7 +174,7 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
     const chatDays = await r(
         `SELECT date(logged_at + ${IST}, 'unixepoch') AS day, COUNT(DISTINCT session_id) AS chats,
                 COUNT(DISTINCT CASE WHEN ${MODE} IN ('avatar', 'convo') THEN session_id END) AS avatar_chats
-         FROM agent_interactions WHERE logged_at >= ? AND logged_at <= ? GROUP BY 1`,
+         FROM agent_interactions WHERE logged_at >= ? AND logged_at <= ? AND ${NOT_OWNER} GROUP BY 1`,
         [dayStart, now]
     );
     const byDay = {};
@@ -221,7 +228,7 @@ export async function digestExtras(run, from, to, prevFrom, prevTo) {
                 COUNT(DISTINCT CASE WHEN session_id IN (${chattedSessions}) THEN session_id END) AS chatted,
                 COUNT(DISTINCT CASE WHEN session_id IN (
                     SELECT DISTINCT session_id FROM agent_interactions
-                    WHERE logged_at > ? AND logged_at <= ? AND ${MODE} IN ('avatar', 'convo')) THEN session_id END) AS avatar
+                    WHERE logged_at > ? AND logged_at <= ? AND ${MODE} IN ('avatar', 'convo') AND ${NOT_OWNER}) THEN session_id END) AS avatar
          FROM page_views WHERE viewed_at > ? AND viewed_at <= ? AND session_id IS NOT NULL`,
         [winStart, now, winStart, now, winStart, now]
     ))[0] || {};

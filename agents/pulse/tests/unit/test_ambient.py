@@ -613,3 +613,28 @@ def test_journey_hides_opens_before_the_beacon_has_data():
     html = ambient_send._journey({"funnel": {"sessions": 40, "chatted": 3, "avatar": 0, "emailed": 0}})
     assert "Opened Atlas" not in html and "Opened from" not in html
     assert "8% of the step before" in html  # chatted 3 of 40 visits, as before
+
+
+# --- Spec 110: honest visitor counts ------------------------------------------
+
+def test_visitor_count_is_labelled_an_estimate():
+    html = _email()
+    assert ambient_send.VISITOR_FOOTNOTE in html
+    assert "—" not in ambient_send.VISITOR_FOOTNOTE
+
+
+def test_no_visitor_delta_across_the_counting_cutover():
+    stats = {**_STATS, "visitor_hash_since": _STATS["period"]["prev_from"] + 1}
+    assert not ambient_data.visitors_comparable(stats)
+    html, _ = ambient_send.build_email(stats, _COST, _TITLES, [], "", _RECS, _PERF)
+    assert "new method" in html
+    assert "▲ 25%" not in html                            # 150 vs 120 would be a fake rise
+    assert "150 visitors (counted a new way from this report)" in html
+
+
+def test_visitor_delta_returns_once_both_spans_use_the_new_count():
+    stats = {**_STATS, "visitor_hash_since": _STATS["period"]["prev_from"]}
+    assert ambient_data.visitors_comparable(stats)
+    assert "▲ 25%" in ambient_send.build_email(stats, _COST, _TITLES, [], "", _RECS, _PERF)[0]
+    # An older Worker sends no cutover: compare as before.
+    assert ambient_data.visitors_comparable(_STATS)
